@@ -16,7 +16,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-      - run: npm ci
+      - run: npm install
       - run: npm run addons:generate
       - run: npm run checks
 
@@ -34,7 +34,7 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-      - run: npm ci
+      - run: npm install
       - run: npm run addons:generate
       - run: cd server && go build -o tinycld .
       - run: npx playwright install --with-deps chromium
