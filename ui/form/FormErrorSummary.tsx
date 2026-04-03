@@ -16,7 +16,7 @@ const flattenErrorValue = (value: unknown, keyPath: string): ErrorEntry[] => {
 
     if (Array.isArray(value)) {
         return value.flatMap((item, index) =>
-            flattenErrorValue(item, keyPath ? `${keyPath}[${index}]` : `[${index}]`),
+            flattenErrorValue(item, keyPath ? `${keyPath}[${index}]` : `[${index}]`)
         )
     }
 
@@ -27,10 +27,7 @@ const flattenErrorValue = (value: unknown, keyPath: string): ErrorEntry[] => {
     return typeof value === 'string' ? [{ key: keyPath || 'form', message: value }] : []
 }
 
-const flattenRecordErrors = (
-    record: Record<string, unknown>,
-    keyPath: string,
-): ErrorEntry[] => {
+const flattenRecordErrors = (record: Record<string, unknown>, keyPath: string): ErrorEntry[] => {
     const currentKey = keyPath || 'form'
     const entries: ErrorEntry[] = []
 
@@ -86,7 +83,7 @@ export function FormErrorSummary({
             <SizableText size="$3" fontWeight="600" color="$red8" marginBottom="$2">
                 {title}
             </SizableText>
-            {errorEntries.map((entry) => (
+            {errorEntries.map(entry => (
                 <SizableText
                     key={`${entry.key}-${entry.message}`}
                     size="$2"

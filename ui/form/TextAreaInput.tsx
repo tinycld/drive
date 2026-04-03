@@ -1,9 +1,15 @@
 import type { ComponentType } from 'react'
 import { type Control, type FieldValues, type Path, useController } from 'react-hook-form'
-import { type TextInputProps as RNTextInputProps } from 'react-native'
-import { SizableText, TextArea, XStack, YStack, useTheme, type YStackProps } from 'tamagui'
+import type { TextInputProps as RNTextInputProps } from 'react-native'
+import { SizableText, TextArea, useTheme, XStack, YStack, type YStackProps } from 'tamagui'
 
-function LabelRow({ label, icon: Icon }: { label: string; icon?: ComponentType<{ size: number; color: string }> }) {
+function LabelRow({
+    label,
+    icon: Icon,
+}: {
+    label: string
+    icon?: ComponentType<{ size: number; color: string }>
+}) {
     const theme = useTheme()
     if (!Icon) {
         return (
@@ -37,7 +43,7 @@ export type TextAreaInputProps<T extends FieldValues = Record<string, unknown>> 
 }
 
 export function TextAreaInput<T extends FieldValues = Record<string, unknown>>(
-    props: TextAreaInputProps<T>,
+    props: TextAreaInputProps<T>
 ) {
     const {
         label,
@@ -60,9 +66,7 @@ export function TextAreaInput<T extends FieldValues = Record<string, unknown>>(
 
     return (
         <YStack gap="$1.5" marginBottom="$3" {...wrapperProps}>
-            {label ? (
-                <LabelRow label={label} icon={LabelIcon} />
-            ) : null}
+            {label ? <LabelRow label={label} icon={LabelIcon} /> : null}
             <TextArea
                 size="$4"
                 numberOfLines={numberOfLines}

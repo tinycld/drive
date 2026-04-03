@@ -1,7 +1,7 @@
 import { Redirect } from 'one'
-import { useAuth } from '~/lib/auth'
 import { LoginModal } from '~/components/workspace/LoginModal'
 import { SkeletonLayout } from '~/components/workspace/SkeletonLayout'
+import { useAuth } from '~/lib/auth'
 
 export default function Index() {
     const auth = useAuth({ throwIfAnon: false })

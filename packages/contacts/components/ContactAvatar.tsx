@@ -31,15 +31,19 @@ export function ContactAvatar({ firstName, lastName, size = 40 }: ContactAvatarP
     const theme = useTheme()
     const fullName = `${firstName} ${lastName ?? ''}`.trim()
     const colorToken = AVATAR_COLORS[hashName(fullName) % AVATAR_COLORS.length]
-    const backgroundColor = theme[colorToken.replace('$', '') as keyof typeof theme]?.val ?? theme.blue8.val
+    const backgroundColor =
+        theme[colorToken.replace('$', '') as keyof typeof theme]?.val ?? theme.blue8.val
     const letter = (firstName[0] ?? '?').toUpperCase()
     const fontSize = size * 0.42
 
     return (
-        <View style={[styles.container, { width: size, height: size, borderRadius: size / 2, backgroundColor }]}>
-            <Text style={[styles.letter, { fontSize, lineHeight: size }]}>
-                {letter}
-            </Text>
+        <View
+            style={[
+                styles.container,
+                { width: size, height: size, borderRadius: size / 2, backgroundColor },
+            ]}
+        >
+            <Text style={[styles.letter, { fontSize, lineHeight: size }]}>{letter}</Text>
         </View>
     )
 }

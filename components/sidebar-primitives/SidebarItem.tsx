@@ -16,16 +16,10 @@ export function SidebarItem({ label, icon: Icon, isActive, badge, onPress }: Sid
     return (
         <Pressable
             onPress={onPress}
-            style={[
-                styles.item,
-                isActive && { backgroundColor: theme.activeIndicator.val + '18' },
-            ]}
+            style={[styles.item, isActive && { backgroundColor: `${theme.activeIndicator.val}18` }]}
         >
             {Icon && (
-                <Icon
-                    size={18}
-                    color={isActive ? theme.activeIndicator.val : theme.color8.val}
-                />
+                <Icon size={18} color={isActive ? theme.activeIndicator.val : theme.color8.val} />
             )}
             <Text
                 style={[
@@ -38,10 +32,8 @@ export function SidebarItem({ label, icon: Icon, isActive, badge, onPress }: Sid
                 {label}
             </Text>
             {badge != null && (
-                <View style={[styles.badge, { backgroundColor: theme.color8.val + '30' }]}>
-                    <Text style={[styles.badgeText, { color: theme.color8.val }]}>
-                        {badge}
-                    </Text>
+                <View style={[styles.badge, { backgroundColor: `${theme.color8.val}30` }]}>
+                    <Text style={[styles.badgeText, { color: theme.color8.val }]}>{badge}</Text>
                 </View>
             )}
         </Pressable>

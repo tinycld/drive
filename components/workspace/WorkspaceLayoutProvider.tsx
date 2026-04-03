@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useBreakpoint, type Breakpoint } from './useBreakpoint'
+import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
+import { type Breakpoint, useBreakpoint } from './useBreakpoint'
 
 interface WorkspaceLayoutContextValue {
     activeAddonSlug: string | null
@@ -22,13 +22,13 @@ export function WorkspaceLayoutProvider({ children }: { children: ReactNode }) {
     const [isSidebarOpen, setSidebarOpen] = useState(true)
 
     useEffect(() => {
-        AsyncStorage.getItem(SIDEBAR_KEY).then((val) => {
+        AsyncStorage.getItem(SIDEBAR_KEY).then(val => {
             if (val !== null) setSidebarOpen(val === 'true')
         })
     }, [])
 
     const toggleSidebar = useCallback(() => {
-        setSidebarOpen((prev) => {
+        setSidebarOpen(prev => {
             const next = !prev
             AsyncStorage.setItem(SIDEBAR_KEY, String(next))
             return next
@@ -49,12 +49,10 @@ export function WorkspaceLayoutProvider({ children }: { children: ReactNode }) {
             setSidebarOpen: handleSetSidebarOpen,
             setActiveAddonSlug,
         }),
-        [activeAddonSlug, isSidebarOpen, breakpoint, toggleSidebar, handleSetSidebarOpen],
+        [activeAddonSlug, isSidebarOpen, breakpoint, toggleSidebar, handleSetSidebarOpen]
     )
 
     return (
-        <WorkspaceLayoutContext.Provider value={value}>
-            {children}
-        </WorkspaceLayoutContext.Provider>
+        <WorkspaceLayoutContext.Provider value={value}>{children}</WorkspaceLayoutContext.Provider>
     )
 }

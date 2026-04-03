@@ -1,6 +1,6 @@
 /// <reference path="../../../server/pb_data/types.d.ts" />
 migrate(
-    (app) => {
+    app => {
         const collection = app.findCollectionByNameOrId('contacts')
 
         // Migrate existing name data: split at first space into first_name + last_name
@@ -20,20 +20,12 @@ migrate(
 
         // Add new fields
         collection.fields.add(
-            new TextField({ name: 'first_name', required: true, min: 1, max: 100 }),
+            new TextField({ name: 'first_name', required: true, min: 1, max: 100 })
         )
-        collection.fields.add(
-            new TextField({ name: 'last_name', required: false, max: 100 }),
-        )
-        collection.fields.add(
-            new TextField({ name: 'company', required: false, max: 200 }),
-        )
-        collection.fields.add(
-            new TextField({ name: 'job_title', required: false, max: 200 }),
-        )
-        collection.fields.add(
-            new BoolField({ name: 'favorite' }),
-        )
+        collection.fields.add(new TextField({ name: 'last_name', required: false, max: 100 }))
+        collection.fields.add(new TextField({ name: 'company', required: false, max: 200 }))
+        collection.fields.add(new TextField({ name: 'job_title', required: false, max: 200 }))
+        collection.fields.add(new BoolField({ name: 'favorite' }))
 
         // Update indexes
         collection.indexes = [
@@ -54,7 +46,7 @@ migrate(
             }
         }
     },
-    (app) => {
+    app => {
         const collection = app.findCollectionByNameOrId('contacts')
 
         // Recombine first_name + last_name into name
@@ -63,7 +55,7 @@ migrate(
         for (const record of records) {
             const first = record.get('first_name') || ''
             const last = record.get('last_name') || ''
-            nameMap[record.id] = (first + ' ' + last).trim()
+            nameMap[record.id] = `${first} ${last}`.trim()
         }
 
         // Remove new fields
@@ -74,9 +66,7 @@ migrate(
         collection.fields.removeByName('favorite')
 
         // Re-add name field
-        collection.fields.add(
-            new TextField({ name: 'name', required: true, min: 1, max: 200 }),
-        )
+        collection.fields.add(new TextField({ name: 'name', required: true, min: 1, max: 200 }))
 
         // Restore indexes
         collection.indexes = [
@@ -94,5 +84,5 @@ migrate(
                 app.save(record)
             }
         }
-    },
+    }
 )

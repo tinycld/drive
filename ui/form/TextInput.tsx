@@ -1,9 +1,15 @@
 import type { ComponentType } from 'react'
 import { type Control, type FieldValues, type Path, useController } from 'react-hook-form'
-import { type TextInputProps as RNTextInputProps } from 'react-native'
-import { Input, SizableText, XStack, YStack, useTheme, type YStackProps } from 'tamagui'
+import type { TextInputProps as RNTextInputProps } from 'react-native'
+import { Input, SizableText, useTheme, XStack, YStack, type YStackProps } from 'tamagui'
 
-function LabelRow({ label, icon: Icon }: { label: string; icon?: ComponentType<{ size: number; color: string }> }) {
+function LabelRow({
+    label,
+    icon: Icon,
+}: {
+    label: string
+    icon?: ComponentType<{ size: number; color: string }>
+}) {
     const theme = useTheme()
     if (!Icon) {
         return (
@@ -36,9 +42,18 @@ export type TextInputProps<T extends FieldValues = Record<string, unknown>> = Om
 }
 
 export function TextInput<T extends FieldValues = Record<string, unknown>>(
-    props: TextInputProps<T>,
+    props: TextInputProps<T>
 ) {
-    const { label, labelIcon: LabelIcon, hint, name, control, rules, wrapperProps = {}, ...inputProps } = props
+    const {
+        label,
+        labelIcon: LabelIcon,
+        hint,
+        name,
+        control,
+        rules,
+        wrapperProps = {},
+        ...inputProps
+    } = props
     const {
         field,
         fieldState: { error },
@@ -48,9 +63,7 @@ export function TextInput<T extends FieldValues = Record<string, unknown>>(
 
     return (
         <YStack gap="$1.5" marginBottom="$3" {...wrapperProps}>
-            {label ? (
-                <LabelRow label={label} icon={LabelIcon} />
-            ) : null}
+            {label ? <LabelRow label={label} icon={LabelIcon} /> : null}
             <Input
                 size="$4"
                 value={field.value || ''}

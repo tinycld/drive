@@ -41,7 +41,7 @@ export function SelectInput<T extends FieldValues = Record<string, unknown>>({
                 </SizableText>
             ) : null}
             <Container gap={horizontal ? '$2' : '$1'} flexWrap={horizontal ? 'wrap' : undefined}>
-                {options.map((option) => {
+                {options.map(option => {
                     const isSelected = field.value === option.value
                     return (
                         <Button

@@ -1,5 +1,5 @@
 import { Home } from 'lucide-react-native'
-import { useRouter, type Href } from 'one'
+import { type Href, useRouter } from 'one'
 import { SidebarItem, SidebarNav } from '~/components/sidebar-primitives'
 
 interface AddonSidebarFallbackProps {

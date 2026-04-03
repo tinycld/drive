@@ -2,7 +2,15 @@ import { useEffect, useRef } from 'react'
 import { Animated, Platform, StyleSheet, View } from 'react-native'
 import { useTheme } from 'tamagui'
 
-function SkeletonBlock({ width, height, style }: { width: number | string; height: number; style?: object }) {
+function SkeletonBlock({
+    width,
+    height,
+    style,
+}: {
+    width: number | string
+    height: number
+    style?: object
+}) {
     const theme = useTheme()
     const opacity = useRef(new Animated.Value(0.3)).current
 
@@ -11,7 +19,7 @@ function SkeletonBlock({ width, height, style }: { width: number | string; heigh
             Animated.sequence([
                 Animated.timing(opacity, { toValue: 0.7, duration: 800, useNativeDriver: true }),
                 Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
-            ]),
+            ])
         )
         animation.start()
         return () => animation.stop()
@@ -20,7 +28,13 @@ function SkeletonBlock({ width, height, style }: { width: number | string; heigh
     return (
         <Animated.View
             style={[
-                { width: width as number, height, borderRadius: 8, backgroundColor: theme.borderColor.val, opacity },
+                {
+                    width: width as number,
+                    height,
+                    borderRadius: 8,
+                    backgroundColor: theme.borderColor.val,
+                    opacity,
+                },
                 style,
             ]}
         />
@@ -33,7 +47,9 @@ function SkeletonRail() {
         <View style={[skeletonStyles.rail, { backgroundColor: theme.railBackground.val }]}>
             <View style={skeletonStyles.railTop}>
                 <SkeletonBlock width={36} height={36} style={{ borderRadius: 10, opacity: 0.15 }} />
-                <View style={[skeletonStyles.railDivider, { backgroundColor: theme.railText.val }]} />
+                <View
+                    style={[skeletonStyles.railDivider, { backgroundColor: theme.railText.val }]}
+                />
                 <SkeletonBlock width={36} height={36} style={{ borderRadius: 10, opacity: 0.15 }} />
                 <SkeletonBlock width={36} height={36} style={{ borderRadius: 10, opacity: 0.15 }} />
                 <SkeletonBlock width={36} height={36} style={{ borderRadius: 10, opacity: 0.15 }} />
@@ -49,12 +65,23 @@ function SkeletonRail() {
 function SkeletonSidebar({ width }: { width: number }) {
     const theme = useTheme()
     return (
-        <View style={[skeletonStyles.sidebar, { width, backgroundColor: theme.sidebarBackground.val, borderRightColor: theme.borderColor.val }]}>
+        <View
+            style={[
+                skeletonStyles.sidebar,
+                {
+                    width,
+                    backgroundColor: theme.sidebarBackground.val,
+                    borderRightColor: theme.borderColor.val,
+                },
+            ]}
+        >
             <SkeletonBlock width={100} height={11} style={{ marginBottom: 12, marginTop: 20 }} />
             <SkeletonBlock width="85%" height={32} style={{ marginBottom: 4 }} />
             <SkeletonBlock width="85%" height={32} style={{ marginBottom: 4 }} />
             <SkeletonBlock width="85%" height={32} style={{ marginBottom: 16 }} />
-            <View style={[skeletonStyles.sidebarDivider, { backgroundColor: theme.borderColor.val }]} />
+            <View
+                style={[skeletonStyles.sidebarDivider, { backgroundColor: theme.borderColor.val }]}
+            />
             <SkeletonBlock width={80} height={11} style={{ marginBottom: 12, marginTop: 8 }} />
             <SkeletonBlock width="85%" height={32} style={{ marginBottom: 4 }} />
             <SkeletonBlock width="85%" height={32} />

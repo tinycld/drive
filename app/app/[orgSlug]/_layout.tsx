@@ -3,9 +3,9 @@ import { useEffect } from 'react'
 import { Platform } from 'react-native'
 import { LoginModal } from '~/components/workspace/LoginModal'
 import { SkeletonLayout } from '~/components/workspace/SkeletonLayout'
+import { useWorkspaceLayout } from '~/components/workspace/useWorkspaceLayout'
 import { WorkspaceLayout } from '~/components/workspace/WorkspaceLayout'
 import { WorkspaceLayoutProvider } from '~/components/workspace/WorkspaceLayoutProvider'
-import { useWorkspaceLayout } from '~/components/workspace/useWorkspaceLayout'
 import { useAuth } from '~/lib/auth'
 
 export default function OrgLayout() {

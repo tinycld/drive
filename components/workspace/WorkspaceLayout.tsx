@@ -55,7 +55,10 @@ function SidebarOverlay({
 
     return (
         <View style={styles.overlay}>
-            <Pressable style={[styles.overlayBackdrop, { backgroundColor: overlayColor }]} onPress={onDismiss} />
+            <Pressable
+                style={[styles.overlayBackdrop, { backgroundColor: overlayColor }]}
+                onPress={onDismiss}
+            />
             <View style={styles.overlayPanel}>
                 <AddonSidebar orgSlug={orgSlug} width={SIDEBAR_WIDTH} />
             </View>

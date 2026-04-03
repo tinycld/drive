@@ -1,13 +1,13 @@
-import { useParams, useRouter } from 'one'
-import { useLiveQuery } from '@tanstack/react-db'
 import { eq } from '@tanstack/db'
-import { Pressable } from 'react-native'
+import { useLiveQuery } from '@tanstack/react-db'
 import { ArrowLeft, Star } from 'lucide-react-native'
-import { YStack, XStack, SizableText, Button, ScrollView, useTheme } from 'tamagui'
-import { useForm, zodResolver } from '~/ui/form'
-import { useStore } from '~/lib/pocketbase'
-import { useMutation } from '~/lib/mutations'
+import { useParams, useRouter } from 'one'
+import { Pressable } from 'react-native'
+import { Button, ScrollView, SizableText, useTheme, XStack, YStack } from 'tamagui'
 import { handleMutationErrorsWithForm } from '~/lib/errors'
+import { useMutation } from '~/lib/mutations'
+import { useStore } from '~/lib/pocketbase'
+import { useForm, zodResolver } from '~/ui/form'
 import { ContactAvatar } from '../components/ContactAvatar'
 import { ContactForm } from '../components/ContactForm'
 import { contactSchema } from '../components/contactSchema'
@@ -19,11 +19,11 @@ export default function ContactDetailScreen() {
     const [contactsCollection] = useStore('contacts')
 
     const { data } = useLiveQuery(
-        (query) =>
+        query =>
             query
                 .from({ contacts: contactsCollection })
                 .where(({ contacts }) => eq(contacts.id, id)),
-        [id],
+        [id]
     )
 
     const contact = data?.[0] ?? null
@@ -37,16 +37,18 @@ export default function ContactDetailScreen() {
     } = useForm({
         mode: 'onChange',
         resolver: zodResolver(contactSchema),
-        values: contact ? {
-            first_name: contact.first_name ?? '',
-            last_name: contact.last_name ?? '',
-            email: contact.email ?? '',
-            phone: contact.phone ?? '',
-            company: contact.company ?? '',
-            job_title: contact.job_title ?? '',
-            notes: contact.notes ?? '',
-            favorite: contact.favorite ?? false,
-        } : undefined,
+        values: contact
+            ? {
+                  first_name: contact.first_name ?? '',
+                  last_name: contact.last_name ?? '',
+                  email: contact.email ?? '',
+                  phone: contact.phone ?? '',
+                  company: contact.company ?? '',
+                  job_title: contact.job_title ?? '',
+                  notes: contact.notes ?? '',
+                  favorite: contact.favorite ?? false,
+              }
+            : undefined,
         defaultValues: {
             first_name: '',
             last_name: '',
@@ -60,8 +62,17 @@ export default function ContactDetailScreen() {
     })
 
     const updateContact = useMutation({
-        mutationFn: function* (formData: { first_name: string; last_name: string; email: string; phone: string; company: string; job_title: string; notes: string; favorite: boolean }) {
-            yield contactsCollection.update(id, (draft) => {
+        mutationFn: function* (formData: {
+            first_name: string
+            last_name: string
+            email: string
+            phone: string
+            company: string
+            job_title: string
+            notes: string
+            favorite: boolean
+        }) {
+            yield contactsCollection.update(id, draft => {
                 draft.first_name = formData.first_name.trim()
                 draft.last_name = formData.last_name.trim()
                 draft.email = formData.email
@@ -78,13 +89,13 @@ export default function ContactDetailScreen() {
     const toggleFavorite = useMutation({
         mutationFn: function* () {
             if (!contact) return
-            yield contactsCollection.update(id, (draft) => {
+            yield contactsCollection.update(id, draft => {
                 draft.favorite = !contact.favorite
             })
         },
     })
 
-    const onSubmit = handleSubmit((formData) => updateContact.mutate(formData))
+    const onSubmit = handleSubmit(formData => updateContact.mutate(formData))
 
     if (!contact) {
         return (
@@ -128,7 +139,11 @@ export default function ContactDetailScreen() {
                 </XStack>
 
                 <YStack alignItems="center" marginBottom="$5" gap="$2">
-                    <ContactAvatar firstName={contact.first_name} lastName={contact.last_name} size={80} />
+                    <ContactAvatar
+                        firstName={contact.first_name}
+                        lastName={contact.last_name}
+                        size={80}
+                    />
                     <SizableText size="$7" fontWeight="bold" color="$color">
                         {displayName}
                     </SizableText>

@@ -21,7 +21,7 @@ export async function performMutations<TResult = void>(
         Transaction<Record<string, unknown>> | Transaction<Record<string, unknown>>[],
         TResult,
         void
-    >,
+    >
 ): Promise<TResult> {
     const gen = fn()
 
@@ -29,7 +29,7 @@ export async function performMutations<TResult = void>(
     while (!result.done) {
         const value = result.value
         if (Array.isArray(value)) {
-            await Promise.all(value.map((tx) => tx.isPersisted.promise))
+            await Promise.all(value.map(tx => tx.isPersisted.promise))
         } else {
             await value.isPersisted.promise
         }
@@ -44,7 +44,7 @@ type GeneratorMutationOptions<TData = unknown, TError = Error, TVariables = void
     'mutationFn'
 > & {
     mutationFn: (
-        variables: TVariables,
+        variables: TVariables
     ) => Generator<
         Transaction<Record<string, unknown>> | Transaction<Record<string, unknown>>[],
         TData,
@@ -52,8 +52,11 @@ type GeneratorMutationOptions<TData = unknown, TError = Error, TVariables = void
     >
 }
 
-type AsyncMutationOptions<TData = unknown, TError = Error, TVariables = void> =
-    UseMutationOptions<TData, TError, TVariables>
+type AsyncMutationOptions<TData = unknown, TError = Error, TVariables = void> = UseMutationOptions<
+    TData,
+    TError,
+    TVariables
+>
 
 /**
  * Wraps TanStack Query's useMutation with support for generator-based mutation functions.
@@ -86,12 +89,11 @@ type AsyncMutationOptions<TData = unknown, TError = Error, TVariables = void> =
 export function useMutation<TData = unknown, TError = Error, TVariables = void>(
     options:
         | GeneratorMutationOptions<TData, TError, TVariables>
-        | AsyncMutationOptions<TData, TError, TVariables>,
+        | AsyncMutationOptions<TData, TError, TVariables>
 ): UseMutationResult<TData, TError, TVariables> {
     const { mutationFn, ...restOptions } = options
 
-    const isGeneratorFn =
-        mutationFn && mutationFn.constructor.name === 'GeneratorFunction'
+    const isGeneratorFn = mutationFn && mutationFn.constructor.name === 'GeneratorFunction'
 
     const wrappedOptions = isGeneratorFn
         ? {
@@ -100,14 +102,14 @@ export function useMutation<TData = unknown, TError = Error, TVariables = void>(
                   return await performMutations(() =>
                       (
                           mutationFn as (
-                              variables: TVariables,
+                              variables: TVariables
                           ) => Generator<
                               | Transaction<Record<string, unknown>>
                               | Transaction<Record<string, unknown>>[],
                               TData,
                               void
                           >
-                      )(variables),
+                      )(variables)
                   )
               },
           }

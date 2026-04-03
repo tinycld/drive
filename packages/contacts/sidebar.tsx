@@ -1,15 +1,11 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { Users, Star } from 'lucide-react-native'
-import { useRouter, usePathname, type Href } from 'one'
-import { useLiveQuery } from '@tanstack/react-db'
 import { eq } from '@tanstack/db'
+import { useLiveQuery } from '@tanstack/react-db'
+import { Star, Users } from 'lucide-react-native'
+import { type Href, usePathname, useRouter } from 'one'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
+import { SidebarDivider, SidebarItem, SidebarNav } from '~/components/sidebar-primitives'
 import { useStore } from '~/lib/pocketbase'
-import {
-    SidebarDivider,
-    SidebarItem,
-    SidebarNav,
-} from '~/components/sidebar-primitives'
 
 interface ContactsSidebarProps {
     orgSlug: string
@@ -23,14 +19,14 @@ export default function ContactsSidebar({ orgSlug, basePath }: ContactsSidebarPr
     const theme = useTheme()
     const [contactsCollection] = useStore('contacts')
 
-    const { data: allContacts } = useLiveQuery((query) =>
-        query.from({ contacts: contactsCollection }),
+    const { data: allContacts } = useLiveQuery(query =>
+        query.from({ contacts: contactsCollection })
     )
 
-    const { data: favoriteContacts } = useLiveQuery((query) =>
+    const { data: favoriteContacts } = useLiveQuery(query =>
         query
             .from({ contacts: contactsCollection })
-            .where(({ contacts }) => eq(contacts.favorite, true)),
+            .where(({ contacts }) => eq(contacts.favorite, true))
     )
 
     const totalCount = allContacts?.length ?? 0
@@ -50,7 +46,7 @@ export default function ContactsSidebar({ orgSlug, basePath }: ContactsSidebarPr
                 label="Contacts"
                 icon={Users}
                 badge={totalCount}
-                isActive={pathname === basePath || pathname === basePath + '/'}
+                isActive={pathname === basePath || pathname === `${basePath}/`}
                 onPress={() => router.push(basePath as Href)}
             />
             <SidebarItem

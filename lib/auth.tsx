@@ -1,12 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import {
-    createContext,
-    type ReactNode,
-    useCallback,
-    useContext,
-    useEffect,
-    useState,
-} from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react'
 import {
     authStoreReady,
     clearStores,
@@ -129,28 +122,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return unsubscribe
     }, [refreshUser])
 
-    const login = async (
-        email: string,
-        password: string,
-    ): Promise<LoginResult> => {
+    const login = async (email: string, password: string): Promise<LoginResult> => {
         pb.authStore.clear()
         try {
-            const authData = await pb
-                .collection('users')
-                .authWithPassword<
-                    Users & {
-                        expand?: {
-                            user_org_via_user?: UserOrgExpanded[]
-                        }
+            const authData = await pb.collection('users').authWithPassword<
+                Users & {
+                    expand?: {
+                        user_org_via_user?: UserOrgExpanded[]
                     }
-                >(email, password, {
-                    expand: 'user_org_via_user.org',
-                })
-            const userOrgs =
-                authData.record.expand?.user_org_via_user ?? []
-            const firstUserOrgWithSlug = userOrgs.find(
-                (uo) => uo.expand?.org?.slug,
-            )
+                }
+            >(email, password, {
+                expand: 'user_org_via_user.org',
+            })
+            const userOrgs = authData.record.expand?.user_org_via_user ?? []
+            const firstUserOrgWithSlug = userOrgs.find(uo => uo.expand?.org?.slug)
 
             if (!firstUserOrgWithSlug?.expand?.org) {
                 pb.authStore.clear()
@@ -170,11 +155,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             }
 
             const { expand: _, ...userOrgRecord } = firstUserOrgWithSlug
-            await seedUserOrg(
-                authData.record,
-                firstUserOrgWithSlug.expand.org,
-                userOrgRecord,
-            )
+            await seedUserOrg(authData.record, firstUserOrgWithSlug.expand.org, userOrgRecord)
 
             await savePrimaryOrgToStorage(primaryOrgSlug)
             setUser(authenticatedUser)
@@ -182,10 +163,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
             return { user: authenticatedUser, error: null }
         } catch (error) {
-            const message =
-                error instanceof Error
-                    ? error.message
-                    : 'Failed to sign in'
+            const message = error instanceof Error ? error.message : 'Failed to sign in'
             return { user: null, error: message }
         }
     }
@@ -215,11 +193,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               isInitializing: !hasHydrated,
           }
 
-    return (
-        <AuthContext.Provider value={contextValue}>
-            {children}
-        </AuthContext.Provider>
-    )
+    return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
 }
 
 export function useAuth(): AuthenticatedContext
@@ -235,9 +209,7 @@ export function useAuth(options?: {
 
     const throwIfAnon = options?.throwIfAnon ?? true
     if (throwIfAnon && !context.isLoggedIn && !context.isInitializing) {
-        throw new AuthRequiredError(
-            'User must be authenticated to access this resource',
-        )
+        throw new AuthRequiredError('User must be authenticated to access this resource')
     }
 
     if (throwIfAnon) {

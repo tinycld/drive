@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 
 export default function SettingsTab() {
@@ -7,7 +7,9 @@ export default function SettingsTab() {
     return (
         <View style={styles.container}>
             <Text style={styles.title}>Settings Tab</Text>
-            <Text style={[styles.description, { color: theme.color8.val }]}>App settings and preferences go here.</Text>
+            <Text style={[styles.description, { color: theme.color8.val }]}>
+                App settings and preferences go here.
+            </Text>
         </View>
     )
 }

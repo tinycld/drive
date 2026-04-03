@@ -1,5 +1,5 @@
-import { Tabs, TabList, TabTrigger, TabSlot } from 'one/ui'
-import { View, Text, Pressable, StyleSheet } from 'react-native'
+import { TabList, TabSlot, Tabs, TabTrigger } from 'one/ui'
+import { Pressable, StyleSheet, Text } from 'react-native'
 import { useTheme } from 'tamagui'
 
 export default function TabsLayout() {
@@ -8,7 +8,15 @@ export default function TabsLayout() {
     return (
         <Tabs style={styles.container}>
             <TabSlot />
-            <TabList style={[styles.tabBar, { backgroundColor: theme.backgroundHover.val, borderTopColor: theme.borderColor.val }]}>
+            <TabList
+                style={[
+                    styles.tabBar,
+                    {
+                        backgroundColor: theme.backgroundHover.val,
+                        borderTopColor: theme.borderColor.val,
+                    },
+                ]}
+            >
                 <TabTrigger name="home" href="/tabs" asChild>
                     <CustomTab theme={theme}>Home</CustomTab>
                 </TabTrigger>
@@ -23,13 +31,23 @@ export default function TabsLayout() {
     )
 }
 
-function CustomTab({ children, isFocused, theme, ...props }: any) {
+interface CustomTabProps {
+    children: React.ReactNode
+    isFocused?: boolean
+    theme: ReturnType<typeof useTheme>
+    [key: string]: unknown
+}
+
+function CustomTab({ children, isFocused, theme, ...props }: CustomTabProps) {
     return (
         <Pressable
             {...props}
             style={[
                 styles.tab,
-                isFocused && { borderBottomWidth: 2, borderBottomColor: theme.accentBackground.val },
+                isFocused && {
+                    borderBottomWidth: 2,
+                    borderBottomColor: theme.accentBackground.val,
+                },
             ]}
         >
             <Text

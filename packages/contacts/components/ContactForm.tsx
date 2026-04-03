@@ -1,8 +1,8 @@
+import { Building2, FileText, Mail, Phone, User } from 'lucide-react-native'
 import type { Control, FieldErrors } from 'react-hook-form'
-import type { z } from 'zod'
-import { User, Building2, Mail, Phone, FileText } from 'lucide-react-native'
 import { XStack, YStack } from 'tamagui'
-import { TextInput, TextAreaInput, Toggle, FormErrorSummary } from '~/ui/form'
+import type { z } from 'zod'
+import { FormErrorSummary, TextAreaInput, TextInput, Toggle } from '~/ui/form'
 import type { contactSchema } from './contactSchema'
 
 type ContactFormValues = z.infer<typeof contactSchema>
@@ -82,11 +82,7 @@ export function ContactForm({ control, errors, isSubmitted }: ContactFormProps) 
                 numberOfLines={3}
             />
 
-            <Toggle
-                name="favorite"
-                control={control}
-                label="Favorite"
-            />
+            <Toggle name="favorite" control={control} label="Favorite" />
         </YStack>
     )
 }

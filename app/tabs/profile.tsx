@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 
 export default function ProfileTab() {
@@ -7,7 +7,9 @@ export default function ProfileTab() {
     return (
         <View style={styles.container}>
             <Text style={styles.title}>Profile Tab</Text>
-            <Text style={[styles.description, { color: theme.color8.val }]}>Your profile information goes here.</Text>
+            <Text style={[styles.description, { color: theme.color8.val }]}>
+                Your profile information goes here.
+            </Text>
         </View>
     )
 }

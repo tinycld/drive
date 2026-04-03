@@ -1,6 +1,6 @@
 import { type Control, type FieldValues, type Path, useController } from 'react-hook-form'
 import { Switch } from 'react-native'
-import { SizableText, XStack, YStack, useTheme, type YStackProps } from 'tamagui'
+import { SizableText, useTheme, XStack, YStack, type YStackProps } from 'tamagui'
 
 export type ToggleProps<T extends FieldValues = Record<string, unknown>> = {
     name: Path<T>

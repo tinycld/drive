@@ -2,11 +2,11 @@ import {
     Building2,
     Calendar,
     Home,
+    type LucideIcon,
     Mail,
     Settings,
     User,
     Users,
-    type LucideIcon,
 } from 'lucide-react-native'
 import { useRouter } from 'one'
 import { Pressable, StyleSheet, View } from 'react-native'
@@ -36,9 +36,7 @@ export function AddonRail({ orgSlug }: { orgSlug: string }) {
     const { logout } = useAuth()
     const router = useRouter()
 
-    const sorted = [...addons].sort(
-        (a, b) => (a.nav.order ?? 99) - (b.nav.order ?? 99),
-    )
+    const sorted = [...addons].sort((a, b) => (a.nav.order ?? 99) - (b.nav.order ?? 99))
 
     return (
         <View style={[styles.rail, { backgroundColor: theme.railBackground.val }]}>
@@ -53,7 +51,7 @@ export function AddonRail({ orgSlug }: { orgSlug: string }) {
 
                 <View style={[styles.divider, { backgroundColor: theme.railText.val }]} />
 
-                {sorted.map((addon) => {
+                {sorted.map(addon => {
                     const Icon = getIcon(addon.nav.icon)
                     const isActive = activeAddonSlug === addon.slug
                     return (
@@ -80,11 +78,7 @@ export function AddonRail({ orgSlug }: { orgSlug: string }) {
                     <Settings size={22} color={theme.railText.val} />
                 </Pressable>
 
-                <Pressable
-                    onPress={logout}
-                    style={styles.avatar}
-                    accessibilityLabel="Sign out"
-                >
+                <Pressable onPress={logout} style={styles.avatar} accessibilityLabel="Sign out">
                     <User size={20} color={theme.railActiveText.val} />
                 </Pressable>
             </View>
@@ -114,19 +108,11 @@ function AddonRailItem({
     return (
         <Pressable
             onPress={() => router.push(`/app/${orgSlug}/${slug}`)}
-            style={[
-                styles.railItem,
-                isActive && { backgroundColor: activeColor + '22' },
-            ]}
+            style={[styles.railItem, isActive && { backgroundColor: `${activeColor}22` }]}
             accessibilityLabel={label}
         >
             {isActive && (
-                <View
-                    style={[
-                        styles.activeIndicator,
-                        { backgroundColor: activeColor },
-                    ]}
-                />
+                <View style={[styles.activeIndicator, { backgroundColor: activeColor }]} />
             )}
             <Icon size={22} color={textColor} />
         </Pressable>

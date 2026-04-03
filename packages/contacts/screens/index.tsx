@@ -1,12 +1,12 @@
-import { useState } from 'react'
-import { Link, type Href } from 'one'
-import { Pressable } from 'react-native'
 import { useLiveQuery } from '@tanstack/react-db'
 import { Star } from 'lucide-react-native'
+import { type Href, Link } from 'one'
+import { useState } from 'react'
+import { Pressable } from 'react-native'
+import { Input, SizableText, useTheme, XStack, YStack } from 'tamagui'
+import { useMutation } from '~/lib/mutations'
 import { useStore } from '~/lib/pocketbase'
 import { useOrgInfo } from '~/lib/use-org-info'
-import { useMutation } from '~/lib/mutations'
-import { YStack, XStack, SizableText, Input, useTheme } from 'tamagui'
 import { ContactAvatar } from '../components/ContactAvatar'
 
 export default function ContactListScreen() {
@@ -15,15 +15,15 @@ export default function ContactListScreen() {
     const [searchQuery, setSearchQuery] = useState('')
     const newContactHref = `/app/${orgSlug}/contacts/new` as Href
 
-    const { data: contacts, isLoading } = useLiveQuery((query) =>
+    const { data: contacts, isLoading } = useLiveQuery(query =>
         query
             .from({ contacts: contactsCollection })
-            .orderBy(({ contacts }) => contacts.first_name, 'asc'),
+            .orderBy(({ contacts }) => contacts.first_name, 'asc')
     )
 
     const toggleFavorite = useMutation({
         mutationFn: function* ({ id, currentFavorite }: { id: string; currentFavorite: boolean }) {
-            yield contactsCollection.update(id, (draft) => {
+            yield contactsCollection.update(id, draft => {
                 draft.favorite = !currentFavorite
             })
         },
@@ -31,12 +31,12 @@ export default function ContactListScreen() {
 
     const query = searchQuery.toLowerCase()
     const filteredContacts = query
-        ? contacts?.filter((c) => {
+        ? contacts?.filter(c => {
               const fullName = `${c.first_name} ${c.last_name}`.toLowerCase()
               return (
                   fullName.includes(query) ||
-                  (c.email?.toLowerCase().includes(query)) ||
-                  (c.company?.toLowerCase().includes(query))
+                  c.email?.toLowerCase().includes(query) ||
+                  c.company?.toLowerCase().includes(query)
               )
           })
         : contacts
@@ -111,13 +111,16 @@ export default function ContactListScreen() {
             </XStack>
 
             <YStack>
-                {filteredContacts?.map((contact) => (
+                {filteredContacts?.map(contact => (
                     <ContactRow
                         key={contact.id}
                         contact={contact}
                         orgSlug={orgSlug}
                         onToggleFavorite={() =>
-                            toggleFavorite.mutate({ id: contact.id, currentFavorite: contact.favorite })
+                            toggleFavorite.mutate({
+                                id: contact.id,
+                                currentFavorite: contact.favorite,
+                            })
                         }
                     />
                 ))}
@@ -166,7 +169,7 @@ function ContactRow({ contact, orgSlug, onToggleFavorite }: ContactRowProps) {
                     {contact.phone}
                 </SizableText>
                 <Pressable
-                    onPress={(e) => {
+                    onPress={e => {
                         e.stopPropagation()
                         onToggleFavorite()
                     }}

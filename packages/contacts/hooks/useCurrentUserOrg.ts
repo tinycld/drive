@@ -1,7 +1,7 @@
-import { useLiveQuery } from '@tanstack/react-db'
 import { and, eq } from '@tanstack/db'
-import { useStore } from '~/lib/pocketbase'
+import { useLiveQuery } from '@tanstack/react-db'
 import { useAuth } from '~/lib/auth'
+import { useStore } from '~/lib/pocketbase'
 
 export function useCurrentUserOrg(orgSlug: string) {
     const { user } = useAuth()
@@ -9,26 +9,18 @@ export function useCurrentUserOrg(orgSlug: string) {
     const [orgsCollection] = useStore('orgs')
 
     const { data: orgs } = useLiveQuery(
-        (query) =>
-            query
-                .from({ orgs: orgsCollection })
-                .where(({ orgs }) => eq(orgs.slug, orgSlug)),
-        [orgSlug],
+        query => query.from({ orgs: orgsCollection }).where(({ orgs }) => eq(orgs.slug, orgSlug)),
+        [orgSlug]
     )
 
     const orgId = orgs?.[0]?.id ?? ''
 
     const { data: userOrgs } = useLiveQuery(
-        (query) =>
+        query =>
             query
                 .from({ user_org: userOrgCollection })
-                .where(({ user_org }) =>
-                    and(
-                        eq(user_org.user, user.id),
-                        eq(user_org.org, orgId),
-                    ),
-                ),
-        [user.id, orgId],
+                .where(({ user_org }) => and(eq(user_org.user, user.id), eq(user_org.org, orgId))),
+        [user.id, orgId]
     )
 
     return userOrgs?.[0] ?? null

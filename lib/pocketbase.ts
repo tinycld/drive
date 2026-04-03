@@ -2,17 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { QueryClient } from '@tanstack/react-query'
 import { BasicIndex, createCollection, createReactProvider, setLogger } from 'pbtsdb'
 import PocketBase, { AsyncAuthStore } from 'pocketbase'
+import { Platform } from 'react-native'
+import { addonStores, type MergedSchema } from '~/lib/generated/addon-collections'
 import type { Orgs, UserOrg, Users } from '~/types/pbSchema'
 import { PB_SERVER_ADDR } from './config'
-import { addonStores, type MergedSchema } from '~/lib/generated/addon-collections'
 import type { UserSession } from './types'
-import { Platform } from 'react-native'
 
 export { eq } from '@tanstack/db'
 
 if (Platform.OS !== 'web') {
     // Only polyfill EventSource on native — the browser has its own
-    import('react-native-sse').then((mod) => {
+    import('react-native-sse').then(mod => {
         global.EventSource = mod.default as unknown as typeof global.EventSource
     })
 }
@@ -22,16 +22,16 @@ export { PB_SERVER_ADDR }
 const initialAuthPromise = AsyncStorage.getItem('pb_auth')
 
 const store = new AsyncAuthStore({
-    save: async (serialized) => AsyncStorage.setItem('pb_auth', serialized),
+    save: async serialized => AsyncStorage.setItem('pb_auth', serialized),
     initial: initialAuthPromise,
     clear: async () => await AsyncStorage.removeItem('pb_auth'),
 })
 
-export const authStoreReady = initialAuthPromise.then(async (storedAuth) => {
+export const authStoreReady = initialAuthPromise.then(async storedAuth => {
     if (storedAuth) {
         let attempts = 0
         while (!store.token && attempts < 10) {
-            await new Promise((resolve) => setTimeout(resolve, 10))
+            await new Promise(resolve => setTimeout(resolve, 10))
             attempts++
         }
     }
@@ -47,25 +47,19 @@ export function usePocketBase() {
 
 setLogger({
     debug: () => {},
-    info: (msg, context) => {
+    info: (_msg, context) => {
         if (context) {
-            console.info('[pbtsdb]', msg, context)
         } else {
-            console.info('[pbtsdb]', msg)
         }
     },
-    warn: (msg, context) => {
+    warn: (_msg, context) => {
         if (context) {
-            console.warn('[pbtsdb]', msg, context)
         } else {
-            console.warn('[pbtsdb]', msg)
         }
     },
-    error: (msg, context) => {
+    error: (_msg, context) => {
         if (context) {
-            console.error('[pbtsdb]', msg, context)
         } else {
-            console.error('[pbtsdb]', msg)
         }
     },
 })
@@ -110,9 +104,7 @@ const stores = {
 
 const { Provider: PBTSDBProvider, useStore } = createReactProvider(stores)
 
-export function getUserFromAuthStore(
-    primaryOrgSlug?: string | null,
-): UserSession | null {
+export function getUserFromAuthStore(primaryOrgSlug?: string | null): UserSession | null {
     const authRecord = pb.authStore.record as Users | null
     const authToken = pb.authStore.token
 
@@ -128,34 +120,19 @@ export function getUserFromAuthStore(
     }
 }
 
-export async function seedUserOrg(
-    userRecord: Users,
-    orgRecord: Orgs,
-    userOrgRecord: UserOrg,
-) {
-    await Promise.all([
-        stores.users.preload(),
-        stores.orgs.preload(),
-        stores.user_org.preload(),
-    ])
+export async function seedUserOrg(userRecord: Users, orgRecord: Orgs, userOrgRecord: UserOrg) {
+    await Promise.all([stores.users.preload(), stores.orgs.preload(), stores.user_org.preload()])
     stores.users.utils?.writeUpsert(userRecord)
     stores.orgs.utils?.writeUpsert(orgRecord)
     stores.user_org.utils?.writeUpsert(userOrgRecord)
 }
 
 export async function preloadStores() {
-    await Promise.all([
-        stores.orgs.preload(),
-        stores.user_org.preload(),
-    ])
+    await Promise.all([stores.orgs.preload(), stores.user_org.preload()])
 }
 
 export async function fetchAndSeedUserOrg() {
-    await Promise.all([
-        stores.users.preload(),
-        stores.orgs.preload(),
-        stores.user_org.preload(),
-    ])
+    await Promise.all([stores.users.preload(), stores.orgs.preload(), stores.user_org.preload()])
     const userOrgs = await pb.collection('user_org').getFullList<UserOrg>()
     for (const userOrgRecord of userOrgs) {
         stores.user_org.utils?.writeUpsert(userOrgRecord)
@@ -168,4 +145,4 @@ export async function clearStores() {
     }
 }
 
-export { useStore, PBTSDBProvider, queryClient, stores }
+export { PBTSDBProvider, queryClient, stores, useStore }

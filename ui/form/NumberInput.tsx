@@ -1,6 +1,6 @@
 import { type Control, type FieldValues, type Path, useController } from 'react-hook-form'
 import { TextInput as RNTextInput } from 'react-native'
-import { Button, SizableText, XStack, YStack, useTheme, type YStackProps } from 'tamagui'
+import { Button, SizableText, useTheme, XStack, YStack, type YStackProps } from 'tamagui'
 
 export type NumberInputProps<T extends FieldValues = Record<string, unknown>> = {
     name: Path<T>
@@ -80,7 +80,9 @@ export function NumberInput<T extends FieldValues = Record<string, unknown>>({
                     disabled={!canDecrement}
                     opacity={canDecrement ? 1 : 0.4}
                 >
-                    <Button.Text size="$5" fontWeight="600">−</Button.Text>
+                    <Button.Text size="$5" fontWeight="600">
+                        −
+                    </Button.Text>
                 </Button>
                 <RNTextInput
                     value={displayValue}
@@ -110,7 +112,9 @@ export function NumberInput<T extends FieldValues = Record<string, unknown>>({
                     disabled={!canIncrement}
                     opacity={canIncrement ? 1 : 0.4}
                 >
-                    <Button.Text size="$5" fontWeight="600">+</Button.Text>
+                    <Button.Text size="$5" fontWeight="600">
+                        +
+                    </Button.Text>
                 </Button>
             </XStack>
             {hint && !hasError ? (

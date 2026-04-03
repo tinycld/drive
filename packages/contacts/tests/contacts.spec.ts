@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 const TEST_USER_EMAIL = process.env.TEST_USER_LOGIN || 'user@tinycld.org'
 const TEST_USER_PASSWORD = process.env.TEST_USER_PW || 'TestUser1234!'
@@ -56,8 +56,12 @@ test.describe('Contacts', () => {
         await page.getByText('Bob').click()
         await page.waitForURL(/\/contacts\//)
 
-        const starButton = page.locator('svg[data-testid="star"]').first()
-            ?? page.locator('svg').filter({ has: page.locator('path') }).first()
+        const starButton =
+            page.locator('svg[data-testid="star"]').first() ??
+            page
+                .locator('svg')
+                .filter({ has: page.locator('path') })
+                .first()
         await starButton.click()
     })
 

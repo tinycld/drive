@@ -22,20 +22,22 @@ export function AddonSidebar({ orgSlug, width }: AddonSidebarProps) {
     const SidebarComponent = addonSidebars[addon.slug]
 
     return (
-        <View style={[styles.sidebar, { width, backgroundColor: theme.sidebarBackground.val, borderRightColor: theme.borderColor.val }]}>
+        <View
+            style={[
+                styles.sidebar,
+                {
+                    width,
+                    backgroundColor: theme.sidebarBackground.val,
+                    borderRightColor: theme.borderColor.val,
+                },
+            ]}
+        >
             {SidebarComponent ? (
                 <Suspense fallback={null}>
-                    <SidebarComponent
-                        orgSlug={orgSlug}
-                        basePath={basePath}
-                        isCollapsed={false}
-                    />
+                    <SidebarComponent orgSlug={orgSlug} basePath={basePath} isCollapsed={false} />
                 </Suspense>
             ) : (
-                <AddonSidebarFallback
-                    addonLabel={addon.nav.label}
-                    basePath={basePath}
-                />
+                <AddonSidebarFallback addonLabel={addon.nav.label} basePath={basePath} />
             )}
         </View>
     )

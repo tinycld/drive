@@ -1,6 +1,6 @@
 /// <reference path="../../../server/pb_data/types.d.ts" />
 migrate(
-    (app) => {
+    app => {
         const collection = new Collection({
             id: 'pbc_contacts_01',
             name: 'contacts',
@@ -71,8 +71,8 @@ migrate(
 
         return app.save(collection)
     },
-    (app) => {
+    app => {
         const collection = app.findCollectionByNameOrId('contacts')
         return app.delete(collection)
-    },
+    }
 )

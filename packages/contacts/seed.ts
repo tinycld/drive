@@ -78,12 +78,10 @@ const SAMPLE_CONTACTS = [
 ]
 
 export default async function seed(pb: PocketBase, { userOrg }: SeedContext) {
-    console.log('  Seeding contacts...')
     for (const contact of SAMPLE_CONTACTS) {
         await pb.collection('contacts').create({
             ...contact,
             owner: userOrg.id,
         })
     }
-    console.log(`  Created ${SAMPLE_CONTACTS.length} sample contacts`)
 }

@@ -1,6 +1,6 @@
+import { execSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { execSync } from 'node:child_process'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const GENERATED_DIR = path.join(ROOT, 'lib/generated')
@@ -54,9 +54,7 @@ function cleanPrevious(manifest: LinksManifest) {
 
     // Clean empty generated route directories
     const routeDirs = new Set(
-        manifest.generatedFiles
-            .filter((f) => f.startsWith(ROUTES_BASE))
-            .map((f) => path.dirname(f)),
+        manifest.generatedFiles.filter(f => f.startsWith(ROUTES_BASE)).map(f => path.dirname(f))
     )
     for (const dir of [...routeDirs].sort((a, b) => b.length - a.length)) {
         try {
@@ -96,12 +94,8 @@ function loadManifest(packageDir: string): AddonManifest {
 
         // Match either `export default { ... }` or `const/let/var X = { ... }`
         const match =
-            content.match(
-                /(?:export\s+default|module\.exports\s*=)\s*(\{[\s\S]*\})/,
-            ) ??
-            content.match(
-                /(?:const|let|var)\s+\w+\s*=\s*(\{[\s\S]*\})\s*(?:;?\s*$)/m,
-            )
+            content.match(/(?:export\s+default|module\.exports\s*=)\s*(\{[\s\S]*\})/) ??
+            content.match(/(?:const|let|var)\s+\w+\s*=\s*(\{[\s\S]*\})\s*(?:;?\s*$)/m)
         if (match) {
             const obj = new Function(`return (${match[1]})`)()
             return obj as AddonManifest
@@ -127,7 +121,7 @@ function walkFiles(dir: string, base = ''): string[] {
 function generateRoutes(
     packageName: string,
     manifest: AddonManifest,
-    packageDir: string,
+    packageDir: string
 ): string[] {
     const screensDir = path.join(packageDir, manifest.routes.directory)
     const files = walkFiles(screensDir)
@@ -145,27 +139,18 @@ function generateRoutes(
         const outFile = path.join(addonRouteDir, file)
 
         fs.mkdirSync(path.dirname(outFile), { recursive: true })
-        fs.writeFileSync(
-            outFile,
-            `export { default } from '${importPath}'\n`,
-        )
+        fs.writeFileSync(outFile, `export { default } from '${importPath}'\n`)
         generated.push(outFile)
     }
 
     return generated
 }
 
-function createSymlinks(
-    manifest: AddonManifest,
-    packageDir: string,
-): string[] {
+function createSymlinks(manifest: AddonManifest, packageDir: string): string[] {
     const created: string[] = []
 
     if (manifest.migrations?.directory) {
-        const migrationsSource = path.join(
-            packageDir,
-            manifest.migrations.directory,
-        )
+        const migrationsSource = path.join(packageDir, manifest.migrations.directory)
         if (fs.existsSync(migrationsSource)) {
             for (const file of fs.readdirSync(migrationsSource)) {
                 const target = path.join(MIGRATIONS_DIR, file)
@@ -203,14 +188,14 @@ function slugToIdentifier(slug: string): string {
 function slugToPascal(slug: string): string {
     return slug
         .split('-')
-        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+        .map(s => s.charAt(0).toUpperCase() + s.slice(1))
         .join('')
 }
 
 function generateCollectionsFile(
-    addonsInfo: { packageName: string; manifest: AddonManifest }[],
+    addonsInfo: { packageName: string; manifest: AddonManifest }[]
 ): string {
-    const withCollections = addonsInfo.filter((a) => a.manifest.collections)
+    const withCollections = addonsInfo.filter(a => a.manifest.collections)
 
     if (withCollections.length === 0) {
         return [
@@ -229,21 +214,21 @@ function generateCollectionsFile(
         ].join('\n')
     }
 
-    const schemaImports = withCollections.map((a) => {
+    const schemaImports = withCollections.map(a => {
         const pascal = slugToPascal(a.manifest.slug)
-        return `import type { ${pascal}Schema } from '${a.packageName}/${a.manifest.collections!.types}'`
+        return `import type { ${pascal}Schema } from '${a.packageName}/${a.manifest.collections?.types}'`
     })
 
-    const registerImports = withCollections.map((a) => {
+    const registerImports = withCollections.map(a => {
         const id = slugToIdentifier(a.manifest.slug)
-        return `import { registerCollections as ${id}Register } from '${a.packageName}/${a.manifest.collections!.register}'`
+        return `import { registerCollections as ${id}Register } from '${a.packageName}/${a.manifest.collections?.register}'`
     })
 
     const schemaUnion = withCollections
-        .map((a) => `${slugToPascal(a.manifest.slug)}Schema`)
+        .map(a => `${slugToPascal(a.manifest.slug)}Schema`)
         .join(' & ')
 
-    const spreads = withCollections.map((a) => {
+    const spreads = withCollections.map(a => {
         const id = slugToIdentifier(a.manifest.slug)
         return `        ...${id}Register(newCollection, coreStores),`
     })
@@ -269,7 +254,7 @@ function generateCollectionsFile(
 }
 
 function generateRegistryFile(
-    addonsInfo: { packageName: string; manifest: AddonManifest }[],
+    addonsInfo: { packageName: string; manifest: AddonManifest }[]
 ): string {
     if (addonsInfo.length === 0) {
         return [
@@ -281,12 +266,12 @@ function generateRegistryFile(
         ].join('\n')
     }
 
-    const imports = addonsInfo.map((a) => {
+    const imports = addonsInfo.map(a => {
         const id = slugToIdentifier(a.manifest.slug)
         return `import ${id}Manifest from '${a.packageName}/manifest'`
     })
 
-    const entries = addonsInfo.map((a) => {
+    const entries = addonsInfo.map(a => {
         const id = slugToIdentifier(a.manifest.slug)
         return `    { ...${id}Manifest, packageName: '${a.packageName}' },`
     })
@@ -303,16 +288,16 @@ function generateRegistryFile(
 }
 
 function generateSidebarsFile(
-    addonsInfo: { packageName: string; manifest: AddonManifest }[],
+    addonsInfo: { packageName: string; manifest: AddonManifest }[]
 ): string {
-    const withSidebars = addonsInfo.filter((a) => a.manifest.sidebar?.component)
+    const withSidebars = addonsInfo.filter(a => a.manifest.sidebar?.component)
 
-    const imports = withSidebars.map((a) => {
+    const imports = withSidebars.map(a => {
         const id = slugToIdentifier(a.manifest.slug)
-        return `import ${id}Sidebar from '${a.packageName}/${a.manifest.sidebar!.component}'`
+        return `import ${id}Sidebar from '${a.packageName}/${a.manifest.sidebar?.component}'`
     })
 
-    const entries = addonsInfo.map((a) => {
+    const entries = addonsInfo.map(a => {
         if (a.manifest.sidebar?.component) {
             const id = slugToIdentifier(a.manifest.slug)
             return `    '${a.manifest.slug}': ${id}Sidebar,`
@@ -338,10 +323,8 @@ function generateSidebarsFile(
     ].join('\n')
 }
 
-function generateSeedsFile(
-    addonsInfo: { packageName: string; manifest: AddonManifest }[],
-): string {
-    const withSeeds = addonsInfo.filter((a) => a.manifest.seed?.script)
+function generateSeedsFile(addonsInfo: { packageName: string; manifest: AddonManifest }[]): string {
+    const withSeeds = addonsInfo.filter(a => a.manifest.seed?.script)
 
     if (withSeeds.length === 0) {
         return [
@@ -361,12 +344,12 @@ function generateSeedsFile(
         ].join('\n')
     }
 
-    const imports = withSeeds.map((a) => {
+    const imports = withSeeds.map(a => {
         const id = slugToIdentifier(a.manifest.slug)
-        return `import ${id}Seed from '${a.packageName}/${a.manifest.seed!.script}'`
+        return `import ${id}Seed from '${a.packageName}/${a.manifest.seed?.script}'`
     })
 
-    const entries = withSeeds.map((a) => {
+    const entries = withSeeds.map(a => {
         const id = slugToIdentifier(a.manifest.slug)
         return `    '${a.manifest.slug}': ${id}Seed,`
     })
@@ -395,10 +378,12 @@ const GO_MOD_MARKER_START = '// --- addon extensions (auto-generated, do not edi
 const GO_MOD_MARKER_END = '// --- end addon extensions ---'
 
 function generateAddonExtensionsGo(
-    addonsInfo: { packageName: string; manifest: AddonManifest; packageDir: string }[],
+    addonsInfo: { packageName: string; manifest: AddonManifest; packageDir: string }[]
 ): string {
     const withServer = addonsInfo.filter(
-        (a) => a.manifest.server?.package && fs.existsSync(path.join(a.packageDir, a.manifest.server.package)),
+        a =>
+            a.manifest.server?.package &&
+            fs.existsSync(path.join(a.packageDir, a.manifest.server.package))
     )
 
     if (withServer.length === 0) {
@@ -413,12 +398,12 @@ function generateAddonExtensionsGo(
         ].join('\n')
     }
 
-    const imports = withServer.map((a) => {
+    const imports = withServer.map(a => {
         const id = slugToIdentifier(a.manifest.slug)
-        return `\t${id} "${a.manifest.server!.module}"`
+        return `\t${id} "${a.manifest.server?.module}"`
     })
 
-    const calls = withServer.map((a) => {
+    const calls = withServer.map(a => {
         const id = slugToIdentifier(a.manifest.slug)
         return `\t${id}.Register(app)`
     })
@@ -440,10 +425,12 @@ function generateAddonExtensionsGo(
 }
 
 function updateGoMod(
-    addonsInfo: { packageName: string; manifest: AddonManifest; packageDir: string }[],
+    addonsInfo: { packageName: string; manifest: AddonManifest; packageDir: string }[]
 ) {
     const withServer = addonsInfo.filter(
-        (a) => a.manifest.server?.package && fs.existsSync(path.join(a.packageDir, a.manifest.server.package)),
+        a =>
+            a.manifest.server?.package &&
+            fs.existsSync(path.join(a.packageDir, a.manifest.server.package))
     )
 
     const goModPath = path.join(SERVER_DIR, 'go.mod')
@@ -453,21 +440,27 @@ function updateGoMod(
     const startIdx = content.indexOf(GO_MOD_MARKER_START)
     const endIdx = content.indexOf(GO_MOD_MARKER_END)
     if (startIdx !== -1 && endIdx !== -1) {
-        content = content.slice(0, startIdx).trimEnd() + '\n' + content.slice(endIdx + GO_MOD_MARKER_END.length).trimStart()
+        content =
+            content.slice(0, startIdx).trimEnd() +
+            '\n' +
+            content.slice(endIdx + GO_MOD_MARKER_END.length).trimStart()
     }
 
     // Remove trailing whitespace/newlines and ensure single trailing newline
-    content = content.trimEnd() + '\n'
+    content = `${content.trimEnd()}\n`
 
     if (withServer.length > 0) {
         const lines = [
             '',
             GO_MOD_MARKER_START,
-            ...withServer.map((a) => `require ${a.manifest.server!.module} v0.0.0`),
+            ...withServer.map(a => `require ${a.manifest.server?.module} v0.0.0`),
             '',
-            ...withServer.map((a) => {
-                const relPath = path.relative(SERVER_DIR, path.join(a.packageDir, a.manifest.server!.package))
-                return `replace ${a.manifest.server!.module} => ${relPath}`
+            ...withServer.map(a => {
+                const relPath = path.relative(
+                    SERVER_DIR,
+                    path.join(a.packageDir, a.manifest.server?.package)
+                )
+                return `replace ${a.manifest.server?.module} => ${relPath}`
             }),
             GO_MOD_MARKER_END,
             '',
@@ -479,25 +472,21 @@ function updateGoMod(
 }
 
 function runGoModTidy() {
-    console.log('  Running go mod tidy...')
     execSync('go mod tidy', { cwd: SERVER_DIR, stdio: 'inherit' })
 }
 
 async function main() {
-    console.log('Generating addon wiring...')
-
     // Load addon config
     const configPath = path.join(ROOT, 'tinycld.addons.ts')
     const configContent = fs.readFileSync(configPath, 'utf-8')
     const match = configContent.match(/\[([^\]]*)\]/)
     if (!match) {
-        console.error('Could not parse tinycld.addons.ts')
         process.exit(1)
     }
 
     const addonPackages = match[1]
         .split(',')
-        .map((s) => s.trim().replace(/['"]/g, ''))
+        .map(s => s.trim().replace(/['"]/g, ''))
         .filter(Boolean)
 
     // Clean previous generated files
@@ -513,7 +502,6 @@ async function main() {
     const addonsInfo: { packageName: string; manifest: AddonManifest; packageDir: string }[] = []
 
     for (const packageName of addonPackages) {
-        console.log(`  Processing ${packageName}...`)
         const packageDir = resolvePackageDir(packageName)
         const manifest = loadManifest(packageDir)
         addonsInfo.push({ packageName, manifest, packageDir })
@@ -562,11 +550,6 @@ async function main() {
         generatedFiles: allGenerated,
     }
     fs.writeFileSync(LINKS_MANIFEST, JSON.stringify(linksManifest, null, 2))
-
-    console.log(
-        `  Generated ${allGenerated.length} files, ${allSymlinks.length} symlinks`,
-    )
-    console.log('Done.')
 }
 
 main()

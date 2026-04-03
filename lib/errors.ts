@@ -29,10 +29,7 @@ function formatResponseFieldErrors(data: Record<string, unknown>): string[] {
     return errors
 }
 
-export function errorToString(
-    error: unknown,
-    fallback = 'An unexpected error occurred',
-): string {
+export function errorToString(error: unknown, fallback = 'An unexpected error occurred'): string {
     if (typeof error === 'string') return error
     if (!isRecord(error)) return fallback
 
@@ -46,22 +43,17 @@ export function errorToString(
         const prefix = msg ? `${msg} ` : ''
 
         if (fieldErrors.length > 0) return prefix + fieldErrors.join(', ')
-        if (typeof response.data.message === 'string')
-            return prefix + response.data.message
-        if (typeof response.data.error === 'string')
-            return prefix + response.data.error
+        if (typeof response.data.message === 'string') return prefix + response.data.message
+        if (typeof response.data.error === 'string') return prefix + response.data.error
     }
 
     if (typeof error.error === 'string') return error.error
-    if (isRecord(error.data) && typeof error.data.message === 'string')
-        return error.data.message
+    if (isRecord(error.data) && typeof error.data.message === 'string') return error.data.message
 
     return msg || fallback
 }
 
-function extractFieldErrors(
-    data: Record<string, unknown>,
-): Record<string, string> | null {
+function extractFieldErrors(data: Record<string, unknown>): Record<string, string> | null {
     const errors: Record<string, string> = {}
 
     for (const [field, fieldError] of Object.entries(data)) {
@@ -79,20 +71,15 @@ function extractFieldErrors(
     return Object.keys(errors).length > 0 ? errors : null
 }
 
-function getBatchRequestData(
-    data: Record<string, unknown>,
-): Record<string, unknown> | null {
+function getBatchRequestData(data: Record<string, unknown>): Record<string, unknown> | null {
     if (!isRecord(data.requests)) return null
     const firstRequest = data.requests['0']
     if (!isRecord(firstRequest)) return null
-    if (!isRecord(firstRequest.response) || !isRecord(firstRequest.response.data))
-        return null
+    if (!isRecord(firstRequest.response) || !isRecord(firstRequest.response.data)) return null
     return firstRequest.response.data
 }
 
-export function extractValidationErrors(
-    error: unknown,
-): Record<string, string> | null {
+export function extractValidationErrors(error: unknown): Record<string, string> | null {
     if (!isRecord(error)) return null
 
     if (isRecord(error.response) && isRecord(error.response.data)) {
@@ -112,9 +99,10 @@ export function extractValidationErrors(
 
     if (isRecord(error.errors)) {
         return Object.fromEntries(
-            Object.entries(error.errors).filter(
-                ([, value]) => typeof value === 'string',
-            ) as [string, string][],
+            Object.entries(error.errors).filter(([, value]) => typeof value === 'string') as [
+                string,
+                string,
+            ][]
         )
     }
 
@@ -126,9 +114,9 @@ export interface FormErrorHandler<T extends FieldValues = FieldValues> {
     getValues: () => T
 }
 
-export function handleMutationErrorsWithForm<
-    T extends FieldValues = FieldValues,
->(form: FormErrorHandler<T>) {
+export function handleMutationErrorsWithForm<T extends FieldValues = FieldValues>(
+    form: FormErrorHandler<T>
+) {
     return (error: unknown) => {
         const validationErrors = extractValidationErrors(error)
 
@@ -136,9 +124,7 @@ export function handleMutationErrorsWithForm<
             const formValues = form.getValues()
             const formFields = Object.keys(formValues as Record<string, unknown>)
             const errorFields = Object.keys(validationErrors)
-            const unknownFields = errorFields.filter(
-                (field) => !formFields.includes(field),
-            )
+            const unknownFields = errorFields.filter(field => !formFields.includes(field))
 
             if (unknownFields.length === 0) {
                 for (const [field, message] of Object.entries(validationErrors)) {
@@ -148,23 +134,14 @@ export function handleMutationErrorsWithForm<
                     })
                 }
             } else {
-                console.error(
-                    'Validation errors for unknown fields:',
-                    Object.fromEntries(
-                        unknownFields.map((f) => [f, validationErrors[f]]),
-                    ),
-                )
             }
         } else {
-            console.error('Mutation error:', errorToString(error))
         }
     }
 }
 
 export function captureException(
-    context: string,
-    error: unknown,
-    _extra?: Record<string, unknown>,
-) {
-    console.error(`${context}: ${errorToString(error)}`)
-}
+    _context: string,
+    _error: unknown,
+    _extra?: Record<string, unknown>
+) {}

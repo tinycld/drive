@@ -26,7 +26,12 @@ export function LoginModal() {
 
     return (
         <View style={[styles.backdrop, { backgroundColor: theme.modalOverlay.val }]}>
-            <View style={[styles.modal, { backgroundColor: theme.background.val, borderColor: theme.borderColor.val }]}>
+            <View
+                style={[
+                    styles.modal,
+                    { backgroundColor: theme.background.val, borderColor: theme.borderColor.val },
+                ]}
+            >
                 <Text style={[styles.title, { color: theme.color.val }]}>Sign in</Text>
                 <Text style={[styles.subtitle, { color: theme.color8.val }]}>
                     Sign in to your account to continue
@@ -41,7 +46,14 @@ export function LoginModal() {
                 <View style={styles.fieldGroup}>
                     <Text style={[styles.label, { color: theme.color.val }]}>Email</Text>
                     <TextInput
-                        style={[styles.input, { color: theme.color.val, borderColor: theme.borderColor.val, backgroundColor: theme.backgroundHover.val }]}
+                        style={[
+                            styles.input,
+                            {
+                                color: theme.color.val,
+                                borderColor: theme.borderColor.val,
+                                backgroundColor: theme.backgroundHover.val,
+                            },
+                        ]}
                         value={email}
                         onChangeText={setEmail}
                         placeholder="you@example.com"
@@ -56,7 +68,14 @@ export function LoginModal() {
                 <View style={styles.fieldGroup}>
                     <Text style={[styles.label, { color: theme.color.val }]}>Password</Text>
                     <TextInput
-                        style={[styles.input, { color: theme.color.val, borderColor: theme.borderColor.val, backgroundColor: theme.backgroundHover.val }]}
+                        style={[
+                            styles.input,
+                            {
+                                color: theme.color.val,
+                                borderColor: theme.borderColor.val,
+                                backgroundColor: theme.backgroundHover.val,
+                            },
+                        ]}
                         value={password}
                         onChangeText={setPassword}
                         placeholder="Password"
@@ -69,7 +88,11 @@ export function LoginModal() {
                 </View>
 
                 <Pressable
-                    style={[styles.submitButton, { backgroundColor: theme.accentBackground.val }, !canSubmit && styles.submitButtonDisabled]}
+                    style={[
+                        styles.submitButton,
+                        { backgroundColor: theme.accentBackground.val },
+                        !canSubmit && styles.submitButtonDisabled,
+                    ]}
                     onPress={handleSubmit}
                     disabled={!canSubmit}
                 >

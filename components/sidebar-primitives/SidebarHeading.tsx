@@ -3,11 +3,7 @@ import { useTheme } from 'tamagui'
 
 export function SidebarHeading({ children }: { children: string }) {
     const theme = useTheme()
-    return (
-        <Text style={[styles.heading, { color: theme.color8.val }]}>
-            {children}
-        </Text>
-    )
+    return <Text style={[styles.heading, { color: theme.color8.val }]}>{children}</Text>
 }
 
 const styles = StyleSheet.create({

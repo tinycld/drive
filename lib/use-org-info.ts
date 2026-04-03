@@ -1,6 +1,6 @@
-import { useActiveParams } from 'one'
-import { useLiveQuery } from '@tanstack/react-db'
 import { eq } from '@tanstack/db'
+import { useLiveQuery } from '@tanstack/react-db'
+import { useActiveParams } from 'one'
 import { useStore } from '~/lib/pocketbase'
 
 export function useOrgInfo() {
@@ -8,11 +8,8 @@ export function useOrgInfo() {
     const [orgsCollection] = useStore('orgs')
 
     const { data: orgs } = useLiveQuery(
-        (query) =>
-            query
-                .from({ orgs: orgsCollection })
-                .where(({ orgs }) => eq(orgs.slug, orgSlug)),
-        [orgSlug],
+        query => query.from({ orgs: orgsCollection }).where(({ orgs }) => eq(orgs.slug, orgSlug)),
+        [orgSlug]
     )
 
     const org = orgs?.[0] ?? null
