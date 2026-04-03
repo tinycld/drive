@@ -16,6 +16,9 @@ RUN find server/pb_migrations server/pb_hooks -type l -delete 2>/dev/null || tru
 
 RUN npm run addons:generate
 
+# Dereference symlinks so COPY in later stages gets real files
+RUN find server/pb_migrations server/pb_hooks -type l -exec sh -c 'target=$(readlink "$1") && rm "$1" && cp "$target" "$1"' _ {} \; 2>/dev/null || true
+
 
 # Build stage for Go server
 FROM golang:1.25-trixie AS go-builder
