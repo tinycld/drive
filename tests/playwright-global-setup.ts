@@ -72,14 +72,25 @@ export default async function globalSetup() {
             'serve',
         ],
         {
-            stdio: 'ignore',
+            stdio: ['ignore', 'pipe', 'pipe'],
             detached: true,
         }
     )
+
+    let pbOutput = ''
+    pb.stdout?.on('data', d => {
+        pbOutput += d.toString()
+    })
+    pb.stderr?.on('data', d => {
+        pbOutput += d.toString()
+    })
+
     pb.unref()
 
     const ready = await waitForPocketBase()
     if (!ready) {
+        // biome-ignore lint/suspicious/noConsole: test setup status messages
+        console.error('[test-setup] PocketBase output:\n', pbOutput)
         pb.kill()
         throw new Error('[test-setup] PocketBase failed to start')
     }

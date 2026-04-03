@@ -176,19 +176,13 @@ async function startPocketBase(): Promise<ReturnType<typeof spawn>> {
         }
     )
 
-    pb.stdout?.on('data', data => {
-        const output = data.toString()
-        if (output.includes('Server started')) {
-        }
-    })
-
     pb.stderr?.on('data', data => {
-        const output = data.toString()
-        if (output.includes('error') || output.includes('Error')) {
-        }
+        console.error('[pocketbase]', data.toString().trim())
     })
 
-    pb.on('error', _err => {})
+    pb.on('error', err => {
+        console.error('[pocketbase] spawn error:', err)
+    })
 
     return pb
 }
@@ -254,7 +248,8 @@ async function main() {
                 })
             })
         }
-    } catch (_err) {
+    } catch (err) {
+        console.error('[reset-dev-db] Failed:', err)
         process.exit(1)
     } finally {
         if (pb) {
