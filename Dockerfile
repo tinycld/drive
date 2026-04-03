@@ -101,6 +101,8 @@ COPY --from=addon-generator /app/server/pb_migrations ./pb_migrations
 # Create necessary directories
 RUN mkdir -p pb_data types
 
+COPY CHECKS ./
+
 EXPOSE 7090
 
 CMD ["./tinycld", "serve", "--http=0.0.0.0:7090"]
