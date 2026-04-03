@@ -1,6 +1,6 @@
 import { useLiveQuery } from '@tanstack/react-db'
 import { Star } from 'lucide-react-native'
-import { type Href, Link } from 'one'
+import { Link } from 'one'
 import { useState } from 'react'
 import { Pressable } from 'react-native'
 import { Input, SizableText, useTheme, XStack, YStack } from 'tamagui'
@@ -13,8 +13,10 @@ export default function ContactListScreen() {
     const { orgSlug } = useOrgInfo()
     const [contactsCollection] = useStore('contacts')
     const [searchQuery, setSearchQuery] = useState('')
-    const newContactHref = `/app/${orgSlug}/contacts/new` as Href
-
+    const newContactHref = {
+        pathname: '/app/[orgSlug]/contacts/new',
+        params: { orgSlug },
+    } as const
     const { data: contacts, isLoading } = useLiveQuery(query =>
         query
             .from({ contacts: contactsCollection })
@@ -147,7 +149,12 @@ function ContactRow({ contact, orgSlug, onToggleFavorite }: ContactRowProps) {
     const displayName = [contact.first_name, contact.last_name].filter(Boolean).join(' ')
 
     return (
-        <Link href={`/app/${orgSlug}/contacts/${contact.id}` as Href}>
+        <Link
+            href={{
+                pathname: '/app/[orgSlug]/contacts/[id]',
+                params: { orgSlug, id: contact.id },
+            }}
+        >
             <XStack
                 paddingHorizontal="$3"
                 paddingVertical="$3"

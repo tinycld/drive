@@ -88,8 +88,21 @@ TinyCld is an One Stack React Native application backed by PocketBase . The repo
 ## Users & Organizations
 - Users belong to orgs via the `user_org` junction table (many-to-many)
 - Roles (`admin`, `clerical`, `workforce`) are per-org—a user can have different roles in different orgs
-- Use `useCurrentOrg()` to get `{ org, role, isLoading }` for the current org context
+- Use `useOrgInfo()` from `~/lib/use-org-info` to get `{ orgSlug, orgId, org }` for the current org context (reads orgSlug from route params via `useActiveParams`)
 - Session helpers like `getRoleForOrg(session, orgSlug)` provide role lookups
+
+## Routing & Navigation
+- **Always use typesafe routes** — never cast with `as Href`. Use the object form for dynamic routes:
+  ```tsx
+  // Good — typesafe, validated at compile time
+  <Link href={{ pathname: '/app/[orgSlug]/contacts/[id]', params: { orgSlug, id } }} />
+  router.push({ pathname: '/app/[orgSlug]/contacts/new', params: { orgSlug } })
+
+  // Bad — bypasses route type checking
+  <Link href={`/app/${orgSlug}/contacts/${id}` as Href} />
+  ```
+- The only exception is generic addon navigation (e.g. `AddonRail`, `AddonSidebarFallback`) where routes are constructed from runtime addon slugs — use `as OneRouter.Href` in those cases
+- Use `useOrgInfo()` instead of `useParams()` to get `orgSlug` in org-scoped screens — it uses `useActiveParams` which resolves params reliably on first render
 
 ## Add-on System
 - Add-ons are npm packages (workspace or published) registered in `tinycld.addons.ts`

@@ -11,7 +11,14 @@ export default function Index() {
     }
 
     if (auth.isLoggedIn && auth.user.primaryOrgSlug) {
-        return <Redirect href={`/app/${auth.user.primaryOrgSlug}/`} />
+        return (
+            <Redirect
+                href={{
+                    pathname: '/app/[orgSlug]',
+                    params: { orgSlug: auth.user.primaryOrgSlug },
+                }}
+            />
+        )
     }
 
     return (

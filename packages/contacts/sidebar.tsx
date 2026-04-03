@@ -1,7 +1,7 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { Star, Users } from 'lucide-react-native'
-import { type Href, usePathname, useRouter } from 'one'
+import { usePathname, useRouter } from 'one'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import { SidebarDivider, SidebarItem, SidebarNav } from '~/components/sidebar-primitives'
@@ -32,12 +32,22 @@ export default function ContactsSidebar({ orgSlug, basePath }: ContactsSidebarPr
     const totalCount = allContacts?.length ?? 0
     const favoriteCount = favoriteContacts?.length ?? 0
 
+    const contactsRoute = {
+        pathname: '/app/[orgSlug]/contacts',
+        params: { orgSlug },
+    } as const
+
     return (
         <SidebarNav>
             <View style={styles.createButtonWrapper}>
                 <Pressable
                     style={[styles.createButton, { backgroundColor: theme.accentBackground.val }]}
-                    onPress={() => router.push(`/app/${orgSlug}/contacts/new` as Href)}
+                    onPress={() =>
+                        router.push({
+                            pathname: '/app/[orgSlug]/contacts/new',
+                            params: { orgSlug },
+                        })
+                    }
                 >
                     <Text style={styles.createButtonText}>+ Create contact</Text>
                 </Pressable>
@@ -47,14 +57,19 @@ export default function ContactsSidebar({ orgSlug, basePath }: ContactsSidebarPr
                 icon={Users}
                 badge={totalCount}
                 isActive={pathname === basePath || pathname === `${basePath}/`}
-                onPress={() => router.push(basePath as Href)}
+                onPress={() => router.push(contactsRoute)}
             />
             <SidebarItem
                 label="Favorites"
                 icon={Star}
                 badge={favoriteCount}
                 isActive={pathname === `${basePath}?filter=favorites`}
-                onPress={() => router.push(`${basePath}?filter=favorites` as Href)}
+                onPress={() =>
+                    router.push({
+                        pathname: '/app/[orgSlug]/contacts',
+                        params: { orgSlug, filter: 'favorites' },
+                    })
+                }
             />
             <SidebarDivider />
         </SidebarNav>

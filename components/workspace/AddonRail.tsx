@@ -8,6 +8,7 @@ import {
     User,
     Users,
 } from 'lucide-react-native'
+import type { OneRouter } from 'one'
 import { useRouter } from 'one'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { useTheme } from 'tamagui'
@@ -42,7 +43,7 @@ export function AddonRail({ orgSlug }: { orgSlug: string }) {
         <View style={[styles.rail, { backgroundColor: theme.railBackground.val }]}>
             <View style={styles.topSection}>
                 <Pressable
-                    onPress={() => router.push(`/app/${orgSlug}`)}
+                    onPress={() => router.push({ pathname: '/app/[orgSlug]', params: { orgSlug } })}
                     style={styles.railItem}
                     accessibilityLabel="Organization home"
                 >
@@ -71,7 +72,7 @@ export function AddonRail({ orgSlug }: { orgSlug: string }) {
 
             <View style={styles.bottomSection}>
                 <Pressable
-                    onPress={() => router.push(`/app/${orgSlug}/settings`)}
+                    onPress={() => router.push(`/app/${orgSlug}/settings` as OneRouter.Href)}
                     style={styles.railItem}
                     accessibilityLabel="Settings"
                 >
@@ -107,7 +108,7 @@ function AddonRailItem({
 
     return (
         <Pressable
-            onPress={() => router.push(`/app/${orgSlug}/${slug}`)}
+            onPress={() => router.push(`/app/${orgSlug}/${slug}` as OneRouter.Href)}
             style={[styles.railItem, isActive && { backgroundColor: `${activeColor}22` }]}
             accessibilityLabel={label}
         >

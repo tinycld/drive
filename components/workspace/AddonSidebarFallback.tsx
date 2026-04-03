@@ -1,5 +1,6 @@
 import { Home } from 'lucide-react-native'
-import { type Href, useRouter } from 'one'
+import type { OneRouter } from 'one'
+import { useRouter } from 'one'
 import { SidebarItem, SidebarNav } from '~/components/sidebar-primitives'
 
 interface AddonSidebarFallbackProps {
@@ -16,7 +17,7 @@ export function AddonSidebarFallback({ addonLabel, basePath }: AddonSidebarFallb
                 label={addonLabel}
                 icon={Home}
                 isActive
-                onPress={() => router.push(basePath as Href)}
+                onPress={() => router.push(basePath as OneRouter.Href)}
             />
         </SidebarNav>
     )
