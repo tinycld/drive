@@ -54,6 +54,7 @@ export default function NewContactScreen() {
                 notes: data.notes,
                 favorite: data.favorite,
                 owner: userOrg.id,
+                vcard_uid: crypto.randomUUID(),
             })
         },
         onSuccess: () => router.back(),

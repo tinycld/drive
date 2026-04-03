@@ -56,7 +56,7 @@ function cleanPrevious(manifest: LinksManifest) {
     const routeDirs = new Set(
         manifest.generatedFiles.filter(f => f.startsWith(ROUTES_BASE)).map(f => path.dirname(f))
     )
-    for (const dir of [...routeDirs].sort((a, b) => b.length - a.length)) {
+    for (const dir of Array.from(routeDirs).sort((a, b) => b.length - a.length)) {
         try {
             const entries = fs.readdirSync(dir)
             if (entries.length === 0) {
@@ -467,7 +467,7 @@ function updateGoMod(
             ...withServer.map(a => {
                 const relPath = path.relative(
                     SERVER_DIR,
-                    path.join(a.packageDir, a.manifest.server?.package)
+                    path.join(a.packageDir, a.manifest.server?.package ?? '')
                 )
                 return `replace ${a.manifest.server?.module} => ${relPath}`
             }),
