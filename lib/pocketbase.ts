@@ -19,7 +19,8 @@ if (Platform.OS !== 'web') {
 
 export { PB_SERVER_ADDR }
 
-const initialAuthPromise = AsyncStorage.getItem('pb_auth')
+const initialAuthPromise =
+    typeof window !== 'undefined' ? AsyncStorage.getItem('pb_auth') : Promise.resolve(null)
 
 const store = new AsyncAuthStore({
     save: async serialized => AsyncStorage.setItem('pb_auth', serialized),
