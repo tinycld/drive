@@ -13,6 +13,7 @@
         "./screens/[id]": "./screens/[id].tsx",
         "./seed": "./seed.ts",
         "./sidebar": "./sidebar.tsx",
+        "./settings/*": "./settings/*.tsx",
         "./hooks/*": "./hooks/*",
         "./components/*": "./components/*"
     },

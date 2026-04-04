@@ -6,6 +6,7 @@ const manifest = {
     routes: { directory: 'screens' },
     nav: { label: 'Mail', icon: 'mail', order: 5 },
     sidebar: { component: 'sidebar' },
+    settings: [{ slug: 'provider', label: 'Provider', component: 'settings/provider' }],
     migrations: { directory: 'pb-migrations' },
     collections: { register: 'collections', types: 'types' },
     seed: { script: 'seed' },
