@@ -168,9 +168,7 @@ func main() {
 			e.Router.POST("/api/signup", HandleSignup)
 
 			if !e.Router.HasRoute(http.MethodGet, "/{path...}") {
-				spa := staticWithFallback(publicDir, fallbackFile)
-				e.Router.GET("/{path...}", spa)
-				e.Router.HEAD("/{path...}", spa)
+				e.Router.Any("/{path...}", staticWithFallback(publicDir, fallbackFile))
 			}
 
 			return e.Next()
@@ -235,6 +233,11 @@ func staticWithFallback(dir string, fallbackFile string) func(*core.RequestEvent
 	fs := os.DirFS(dir)
 
 	return func(e *core.RequestEvent) error {
+		// Only serve static files for GET/HEAD — let WebDAV methods pass through
+		if e.Request.Method != http.MethodGet && e.Request.Method != http.MethodHead {
+			return e.Next()
+		}
+
 		path := e.Request.PathValue("path")
 		if path == "" {
 			path = "index.html"
