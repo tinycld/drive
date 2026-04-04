@@ -64,6 +64,8 @@ export interface MailMessages {
     has_attachments: boolean
     body_html: string
     attachments: string[]
+    delivery_status: 'sending' | 'sent' | 'delivered' | 'bounced' | 'spam_complaint'
+    bounce_reason: string
     created: string
     updated: string
 }

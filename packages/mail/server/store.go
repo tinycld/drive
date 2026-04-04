@@ -121,6 +121,12 @@ func storeMessage(app *pocketbase.PocketBase, threadID string, msg *storedMessag
 	record.Set("snippet", truncateSnippet(snippetSource, 200))
 	record.Set("has_attachments", len(msg.Attachments) > 0)
 
+	deliveryStatus := msg.DeliveryStatus
+	if deliveryStatus == "" {
+		deliveryStatus = "sending"
+	}
+	record.Set("delivery_status", deliveryStatus)
+
 	if msg.HTMLBody != "" {
 		sanitized := sanitizeEmailHTML(msg.HTMLBody)
 		htmlFile, err := filesystem.NewFileFromBytes([]byte(sanitized), "body.html")
@@ -167,18 +173,19 @@ func storeMessage(app *pocketbase.PocketBase, threadID string, msg *storedMessag
 
 // storedMessage is the internal representation passed to storeMessage.
 type storedMessage struct {
-	MessageID   string
-	InReplyTo   string
-	SenderName  string
-	SenderEmail string
-	To          []Recipient
-	Cc          []Recipient
-	Date        string
-	Subject     string
-	HTMLBody      string
-	TextBody      string
-	StrippedReply string
-	Attachments   []InboundAttachment
+	MessageID      string
+	InReplyTo      string
+	SenderName     string
+	SenderEmail    string
+	To             []Recipient
+	Cc             []Recipient
+	Date           string
+	Subject        string
+	HTMLBody       string
+	TextBody       string
+	StrippedReply  string
+	Attachments    []InboundAttachment
+	DeliveryStatus string // "sending", "sent", "delivered", "bounced", "spam_complaint"
 }
 
 // updateThreadMetadata updates the thread's snippet, latest_date, message_count, and participants.

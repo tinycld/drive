@@ -7,9 +7,20 @@ import "context"
 type Provider interface {
 	Send(ctx context.Context, req *SendRequest) (*SendResult, error)
 	ParseInbound(body []byte) (*InboundMessage, error)
+	ParseBounce(body []byte) (*BounceEvent, error)
 	VerifyWebhookSignature(headers map[string]string, body []byte) error
 	AddDomain(ctx context.Context, domain string) (*DomainVerification, error)
 	CheckDomainVerification(ctx context.Context, domain string) (*DomainVerification, error)
+}
+
+// BounceEvent represents a parsed bounce or spam complaint notification.
+type BounceEvent struct {
+	RecordType  string `json:"record_type"`  // "Bounce" or "SpamComplaint"
+	BounceType  string `json:"bounce_type"`  // "HardBounce", "SoftBounce", etc.
+	MessageID   string `json:"message_id"`
+	Email       string `json:"email"`
+	Description string `json:"description"`
+	BouncedAt   string `json:"bounced_at"`
 }
 
 type Recipient struct {

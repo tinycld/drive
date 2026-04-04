@@ -22,7 +22,7 @@ type sendRequest struct {
 	InReplyToMessageID string      `json:"in_reply_to_message_id"` // PB record ID of the message being replied to
 }
 
-func handleSend(app *pocketbase.PocketBase, provider Provider, re *core.RequestEvent) error {
+func handleSend(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 	userID := re.Auth.Id
 
 	var req sendRequest
@@ -49,6 +49,9 @@ func handleSend(app *pocketbase.PocketBase, provider Provider, re *core.RequestE
 	}
 
 	orgID := domainRecord.GetString("org")
+
+	// Resolve provider from org settings (falls back to env vars)
+	provider := providerForOrg(app, orgID)
 
 	// Verify user is a member of this mailbox's org and has access
 	userOrg, err := resolveUserOrg(app, userID, orgID)
@@ -103,16 +106,17 @@ func handleSend(app *pocketbase.PocketBase, provider Provider, re *core.RequestE
 	}
 
 	msg := &storedMessage{
-		MessageID:   result.MessageID,
-		InReplyTo:   inReplyToHeader,
-		SenderName:  displayName,
-		SenderEmail: fmt.Sprintf("%s@%s", address, domain),
-		To:          req.To,
-		Cc:          req.Cc,
-		Date:        now,
-		Subject:     req.Subject,
-		HTMLBody:    req.HTMLBody,
-		TextBody:    req.TextBody,
+		MessageID:      result.MessageID,
+		InReplyTo:      inReplyToHeader,
+		SenderName:     displayName,
+		SenderEmail:    fmt.Sprintf("%s@%s", address, domain),
+		To:             req.To,
+		Cc:             req.Cc,
+		Date:           now,
+		Subject:        req.Subject,
+		HTMLBody:       req.HTMLBody,
+		TextBody:       req.TextBody,
+		DeliveryStatus: "sent",
 	}
 
 	record, err := storeMessage(app, thread.Id, msg)

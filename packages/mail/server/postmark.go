@@ -157,6 +157,38 @@ func (p *PostmarkProvider) ParseInbound(body []byte) (*InboundMessage, error) {
 	return msg, nil
 }
 
+// postmarkBouncePayload matches Postmark's bounce/spam complaint webhook JSON.
+type postmarkBouncePayload struct {
+	RecordType  string `json:"RecordType"`
+	Type        string `json:"Type"` // "HardBounce", "SoftBounce", etc.
+	MessageID   string `json:"MessageID"`
+	Description string `json:"Description"`
+	Details     string `json:"Details"`
+	Email       string `json:"Email"`
+	BouncedAt   string `json:"BouncedAt"`
+}
+
+func (p *PostmarkProvider) ParseBounce(body []byte) (*BounceEvent, error) {
+	var payload postmarkBouncePayload
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("failed to parse bounce payload: %w", err)
+	}
+
+	description := payload.Description
+	if payload.Details != "" {
+		description = description + ": " + payload.Details
+	}
+
+	return &BounceEvent{
+		RecordType:  payload.RecordType,
+		BounceType:  payload.Type,
+		MessageID:   payload.MessageID,
+		Email:       payload.Email,
+		Description: description,
+		BouncedAt:   payload.BouncedAt,
+	}, nil
+}
+
 // VerifyWebhookSignature is a no-op for Postmark — security is via the secret URL token.
 func (p *PostmarkProvider) VerifyWebhookSignature(_ map[string]string, _ []byte) error {
 	return nil

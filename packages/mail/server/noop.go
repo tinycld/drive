@@ -23,6 +23,10 @@ func (n *NoopProvider) VerifyWebhookSignature(_ map[string]string, _ []byte) err
 	return errNoProvider
 }
 
+func (n *NoopProvider) ParseBounce(_ []byte) (*BounceEvent, error) {
+	return nil, errNoProvider
+}
+
 func (n *NoopProvider) AddDomain(_ context.Context, _ string) (*DomainVerification, error) {
 	return nil, errNoProvider
 }
