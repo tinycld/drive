@@ -7,18 +7,17 @@ import { AddonSidebarFallback } from './AddonSidebarFallback'
 import { useWorkspaceLayout } from './useWorkspaceLayout'
 
 interface AddonSidebarProps {
-    orgSlug: string
     width: number
 }
 
-export function AddonSidebar({ orgSlug, width }: AddonSidebarProps) {
+export function AddonSidebar({ width }: AddonSidebarProps) {
     const theme = useTheme()
     const { activeAddonSlug, isSidebarOpen } = useWorkspaceLayout()
     const addon = useAddon(activeAddonSlug ?? '')
 
     if (!isSidebarOpen || !addon) return null
 
-    const basePath = `/app/${orgSlug}/${addon.slug}`
+    const basePath = `/app/${addon.slug}`
     const SidebarComponent = addonSidebars[addon.slug]
 
     return (
@@ -34,7 +33,7 @@ export function AddonSidebar({ orgSlug, width }: AddonSidebarProps) {
         >
             {SidebarComponent ? (
                 <Suspense fallback={null}>
-                    <SidebarComponent orgSlug={orgSlug} basePath={basePath} isCollapsed={false} />
+                    <SidebarComponent basePath={basePath} isCollapsed={false} />
                 </Suspense>
             ) : (
                 <AddonSidebarFallback addonLabel={addon.nav.label} basePath={basePath} />

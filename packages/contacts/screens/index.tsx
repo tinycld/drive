@@ -1,22 +1,19 @@
 import { useLiveQuery } from '@tanstack/react-db'
 import { Star } from 'lucide-react-native'
+import type { OneRouter } from 'one'
 import { Link } from 'one'
 import { useState } from 'react'
 import { Pressable } from 'react-native'
 import { Input, SizableText, useTheme, XStack, YStack } from 'tamagui'
 import { useMutation } from '~/lib/mutations'
 import { useStore } from '~/lib/pocketbase'
-import { useOrgInfo } from '~/lib/use-org-info'
 import { ContactAvatar } from '../components/ContactAvatar'
 
 export default function ContactListScreen() {
-    const { orgSlug } = useOrgInfo()
     const [contactsCollection] = useStore('contacts')
     const [searchQuery, setSearchQuery] = useState('')
-    const newContactHref = {
-        pathname: '/app/[orgSlug]/contacts/new',
-        params: { orgSlug },
-    } as const
+    const newContactHref = '/app/contacts/new' as OneRouter.Href
+
     const { data: contacts, isLoading } = useLiveQuery(query =>
         query
             .from({ contacts: contactsCollection })
@@ -117,7 +114,6 @@ export default function ContactListScreen() {
                     <ContactRow
                         key={contact.id}
                         contact={contact}
-                        orgSlug={orgSlug}
                         onToggleFavorite={() =>
                             toggleFavorite.mutate({
                                 id: contact.id,
@@ -140,21 +136,15 @@ interface ContactRowProps {
         phone: string
         favorite: boolean
     }
-    orgSlug: string
     onToggleFavorite: () => void
 }
 
-function ContactRow({ contact, orgSlug, onToggleFavorite }: ContactRowProps) {
+function ContactRow({ contact, onToggleFavorite }: ContactRowProps) {
     const theme = useTheme()
     const displayName = [contact.first_name, contact.last_name].filter(Boolean).join(' ')
 
     return (
-        <Link
-            href={{
-                pathname: '/app/[orgSlug]/contacts/[id]',
-                params: { orgSlug, id: contact.id },
-            }}
-        >
+        <Link href={`/app/contacts/${contact.id}` as OneRouter.Href}>
             <XStack
                 paddingHorizontal="$3"
                 paddingVertical="$3"

@@ -9,24 +9,20 @@ declare module 'one' {
       StaticRoutes: 
         | `/`
         | `/_sitemap`
-        | `/app/[orgSlug]/contacts`
-        | `/app/[orgSlug]/contacts/`
-        | `/app/[orgSlug]/contacts/new`
+        | `/app`
+        | `/app/contacts`
+        | `/app/contacts/`
+        | `/app/contacts/new`
         | `/tabs`
         | `/tabs/`
         | `/tabs/profile`
         | `/tabs/settings`
         | `/test`
-      DynamicRoutes: 
-        | `/app/${OneRouter.SingleRoutePart<T>}`
-        | `/app/${OneRouter.SingleRoutePart<T>}/contacts/${OneRouter.SingleRoutePart<T>}`
-      DynamicRouteTemplate: 
-        | `/app/[orgSlug]`
-        | `/app/[orgSlug]/contacts/[id]`
+      DynamicRoutes: `/app/contacts/${OneRouter.SingleRoutePart<T>}`
+      DynamicRouteTemplate: `/app/contacts/[id]`
       IsTyped: true
       RouteTypes: {
-        '/app/[orgSlug]': RouteInfo<{ orgSlug: string }>
-        '/app/[orgSlug]/contacts/[id]': RouteInfo<{ orgSlug: string; id: string }>
+        '/app/contacts/[id]': RouteInfo<{ id: string }>
       }
     }
   }

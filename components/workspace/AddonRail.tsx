@@ -30,7 +30,7 @@ function getIcon(name: string): LucideIcon {
     return iconMap[name] ?? Home
 }
 
-export function AddonRail({ orgSlug }: { orgSlug: string }) {
+export function AddonRail() {
     const theme = useTheme()
     const addons = useAddons()
     const { activeAddonSlug } = useWorkspaceLayout()
@@ -43,7 +43,7 @@ export function AddonRail({ orgSlug }: { orgSlug: string }) {
         <View style={[styles.rail, { backgroundColor: theme.railBackground.val }]}>
             <View style={styles.topSection}>
                 <Pressable
-                    onPress={() => router.push({ pathname: '/app/[orgSlug]', params: { orgSlug } })}
+                    onPress={() => router.push('/app' as OneRouter.Href)}
                     style={styles.railItem}
                     accessibilityLabel="Organization home"
                 >
@@ -58,7 +58,6 @@ export function AddonRail({ orgSlug }: { orgSlug: string }) {
                     return (
                         <AddonRailItem
                             key={addon.slug}
-                            orgSlug={orgSlug}
                             slug={addon.slug}
                             label={addon.nav.label}
                             Icon={Icon}
@@ -72,7 +71,7 @@ export function AddonRail({ orgSlug }: { orgSlug: string }) {
 
             <View style={styles.bottomSection}>
                 <Pressable
-                    onPress={() => router.push(`/app/${orgSlug}/settings` as OneRouter.Href)}
+                    onPress={() => router.push('/app/settings' as OneRouter.Href)}
                     style={styles.railItem}
                     accessibilityLabel="Settings"
                 >
@@ -88,7 +87,6 @@ export function AddonRail({ orgSlug }: { orgSlug: string }) {
 }
 
 function AddonRailItem({
-    orgSlug,
     slug,
     label,
     Icon,
@@ -96,7 +94,6 @@ function AddonRailItem({
     activeColor,
     textColor,
 }: {
-    orgSlug: string
     slug: string
     label: string
     Icon: LucideIcon
@@ -108,7 +105,7 @@ function AddonRailItem({
 
     return (
         <Pressable
-            onPress={() => router.push(`/app/${orgSlug}/${slug}` as OneRouter.Href)}
+            onPress={() => router.push(`/app/${slug}` as OneRouter.Href)}
             style={[styles.railItem, isActive && { backgroundColor: `${activeColor}22` }]}
             accessibilityLabel={label}
         >

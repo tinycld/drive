@@ -7,11 +7,7 @@ import { useWorkspaceLayout } from './useWorkspaceLayout'
 
 const SIDEBAR_WIDTH = 260
 
-interface WorkspaceLayoutProps {
-    orgSlug: string
-}
-
-export function WorkspaceLayout({ orgSlug }: WorkspaceLayoutProps) {
+export function WorkspaceLayout() {
     const theme = useTheme()
     const { breakpoint, isSidebarOpen, setSidebarOpen } = useWorkspaceLayout()
 
@@ -20,17 +16,16 @@ export function WorkspaceLayout({ orgSlug }: WorkspaceLayoutProps) {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background.val }]}>
-            <AddonRail orgSlug={orgSlug} />
+            <AddonRail />
 
             {isTablet ? (
                 <SidebarOverlay
                     isVisible={showSidebarOverlay}
-                    orgSlug={orgSlug}
                     overlayColor={theme.overlayBackground.val}
                     onDismiss={() => setSidebarOpen(false)}
                 />
             ) : (
-                <AddonSidebar orgSlug={orgSlug} width={SIDEBAR_WIDTH} />
+                <AddonSidebar width={SIDEBAR_WIDTH} />
             )}
 
             <View style={[styles.main, { backgroundColor: theme.background.val }]}>
@@ -42,12 +37,10 @@ export function WorkspaceLayout({ orgSlug }: WorkspaceLayoutProps) {
 
 function SidebarOverlay({
     isVisible,
-    orgSlug,
     overlayColor,
     onDismiss,
 }: {
     isVisible: boolean
-    orgSlug: string
     overlayColor: string
     onDismiss: () => void
 }) {
@@ -60,7 +53,7 @@ function SidebarOverlay({
                 onPress={onDismiss}
             />
             <View style={styles.overlayPanel}>
-                <AddonSidebar orgSlug={orgSlug} width={SIDEBAR_WIDTH} />
+                <AddonSidebar width={SIDEBAR_WIDTH} />
             </View>
         </View>
     )
