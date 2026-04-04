@@ -48,9 +48,11 @@ jobs:
       - run: cd server && go build -o tinycld .
       - name: Server API smoke test
         run: |
-          npx tsx scripts/reset-dev-db.ts --url http://127.0.0.1:7091 --data-dir server/pb_test_data --keep-running true
+          npx tsx scripts/reset-dev-db.ts --url http://127.0.0.1:7091 --data-dir server/pb_test_data
+          server/tinycld --dev --dir server/pb_test_data --migrationsDir server/pb_migrations --http 127.0.0.1:7091 serve &
+          sleep 3
           npx tsx scripts/test-server-api.ts --url http://127.0.0.1:7091 --email user@tinycld.org --password TestUser1234!
-          lsof -ti :7091 | xargs kill 2>/dev/null || true
+          kill %1 2>/dev/null || true
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v4
