@@ -70,6 +70,18 @@
             "arrowParentheses": "asNeeded"
         }
     },
+    "overrides": [
+        {
+            "includes": ["scripts/**/*", "tests/**/*"],
+            "linter": {
+                "rules": {
+                    "suspicious": {
+                        "noConsole": "off"
+                    }
+                }
+            }
+        }
+    ],
     "assist": {
         "enabled": true,
         "actions": {

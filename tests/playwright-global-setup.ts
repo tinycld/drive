@@ -31,7 +31,6 @@ async function waitForPocketBase(maxAttempts = 30): Promise<boolean> {
 }
 
 export default async function globalSetup() {
-    // biome-ignore lint/suspicious/noConsole: test setup status messages
     console.log('\n[test-setup] Resetting test database...')
 
     // reset-dev-db.ts kills any existing process on PB_PORT before starting
@@ -57,7 +56,6 @@ export default async function globalSetup() {
         throw new Error(`[test-setup] Database reset failed with code ${result.status}`)
     }
 
-    // biome-ignore lint/suspicious/noConsole: test setup status messages
     console.log('[test-setup] Starting PocketBase on port', PB_PORT)
     const pb = spawn(
         PB_BINARY,
@@ -89,7 +87,6 @@ export default async function globalSetup() {
 
     const ready = await waitForPocketBase()
     if (!ready) {
-        // biome-ignore lint/suspicious/noConsole: test setup status messages
         console.error('[test-setup] PocketBase output:\n', pbOutput)
         pb.kill()
         throw new Error('[test-setup] PocketBase failed to start')
@@ -98,6 +95,5 @@ export default async function globalSetup() {
     // Write PID file so teardown can reliably stop it
     fs.writeFileSync(PID_FILE, String(pb.pid))
 
-    // biome-ignore lint/suspicious/noConsole: test setup status messages
     console.log('[test-setup] Test database ready, PocketBase running.\n')
 }

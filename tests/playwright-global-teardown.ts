@@ -16,7 +16,6 @@ export default async function globalTeardown() {
         const pid = fs.readFileSync(PID_FILE, 'utf-8').trim()
         process.kill(Number(pid), 'SIGTERM')
         fs.unlinkSync(PID_FILE)
-        // biome-ignore lint/suspicious/noConsole: test teardown status message
         console.log('[test-teardown] Stopped PocketBase test server.')
     } catch {
         // PID file missing or process already dead — nothing to do

@@ -29,7 +29,8 @@
         "db:reset": "npx tsx scripts/reset-dev-db.ts",
         "db:seed": "npx tsx scripts/seed-db.ts",
         "test:e2e:debug": "playwright test --ui --headed --debug",
-        "test:e2e": "npx playwright test"
+        "test:e2e": "npx playwright test",
+        "test:server": "npx tsx scripts/test-server-api.ts"
     },
     "dependencies": {
         "@hookform/resolvers": "^5.2.2",
