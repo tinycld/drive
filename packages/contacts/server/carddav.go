@@ -101,6 +101,11 @@ func (b *CardDAVBackend) ListAddressObjects(ctx context.Context, path string, re
 	bookPath := extractBookPath(path)
 	objects := make([]carddav.AddressObject, 0, len(records))
 	for _, record := range records {
+		// Backfill vcard_uid for contacts created before the hook existed
+		if record.GetString("vcard_uid") == "" {
+			record.Set("vcard_uid", "urn:uuid:"+uuid.NewString())
+			_ = b.app.Save(record)
+		}
 		obj, err := b.recordToAddressObject(record, bookPath, req)
 		if err != nil {
 			continue
