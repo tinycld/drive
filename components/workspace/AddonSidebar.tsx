@@ -17,7 +17,6 @@ export function AddonSidebar({ width }: AddonSidebarProps) {
 
     if (!isSidebarOpen || !addon) return null
 
-    const basePath = `/app/${addon.slug}`
     const SidebarComponent = addonSidebars[addon.slug]
 
     return (
@@ -33,10 +32,10 @@ export function AddonSidebar({ width }: AddonSidebarProps) {
         >
             {SidebarComponent ? (
                 <Suspense fallback={null}>
-                    <SidebarComponent basePath={basePath} isCollapsed={false} />
+                    <SidebarComponent isCollapsed={false} />
                 </Suspense>
             ) : (
-                <AddonSidebarFallback addonLabel={addon.nav.label} basePath={basePath} />
+                <AddonSidebarFallback addonSlug={addon.slug} addonLabel={addon.nav.label} />
             )}
         </View>
     )

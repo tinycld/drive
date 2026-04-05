@@ -34,7 +34,6 @@ export function MobileDrawer({ isVisible }: MobileDrawerProps) {
         opacity: progress.value,
     }))
 
-    const basePath = addon ? `/app/${addon.slug}` : '/app'
     const SidebarComponent = addon ? addonSidebars[addon.slug] : null
 
     return (
@@ -50,12 +49,12 @@ export function MobileDrawer({ isVisible }: MobileDrawerProps) {
             >
                 {SidebarComponent ? (
                     <Suspense fallback={null}>
-                        <SidebarComponent basePath={basePath} isCollapsed={false} />
+                        <SidebarComponent isCollapsed={false} />
                     </Suspense>
                 ) : (
                     <AddonSidebarFallback
+                        addonSlug={addon?.slug ?? ''}
                         addonLabel={addon?.nav.label ?? 'Menu'}
-                        basePath={basePath}
                     />
                 )}
             </Animated.View>

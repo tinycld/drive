@@ -1,15 +1,16 @@
 import { Home } from 'lucide-react-native'
-import type { OneRouter } from 'one'
 import { useRouter } from 'one'
 import { SidebarItem, SidebarNav } from '~/components/sidebar-primitives'
+import { useOrgSlug } from '~/lib/use-org-slug'
 
 interface AddonSidebarFallbackProps {
+    addonSlug: string
     addonLabel: string
-    basePath: string
 }
 
-export function AddonSidebarFallback({ addonLabel, basePath }: AddonSidebarFallbackProps) {
+export function AddonSidebarFallback({ addonSlug, addonLabel }: AddonSidebarFallbackProps) {
     const router = useRouter()
+    const orgSlug = useOrgSlug()
 
     return (
         <SidebarNav>
@@ -17,7 +18,7 @@ export function AddonSidebarFallback({ addonLabel, basePath }: AddonSidebarFallb
                 label={addonLabel}
                 icon={Home}
                 isActive
-                onPress={() => router.push(basePath as OneRouter.Href)}
+                onPress={() => router.push(`/a/${orgSlug}/${addonSlug}`)}
             />
         </SidebarNav>
     )

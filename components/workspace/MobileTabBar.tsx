@@ -1,11 +1,12 @@
 import { Settings } from 'lucide-react-native'
-import type { OneRouter } from 'one'
 import { useRouter } from 'one'
 import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from 'tamagui'
 import { useAddons } from '~/lib/addons/use-addons'
+import { useOrgHref } from '~/lib/org-routes'
+import { useOrgSlug } from '~/lib/use-org-slug'
 import { getIcon } from './addon-icon-map'
 import { useWorkspaceLayout } from './useWorkspaceLayout'
 
@@ -15,6 +16,8 @@ export function MobileTabBar() {
     const { activeAddonSlug } = useWorkspaceLayout()
     const router = useRouter()
     const insets = useSafeAreaInsets()
+    const orgSlug = useOrgSlug()
+    const orgHref = useOrgHref()
 
     const sorted = useMemo(
         () => [...addons].sort((a, b) => (a.nav.order ?? 99) - (b.nav.order ?? 99)),
@@ -40,7 +43,7 @@ export function MobileTabBar() {
                     <Pressable
                         key={addon.slug}
                         style={styles.tabItem}
-                        onPress={() => router.push(`/app/${addon.slug}` as OneRouter.Href)}
+                        onPress={() => router.push(`/a/${orgSlug}/${addon.slug}`)}
                         accessibilityLabel={addon.nav.label}
                     >
                         {isActive ? (
@@ -58,7 +61,7 @@ export function MobileTabBar() {
             })}
             <Pressable
                 style={styles.tabItem}
-                onPress={() => router.push('/app/settings' as OneRouter.Href)}
+                onPress={() => router.push(orgHref('settings'))}
                 accessibilityLabel="Settings"
             >
                 <Settings size={22} color={theme.railText.val} />

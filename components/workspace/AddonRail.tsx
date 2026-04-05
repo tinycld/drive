@@ -1,10 +1,11 @@
 import { Building2, type LucideIcon, Settings, User } from 'lucide-react-native'
-import type { OneRouter } from 'one'
 import { useRouter } from 'one'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import { useAddons } from '~/lib/addons/use-addons'
 import { useAuth } from '~/lib/auth'
+import { useOrgHref } from '~/lib/org-routes'
+import { useOrgSlug } from '~/lib/use-org-slug'
 import { getIcon } from './addon-icon-map'
 import { useWorkspaceLayout } from './useWorkspaceLayout'
 
@@ -14,6 +15,7 @@ export function AddonRail() {
     const { activeAddonSlug } = useWorkspaceLayout()
     const { logout } = useAuth({ throwIfAnon: false })
     const router = useRouter()
+    const orgHref = useOrgHref()
 
     const sorted = [...addons].sort((a, b) => (a.nav.order ?? 99) - (b.nav.order ?? 99))
 
@@ -21,7 +23,7 @@ export function AddonRail() {
         <View style={[styles.rail, { backgroundColor: theme.railBackground.val }]}>
             <View style={styles.topSection}>
                 <Pressable
-                    onPress={() => router.push('/app' as OneRouter.Href)}
+                    onPress={() => router.push(orgHref(''))}
                     style={styles.railItem}
                     accessibilityLabel="Organization home"
                 >
@@ -49,7 +51,7 @@ export function AddonRail() {
 
             <View style={styles.bottomSection}>
                 <Pressable
-                    onPress={() => router.push('/app/settings' as OneRouter.Href)}
+                    onPress={() => router.push(orgHref('settings'))}
                     style={styles.railItem}
                     accessibilityLabel="Settings"
                 >
@@ -80,10 +82,11 @@ function AddonRailItem({
     textColor: string
 }) {
     const router = useRouter()
+    const orgSlug = useOrgSlug()
 
     return (
         <Pressable
-            onPress={() => router.push(`/app/${slug}` as OneRouter.Href)}
+            onPress={() => router.push(`/a/${orgSlug}/${slug}`)}
             style={[styles.railItem, isActive && { backgroundColor: `${activeColor}22` }]}
             accessibilityLabel={label}
         >
