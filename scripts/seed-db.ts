@@ -96,7 +96,11 @@ async function main() {
     })
 
     // Run addon seeds
-    const seedContext = { user, org, userOrg }
+    const seedContext = {
+        user: { id: user.id, email: TEST_USER_EMAIL, name: TEST_USER_NAME },
+        org,
+        userOrg,
+    }
     for (const [_slug, seedFn] of Object.entries(addonSeeds)) {
         await seedFn(pb, seedContext)
     }
