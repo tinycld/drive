@@ -1,5 +1,9 @@
 import type PocketBase from 'pocketbase'
 
+function log(...args: unknown[]) {
+    process.stdout.write(`[seed:contacts] ${args.join(' ')}\n`)
+}
+
 interface SeedContext {
     userOrg: { id: string }
 }
@@ -78,10 +82,12 @@ const SAMPLE_CONTACTS = [
 ]
 
 export default async function seed(pb: PocketBase, { userOrg }: SeedContext) {
+    log(`Creating ${SAMPLE_CONTACTS.length} contacts...`)
     for (const contact of SAMPLE_CONTACTS) {
         await pb.collection('contacts').create({
             ...contact,
             owner: userOrg.id,
         })
     }
+    log(`Created ${SAMPLE_CONTACTS.length} contacts`)
 }

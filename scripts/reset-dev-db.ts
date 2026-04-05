@@ -24,6 +24,14 @@ import { spawn, spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+function log(...args: unknown[]) {
+    process.stdout.write(`[reset-dev-db] ${args.join(' ')}\n`)
+}
+
+function logError(...args: unknown[]) {
+    process.stderr.write(`[reset-dev-db] ${args.join(' ')}\n`)
+}
+
 try {
     process.loadEnvFile()
 } catch {
@@ -102,6 +110,7 @@ async function waitForPocketBase(maxAttempts = 30): Promise<boolean> {
 }
 
 function killExistingPocketBase(): void {
+    log('Killing existing PocketBase on port', PB_PORT)
     try {
         const result = spawnSync('lsof', ['-ti', `:${PB_PORT}`], {
             encoding: 'utf-8',
@@ -111,25 +120,32 @@ function killExistingPocketBase(): void {
             for (const pid of pids) {
                 spawnSync('kill', ['-9', pid])
             }
+            log('Killed', pids.length, 'process(es)')
         } else {
+            log('No existing process found')
         }
     } catch {
-        // No processes to kill
+        log('No existing process found')
     }
 }
 
 function deletePbData(): void {
+    log('Deleting', PB_DATA_DIR)
     if (fs.existsSync(PB_DATA_DIR)) {
         fs.rmSync(PB_DATA_DIR, { recursive: true, force: true })
+        log('Deleted')
     } else {
+        log('No data directory found, skipping')
     }
 }
 
 function buildPocketBase(): void {
     if (CONFIG.skipBuild) {
+        log('Skipping build (--skip-build)')
         return
     }
 
+    log('Building PocketBase...')
     const result = spawnSync('go', ['build', '-o', 'tinycld', '.'], {
         cwd: path.join(process.cwd(), 'server'),
         stdio: 'inherit',
@@ -137,6 +153,7 @@ function buildPocketBase(): void {
     if (result.status !== 0) {
         throw new Error('Failed to build PocketBase')
     }
+    log('Build complete')
 }
 
 function getCredentials(): { email: string; password: string } {
@@ -149,6 +166,7 @@ function getCredentials(): { email: string; password: string } {
 
 function createSuperuser(): void {
     const { email, password } = getCredentials()
+    log('Creating superuser:', email)
 
     const result = spawnSync(
         PB_BINARY,
@@ -163,6 +181,7 @@ function createSuperuser(): void {
 }
 
 async function startPocketBase(): Promise<ReturnType<typeof spawn>> {
+    log(`Starting PocketBase at ${PB_HOST}:${PB_PORT}...`)
     const migrationsDir = path.join(process.cwd(), 'server/pb_migrations')
     const pb = spawn(
         PB_BINARY,
@@ -177,23 +196,24 @@ async function startPocketBase(): Promise<ReturnType<typeof spawn>> {
             'serve',
         ],
         {
-            stdio: ['ignore', 'pipe', 'pipe'],
+            stdio: ['ignore', 'ignore', 'pipe'],
             detached: false,
         }
     )
 
     pb.stderr?.on('data', data => {
-        console.error('[pocketbase]', data.toString().trim())
+        logError('[pocketbase]', data.toString().trim())
     })
 
     pb.on('error', err => {
-        console.error('[pocketbase] spawn error:', err)
+        logError('[pocketbase] spawn error:', err)
     })
 
     return pb
 }
 
 async function runSeedScript(): Promise<void> {
+    log('Running seed script...')
     const { email, password } = getCredentials()
 
     return new Promise((resolve, reject) => {
@@ -237,14 +257,17 @@ async function main() {
         createSuperuser()
         pb = await startPocketBase()
 
+        log('Waiting for PocketBase to be ready...')
         const ready = await waitForPocketBase()
         if (!ready) {
             throw new Error('PocketBase failed to start within timeout')
         }
+        log('PocketBase is ready')
 
         await runSeedScript()
 
         if (CONFIG.keepRunning) {
+            log('Keeping server running (Ctrl+C to stop)')
             await new Promise<void>(resolve => {
                 process.on('SIGINT', () => {
                     resolve()
@@ -254,8 +277,10 @@ async function main() {
                 })
             })
         }
+
+        log('Done!')
     } catch (err) {
-        console.error('[reset-dev-db] Failed:', err)
+        logError('Failed:', err)
         process.exit(1)
     } finally {
         if (pb) {

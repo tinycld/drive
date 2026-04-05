@@ -17,6 +17,14 @@
 import PocketBase from 'pocketbase'
 import { addonSeeds } from '../lib/generated/addon-seeds'
 
+function log(...args: unknown[]) {
+    process.stdout.write(`[seed] ${args.join(' ')}\n`)
+}
+
+function logError(...args: unknown[]) {
+    process.stderr.write(`[seed] ${args.join(' ')}\n`)
+}
+
 try {
     process.loadEnvFile()
 } catch {
@@ -70,30 +78,54 @@ const TEST_USER_NAME = 'Test User'
 
 async function main() {
     const config = parseArgs()
+    log('Connecting to PocketBase at', config.url)
     const pb = new PocketBase(config.url)
 
-    // Authenticate as superuser
+    log('Authenticating as superuser...')
     await pb.collection('_superusers').authWithPassword(config.adminEmail, config.adminPassword)
 
-    const user = await pb.collection('users').create({
-        email: TEST_USER_EMAIL,
-        password: TEST_USER_PASSWORD,
-        passwordConfirm: TEST_USER_PASSWORD,
-        name: TEST_USER_NAME,
-        verified: true,
-    })
+    let user: { id: string }
+    try {
+        user = await pb.collection('users').getFirstListItem(`email = "${TEST_USER_EMAIL}"`)
+        log('Found existing test user:', TEST_USER_EMAIL)
+    } catch {
+        log('Creating test user:', TEST_USER_EMAIL)
+        user = await pb.collection('users').create({
+            email: TEST_USER_EMAIL,
+            password: TEST_USER_PASSWORD,
+            passwordConfirm: TEST_USER_PASSWORD,
+            name: TEST_USER_NAME,
+            verified: true,
+        })
+    }
 
-    const org = await pb.collection('orgs').create({
-        name: TEST_ORG_NAME,
-        slug: TEST_ORG_SLUG,
-        users: [user.id],
-    })
+    let org: { id: string }
+    try {
+        org = await pb.collection('orgs').getFirstListItem(`slug = "${TEST_ORG_SLUG}"`)
+        log('Found existing org:', TEST_ORG_SLUG)
+    } catch {
+        log('Creating org:', TEST_ORG_SLUG)
+        org = await pb.collection('orgs').create({
+            name: TEST_ORG_NAME,
+            slug: TEST_ORG_SLUG,
+            users: [user.id],
+        })
+    }
 
-    const userOrg = await pb.collection('user_org').create({
-        org: org.id,
-        user: user.id,
-        role: 'admin',
-    })
+    let userOrg: { id: string }
+    try {
+        userOrg = await pb
+            .collection('user_org')
+            .getFirstListItem(`user = "${user.id}" && org = "${org.id}"`)
+        log('Found existing user_org membership')
+    } catch {
+        log('Creating user_org membership (role: admin)')
+        userOrg = await pb.collection('user_org').create({
+            org: org.id,
+            user: user.id,
+            role: 'admin',
+        })
+    }
 
     // Run addon seeds
     const seedContext = {
@@ -101,11 +133,21 @@ async function main() {
         org,
         userOrg,
     }
-    for (const [_slug, seedFn] of Object.entries(addonSeeds)) {
+    const addonEntries = Object.entries(addonSeeds)
+    log(`Running ${addonEntries.length} addon seed(s)...`)
+    for (const [slug, seedFn] of addonEntries) {
+        log(`  → ${slug}`)
         await seedFn(pb, seedContext)
+        log(`  ✓ ${slug} done`)
     }
+
+    log('Seeding complete!')
 }
 
-main().catch(_err => {
+main().catch(err => {
+    logError('Failed:', err)
+    if (err?.response) {
+        logError('Response:', JSON.stringify(err.response, null, 2))
+    }
     process.exit(1)
 })

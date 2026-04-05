@@ -1,5 +1,9 @@
 import type PocketBase from 'pocketbase'
 
+function log(...args: unknown[]) {
+    process.stdout.write(`[seed:mail] ${args.join(' ')}\n`)
+}
+
 interface SeedContext {
     user: { id: string; email: string; name: string }
     org: { id: string }
@@ -326,7 +330,7 @@ async function findUniqueAddress(pb: PocketBase, base: string, domainId: string)
     }
 }
 
-async function createPersonalMailbox(
+async function findOrCreatePersonalMailbox(
     pb: PocketBase,
     email: string,
     name: string,
@@ -334,8 +338,18 @@ async function createPersonalMailbox(
     userOrgId: string
 ) {
     const base = deriveAddress(email)
-    const address = await findUniqueAddress(pb, base, domainId)
 
+    // Check if mailbox already exists
+    try {
+        const existing = await pb
+            .collection('mail_mailboxes')
+            .getFirstListItem(`address = "${base}" && domain = "${domainId}"`)
+        return existing
+    } catch {
+        // Not found, create it
+    }
+
+    const address = await findUniqueAddress(pb, base, domainId)
     const mailbox = await pb.collection('mail_mailboxes').create({
         address,
         domain: domainId,
@@ -353,13 +367,23 @@ async function createPersonalMailbox(
 }
 
 export default async function seed(pb: PocketBase, { user, org, userOrg }: SeedContext) {
-    const domain = await pb.collection('mail_domains').create({
-        org: org.id,
-        domain: 'tinycld.org',
-        verified: true,
-    })
+    let domain: { id: string }
+    try {
+        domain = await pb
+            .collection('mail_domains')
+            .getFirstListItem(`org = "${org.id}" && domain = "tinycld.org"`)
+        log('Found existing mail domain: tinycld.org')
+    } catch {
+        log('Creating mail domain: tinycld.org')
+        domain = await pb.collection('mail_domains').create({
+            org: org.id,
+            domain: 'tinycld.org',
+            verified: true,
+        })
+    }
 
-    const personalMailbox = await createPersonalMailbox(
+    log('Setting up personal mailbox for', user.email)
+    const personalMailbox = await findOrCreatePersonalMailbox(
         pb,
         user.email,
         user.name,
@@ -367,42 +391,77 @@ export default async function seed(pb: PocketBase, { user, org, userOrg }: SeedC
         userOrg.id
     )
 
-    const sharedMailbox = await pb.collection('mail_mailboxes').create({
-        address: 'support',
-        domain: domain.id,
-        display_name: 'Support',
-        type: 'shared',
-    })
+    let sharedMailbox: { id: string }
+    try {
+        sharedMailbox = await pb
+            .collection('mail_mailboxes')
+            .getFirstListItem(`address = "support" && domain = "${domain.id}"`)
+        log('Found existing shared mailbox: support')
+    } catch {
+        log('Creating shared mailbox: support')
+        sharedMailbox = await pb.collection('mail_mailboxes').create({
+            address: 'support',
+            domain: domain.id,
+            display_name: 'Support',
+            type: 'shared',
+        })
 
-    await pb.collection('mail_mailbox_members').create({
-        mailbox: sharedMailbox.id,
-        user_org: userOrg.id,
-        role: 'owner',
-    })
+        await pb.collection('mail_mailbox_members').create({
+            mailbox: sharedMailbox.id,
+            user_org: userOrg.id,
+            role: 'owner',
+        })
+    }
 
     // Create personal mailboxes for any other org members
     const otherMembers = await pb.collection('user_org').getFullList({
         filter: `org = "${org.id}" && id != "${userOrg.id}"`,
         expand: 'user',
     })
+    if (otherMembers.length > 0) {
+        log(`Setting up mailboxes for ${otherMembers.length} other org member(s)`)
+    }
     for (const member of otherMembers) {
         const memberUser = member.expand?.user as { email: string; name: string } | undefined
         if (!memberUser) continue
-        await createPersonalMailbox(pb, memberUser.email, memberUser.name, domain.id, member.id)
+        await findOrCreatePersonalMailbox(
+            pb,
+            memberUser.email,
+            memberUser.name,
+            domain.id,
+            member.id
+        )
     }
 
-    // Create labels
+    // Create labels (find or create)
+    log(`Setting up ${LABELS.length} labels...`)
     const labelMap: Record<string, string> = {}
     for (const label of LABELS) {
-        const record = await pb.collection('mail_labels').create({
-            org: org.id,
-            name: label.name,
-            color: label.color,
-        })
+        let record: { id: string }
+        try {
+            record = await pb
+                .collection('mail_labels')
+                .getFirstListItem(`org = "${org.id}" && name = "${label.name}"`)
+        } catch {
+            record = await pb.collection('mail_labels').create({
+                org: org.id,
+                name: label.name,
+                color: label.color,
+            })
+        }
         labelMap[label.name] = record.id
     }
 
-    // 7. Create threads, messages, and thread state
+    // Check if threads already exist for this mailbox
+    const existingThreads = await pb.collection('mail_threads').getList(1, 1, {
+        filter: `mailbox = "${personalMailbox.id}"`,
+    })
+    if (existingThreads.totalItems > 0) {
+        log(`Skipping threads (${existingThreads.totalItems} already exist)`)
+        return
+    }
+
+    log(`Creating ${THREADS.length} threads with messages...`)
     for (const thread of THREADS) {
         const threadRecord = await pb.collection('mail_threads').create({
             mailbox: personalMailbox.id,
@@ -413,7 +472,6 @@ export default async function seed(pb: PocketBase, { user, org, userOrg }: SeedC
             participants: thread.participants,
         })
 
-        // Create messages with body_html as file upload
         for (let i = 0; i < thread.messages.length; i++) {
             const msg = thread.messages[i]
             const formData = new FormData()
@@ -441,7 +499,6 @@ export default async function seed(pb: PocketBase, { user, org, userOrg }: SeedC
             await pb.collection('mail_messages').create(formData)
         }
 
-        // Create thread state
         const labelIds = thread.labels.map(name => labelMap[name]).filter(Boolean)
 
         await pb.collection('mail_thread_state').create({
@@ -453,4 +510,6 @@ export default async function seed(pb: PocketBase, { user, org, userOrg }: SeedC
             labels: labelIds,
         })
     }
+
+    log(`Created ${THREADS.length} threads`)
 }
