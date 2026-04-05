@@ -2,15 +2,18 @@ import { useEffect, useRef } from 'react'
 import { Platform, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
+import { captureException } from '~/lib/errors'
 import { performMutations } from '~/lib/mutations'
 import { useStore } from '~/lib/pocketbase'
 import { useForm, zodResolver } from '~/ui/form'
 import { type ComposeFormData, composeSchema, parseRecipients } from '../hooks/composeSchema'
+import { useAttachments } from '../hooks/useAttachments'
 import { useCompose } from '../hooks/useComposeState'
 import { useDefaultMailbox } from '../hooks/useDefaultMailbox'
-import { useEditorHandle, useMailEditor } from '../hooks/useMailEditor'
+import { setContentWhenReady, useEditorHandle, useMailEditor } from '../hooks/useMailEditor'
 import { useSaveDraft } from '../hooks/useSaveDraft'
 import { useSendEmail } from '../hooks/useSendEmail'
+import { AttachmentRibbon } from './AttachmentRibbon'
 import { ComposeFields } from './ComposeFields'
 import { ComposeHeader } from './ComposeHeader'
 import { ComposeToolbar } from './ComposeToolbar'
@@ -33,11 +36,14 @@ export function ComposeWindow({ isVisible }: ComposeWindowProps) {
     const { mode, replyContext, draftContext, minimize, maximize, open, close } = useCompose()
     const breakpoint = useBreakpoint()
     const editorRef = useRef<RichTextEditorHandle>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
     const mailboxId = useDefaultMailbox()
-    const prevModeRef = useRef(mode)
     const draftIdRef = useRef<string | null>(null)
+    const { attachments, addFiles, removeFile, clearAll: clearAttachments } = useAttachments()
 
     const editor = useMailEditor({ placeholder: 'Compose email' })
+    const editorBridgeRef = useRef(editor)
+    editorBridgeRef.current = editor
     useEditorHandle(editor, editorRef)
 
     const {
@@ -54,9 +60,6 @@ export function ComposeWindow({ isVisible }: ComposeWindowProps) {
     })
 
     useEffect(() => {
-        const wasClosedOrNew = prevModeRef.current === 'closed'
-        prevModeRef.current = mode
-
         if (draftContext) {
             draftIdRef.current = draftContext.messageId
             const formatRecipients = (recipients: { name: string; email: string }[]) =>
@@ -67,7 +70,10 @@ export function ComposeWindow({ isVisible }: ComposeWindowProps) {
                 bcc: formatRecipients(draftContext.bcc),
                 subject: draftContext.subject,
             })
-            editor.setContent(draftContext.htmlBody || draftContext.textBody || '')
+            setContentWhenReady(
+                editorBridgeRef.current,
+                draftContext.htmlBody || draftContext.textBody || ''
+            )
         } else if (replyContext) {
             draftIdRef.current = null
             const toValue =
@@ -77,11 +83,11 @@ export function ComposeWindow({ isVisible }: ComposeWindowProps) {
                 ? replyContext.subject
                 : `Re: ${replyContext.subject}`
             reset({ to: toValue, cc: '', bcc: '', subject: subjectPrefix })
-        } else if (mode === 'open' && wasClosedOrNew) {
+        } else {
             draftIdRef.current = null
             reset({ to: '', cc: '', bcc: '', subject: '' })
         }
-    }, [replyContext, draftContext, mode, reset, editor])
+    }, [replyContext, draftContext, reset])
 
     const [messagesCollection] = useStore('mail_messages')
 
@@ -193,35 +199,38 @@ export function ComposeWindow({ isVisible }: ComposeWindowProps) {
                 onMaximize={isMaximized ? open : maximize}
                 onClose={handleClose}
             />
-            {isMinimized ? null : (
-                <>
-                    <ComposeFields control={control} errors={errors} />
-                    {hasMailbox ? null : (
-                        <View style={styles.mailboxWarning}>
-                            <Text style={[styles.mailboxWarningText, { color: theme.red10.val }]}>
-                                No mailbox found. Ask your admin to add you to a mailbox.
-                            </Text>
-                        </View>
-                    )}
-                    <View style={styles.body}>
-                        <RichTextEditor editor={editor} />
+            <View style={isMinimized ? styles.hidden : styles.composeBody}>
+                <ComposeFields control={control} errors={errors} />
+                {hasMailbox ? null : (
+                    <View style={styles.mailboxWarning}>
+                        <Text style={[styles.mailboxWarningText, { color: theme.red10.val }]}>
+                            No mailbox found. Ask your admin to add you to a mailbox.
+                        </Text>
                     </View>
-                    <ComposeToolbar
-                        editor={editor}
-                        onDiscard={close}
-                        onSend={onSend}
-                        isPending={isPending}
-                    />
-                </>
-            )}
+                )}
+                <View style={styles.body}>
+                    <RichTextEditor editor={editor} />
+                </View>
+                <ComposeToolbar
+                    editor={editor}
+                    onDiscard={close}
+                    onSend={onSend}
+                    isPending={isPending}
+                />
+            </View>
         </View>
     )
 
-    if (isMaximized && !isNotDesktop) {
-        return <View style={styles.backdrop}>{composeWindow}</View>
-    }
+    const showBackdrop = isMaximized && !isNotDesktop
 
-    return composeWindow
+    return (
+        <View
+            style={showBackdrop ? styles.backdrop : styles.noBackdrop}
+            pointerEvents={showBackdrop ? 'auto' : 'box-none'}
+        >
+            {composeWindow}
+        </View>
+    )
 }
 
 const styles = StyleSheet.create({
@@ -261,11 +270,25 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    noBackdrop: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1000,
+    },
     fullscreen: {
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
+    },
+    composeBody: {
+        flex: 1,
+    },
+    hidden: {
+        display: 'none',
     },
     body: {
         flex: 1,

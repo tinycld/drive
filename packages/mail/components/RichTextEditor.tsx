@@ -1,6 +1,5 @@
-import { type RefObject, useEffect, useRef } from 'react'
-import { Platform, StyleSheet, TextInput, View } from 'react-native'
-import { useTheme } from 'tamagui'
+import { type EditorBridge, RichText } from '@10play/tentap-editor'
+import { StyleSheet, View } from 'react-native'
 
 export interface RichTextEditorHandle {
     getHTML: () => Promise<string>
@@ -10,77 +9,20 @@ export interface RichTextEditorHandle {
 }
 
 interface RichTextEditorProps {
-    placeholder?: string
-    initialContent?: string
-    editorRef: RefObject<RichTextEditorHandle | null>
+    editor: EditorBridge
 }
 
-export function RichTextEditor({
-    placeholder = 'Compose email',
-    initialContent = '',
-    editorRef,
-}: RichTextEditorProps) {
-    const theme = useTheme()
-    const textRef = useRef<TextInput | null>(null)
-    const currentText = useRef(initialContent)
-
-    useEffect(() => {
-        editorRef.current = {
-            getHTML: async () => {
-                const escaped = currentText.current
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/\n/g, '<br>')
-                return `<div>${escaped}</div>`
-            },
-            getText: async () => currentText.current,
-            focus: () => textRef.current?.focus(),
-            clear: () => {
-                currentText.current = ''
-                textRef.current?.clear()
-            },
-        }
-        return () => {
-            editorRef.current = null
-        }
-    }, [editorRef])
-
+export function RichTextEditor({ editor }: RichTextEditorProps) {
     return (
         <View style={styles.container}>
-            <TextInput
-                ref={textRef}
-                style={[
-                    styles.input,
-                    { color: theme.color.val },
-                    Platform.OS === 'web'
-                        ? ({ outlineStyle: 'none' } as Record<string, unknown>)
-                        : {},
-                ]}
-                multiline
-                placeholder={placeholder}
-                placeholderTextColor={theme.placeholderColor.val}
-                defaultValue={initialContent}
-                onChangeText={text => {
-                    currentText.current = text
-                }}
-            />
+            <RichText editor={editor} scrollEnabled={false} />
         </View>
     )
 }
-
-const webInputStyle = Platform.OS === 'web' ? ({ height: '100%' } as Record<string, unknown>) : {}
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         minHeight: 100,
-    },
-    input: {
-        flex: 1,
-        fontSize: 14,
-        textAlignVertical: 'top',
-        padding: 0,
-        ...webInputStyle,
     },
 })

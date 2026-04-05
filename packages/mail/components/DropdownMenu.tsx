@@ -1,7 +1,7 @@
+import { Menu } from '@tamagui/menu'
 import type { LucideIcon } from 'lucide-react-native'
 import { Check } from 'lucide-react-native'
-import { Menu } from '@tamagui/menu'
-import { View, useTheme } from 'tamagui'
+import { useTheme, View } from 'tamagui'
 import { ToolbarIconButton } from './ToolbarIconButton'
 
 interface ToolbarMenuProps {

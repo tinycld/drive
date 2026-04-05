@@ -15,12 +15,11 @@ import {
     Tag,
     Trash2,
 } from 'lucide-react-native'
-import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import type { MailThreadState } from '../types'
-import { DropdownMenu, DropdownMenuItem } from './DropdownMenu'
+import { MenuActionItem, ToolbarMenu } from './DropdownMenu'
 import { ToolbarIconButton } from './ToolbarIconButton'
 
 interface LabelInfo {
@@ -84,6 +83,15 @@ function DefaultToolbar({ emailCount, onToggleAll }: EmailListToolbarProps) {
     )
 }
 
+const MOVE_FOLDERS: { label: string; folder: MailThreadState['folder'] }[] = [
+    { label: 'Inbox', folder: 'inbox' },
+    { label: 'Sent', folder: 'sent' },
+    { label: 'Drafts', folder: 'drafts' },
+    { label: 'Spam', folder: 'spam' },
+    { label: 'Trash', folder: 'trash' },
+    { label: 'Archive', folder: 'archive' },
+]
+
 function BulkActionsToolbar({
     emailCount,
     selectedCount,
@@ -103,7 +111,6 @@ function BulkActionsToolbar({
     onUpdateLabel,
 }: EmailListToolbarProps) {
     const theme = useTheme()
-    const [openMenu, setOpenMenu] = useState<'move' | 'labels' | 'more' | null>(null)
 
     const SelectIcon = allSelected ? SquareCheck : someSelected ? SquareMinus : Square
 
@@ -131,59 +138,37 @@ function BulkActionsToolbar({
                     label={readLabel}
                     onPress={() => onToggleRead(!allSelectedRead)}
                 />
-                <View style={styles.menuAnchor}>
-                    <ToolbarIconButton
-                        icon={FolderInput}
-                        label="Move to"
-                        onPress={() => setOpenMenu(openMenu === 'move' ? null : 'move')}
+                <ToolbarMenu icon={FolderInput} label="Move to">
+                    {MOVE_FOLDERS.map(({ label, folder }) => (
+                        <MenuActionItem key={folder} label={label} onPress={() => onMove(folder)} />
+                    ))}
+                </ToolbarMenu>
+                <ToolbarMenu icon={Tag} label="Labels">
+                    {labels.map(lbl => {
+                        const isActive = selectedItemLabelIds.has(lbl.id)
+                        return (
+                            <MenuActionItem
+                                key={lbl.id}
+                                label={lbl.name}
+                                colorDot={lbl.color}
+                                isActive={isActive}
+                                onPress={() => onUpdateLabel(lbl.id, !isActive)}
+                            />
+                        )
+                    })}
+                </ToolbarMenu>
+                <ToolbarMenu icon={MoreVertical} label="More">
+                    <MenuActionItem
+                        label={allSelectedRead ? 'Mark as unread' : 'Mark as read'}
+                        icon={allSelectedRead ? MailOpen : Mail}
+                        onPress={() => onToggleRead(!allSelectedRead)}
                     />
-                    <MoveToDropdown
-                        isVisible={openMenu === 'move'}
-                        onClose={() => setOpenMenu(null)}
-                        onMove={folder => {
-                            onMove(folder)
-                            setOpenMenu(null)
-                        }}
+                    <MenuActionItem
+                        label={allSelectedStarred ? 'Remove star' : 'Add star'}
+                        icon={Star}
+                        onPress={() => onToggleStar(!allSelectedStarred)}
                     />
-                </View>
-                <View style={styles.menuAnchor}>
-                    <ToolbarIconButton
-                        icon={Tag}
-                        label="Labels"
-                        onPress={() => setOpenMenu(openMenu === 'labels' ? null : 'labels')}
-                    />
-                    <LabelsDropdown
-                        isVisible={openMenu === 'labels'}
-                        onClose={() => setOpenMenu(null)}
-                        labels={labels}
-                        selectedItemLabelIds={selectedItemLabelIds}
-                        onUpdateLabel={(labelId, add) => {
-                            onUpdateLabel(labelId, add)
-                            setOpenMenu(null)
-                        }}
-                    />
-                </View>
-                <View style={styles.menuAnchor}>
-                    <ToolbarIconButton
-                        icon={MoreVertical}
-                        label="More"
-                        onPress={() => setOpenMenu(openMenu === 'more' ? null : 'more')}
-                    />
-                    <MoreDropdown
-                        isVisible={openMenu === 'more'}
-                        onClose={() => setOpenMenu(null)}
-                        allSelectedRead={allSelectedRead}
-                        allSelectedStarred={allSelectedStarred}
-                        onToggleRead={() => {
-                            onToggleRead(!allSelectedRead)
-                            setOpenMenu(null)
-                        }}
-                        onToggleStar={() => {
-                            onToggleStar(!allSelectedStarred)
-                            setOpenMenu(null)
-                        }}
-                    />
-                </View>
+                </ToolbarMenu>
             </View>
             <View style={styles.right}>
                 <Text style={[styles.paginationText, { color: theme.color8.val }]}>
@@ -193,95 +178,6 @@ function BulkActionsToolbar({
                 <ToolbarIconButton icon={ChevronRight} label="Older" onPress={() => {}} />
             </View>
         </View>
-    )
-}
-
-const MOVE_FOLDERS: { label: string; folder: MailThreadState['folder'] }[] = [
-    { label: 'Inbox', folder: 'inbox' },
-    { label: 'Sent', folder: 'sent' },
-    { label: 'Drafts', folder: 'drafts' },
-    { label: 'Spam', folder: 'spam' },
-    { label: 'Trash', folder: 'trash' },
-    { label: 'Archive', folder: 'archive' },
-]
-
-function MoveToDropdown({
-    isVisible,
-    onClose,
-    onMove,
-}: {
-    isVisible: boolean
-    onClose: () => void
-    onMove: (folder: MailThreadState['folder']) => void
-}) {
-    return (
-        <DropdownMenu isVisible={isVisible} onClose={onClose}>
-            {MOVE_FOLDERS.map(({ label, folder }) => (
-                <DropdownMenuItem key={folder} label={label} onPress={() => onMove(folder)} />
-            ))}
-        </DropdownMenu>
-    )
-}
-
-function LabelsDropdown({
-    isVisible,
-    onClose,
-    labels,
-    selectedItemLabelIds,
-    onUpdateLabel,
-}: {
-    isVisible: boolean
-    onClose: () => void
-    labels: LabelInfo[]
-    selectedItemLabelIds: Set<string>
-    onUpdateLabel: (labelId: string, add: boolean) => void
-}) {
-    return (
-        <DropdownMenu isVisible={isVisible} onClose={onClose}>
-            {labels.map(label => {
-                const isActive = selectedItemLabelIds.has(label.id)
-                return (
-                    <DropdownMenuItem
-                        key={label.id}
-                        label={label.name}
-                        colorDot={label.color}
-                        isActive={isActive}
-                        onPress={() => onUpdateLabel(label.id, !isActive)}
-                    />
-                )
-            })}
-        </DropdownMenu>
-    )
-}
-
-function MoreDropdown({
-    isVisible,
-    onClose,
-    allSelectedRead,
-    allSelectedStarred,
-    onToggleRead,
-    onToggleStar,
-}: {
-    isVisible: boolean
-    onClose: () => void
-    allSelectedRead: boolean
-    allSelectedStarred: boolean
-    onToggleRead: () => void
-    onToggleStar: () => void
-}) {
-    return (
-        <DropdownMenu isVisible={isVisible} onClose={onClose}>
-            <DropdownMenuItem
-                label={allSelectedRead ? 'Mark as unread' : 'Mark as read'}
-                icon={allSelectedRead ? MailOpen : Mail}
-                onPress={onToggleRead}
-            />
-            <DropdownMenuItem
-                label={allSelectedStarred ? 'Remove star' : 'Add star'}
-                icon={Star}
-                onPress={onToggleStar}
-            />
-        </DropdownMenu>
     )
 }
 
@@ -321,10 +217,5 @@ const styles = StyleSheet.create({
     paginationText: {
         fontSize: 12,
         marginRight: 4,
-    },
-    menuAnchor: {
-        position: 'relative',
-        overflow: 'visible',
-        zIndex: 100,
     },
 })

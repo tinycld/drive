@@ -5,6 +5,11 @@ export default defineConfig({
     server: {
         port: Number(process.env.VITE_PORT || 7100),
     },
+    resolve: {
+        alias: {
+            'react-native-webview': '@10play/react-native-web-webview',
+        },
+    },
     plugins: [
         one({
             web: {
