@@ -4,7 +4,7 @@ import * as path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const GENERATED_DIR = path.join(ROOT, 'lib/generated')
-const ROUTES_BASE = path.join(ROOT, 'app/app')
+const ROUTES_BASE = path.join(ROOT, 'app/a/[orgSlug]')
 const MIGRATIONS_DIR = path.join(ROOT, 'server/pb_migrations')
 const HOOKS_DIR = path.join(ROOT, 'server/pb_hooks')
 const SERVER_DIR = path.join(ROOT, 'server')
@@ -321,7 +321,6 @@ function generateSidebarsFile(
         ...imports,
         '',
         'interface AddonSidebarProps {',
-        '    basePath: string',
         '    isCollapsed: boolean',
         '}',
         '',

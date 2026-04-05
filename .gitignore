@@ -44,7 +44,7 @@ server/.test-pb.pid
 
 # Generated addon wiring
 lib/generated/
-app/app/*/
+app/a/[orgSlug]/*/
 
 # Addon link tracking
 .addon-links.json

@@ -9,35 +9,37 @@ declare module 'one' {
       StaticRoutes: 
         | `/`
         | `/_sitemap`
-        | `/app`
-        | `/app/contacts`
-        | `/app/contacts/`
-        | `/app/contacts/new`
-        | `/app/mail`
-        | `/app/mail/`
-        | `/app/settings`
-        | `/app/settings/`
-        | `/app/settings/members`
-        | `/app/settings/organization`
-        | `/app/settings/profile`
+        | `/a/[orgSlug]/contacts`
+        | `/a/[orgSlug]/contacts/`
+        | `/a/[orgSlug]/contacts/new`
+        | `/a/[orgSlug]/mail`
+        | `/a/[orgSlug]/mail/`
+        | `/a/[orgSlug]/settings`
+        | `/a/[orgSlug]/settings/`
+        | `/a/[orgSlug]/settings/members`
+        | `/a/[orgSlug]/settings/organization`
+        | `/a/[orgSlug]/settings/profile`
         | `/tabs`
         | `/tabs/`
         | `/tabs/profile`
         | `/tabs/settings`
         | `/test`
       DynamicRoutes: 
-        | `/app/contacts/${OneRouter.SingleRoutePart<T>}`
-        | `/app/mail/${OneRouter.SingleRoutePart<T>}`
-        | `/app/settings/${string}`
+        | `/a/${OneRouter.SingleRoutePart<T>}`
+        | `/a/${OneRouter.SingleRoutePart<T>}/contacts/${OneRouter.SingleRoutePart<T>}`
+        | `/a/${OneRouter.SingleRoutePart<T>}/mail/${OneRouter.SingleRoutePart<T>}`
+        | `/a/${OneRouter.SingleRoutePart<T>}/settings/${string}`
       DynamicRouteTemplate: 
-        | `/app/contacts/[id]`
-        | `/app/mail/[id]`
-        | `/app/settings/[...section]`
+        | `/a/[orgSlug]`
+        | `/a/[orgSlug]/contacts/[id]`
+        | `/a/[orgSlug]/mail/[id]`
+        | `/a/[orgSlug]/settings/[...section]`
       IsTyped: true
       RouteTypes: {
-        '/app/contacts/[id]': RouteInfo<{ id: string }>
-        '/app/mail/[id]': RouteInfo<{ id: string }>
-        '/app/settings/[...section]': RouteInfo<{ section: string[] }>
+        '/a/[orgSlug]': RouteInfo<{ orgSlug: string }>
+        '/a/[orgSlug]/contacts/[id]': RouteInfo<{ orgSlug: string; id: string }>
+        '/a/[orgSlug]/mail/[id]': RouteInfo<{ orgSlug: string; id: string }>
+        '/a/[orgSlug]/settings/[...section]': RouteInfo<{ orgSlug: string; section: string[] }>
       }
     }
   }
