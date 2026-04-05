@@ -45,6 +45,7 @@ interface MenuActionItemProps {
     onPress: () => void
     isActive?: boolean
     colorDot?: string
+    disabled?: boolean
 }
 
 export function MenuActionItem({
@@ -53,11 +54,17 @@ export function MenuActionItem({
     onPress,
     isActive,
     colorDot,
+    disabled,
 }: MenuActionItemProps) {
     const theme = useTheme()
 
     return (
-        <Menu.Item key={label} onSelect={onPress} gap="$2">
+        <Menu.Item
+            key={label}
+            onSelect={disabled ? () => {} : onPress}
+            gap="$2"
+            opacity={disabled ? 0.4 : 1}
+        >
             {Icon ? (
                 <Menu.ItemIcon>
                     <Icon size={16} color={theme.color8.val} />

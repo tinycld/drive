@@ -3,69 +3,151 @@ import {
     ArrowLeft,
     ChevronLeft,
     ChevronRight,
+    ChevronUp,
     CircleAlert,
     FolderInput,
+    Forward,
+    ListFilter,
+    Mail,
     MailOpen,
     MoreVertical,
+    Star,
     Tag,
     Trash2,
 } from 'lucide-react-native'
 import { useRouter } from 'one'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
+import type { MailThreadState } from '../types'
+import { MenuActionItem, ToolbarMenu } from './DropdownMenu'
+import { ToolbarIconButton } from './ToolbarIconButton'
 
-export function EmailDetailToolbar() {
+interface LabelInfo {
+    id: string
+    name: string
+    color: string
+}
+
+interface EmailDetailToolbarProps {
+    threadState: MailThreadState | undefined
+    labels: LabelInfo[]
+    threadLabelIds: Set<string>
+    onArchive: () => void
+    onSpam: () => void
+    onTrash: () => void
+    onMove: (folder: MailThreadState['folder']) => void
+    onUpdateLabel: (labelId: string, add: boolean) => void
+    onToggleRead: () => void
+    onToggleStar: () => void
+    onToggleImportant: () => void
+    onForwardAll: () => void
+}
+
+const MOVE_FOLDERS: { label: string; folder: MailThreadState['folder'] }[] = [
+    { label: 'Inbox', folder: 'inbox' },
+    { label: 'Sent', folder: 'sent' },
+    { label: 'Drafts', folder: 'drafts' },
+    { label: 'Spam', folder: 'spam' },
+    { label: 'Trash', folder: 'trash' },
+    { label: 'Archive', folder: 'archive' },
+]
+
+export function EmailDetailToolbar({
+    threadState,
+    labels,
+    threadLabelIds,
+    onArchive,
+    onSpam,
+    onTrash,
+    onMove,
+    onUpdateLabel,
+    onToggleRead,
+    onToggleStar,
+    onToggleImportant,
+    onForwardAll,
+}: EmailDetailToolbarProps) {
     const theme = useTheme()
     const router = useRouter()
     const breakpoint = useBreakpoint()
     const isMobile = breakpoint === 'mobile'
 
+    const isRead = threadState?.is_read ?? false
+    const isStarred = threadState?.is_starred ?? false
+    const isImportant = threadState?.is_important ?? false
+
+    const ReadIcon = isRead ? MailOpen : Mail
+    const readLabel = isRead ? 'Mark as unread' : 'Mark as read'
+
     return (
         <View style={[styles.toolbar, { borderBottomColor: theme.borderColor.val }]}>
             <View style={styles.left}>
-                <Pressable style={styles.iconButton} onPress={() => router.back()}>
-                    <ArrowLeft size={18} color={theme.color8.val} />
-                </Pressable>
-                <Pressable style={styles.iconButton}>
-                    <Archive size={18} color={theme.color8.val} />
-                </Pressable>
+                <ToolbarIconButton icon={ArrowLeft} label="Back" onPress={() => router.back()} />
+                <ToolbarIconButton icon={Archive} label="Archive" onPress={onArchive} />
                 {isMobile ? null : (
-                    <Pressable style={styles.iconButton}>
-                        <CircleAlert size={18} color={theme.color8.val} />
-                    </Pressable>
+                    <ToolbarIconButton icon={CircleAlert} label="Report spam" onPress={onSpam} />
                 )}
-                <Pressable style={styles.iconButton}>
-                    <Trash2 size={18} color={theme.color8.val} />
-                </Pressable>
+                <ToolbarIconButton icon={Trash2} label="Delete" onPress={onTrash} />
                 {isMobile ? null : (
                     <>
                         <View
                             style={[styles.separator, { backgroundColor: theme.borderColor.val }]}
                         />
-                        <Pressable style={styles.iconButton}>
-                            <FolderInput size={18} color={theme.color8.val} />
-                        </Pressable>
-                        <Pressable style={styles.iconButton}>
-                            <Tag size={18} color={theme.color8.val} />
-                        </Pressable>
+                        <ToolbarMenu icon={FolderInput} label="Move to">
+                            {MOVE_FOLDERS.map(({ label, folder }) => (
+                                <MenuActionItem
+                                    key={folder}
+                                    label={label}
+                                    onPress={() => onMove(folder)}
+                                />
+                            ))}
+                        </ToolbarMenu>
+                        <ToolbarMenu icon={Tag} label="Labels">
+                            {labels.map(lbl => {
+                                const isActive = threadLabelIds.has(lbl.id)
+                                return (
+                                    <MenuActionItem
+                                        key={lbl.id}
+                                        label={lbl.name}
+                                        colorDot={lbl.color}
+                                        isActive={isActive}
+                                        onPress={() => onUpdateLabel(lbl.id, !isActive)}
+                                    />
+                                )
+                            })}
+                        </ToolbarMenu>
                     </>
                 )}
-                <Pressable style={styles.iconButton}>
-                    <MailOpen size={18} color={theme.color8.val} />
-                </Pressable>
-                <Pressable style={styles.iconButton}>
-                    <MoreVertical size={18} color={theme.color8.val} />
-                </Pressable>
+                <ToolbarIconButton icon={ReadIcon} label={readLabel} onPress={onToggleRead} />
+                <ToolbarMenu icon={MoreVertical} label="More options">
+                    <MenuActionItem
+                        label={isRead ? 'Mark as unread' : 'Mark as read'}
+                        icon={isRead ? MailOpen : Mail}
+                        onPress={onToggleRead}
+                    />
+                    <MenuActionItem
+                        label={isImportant ? 'Mark as not important' : 'Mark as important'}
+                        icon={ChevronUp}
+                        onPress={onToggleImportant}
+                    />
+                    <MenuActionItem
+                        label={isStarred ? 'Remove star' : 'Add star'}
+                        icon={Star}
+                        onPress={onToggleStar}
+                    />
+                    <MenuActionItem
+                        label="Filter messages like these"
+                        icon={ListFilter}
+                        onPress={() => {}}
+                        disabled
+                    />
+                    <MenuActionItem label="Forward all" icon={Forward} onPress={onForwardAll} />
+                </ToolbarMenu>
             </View>
             {isMobile ? null : (
                 <View style={styles.right}>
-                    <Pressable style={styles.iconButton}>
-                        <ChevronLeft size={18} color={theme.color8.val} />
-                    </Pressable>
-                    <Pressable style={styles.iconButton}>
-                        <ChevronRight size={18} color={theme.color8.val} />
-                    </Pressable>
+                    <ToolbarIconButton icon={ChevronLeft} label="Newer" onPress={() => {}} />
+                    <ToolbarIconButton icon={ChevronRight} label="Older" onPress={() => {}} />
                 </View>
             )}
         </View>
@@ -80,20 +162,19 @@ const styles = StyleSheet.create({
         height: 44,
         paddingHorizontal: 8,
         borderBottomWidth: 1,
+        overflow: 'visible',
+        zIndex: 1,
     },
     left: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 2,
+        overflow: 'visible',
     },
     right: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 2,
-    },
-    iconButton: {
-        padding: 8,
-        borderRadius: 20,
     },
     separator: {
         width: 1,
