@@ -6,11 +6,11 @@ import { Button, ScrollView, SizableText, useTheme, XStack, YStack } from 'tamag
 import { handleMutationErrorsWithForm } from '~/lib/errors'
 import { useMutation } from '~/lib/mutations'
 import { useStore } from '~/lib/pocketbase'
+import { useCurrentUserOrg } from '~/lib/use-current-user-org'
 import { useOrgInfo } from '~/lib/use-org-info'
 import { useForm, type z, zodResolver } from '~/ui/form'
 import { ContactForm } from '../components/ContactForm'
 import { contactSchema } from '../components/contactSchema'
-import { useCurrentUserOrg } from '../hooks/useCurrentUserOrg'
 
 export default function NewContactScreen() {
     const router = useRouter()
