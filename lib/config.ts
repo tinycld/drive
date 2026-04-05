@@ -1,5 +1,3 @@
-import { parseSubdomain } from '~/lib/hostname'
-
 const DEV_PB_ADDR = 'http://127.0.0.1:7090'
 
 function resolveServerAddr(): string {
@@ -7,8 +5,7 @@ function resolveServerAddr(): string {
     if (typeof window === 'undefined') return DEV_PB_ADDR
 
     const { protocol, hostname, port } = window.location
-    const { baseDomain } = parseSubdomain(hostname)
-    return `${protocol}//${baseDomain}${port ? `:${port}` : ''}`
+    return `${protocol}//${hostname}${port ? `:${port}` : ''}`
 }
 
 export const PB_SERVER_ADDR =
