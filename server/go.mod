@@ -17,6 +17,7 @@ require (
 	github.com/dop251/goja v0.0.0-20260106131823-651366fbe6e3 // indirect
 	github.com/dop251/goja_nodejs v0.0.0-20260212111938-1f56ff5bcf14 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/emersion/go-ical v0.0.0-20240127095438-fc1c9d8fb2b6 // indirect
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8 // indirect
 	github.com/emersion/go-message v0.18.2 // indirect
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect
@@ -44,6 +45,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/teambition/rrule-go v1.8.2 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
@@ -62,8 +64,12 @@ require tinycld/addons/contacts v0.0.0
 
 require tinycld/addons/mail v0.0.0
 
+require tinycld/addons/calendar v0.0.0
+
 replace tinycld/addons/contacts => ../packages/contacts/server
 
 replace tinycld/addons/mail => ../packages/mail/server
+
+replace tinycld/addons/calendar => ../packages/calendar/server
 
 // --- end addon extensions ---

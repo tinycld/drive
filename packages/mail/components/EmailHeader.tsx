@@ -1,7 +1,16 @@
-import { ChevronDown, ChevronUp, MoreVertical, Reply, Star } from 'lucide-react-native'
+import {
+    ChevronDown,
+    ChevronUp,
+    Forward,
+    MoreVertical,
+    Reply,
+    ReplyAll,
+    Star,
+} from 'lucide-react-native'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
+import { MenuActionItem, ToolbarMenu } from './DropdownMenu'
 import { LabelBadge } from './LabelBadge'
 import { formatMailDate } from './thread-list-item'
 
@@ -66,6 +75,10 @@ interface MessageHeaderProps {
     bounceReason?: string
     isExpanded: boolean
     onToggleExpand: () => void
+    onReply?: () => void
+    onReplyAll?: () => void
+    onForward?: () => void
+    onToggleStar?: () => void
 }
 
 export function MessageHeader({
@@ -77,6 +90,10 @@ export function MessageHeader({
     bounceReason,
     isExpanded,
     onToggleExpand,
+    onReply,
+    onReplyAll,
+    onForward,
+    onToggleStar,
 }: MessageHeaderProps) {
     const theme = useTheme()
     const breakpoint = useBreakpoint()
@@ -119,7 +136,7 @@ export function MessageHeader({
                     </View>
                     <Text style={[styles.date, { color: theme.color8.val }]}>{dateDisplay}</Text>
                     {isStarred != null ? (
-                        <Pressable style={styles.iconButton}>
+                        <Pressable style={styles.iconButton} onPress={onToggleStar}>
                             <Star
                                 size={18}
                                 color={isStarred ? theme.yellow8.val : theme.color8.val}
@@ -127,7 +144,7 @@ export function MessageHeader({
                             />
                         </Pressable>
                     ) : null}
-                    <Pressable style={styles.iconButton}>
+                    <Pressable style={styles.iconButton} onPress={onReply}>
                         <Reply size={18} color={theme.color8.val} />
                     </Pressable>
                     <Pressable style={styles.iconButton}>
@@ -137,9 +154,23 @@ export function MessageHeader({
                             <ChevronDown size={18} color={theme.color8.val} />
                         )}
                     </Pressable>
-                    <Pressable style={styles.iconButton}>
-                        <MoreVertical size={18} color={theme.color8.val} />
-                    </Pressable>
+                    <ToolbarMenu icon={MoreVertical} label="More options">
+                        <MenuActionItem
+                            label="Reply"
+                            icon={Reply}
+                            onPress={onReply ?? (() => {})}
+                        />
+                        <MenuActionItem
+                            label="Reply all"
+                            icon={ReplyAll}
+                            onPress={onReplyAll ?? (() => {})}
+                        />
+                        <MenuActionItem
+                            label="Forward"
+                            icon={Forward}
+                            onPress={onForward ?? (() => {})}
+                        />
+                    </ToolbarMenu>
                 </View>
             </Pressable>
         </View>

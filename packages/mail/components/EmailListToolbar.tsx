@@ -46,6 +46,8 @@ interface EmailListToolbarProps {
     onMove: (folder: MailThreadState['folder']) => void
     onToggleStar: (star: boolean) => void
     onUpdateLabel: (labelId: string, add: boolean) => void
+    onRefresh?: () => void
+    isRefreshing?: boolean
 }
 
 export function EmailListToolbar(props: EmailListToolbarProps) {
@@ -57,7 +59,12 @@ export function EmailListToolbar(props: EmailListToolbarProps) {
     return <DefaultToolbar {...props} />
 }
 
-function DefaultToolbar({ emailCount, onToggleAll }: EmailListToolbarProps) {
+function DefaultToolbar({
+    emailCount,
+    onToggleAll,
+    onRefresh,
+    isRefreshing,
+}: EmailListToolbarProps) {
     const theme = useTheme()
 
     const paginationText =
@@ -69,7 +76,12 @@ function DefaultToolbar({ emailCount, onToggleAll }: EmailListToolbarProps) {
                 <Pressable style={styles.checkbox} onPress={onToggleAll}>
                     <Square size={18} color={theme.color8.val} />
                 </Pressable>
-                <ToolbarIconButton icon={RefreshCw} label="Refresh" onPress={() => {}} />
+                <ToolbarIconButton
+                    icon={RefreshCw}
+                    label="Refresh"
+                    onPress={onRefresh ?? (() => {})}
+                    disabled={isRefreshing}
+                />
                 <ToolbarIconButton icon={MoreVertical} label="More" onPress={() => {}} />
             </View>
             <View style={styles.right}>

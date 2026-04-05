@@ -16,7 +16,9 @@ import { NotFoundState } from '../components/NotFoundState'
 import { useCompose } from '../hooks/useComposeState'
 import { useLabels } from '../hooks/useLabels'
 import { useThreadActions } from '../hooks/useThreadActions'
+import { useThreadNavigation } from '../hooks/useThreadNavigation'
 import type { MailMessages } from '../types'
+import { useThreadListContext } from './_layout'
 
 function useAutoMarkAsRead(
     // biome-ignore lint/suspicious/noExplicitAny: pbtsdb collection type is deeply generic
@@ -95,7 +97,11 @@ export default function MailDetailScreen() {
         toggleStar,
         toggleImportant,
         updateLabel,
+        snoozeThread,
     } = useThreadActions(threadStateCollection, threadState, navigateBack)
+
+    const { threadIds } = useThreadListContext()
+    const { hasPrevious, hasNext, goToPrevious, goToNext } = useThreadNavigation(threadIds, id)
 
     const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
 
@@ -154,6 +160,11 @@ export default function MailDetailScreen() {
                 onToggleStar={() => toggleStar.mutate()}
                 onToggleImportant={() => toggleImportant.mutate()}
                 onForwardAll={handleForwardAll}
+                onSnooze={date => snoozeThread.mutate(date)}
+                onNewer={goToPrevious}
+                onOlder={goToNext}
+                hasNewer={hasPrevious}
+                hasOlder={hasNext}
             />
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}>
                 <ThreadSubjectHeader subject={subject} labels={labels} />
@@ -165,10 +176,40 @@ export default function MailDetailScreen() {
                                 senderName={msg.sender_name}
                                 senderEmail={msg.sender_email}
                                 date={msg.date}
+                                isStarred={threadState?.is_starred}
                                 deliveryStatus={msg.delivery_status}
                                 bounceReason={msg.bounce_reason}
                                 isExpanded={expanded}
                                 onToggleExpand={() => toggleExpanded(msg.id)}
+                                onToggleStar={() => toggleStar.mutate()}
+                                onReply={() =>
+                                    openReply({
+                                        messageId: msg.id,
+                                        threadId: id,
+                                        subject: msg.subject,
+                                        to: [{ name: msg.sender_name, email: msg.sender_email }],
+                                    })
+                                }
+                                onReplyAll={() =>
+                                    openReply({
+                                        messageId: msg.id,
+                                        threadId: id,
+                                        subject: msg.subject,
+                                        to: [
+                                            { name: msg.sender_name, email: msg.sender_email },
+                                            ...(msg.recipients_to ?? []),
+                                            ...(msg.recipients_cc ?? []),
+                                        ],
+                                    })
+                                }
+                                onForward={() =>
+                                    openReply({
+                                        messageId: msg.id,
+                                        threadId: id,
+                                        subject: `Fwd: ${msg.subject}`,
+                                        to: [],
+                                    })
+                                }
                             />
                             {expanded ? (
                                 <EmailBody

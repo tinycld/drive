@@ -1,8 +1,22 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
-import { ChevronDown, Clock, File, Inbox, Pencil, Send, Star, Tag } from 'lucide-react-native'
+import {
+    AlertTriangle,
+    Archive,
+    ChevronDown,
+    ChevronRight,
+    Clock,
+    File,
+    Inbox,
+    Mail,
+    Pencil,
+    Send,
+    Star,
+    Tag,
+    Trash2,
+} from 'lucide-react-native'
 import { useActiveParams, usePathname, useRouter } from 'one'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import {
@@ -14,6 +28,7 @@ import {
 import { useOrgHref } from '~/lib/org-routes'
 import { useStore } from '~/lib/pocketbase'
 import { useCurrentRole } from '~/lib/use-current-role'
+import { LabelCreateDialog } from './components/LabelCreateDialog'
 import { composeEvents } from './hooks/composeEvents'
 import { useLabels } from './hooks/useLabels'
 
@@ -35,6 +50,8 @@ export default function MailSidebar(_props: MailSidebarProps) {
     const activeFolder = useActiveFolder()
     const { userOrgId } = useCurrentRole()
     const orgHref = useOrgHref()
+    const [moreExpanded, setMoreExpanded] = useState(false)
+    const [labelDialogOpen, setLabelDialogOpen] = useState(false)
 
     const [threadStateCollection] = useStore('mail_thread_state')
     const { labels: orgLabels } = useLabels()
@@ -54,6 +71,8 @@ export default function MailSidebar(_props: MailSidebarProps) {
             drafts: states.filter(s => s.folder === 'drafts').length,
             sent: states.filter(s => s.folder === 'sent').length,
             starred: states.filter(s => s.is_starred).length,
+            trash: states.filter(s => s.folder === 'trash').length,
+            spam: states.filter(s => s.folder === 'spam').length,
         }
     }, [threadStates])
 
@@ -68,6 +87,8 @@ export default function MailSidebar(_props: MailSidebarProps) {
     const navigateToLabel = (labelId: string) => {
         router.push(orgHref('mail', { label: labelId }))
     }
+
+    const MoreIcon = moreExpanded ? ChevronDown : ChevronRight
 
     const labelItems = orgLabels.map(label => (
         <SidebarItem
@@ -125,19 +146,64 @@ export default function MailSidebar(_props: MailSidebarProps) {
                 isActive={activeFolder === 'drafts'}
                 onPress={() => navigateToFolder('drafts')}
             />
-            <SidebarItem label="Categories" icon={ChevronDown} isActive={false} />
-            <SidebarItem label="More" icon={ChevronDown} isActive={false} />
+            <SidebarItem
+                label="More"
+                icon={MoreIcon}
+                isActive={false}
+                onPress={() => setMoreExpanded(prev => !prev)}
+            />
+            {moreExpanded ? (
+                <>
+                    <SidebarItem
+                        label="Important"
+                        icon={Star}
+                        isActive={activeFolder === 'important'}
+                        onPress={() => navigateToFolder('important')}
+                    />
+                    <SidebarItem
+                        label="All Mail"
+                        icon={Mail}
+                        isActive={activeFolder === 'all'}
+                        onPress={() => navigateToFolder('all')}
+                    />
+                    <SidebarItem
+                        label="Spam"
+                        icon={AlertTriangle}
+                        badge={folderCounts.spam || undefined}
+                        isActive={activeFolder === 'spam'}
+                        onPress={() => navigateToFolder('spam')}
+                    />
+                    <SidebarItem
+                        label="Trash"
+                        icon={Trash2}
+                        badge={folderCounts.trash || undefined}
+                        isActive={activeFolder === 'trash'}
+                        onPress={() => navigateToFolder('trash')}
+                    />
+                    <SidebarItem
+                        label="Archive"
+                        icon={Archive}
+                        isActive={activeFolder === 'archive'}
+                        onPress={() => navigateToFolder('archive')}
+                    />
+                </>
+            ) : null}
 
             <SidebarDivider />
 
             <View style={styles.labelsHeader}>
                 <SidebarHeading>Labels</SidebarHeading>
-                <Pressable style={styles.addLabelButton}>
+                <Pressable style={styles.addLabelButton} onPress={() => setLabelDialogOpen(true)}>
                     <Text style={[styles.addLabelText, { color: theme.color8.val }]}>+</Text>
                 </Pressable>
             </View>
 
             {labelItems}
+
+            <LabelCreateDialog
+                isVisible={labelDialogOpen}
+                onClose={() => setLabelDialogOpen(false)}
+            />
         </SidebarNav>
     )
 }

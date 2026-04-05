@@ -93,6 +93,23 @@ export function useThreadListItems(
         if (activeFolder === 'starred') {
             return mapped.filter(item => item.isStarred)
         }
+        if (activeFolder === 'important') {
+            return mapped.filter(item => item.isImportant)
+        }
+        if (activeFolder === 'all') {
+            return mapped
+        }
+        if (activeFolder === 'snoozed') {
+            return mapped.filter(
+                item => item.snoozedUntil && new Date(item.snoozedUntil) > new Date()
+            )
+        }
+        if (activeFolder === 'inbox') {
+            return mapped.filter(item => {
+                if (item.snoozedUntil && new Date(item.snoozedUntil) > new Date()) return false
+                return item.folder === 'inbox'
+            })
+        }
 
         return mapped.filter(item => item.folder === activeFolder)
     }, [threadStates, threadMap, labelsForIds, draftByThread, threadsWithAttachments, filter])

@@ -5,7 +5,7 @@ import { useTheme } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { captureException } from '~/lib/errors'
 import { useForm, zodResolver } from '~/ui/form'
-import { type ComposeFormData, composeSchema, parseRecipients } from '../hooks/composeSchema'
+import { composeSchema, parseRecipients } from '../hooks/composeSchema'
 import { useAttachments } from '../hooks/useAttachments'
 import { useCompose } from '../hooks/useComposeState'
 import { useDefaultMailbox } from '../hooks/useDefaultMailbox'
@@ -141,7 +141,7 @@ function InlineComposeForm({
         reset,
         setError,
         formState: { errors },
-    } = useForm<ComposeFormData>({
+    } = useForm({
         resolver: zodResolver(composeSchema),
         mode: 'onChange',
         defaultValues: { to: toValue, cc: '', bcc: '', subject: subjectValue },

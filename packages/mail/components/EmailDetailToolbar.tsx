@@ -21,6 +21,7 @@ import { useTheme } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import type { MailThreadState } from '../types'
 import { MenuActionItem, ToolbarMenu } from './DropdownMenu'
+import { SnoozePopover } from './SnoozePopover'
 import { ToolbarIconButton } from './ToolbarIconButton'
 
 interface LabelInfo {
@@ -42,6 +43,11 @@ interface EmailDetailToolbarProps {
     onToggleStar: () => void
     onToggleImportant: () => void
     onForwardAll: () => void
+    onSnooze?: (date: string) => void
+    onNewer?: () => void
+    onOlder?: () => void
+    hasNewer?: boolean
+    hasOlder?: boolean
 }
 
 const MOVE_FOLDERS: { label: string; folder: MailThreadState['folder'] }[] = [
@@ -66,6 +72,11 @@ export function EmailDetailToolbar({
     onToggleStar,
     onToggleImportant,
     onForwardAll,
+    onSnooze,
+    onNewer,
+    onOlder,
+    hasNewer = false,
+    hasOlder = false,
 }: EmailDetailToolbarProps) {
     const theme = useTheme()
     const router = useRouter()
@@ -143,11 +154,22 @@ export function EmailDetailToolbar({
                     />
                     <MenuActionItem label="Forward all" icon={Forward} onPress={onForwardAll} />
                 </ToolbarMenu>
+                {onSnooze ? <SnoozePopover onSnooze={onSnooze} /> : null}
             </View>
             {isMobile ? null : (
                 <View style={styles.right}>
-                    <ToolbarIconButton icon={ChevronLeft} label="Newer" onPress={() => {}} />
-                    <ToolbarIconButton icon={ChevronRight} label="Older" onPress={() => {}} />
+                    <ToolbarIconButton
+                        icon={ChevronLeft}
+                        label="Newer"
+                        onPress={onNewer ?? (() => {})}
+                        disabled={!hasNewer}
+                    />
+                    <ToolbarIconButton
+                        icon={ChevronRight}
+                        label="Older"
+                        onPress={onOlder ?? (() => {})}
+                        disabled={!hasOlder}
+                    />
                 </View>
             )}
         </View>

@@ -18,15 +18,36 @@ function validateRecipients(value: string) {
         .every(isValidRecipient)
 }
 
-export const composeSchema = z.object({
-    to: z
-        .string()
-        .min(1, 'At least one recipient is required')
-        .refine(validateRecipients, 'One or more email addresses are invalid'),
-    cc: z.string().refine(validateRecipients, 'One or more Cc addresses are invalid'),
-    bcc: z.string().refine(validateRecipients, 'One or more Bcc addresses are invalid'),
-    subject: z.string().min(1, 'Subject is required'),
-})
+export const composeSchema = z
+    .object({
+        to: z.string().min(1, 'At least one recipient is required'),
+        cc: z.string(),
+        bcc: z.string(),
+        subject: z.string().min(1, 'Subject is required'),
+    })
+    .superRefine((data, ctx) => {
+        if (data.to && !validateRecipients(data.to)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'One or more email addresses are invalid',
+                path: ['to'],
+            })
+        }
+        if (data.cc && !validateRecipients(data.cc)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'One or more Cc addresses are invalid',
+                path: ['cc'],
+            })
+        }
+        if (data.bcc && !validateRecipients(data.bcc)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'One or more Bcc addresses are invalid',
+                path: ['bcc'],
+            })
+        }
+    })
 
 export type ComposeFormData = z.infer<typeof composeSchema>
 

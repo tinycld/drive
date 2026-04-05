@@ -102,6 +102,18 @@ export function useMailBulkActions(
         onSuccess: clearSelection,
     })
 
+    const snoozeSelected = useMutation<void, Error, string>({
+        mutationFn: function* (snoozedUntil) {
+            yield selectedItems.map(item =>
+                col.update(item.stateId, draft => {
+                    draft.snoozed_until = snoozedUntil
+                    draft.folder = 'inbox'
+                })
+            )
+        },
+        onSuccess: clearSelection,
+    })
+
     return {
         archiveSelected,
         spamSelected,
@@ -110,5 +122,6 @@ export function useMailBulkActions(
         moveSelected,
         toggleStarSelected,
         updateLabelsSelected,
+        snoozeSelected,
     }
 }

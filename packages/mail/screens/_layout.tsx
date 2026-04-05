@@ -1,5 +1,5 @@
 import { Slot } from 'one'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { YStack } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { useWorkspaceLayout } from '~/components/workspace/useWorkspaceLayout'
@@ -20,10 +20,26 @@ import {
     SearchContext,
 } from '../hooks/useSearchState'
 
+interface ThreadListContextValue {
+    threadIds: string[]
+    setThreadIds: (ids: string[]) => void
+}
+
+const ThreadListContext = createContext<ThreadListContextValue>({
+    threadIds: [],
+    setThreadIds: () => {},
+})
+
+export function useThreadListContext() {
+    return useContext(ThreadListContext)
+}
+
 export default function MailLayout() {
     const [composeMode, setComposeMode] = useState<ComposeMode>('closed')
     const [replyContext, setReplyContext] = useState<ReplyContext | null>(null)
     const [draftContext, setDraftContext] = useState<DraftContext | null>(null)
+    const [threadIds, setThreadIds] = useState<string[]>([])
+    const threadListValue = useMemo(() => ({ threadIds, setThreadIds }), [threadIds])
     const [searchQuery, setSearchQuery] = useState('')
     const [advancedFilters, setAdvancedFilters] = useState<AdvancedSearchFilters>({})
     const [isFilterOpen, setIsFilterOpen] = useState(false)
@@ -103,24 +119,26 @@ export default function MailLayout() {
     return (
         <ComposeContext.Provider value={composeValue}>
             <SearchContext.Provider value={searchValue}>
-                <YStack flex={1} backgroundColor="$background">
-                    <YStack paddingHorizontal="$4" paddingVertical="$2">
-                        <SearchBar
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            onMenuPress={isMobile ? () => setDrawerOpen(true) : undefined}
-                            isFilterOpen={isFilterOpen}
-                            onFilterOpenChange={setIsFilterOpen}
-                            onApplyFilters={setAdvancedFilters}
-                            activeFilterCount={activeFilterCount}
-                            currentFilters={advancedFilters}
-                        />
+                <ThreadListContext.Provider value={threadListValue}>
+                    <YStack flex={1} backgroundColor="$background">
+                        <YStack paddingHorizontal="$4" paddingVertical="$2">
+                            <SearchBar
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                onMenuPress={isMobile ? () => setDrawerOpen(true) : undefined}
+                                isFilterOpen={isFilterOpen}
+                                onFilterOpenChange={setIsFilterOpen}
+                                onApplyFilters={setAdvancedFilters}
+                                activeFilterCount={activeFilterCount}
+                                currentFilters={advancedFilters}
+                            />
+                        </YStack>
+                        <YStack flex={1}>
+                            <Slot />
+                        </YStack>
+                        <ComposeWindow isVisible={isComposeVisible} />
                     </YStack>
-                    <YStack flex={1}>
-                        <Slot />
-                    </YStack>
-                    <ComposeWindow isVisible={isComposeVisible} />
-                </YStack>
+                </ThreadListContext.Provider>
             </SearchContext.Provider>
         </ComposeContext.Provider>
     )

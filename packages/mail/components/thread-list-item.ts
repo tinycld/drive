@@ -14,6 +14,8 @@ export interface ThreadListItem {
     participants: { name: string; email: string }[]
     isRead: boolean
     isStarred: boolean
+    isImportant: boolean
+    snoozedUntil: string
     labels: { id: string; name: string; color: string }[]
     folder: string
     hasDraft: boolean
@@ -42,6 +44,8 @@ export function toThreadListItem(
         participants,
         isRead: state.is_read,
         isStarred: state.is_starred,
+        isImportant: state.is_important,
+        snoozedUntil: state.snoozed_until ?? '',
         labels,
         folder: state.folder,
         hasDraft,

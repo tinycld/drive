@@ -6,7 +6,7 @@ import { captureException } from '~/lib/errors'
 import { performMutations } from '~/lib/mutations'
 import { useStore } from '~/lib/pocketbase'
 import { useForm, zodResolver } from '~/ui/form'
-import { type ComposeFormData, composeSchema, parseRecipients } from '../hooks/composeSchema'
+import { composeSchema, parseRecipients } from '../hooks/composeSchema'
 import { useAttachments } from '../hooks/useAttachments'
 import { useCompose } from '../hooks/useComposeState'
 import { useDefaultMailbox } from '../hooks/useDefaultMailbox'
@@ -54,7 +54,7 @@ export function ComposeWindow({ isVisible }: ComposeWindowProps) {
         setError,
         getValues,
         formState: { errors },
-    } = useForm<ComposeFormData>({
+    } = useForm({
         resolver: zodResolver(composeSchema),
         mode: 'onChange',
         defaultValues: { to: '', cc: '', bcc: '', subject: '' },

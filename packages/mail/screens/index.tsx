@@ -1,10 +1,10 @@
 import { useParams } from 'one'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList } from 'react-native'
 import { SizableText, Spinner, YStack } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { useMutation } from '~/lib/mutations'
-import { pb } from '~/lib/pocketbase'
+import { pb, queryClient } from '~/lib/pocketbase'
 import { useCurrentRole } from '~/lib/use-current-role'
 import { ComposeFAB } from '../components/ComposeFAB'
 import { EmailListToolbar } from '../components/EmailListToolbar'
@@ -16,6 +16,7 @@ import type { MailSearchResult } from '../hooks/useMailSearch'
 import { useMailSelection } from '../hooks/useMailSelection'
 import { useMailSearchState } from '../hooks/useSearchState'
 import { useThreadListItems } from '../hooks/useThreadListItems'
+import { useThreadListContext } from './_layout'
 
 function useQueryParams() {
     const { folder, label } = useParams<{ folder?: string; label?: string }>()
@@ -70,6 +71,8 @@ function searchResultToThreadListItem(result: MailSearchResult): ThreadListItem 
         participants,
         isRead: true,
         isStarred: false,
+        isImportant: false,
+        snoozedUntil: '',
         labels: [],
         folder: 'search',
         hasDraft: false,
@@ -88,6 +91,24 @@ export default function MailListScreen() {
         folder,
         label,
     })
+
+    const { setThreadIds } = useThreadListContext()
+    const prevIdsRef = useRef('')
+    useEffect(() => {
+        const ids = items.map(i => i.threadId)
+        const key = ids.join(',')
+        if (key !== prevIdsRef.current) {
+            prevIdsRef.current = key
+            setThreadIds(ids)
+        }
+    }, [items, setThreadIds])
+
+    const [isRefreshing, setIsRefreshing] = useState(false)
+    const handleRefresh = useCallback(() => {
+        setIsRefreshing(true)
+        queryClient.invalidateQueries()
+        setTimeout(() => setIsRefreshing(false), 800)
+    }, [])
 
     const selection = useMailSelection(items, folder, label)
     const bulkActions = useMailBulkActions(
@@ -208,6 +229,8 @@ export default function MailListScreen() {
                 onUpdateLabel={(labelId, add) =>
                     bulkActions.updateLabelsSelected.mutate({ labelId, add })
                 }
+                onRefresh={handleRefresh}
+                isRefreshing={isRefreshing}
             />
             <EmptyState folderTitle={folderTitle} isVisible={isEmpty} />
             {isEmpty ? null : (
