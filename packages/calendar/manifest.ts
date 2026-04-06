@@ -10,7 +10,7 @@ const manifest = {
     migrations: { directory: 'pb-migrations' },
     collections: { register: 'collections', types: 'types' },
     seed: { script: 'seed' },
-    server: { package: 'server', module: 'tinycld/addons/calendar' },
+    server: { package: 'server', module: 'tinycld.org/addons/calendar' },
 }
 
 export default manifest

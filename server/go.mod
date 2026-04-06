@@ -61,29 +61,22 @@ require (
 )
 
 require (
-	tinycld/mailer v0.0.0 // indirect
-	tinycld/textextract v0.0.0 // indirect
+	tinycld.org/mailer v0.0.0 // indirect
+	tinycld.org/textextract v0.0.0 // indirect
 )
 
-replace tinycld/textextract => ./textextract
+replace tinycld.org/textextract => ./textextract
+
+replace tinycld.org/mailer => ./mailer
 
 // --- addon extensions (auto-generated, do not edit) ---
-require tinycld/addons/contacts v0.0.0
+require tinycld.org/addons/contacts v0.0.0
+require tinycld.org/addons/mail v0.0.0
+require tinycld.org/addons/calendar v0.0.0
+require tinycld.org/addons/drive v0.0.0
 
-require tinycld/addons/mail v0.0.0
-
-require tinycld/addons/calendar v0.0.0
-
-require tinycld/addons/drive v0.0.0
-
-replace tinycld/addons/contacts => ../packages/contacts/server
-
-replace tinycld/addons/mail => ../packages/mail/server
-
-replace tinycld/addons/calendar => ../packages/calendar/server
-
-replace tinycld/addons/drive => ../packages/drive/server
-
-replace tinycld/mailer => ./mailer
-
+replace tinycld.org/addons/contacts => ../packages/contacts/server
+replace tinycld.org/addons/mail => ../packages/mail/server
+replace tinycld.org/addons/calendar => ../packages/calendar/server
+replace tinycld.org/addons/drive => ../packages/drive/server
 // --- end addon extensions ---

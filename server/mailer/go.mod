@@ -1,4 +1,4 @@
-module tinycld/mailer
+module tinycld.org/mailer
 
 go 1.25.0
 

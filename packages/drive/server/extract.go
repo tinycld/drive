@@ -4,7 +4,7 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
-	"tinycld/textextract"
+	"tinycld.org/textextract"
 )
 
 // extractAndIndexDriveItem extracts text from the file attached to a drive item

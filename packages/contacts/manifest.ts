@@ -10,7 +10,7 @@ const manifest = {
     sidebar: { component: 'sidebar' },
     seed: { script: 'seed' },
     tests: { directory: 'tests' },
-    server: { package: 'server', module: 'tinycld/addons/contacts' },
+    server: { package: 'server', module: 'tinycld.org/addons/contacts' },
 }
 
 export default manifest

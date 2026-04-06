@@ -1,4 +1,4 @@
-module tinycld/textextract
+module tinycld.org/textextract
 
 go 1.25.0
 

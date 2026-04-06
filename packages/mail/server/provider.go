@@ -3,7 +3,7 @@ package mail
 import (
 	"context"
 
-	"tinycld/mailer"
+	"tinycld.org/mailer"
 )
 
 // Re-export shared types so existing mail code doesn't need to change import paths.

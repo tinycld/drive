@@ -1,4 +1,4 @@
-module tinycld/addons/drive
+module tinycld.org/addons/drive
 
 go 1.25.0
 
@@ -6,13 +6,13 @@ require (
 	github.com/emersion/go-webdav v0.7.0
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.36.8
-	tinycld/mailer v0.0.0
-	tinycld/textextract v0.0.0
+	tinycld.org/mailer v0.0.0
+	tinycld.org/textextract v0.0.0
 )
 
-replace tinycld/textextract => ../../../server/textextract
+replace tinycld.org/textextract => ../../../server/textextract
 
-replace tinycld/mailer => ../../../server/mailer
+replace tinycld.org/mailer => ../../../server/mailer
 
 require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect

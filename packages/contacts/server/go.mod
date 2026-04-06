@@ -1,4 +1,4 @@
-module tinycld/addons/contacts
+module tinycld.org/addons/contacts
 
 go 1.25.0
 

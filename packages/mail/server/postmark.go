@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mrz1836/postmark"
-	"tinycld/mailer"
+	"tinycld.org/mailer"
 )
 
 type PostmarkProvider struct {

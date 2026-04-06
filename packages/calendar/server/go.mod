@@ -1,4 +1,4 @@
-module tinycld/addons/calendar
+module tinycld.org/addons/calendar
 
 go 1.25.0
 

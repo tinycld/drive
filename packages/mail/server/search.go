@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
-	"tinycld/textextract"
+	"tinycld.org/textextract"
 )
 
 // recentlyIndexed tracks message IDs that were indexed inline by storeMessage(),
