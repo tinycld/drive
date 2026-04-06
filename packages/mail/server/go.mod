@@ -12,10 +12,13 @@ require (
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.36.8
 	golang.org/x/crypto v0.49.0
+	tinycld/mailer v0.0.0
 	tinycld/textextract v0.0.0
 )
 
 replace tinycld/textextract => ../../../server/textextract
+
+replace tinycld/mailer => ../../../server/mailer
 
 require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect

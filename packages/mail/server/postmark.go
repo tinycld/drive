@@ -4,69 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/mrz1836/postmark"
+	"tinycld/mailer"
 )
 
 type PostmarkProvider struct {
-	client *postmark.Client
+	sender *mailer.PostmarkSender
 }
 
 func NewPostmarkProvider(serverToken, accountToken string) *PostmarkProvider {
 	return &PostmarkProvider{
-		client: postmark.NewClient(serverToken, accountToken),
+		sender: mailer.NewPostmarkSender(serverToken, accountToken, ""),
 	}
 }
 
 func (p *PostmarkProvider) Send(ctx context.Context, req *SendRequest) (*SendResult, error) {
-	email := postmark.Email{
-		From:     req.From,
-		To:       formatRecipients(req.To),
-		Cc:       formatRecipients(req.Cc),
-		Bcc:      formatRecipients(req.Bcc),
-		Subject:  req.Subject,
-		HTMLBody: req.HTMLBody,
-		TextBody: req.TextBody,
-		ReplyTo:  req.ReplyTo,
-	}
-
-	// Set threading headers
-	var headers []postmark.Header
-	if req.InReplyTo != "" {
-		headers = append(headers, postmark.Header{Name: "In-Reply-To", Value: req.InReplyTo})
-	}
-	if req.References != "" {
-		headers = append(headers, postmark.Header{Name: "References", Value: req.References})
-	}
-	for _, h := range req.Headers {
-		headers = append(headers, postmark.Header{Name: h.Name, Value: h.Value})
-	}
-	if len(headers) > 0 {
-		email.Headers = headers
-	}
-
-	for _, att := range req.Attachments {
-		email.Attachments = append(email.Attachments, postmark.Attachment{
-			Name:        att.Name,
-			ContentType: att.ContentType,
-			Content:     att.Content,
-			ContentID:   att.ContentID,
-		})
-	}
-
-	resp, err := p.client.SendEmail(ctx, email)
-	if err != nil {
-		return nil, fmt.Errorf("postmark send failed: %w", err)
-	}
-	if resp.ErrorCode != 0 {
-		return nil, fmt.Errorf("postmark error %d: %s", resp.ErrorCode, resp.Message)
-	}
-
-	return &SendResult{
-		ProviderMessageID: resp.MessageID,
-		MessageID:         resp.MessageID,
-	}, nil
+	return p.sender.SendFull(ctx, req)
 }
 
 // postmarkInboundPayload matches Postmark's inbound webhook JSON structure.
@@ -126,7 +80,6 @@ func (p *PostmarkProvider) ParseInbound(body []byte) (*InboundMessage, error) {
 		Date:           payload.Date,
 	}
 
-	// Extract threading headers from the raw headers
 	for _, h := range payload.Headers {
 		switch h.Name {
 		case "Message-ID", "Message-Id":
@@ -139,7 +92,6 @@ func (p *PostmarkProvider) ParseInbound(body []byte) (*InboundMessage, error) {
 		msg.Headers = append(msg.Headers, Header{Name: h.Name, Value: h.Value})
 	}
 
-	// Fall back to top-level MessageID if not found in headers
 	if msg.MessageID == "" && payload.MessageID != "" {
 		msg.MessageID = "<" + payload.MessageID + ">"
 	}
@@ -148,7 +100,7 @@ func (p *PostmarkProvider) ParseInbound(body []byte) (*InboundMessage, error) {
 		msg.Attachments = append(msg.Attachments, InboundAttachment{
 			Name:        att.Name,
 			ContentType: att.ContentType,
-			Content:     att.Content, // already base64-encoded by Postmark
+			Content:     att.Content,
 			ContentID:   att.ContentID,
 			Size:        att.ContentLength,
 		})
@@ -157,10 +109,9 @@ func (p *PostmarkProvider) ParseInbound(body []byte) (*InboundMessage, error) {
 	return msg, nil
 }
 
-// postmarkBouncePayload matches Postmark's bounce/spam complaint webhook JSON.
 type postmarkBouncePayload struct {
 	RecordType  string `json:"RecordType"`
-	Type        string `json:"Type"` // "HardBounce", "SoftBounce", etc.
+	Type        string `json:"Type"`
 	MessageID   string `json:"MessageID"`
 	Description string `json:"Description"`
 	Details     string `json:"Details"`
@@ -189,13 +140,12 @@ func (p *PostmarkProvider) ParseBounce(body []byte) (*BounceEvent, error) {
 	}, nil
 }
 
-// VerifyWebhookSignature is a no-op for Postmark — security is via the secret URL token.
 func (p *PostmarkProvider) VerifyWebhookSignature(_ map[string]string, _ []byte) error {
 	return nil
 }
 
 func (p *PostmarkProvider) AddDomain(ctx context.Context, domain string) (*DomainVerification, error) {
-	details, err := p.client.CreateDomain(ctx, postmark.DomainCreateRequest{
+	details, err := p.sender.Client().CreateDomain(ctx, postmark.DomainCreateRequest{
 		Name: domain,
 	})
 	if err != nil {
@@ -205,15 +155,14 @@ func (p *PostmarkProvider) AddDomain(ctx context.Context, domain string) (*Domai
 }
 
 func (p *PostmarkProvider) CheckDomainVerification(ctx context.Context, domain string) (*DomainVerification, error) {
-	// Look up the domain by listing and matching by name
-	domains, err := p.client.GetDomains(ctx, 100, 0)
+	domains, err := p.sender.Client().GetDomains(ctx, 100, 0)
 	if err != nil {
 		return nil, fmt.Errorf("postmark list domains failed: %w", err)
 	}
 
 	for _, d := range domains.Domains {
 		if d.Name == domain {
-			details, err := p.client.GetDomain(ctx, d.ID)
+			details, err := p.sender.Client().GetDomain(ctx, d.ID)
 			if err != nil {
 				return nil, fmt.Errorf("postmark get domain failed: %w", err)
 			}
@@ -236,18 +185,6 @@ func domainDetailsToVerification(d postmark.DomainDetails) *DomainVerification {
 		ReturnPathDomain:     d.ReturnPathDomain,
 		ReturnPathCNAMEValue: d.ReturnPathDomainCNAMEValue,
 	}
-}
-
-func formatRecipients(recipients []Recipient) string {
-	parts := make([]string, 0, len(recipients))
-	for _, r := range recipients {
-		if r.Name != "" {
-			parts = append(parts, fmt.Sprintf("%q <%s>", r.Name, r.Email))
-		} else {
-			parts = append(parts, r.Email)
-		}
-	}
-	return strings.Join(parts, ", ")
 }
 
 func convertRecipients(prs []postmarkRecipient) []Recipient {

@@ -60,7 +60,10 @@ require (
 	modernc.org/sqlite v1.48.0 // indirect
 )
 
-require tinycld/textextract v0.0.0 // indirect
+require (
+	tinycld/mailer v0.0.0 // indirect
+	tinycld/textextract v0.0.0 // indirect
+)
 
 replace tinycld/textextract => ./textextract
 
@@ -80,5 +83,7 @@ replace tinycld/addons/mail => ../packages/mail/server
 replace tinycld/addons/calendar => ../packages/calendar/server
 
 replace tinycld/addons/drive => ../packages/drive/server
+
+replace tinycld/mailer => ./mailer
 
 // --- end addon extensions ---

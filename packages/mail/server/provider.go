@@ -1,9 +1,21 @@
 package mail
 
-import "context"
+import (
+	"context"
+
+	"tinycld/mailer"
+)
+
+// Re-export shared types so existing mail code doesn't need to change import paths.
+type Recipient = mailer.Recipient
+type Attachment = mailer.Attachment
+type Header = mailer.Header
+type SendRequest = mailer.SendRequest
+type SendResult = mailer.SendResult
 
 // Provider defines the pluggable email provider interface.
-// Implement this interface to add support for a new provider (SES, SendGrid, etc.).
+// Send is delegated to the shared mailer package. The remaining methods
+// are mail-addon-specific (inbound parsing, bounces, domain management).
 type Provider interface {
 	Send(ctx context.Context, req *SendRequest) (*SendResult, error)
 	ParseInbound(body []byte) (*InboundMessage, error)
@@ -15,71 +27,34 @@ type Provider interface {
 
 // BounceEvent represents a parsed bounce or spam complaint notification.
 type BounceEvent struct {
-	RecordType  string `json:"record_type"`  // "Bounce" or "SpamComplaint"
-	BounceType  string `json:"bounce_type"`  // "HardBounce", "SoftBounce", etc.
+	RecordType  string `json:"record_type"`
+	BounceType  string `json:"bounce_type"`
 	MessageID   string `json:"message_id"`
 	Email       string `json:"email"`
 	Description string `json:"description"`
 	BouncedAt   string `json:"bounced_at"`
 }
 
-type Recipient struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-}
-
-type Attachment struct {
-	Name        string `json:"name"`
-	ContentType string `json:"content_type"`
-	Content     string `json:"content"` // base64 encoded
-	ContentID   string `json:"content_id,omitempty"`
-}
-
-type SendRequest struct {
-	From        string       `json:"from"`
-	To          []Recipient  `json:"to"`
-	Cc          []Recipient  `json:"cc,omitempty"`
-	Bcc         []Recipient  `json:"bcc,omitempty"`
-	Subject     string       `json:"subject"`
-	HTMLBody    string       `json:"html_body"`
-	TextBody    string       `json:"text_body"`
-	ReplyTo     string       `json:"reply_to,omitempty"`
-	InReplyTo   string       `json:"in_reply_to,omitempty"`   // RFC 5322 Message-ID
-	References  string       `json:"references,omitempty"`    // RFC 5322 References
-	Headers     []Header     `json:"headers,omitempty"`
-	Attachments []Attachment `json:"attachments,omitempty"`
-}
-
-type Header struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-type SendResult struct {
-	ProviderMessageID string `json:"provider_message_id"`
-	MessageID         string `json:"message_id"` // RFC 5322 Message-ID assigned by the provider
-}
-
 type InboundMessage struct {
-	From          Recipient    `json:"from"`
-	To            []Recipient  `json:"to"`
-	Cc            []Recipient  `json:"cc,omitempty"`
-	Subject       string       `json:"subject"`
-	HTMLBody      string       `json:"html_body"`
-	TextBody      string       `json:"text_body"`
-	StrippedReply string       `json:"stripped_reply"` // reply text with quoted content removed
-	Date          string       `json:"date"`
-	MessageID   string       `json:"message_id"`   // RFC 5322 Message-ID
-	InReplyTo   string       `json:"in_reply_to"`   // RFC 5322 In-Reply-To
-	References  string       `json:"references"`    // RFC 5322 References
-	Headers     []Header     `json:"headers,omitempty"`
-	Attachments []InboundAttachment `json:"attachments,omitempty"`
+	From          Recipient           `json:"from"`
+	To            []Recipient         `json:"to"`
+	Cc            []Recipient         `json:"cc,omitempty"`
+	Subject       string              `json:"subject"`
+	HTMLBody      string              `json:"html_body"`
+	TextBody      string              `json:"text_body"`
+	StrippedReply string              `json:"stripped_reply"`
+	Date          string              `json:"date"`
+	MessageID     string              `json:"message_id"`
+	InReplyTo     string              `json:"in_reply_to"`
+	References    string              `json:"references"`
+	Headers       []Header            `json:"headers,omitempty"`
+	Attachments   []InboundAttachment `json:"attachments,omitempty"`
 }
 
 type InboundAttachment struct {
 	Name        string `json:"name"`
 	ContentType string `json:"content_type"`
-	Content     string `json:"content"` // base64 encoded
+	Content     string `json:"content"`
 	ContentID   string `json:"content_id,omitempty"`
 	Size        int64  `json:"size"`
 }
