@@ -3,8 +3,8 @@ import { newRecordId } from 'pbtsdb'
 import { useCallback, useRef, useState } from 'react'
 import { Platform } from 'react-native'
 import { captureException } from '~/lib/errors'
-import { useMutation } from '~/lib/mutations'
-import { pb } from '~/lib/pocketbase'
+import { useMutation, performMutations } from '~/lib/mutations'
+import { pb, useStore } from '~/lib/pocketbase'
 
 interface UploadingFile {
     name: string
@@ -21,6 +21,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
     const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
     const folderRef = useRef(currentFolderId)
     folderRef.current = currentFolderId
+    const [sharesCollection] = useStore('drive_shares')
 
     const uploadMutation = useMutation({
         mutationFn: async (files: File[]) => {
@@ -46,15 +47,18 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                     formData.append('file', file)
                     formData.append('description', '')
 
+                    // File upload requires FormData, so pb.collection() is necessary here
                     await pb.collection('drive_items').create(formData)
 
-                    const shareData = new FormData()
-                    shareData.append('id', newRecordId())
-                    shareData.append('item', itemId)
-                    shareData.append('user_org', userOrgId)
-                    shareData.append('role', 'owner')
-                    shareData.append('created_by', userOrgId)
-                    await pb.collection('drive_shares').create(shareData)
+                    await performMutations(function* () {
+                        yield sharesCollection.insert({
+                            id: newRecordId(),
+                            item: itemId,
+                            user_org: userOrgId,
+                            role: 'owner',
+                            created_by: userOrgId,
+                        })
+                    })
 
                     setUploadingFiles(prev =>
                         prev.map((f, idx) => (idx === i ? { ...f, status: 'done' } : f))

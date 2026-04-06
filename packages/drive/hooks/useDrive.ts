@@ -1,9 +1,12 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { newRecordId } from 'pbtsdb'
+import { useActiveParams, useRouter } from 'one'
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { Platform } from 'react-native'
 import { useMutation } from '~/lib/mutations'
-import { useStore } from '~/lib/pocketbase'
+import { useOrgHref } from '~/lib/org-routes'
+import { pb, useStore } from '~/lib/pocketbase'
 import { useCurrentUserOrg } from '~/lib/use-current-user-org'
 import { useOrgInfo } from '~/lib/use-org-info'
 import { mimeTypeToCategory } from '../components/file-icons'
@@ -33,6 +36,14 @@ interface DriveContextValue {
     toggleStar: (itemId: string) => void
     moveToTrash: (itemId: string) => void
     restoreFromTrash: (itemId: string) => void
+    createFolder: (name: string) => void
+    renameItem: (itemId: string, name: string) => void
+    downloadItem: (itemId: string) => void
+    moveItem: (itemId: string, newParentId: string) => void
+    shareItem: (itemId: string, userOrgId: string, role: 'editor' | 'viewer') => void
+    removeShare: (shareId: string) => void
+    getSharesForItem: (itemId: string) => { id: string; userOrgId: string; name: string; email: string; role: string }[]
+    orgMembers: { userOrgId: string; name: string; email: string }[]
     uploadFiles: (files: File[]) => void
     isUploading: boolean
     uploadingFiles: { name: string; status: 'pending' | 'uploading' | 'done' | 'error' }[]
@@ -48,8 +59,15 @@ export function useDrive(): DriveContextValue {
     return ctx
 }
 
+function parseSectionParam(s: string | undefined): SidebarSection {
+    const valid: SidebarSection[] = ['my-drive', 'shared-with-me', 'recent', 'starred', 'trash']
+    return valid.includes(s as SidebarSection) ? (s as SidebarSection) : 'my-drive'
+}
+
 export function useDriveState(): DriveContextValue {
     const { orgSlug, orgId } = useOrgInfo()
+    const router = useRouter()
+    const orgHref = useOrgHref()
     const userOrg = useCurrentUserOrg(orgSlug)
     const userOrgId = userOrg?.id ?? ''
 
@@ -58,11 +76,28 @@ export function useDriveState(): DriveContextValue {
     const [stateCollection] = useStore('drive_item_state')
     const [userOrgCollection] = useStore('user_org')
 
-    const [currentFolderId, setCurrentFolderId] = useState('')
-    const [activeSection, setActiveSection] = useState<SidebarSection>('my-drive')
-    const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+    const params = useActiveParams<{
+        folder?: string
+        file?: string
+        section?: string
+    }>()
+    const currentFolderId = params.folder ?? ''
+    const selectedItemId = params.file ?? null
+    const activeSection = parseSectionParam(params.section)
+
     const [viewMode, setViewMode] = useState<ViewMode>('list')
     const [searchQuery, setSearchQuery] = useState('')
+
+    const pushParams = useCallback(
+        (p: { folder?: string; file?: string; section?: string }) => {
+            const query: Record<string, string> = {}
+            if (p.folder) query.folder = p.folder
+            if (p.file) query.file = p.file
+            if (p.section && p.section !== 'my-drive') query.section = p.section
+            router.push(orgHref('drive', query))
+        },
+        [router, orgHref]
+    )
 
     const isSearchActive = searchQuery.length >= 2
     const { results: searchResults, isSearching } = useDriveSearch(
@@ -96,6 +131,29 @@ export function useDriveState(): DriveContextValue {
                 (orgUserOrgs ?? []).map(uo => [
                     uo.id,
                     uo.expand?.user?.name || uo.expand?.user?.email || '',
+                ])
+            ),
+        [orgUserOrgs]
+    )
+
+    const orgMembers = useMemo(
+        () =>
+            (orgUserOrgs ?? [])
+                .filter(uo => uo.id !== userOrgId)
+                .map(uo => ({
+                    userOrgId: uo.id,
+                    name: uo.expand?.user?.name || '',
+                    email: uo.expand?.user?.email || '',
+                })),
+        [orgUserOrgs, userOrgId]
+    )
+
+    const userOrgEmails = useMemo(
+        () =>
+            new Map(
+                (orgUserOrgs ?? []).map(uo => [
+                    uo.id,
+                    uo.expand?.user?.email || '',
                 ])
             ),
         [orgUserOrgs]
@@ -292,6 +350,122 @@ export function useDriveState(): DriveContextValue {
         [trashMutation]
     )
 
+    const createFolderMutation = useMutation({
+        mutationFn: function* (name: string) {
+            yield itemsCollection.insert({
+                id: newRecordId(),
+                org: orgId,
+                name,
+                is_folder: true,
+                mime_type: '',
+                parent: currentFolderId || '',
+                created_by: userOrgId,
+                size: 0,
+                file: '',
+                description: '',
+            })
+        },
+    })
+
+    const renameMutation = useMutation({
+        mutationFn: function* ({ itemId, name }: { itemId: string; name: string }) {
+            yield itemsCollection.update(itemId, draft => {
+                draft.name = name
+            })
+        },
+    })
+
+    const shareMutation = useMutation({
+        mutationFn: function* ({
+            itemId,
+            targetUserOrgId,
+            role,
+        }: { itemId: string; targetUserOrgId: string; role: 'editor' | 'viewer' }) {
+            yield sharesCollection.insert({
+                id: newRecordId(),
+                item: itemId,
+                user_org: targetUserOrgId,
+                role,
+                created_by: userOrgId,
+            })
+        },
+    })
+
+    const unshareMutation = useMutation({
+        mutationFn: function* (shareId: string) {
+            yield sharesCollection.delete(shareId)
+        },
+    })
+
+    const shareItem = useCallback(
+        (itemId: string, targetUserOrgId: string, role: 'editor' | 'viewer') =>
+            shareMutation.mutate({ itemId, targetUserOrgId, role }),
+        [shareMutation]
+    )
+
+    const removeShare = useCallback(
+        (shareId: string) => unshareMutation.mutate(shareId),
+        [unshareMutation]
+    )
+
+    const getSharesForItem = useCallback(
+        (itemId: string) => {
+            const shares = sharesByItem.get(itemId) ?? []
+            return shares.map(s => ({
+                id: s.id,
+                userOrgId: s.user_org,
+                name: userOrgNames.get(s.user_org) ?? '',
+                email: userOrgEmails.get(s.user_org) ?? '',
+                role: s.role,
+            }))
+        },
+        [sharesByItem, userOrgNames, userOrgEmails]
+    )
+
+    const moveMutation = useMutation({
+        mutationFn: function* ({
+            itemId,
+            newParentId,
+        }: { itemId: string; newParentId: string }) {
+            yield itemsCollection.update(itemId, draft => {
+                draft.parent = newParentId
+            })
+        },
+    })
+
+    const moveItem = useCallback(
+        (itemId: string, newParentId: string) => moveMutation.mutate({ itemId, newParentId }),
+        [moveMutation]
+    )
+
+    const createFolder = useCallback(
+        (name: string) => createFolderMutation.mutate(name),
+        [createFolderMutation]
+    )
+
+    const renameItem = useCallback(
+        (itemId: string, name: string) => renameMutation.mutate({ itemId, name }),
+        [renameMutation]
+    )
+
+    const downloadItem = useCallback(
+        (itemId: string) => {
+            const item = itemsById.get(itemId)
+            if (!item?.file) return
+            const url = pb.files.getURL(
+                { collectionId: 'drive_items', id: itemId },
+                item.file
+            )
+            if (Platform.OS === 'web') {
+                const a = document.createElement('a')
+                a.href = url
+                a.download = item.name
+                a.click()
+            }
+        },
+        [itemsById]
+    )
+
     const { uploadFiles, isUploading, uploadingFiles, triggerFilePicker, uploadNewVersion } =
         useFileUpload({
             orgId,
@@ -299,35 +473,42 @@ export function useDriveState(): DriveContextValue {
             currentFolderId,
         })
 
-    const navigateToFolder = useCallback((folderId: string) => {
-        setCurrentFolderId(folderId)
-        setActiveSection('my-drive')
-        setSelectedItemId(null)
-        setSearchQuery('')
-    }, [])
+    const navigateToFolder = useCallback(
+        (folderId: string) => {
+            pushParams({ folder: folderId || undefined })
+            setSearchQuery('')
+        },
+        [pushParams]
+    )
 
-    const navigateToSection = useCallback((section: SidebarSection) => {
-        setActiveSection(section)
-        if (section !== 'my-drive') {
-            setCurrentFolderId('')
-        }
-        setSelectedItemId(null)
-        setSearchQuery('')
-    }, [])
+    const navigateToSection = useCallback(
+        (section: SidebarSection) => {
+            pushParams({ section })
+            setSearchQuery('')
+        },
+        [pushParams]
+    )
 
-    const selectItem = useCallback((itemId: string | null) => {
-        setSelectedItemId(itemId)
-    }, [])
+    const selectItem = useCallback(
+        (itemId: string | null) => {
+            pushParams({
+                folder: currentFolderId || undefined,
+                section: activeSection !== 'my-drive' ? activeSection : undefined,
+                file: itemId ?? undefined,
+            })
+        },
+        [pushParams, currentFolderId, activeSection]
+    )
 
     const openItem = useCallback(
         (item: DriveItemView) => {
             if (item.isFolder) {
                 navigateToFolder(item.id)
             } else {
-                setSelectedItemId(item.id)
+                selectItem(item.id)
             }
         },
-        [navigateToFolder]
+        [navigateToFolder, selectItem]
     )
 
     return useMemo(
@@ -353,6 +534,14 @@ export function useDriveState(): DriveContextValue {
             toggleStar,
             moveToTrash,
             restoreFromTrash,
+            createFolder,
+            renameItem,
+            downloadItem,
+            moveItem,
+            shareItem,
+            removeShare,
+            getSharesForItem,
+            orgMembers,
             uploadFiles,
             isUploading,
             uploadingFiles,
@@ -379,6 +568,14 @@ export function useDriveState(): DriveContextValue {
             toggleStar,
             moveToTrash,
             restoreFromTrash,
+            createFolder,
+            renameItem,
+            downloadItem,
+            moveItem,
+            shareItem,
+            removeShare,
+            getSharesForItem,
+            orgMembers,
             uploadFiles,
             isUploading,
             uploadingFiles,

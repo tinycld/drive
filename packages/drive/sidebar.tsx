@@ -13,7 +13,7 @@ import {
     UserPlus,
     Users,
 } from 'lucide-react-native'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import { MenuActionItem } from '~/components/DropdownMenu'
@@ -29,6 +29,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
     const {
         activeSection,
         currentFolderId,
+        breadcrumbs,
         navigateToFolder,
         navigateToSection,
         folderTree,
@@ -36,7 +37,24 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         triggerFilePicker,
     } = useDrive()
     const theme = useTheme()
-    const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+
+    useEffect(() => {
+        if (breadcrumbs.length === 0 && folderTree.length > 0) {
+            setExpandedIds(prev => {
+                if (prev.size > 0) return prev
+                return new Set(folderTree.map(n => n.item.id))
+            })
+        }
+        if (breadcrumbs.length > 0) {
+            const ancestorIds = breadcrumbs.map(b => b.id)
+            setExpandedIds(prev => {
+                const next = new Set(prev)
+                for (const id of ancestorIds) next.add(id)
+                return next
+            })
+        }
+    }, [breadcrumbs, folderTree])
 
     const toggleExpand = (id: string) => {
         setExpandedIds(prev => {

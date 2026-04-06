@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type PocketBase from 'pocketbase'
 
 function log(...args: unknown[]) {
@@ -8,6 +11,40 @@ interface SeedContext {
     user: { id: string; email: string; name: string }
     org: { id: string }
     userOrg: { id: string }
+}
+
+const ASSETS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../tests/assets/drive')
+
+const ASSET_FILES = {
+    docx: {
+        filename: 'sample.docx',
+        mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    },
+    xlsx: {
+        filename: 'sample.xlsx',
+        mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    },
+    pptx: {
+        filename: 'sample.pptx',
+        mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    },
+    pdf: { filename: 'sample.pdf', mime: 'application/pdf' },
+    png: { filename: 'sample.png', mime: 'image/png' },
+    jpg: { filename: 'sample.jpg', mime: 'image/jpeg' },
+} as const
+
+type AssetKey = keyof typeof ASSET_FILES
+
+function loadAsset(key: AssetKey): { blob: Blob; size: number; mime: string; filename: string } {
+    const asset = ASSET_FILES[key]
+    const filePath = resolve(ASSETS_DIR, asset.filename)
+    const buffer = readFileSync(filePath)
+    return {
+        blob: new Blob([buffer], { type: asset.mime }),
+        size: buffer.byteLength,
+        mime: asset.mime,
+        filename: asset.filename,
+    }
 }
 
 // Folder structure: root folders and nested subfolders
@@ -22,30 +59,34 @@ const FOLDERS = [
     { key: 'api-docs', name: 'API Documentation', parent: 'engineering' },
 ] as const
 
-const FILES = [
+const FILES: {
+    name: string
+    asset: AssetKey
+    folder: string
+    shared: boolean
+    starred: boolean
+    description: string
+}[] = [
     // Q1 Planning
     {
-        name: 'Product Roadmap 2026',
-        mime_type: 'application/vnd.google-apps.document',
-        size: 245_000,
+        name: 'Product Roadmap 2026.docx',
+        asset: 'docx',
         folder: 'q1-planning',
         shared: true,
         starred: true,
         description: 'Full product roadmap for 2026',
     },
     {
-        name: 'Q1 Budget',
-        mime_type: 'application/vnd.google-apps.spreadsheet',
-        size: 512_000,
+        name: 'Q1 Budget.xlsx',
+        asset: 'xlsx',
         folder: 'q1-planning',
         shared: true,
         starred: false,
         description: 'Quarterly budget breakdown',
     },
     {
-        name: 'Strategy Deck',
-        mime_type: 'application/vnd.google-apps.presentation',
-        size: 3_200_000,
+        name: 'Strategy Deck.pptx',
+        asset: 'pptx',
         folder: 'q1-planning',
         shared: true,
         starred: false,
@@ -54,27 +95,24 @@ const FILES = [
 
     // Marketing
     {
-        name: 'Brand Guidelines',
-        mime_type: 'application/pdf',
-        size: 8_500_000,
+        name: 'Brand Guidelines.pdf',
+        asset: 'pdf',
         folder: 'marketing',
         shared: true,
         starred: false,
         description: 'Official brand guide v3',
     },
     {
-        name: 'Logo Variants',
-        mime_type: 'image/png',
-        size: 2_400_000,
+        name: 'Logo Variants.png',
+        asset: 'png',
         folder: 'marketing',
         shared: false,
         starred: false,
         description: '',
     },
     {
-        name: 'Social Media Plan',
-        mime_type: 'application/vnd.google-apps.document',
-        size: 180_000,
+        name: 'Social Media Plan.docx',
+        asset: 'docx',
         folder: 'marketing',
         shared: true,
         starred: false,
@@ -83,18 +121,16 @@ const FILES = [
 
     // Engineering
     {
-        name: 'Architecture Overview',
-        mime_type: 'application/vnd.google-apps.document',
-        size: 320_000,
+        name: 'Architecture Overview.docx',
+        asset: 'docx',
         folder: 'engineering',
         shared: true,
         starred: false,
         description: 'System architecture and design decisions',
     },
     {
-        name: 'System Diagram',
-        mime_type: 'application/vnd.google-apps.drawing',
-        size: 150_000,
+        name: 'System Diagram.png',
+        asset: 'png',
         folder: 'engineering',
         shared: false,
         starred: true,
@@ -103,18 +139,16 @@ const FILES = [
 
     // API Documentation
     {
-        name: 'API v2 Reference',
-        mime_type: 'application/vnd.google-apps.document',
-        size: 420_000,
+        name: 'API v2 Reference.pdf',
+        asset: 'pdf',
         folder: 'api-docs',
         shared: true,
         starred: false,
         description: 'Complete API v2 documentation',
     },
     {
-        name: 'API Usage Metrics',
-        mime_type: 'application/vnd.google-apps.spreadsheet',
-        size: 890_000,
+        name: 'API Usage Metrics.xlsx',
+        asset: 'xlsx',
         folder: 'api-docs',
         shared: true,
         starred: false,
@@ -123,27 +157,24 @@ const FILES = [
 
     // Shared Documents
     {
-        name: 'Team Meeting Notes',
-        mime_type: 'application/vnd.google-apps.document',
-        size: 95_000,
+        name: 'Team Meeting Notes.docx',
+        asset: 'docx',
         folder: 'shared-docs',
         shared: true,
         starred: false,
         description: 'Weekly meeting notes',
     },
     {
-        name: 'Team Roster',
-        mime_type: 'application/vnd.google-apps.spreadsheet',
-        size: 128_000,
+        name: 'Team Roster.xlsx',
+        asset: 'xlsx',
         folder: 'shared-docs',
         shared: true,
         starred: false,
         description: '',
     },
     {
-        name: 'Onboarding Slides',
-        mime_type: 'application/vnd.google-apps.presentation',
-        size: 5_600_000,
+        name: 'Onboarding Slides.pptx',
+        asset: 'pptx',
         folder: 'shared-docs',
         shared: true,
         starred: true,
@@ -152,27 +183,24 @@ const FILES = [
 
     // Personal
     {
-        name: 'Resume 2026',
-        mime_type: 'application/vnd.google-apps.document',
-        size: 65_000,
+        name: 'Resume 2026.docx',
+        asset: 'docx',
         folder: 'personal',
         shared: false,
         starred: false,
         description: '',
     },
     {
-        name: 'Profile Photo',
-        mime_type: 'image/jpeg',
-        size: 1_800_000,
+        name: 'Profile Photo.jpg',
+        asset: 'jpg',
         folder: 'personal',
         shared: false,
         starred: false,
         description: '',
     },
     {
-        name: 'Tax Documents 2025',
-        mime_type: 'application/pdf',
-        size: 4_200_000,
+        name: 'Tax Documents 2025.pdf',
+        asset: 'pdf',
         folder: 'personal',
         shared: false,
         starred: false,
@@ -181,24 +209,22 @@ const FILES = [
 
     // Archive
     {
-        name: 'Client Proposal (Old)',
-        mime_type: 'application/vnd.google-apps.document',
-        size: 210_000,
+        name: 'Client Proposal (Old).docx',
+        asset: 'docx',
         folder: 'archive',
         shared: false,
         starred: false,
         description: '',
     },
     {
-        name: '2025 Financials',
-        mime_type: 'application/vnd.google-apps.spreadsheet',
-        size: 1_100_000,
+        name: '2025 Financials.xlsx',
+        asset: 'xlsx',
         folder: 'archive',
         shared: true,
         starred: false,
         description: 'Annual financial summary',
     },
-] as const
+]
 
 async function seedFolders(pb: PocketBase, orgId: string, userOrgId: string) {
     const folderIds: Record<string, string> = {}
@@ -216,6 +242,13 @@ async function seedFolders(pb: PocketBase, orgId: string, userOrgId: string) {
             description: '',
         })
         folderIds[folder.key] = record.id
+
+        await pb.collection('drive_shares').create({
+            item: record.id,
+            user_org: userOrgId,
+            role: 'owner',
+            created_by: userOrgId,
+        })
     }
 
     return folderIds
@@ -229,17 +262,21 @@ async function seedFiles(
     otherMembers: { id: string }[]
 ) {
     for (const file of FILES) {
-        log(`Creating file: ${file.name}`)
-        const record = await pb.collection('drive_items').create({
-            org: orgId,
-            name: file.name,
-            is_folder: false,
-            mime_type: file.mime_type,
-            parent: folderIds[file.folder],
-            created_by: userOrgId,
-            size: file.size,
-            description: file.description,
-        })
+        log(`Uploading file: ${file.name}`)
+        const asset = loadAsset(file.asset)
+
+        const formData = new FormData()
+        formData.append('org', orgId)
+        formData.append('name', file.name)
+        formData.append('is_folder', 'false')
+        formData.append('mime_type', asset.mime)
+        formData.append('parent', folderIds[file.folder])
+        formData.append('created_by', userOrgId)
+        formData.append('size', String(asset.size))
+        formData.append('description', file.description)
+        formData.append('file', asset.blob, file.name)
+
+        const record = await pb.collection('drive_items').create(formData)
 
         // Create owner share
         await pb.collection('drive_shares').create({
@@ -308,10 +345,10 @@ export default async function seed(pb: PocketBase, { org, userOrg }: SeedContext
 
     const folderIds = await seedFolders(pb, org.id, userOrg.id)
 
-    log(`Creating ${FILES.length} files...`)
+    log(`Uploading ${FILES.length} files...`)
     await seedFiles(pb, org.id, userOrg.id, folderIds, otherMembers)
 
     await seedFolderStars(pb, userOrg.id, folderIds)
 
-    log(`Created ${FOLDERS.length} folders and ${FILES.length} files`)
+    log(`Created ${FOLDERS.length} folders and uploaded ${FILES.length} files`)
 }

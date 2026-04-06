@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/emersion/go-webdav"
 	"github.com/pocketbase/pocketbase"
@@ -40,11 +39,12 @@ func Register(app *pocketbase.PocketBase) {
 			return handleDriveSearch(app, re)
 		}).BindFunc(requireAuth)
 
-		// Version history endpoints
-		e.Router.GET("/api/drive/versions", func(re *core.RequestEvent) error {
-			return handleListVersions(app, re)
+		// Share endpoint (creates shares + sends invite emails)
+		e.Router.POST("/api/drive/share", func(re *core.RequestEvent) error {
+			return handleShare(app, re)
 		}).BindFunc(requireAuth)
 
+		// Version history endpoints
 		e.Router.POST("/api/drive/upload-version", func(re *core.RequestEvent) error {
 			return handleUploadVersion(app, re)
 		}).BindFunc(requireAuth)
@@ -135,61 +135,6 @@ func resolveItemAndUserOrg(app *pocketbase.PocketBase, re *core.RequestEvent, it
 	}
 
 	return item, matchedUserOrgID, nil
-}
-
-const defaultVersionLimit = 200
-
-// handleListVersions returns upload-source versions for a drive_item.
-func handleListVersions(app *pocketbase.PocketBase, re *core.RequestEvent) error {
-	itemID := re.Request.URL.Query().Get("item")
-	if itemID == "" {
-		return re.BadRequestError("missing item parameter", nil)
-	}
-
-	_, _, err := resolveItemAndUserOrg(app, re, itemID, false)
-	if err != nil {
-		return err
-	}
-
-	limit := defaultVersionLimit
-	if l, parseErr := strconv.Atoi(re.Request.URL.Query().Get("limit")); parseErr == nil && l > 0 && l <= defaultVersionLimit {
-		limit = l
-	}
-
-	page := 1
-	if p, parseErr := strconv.Atoi(re.Request.URL.Query().Get("page")); parseErr == nil && p > 0 {
-		page = p
-	}
-
-	versions, err := app.FindRecordsByFilter(
-		"drive_item_versions",
-		"item = {:item} && source = 'upload'",
-		"-version_number",
-		limit, (page-1)*limit,
-		map[string]any{"item": itemID},
-	)
-	if err != nil {
-		return re.JSON(http.StatusOK, []any{})
-	}
-
-	result := make([]map[string]any, len(versions))
-	for i, v := range versions {
-		result[i] = map[string]any{
-			"id":             v.Id,
-			"item":           v.GetString("item"),
-			"version_number": v.GetInt("version_number"),
-			"file":           v.GetString("file"),
-			"size":           v.GetInt("size"),
-			"mime_type":      v.GetString("mime_type"),
-			"source":         v.GetString("source"),
-			"label":          v.GetString("label"),
-			"created_by":     v.GetString("created_by"),
-			"created":        v.GetString("created"),
-			"updated":        v.GetString("updated"),
-		}
-	}
-
-	return re.JSON(http.StatusOK, result)
 }
 
 // handleUploadVersion snapshots the current file and replaces it with the uploaded one.
