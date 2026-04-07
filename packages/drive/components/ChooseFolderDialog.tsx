@@ -4,23 +4,27 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Button, Dialog, useTheme, XStack } from 'tamagui'
 import type { FolderTreeNode } from '../types'
 
-interface MoveDialogProps {
+interface ChooseFolderDialogProps {
     open: boolean
     itemName: string
     excludeId: string
     folderTree: FolderTreeNode[]
     onMove: (targetFolderId: string) => void
     onClose: () => void
+    title?: string
+    confirmLabel?: string
 }
 
-export function MoveDialog({
+export function ChooseFolderDialog({
     open,
     itemName,
     excludeId,
     folderTree,
     onMove,
     onClose,
-}: MoveDialogProps) {
+    title,
+    confirmLabel = 'Move here',
+}: ChooseFolderDialogProps) {
     const [selectedId, setSelectedId] = useState('')
 
     const handleMove = () => {
@@ -29,7 +33,13 @@ export function MoveDialog({
     }
 
     return (
-        <Dialog modal open={open} onOpenChange={o => { if (!o) onClose() }}>
+        <Dialog
+            modal
+            open={open}
+            onOpenChange={o => {
+                if (!o) onClose()
+            }}
+        >
             <Dialog.Portal>
                 <Dialog.Overlay
                     key="overlay"
@@ -49,7 +59,7 @@ export function MoveDialog({
                 >
                     <View style={styles.header}>
                         <Dialog.Title size="$4">
-                            Move &ldquo;{itemName}&rdquo;
+                            {title ?? `Move \u201C${itemName}\u201D`}
                         </Dialog.Title>
                     </View>
 
@@ -67,14 +77,20 @@ export function MoveDialog({
                         />
                     </ScrollView>
 
-                    <XStack gap="$3" justifyContent="flex-end" padding="$3" borderTopWidth={1} borderColor="$borderColor">
+                    <XStack
+                        gap="$3"
+                        justifyContent="flex-end"
+                        padding="$3"
+                        borderTopWidth={1}
+                        borderColor="$borderColor"
+                    >
                         <Dialog.Close asChild>
                             <Button size="$3" chromeless>
                                 <Button.Text>Cancel</Button.Text>
                             </Button>
                         </Dialog.Close>
                         <Button size="$3" theme="accent" onPress={handleMove}>
-                            <Button.Text fontWeight="600">Move here</Button.Text>
+                            <Button.Text fontWeight="600">{confirmLabel}</Button.Text>
                         </Button>
                     </XStack>
                 </Dialog.Content>
@@ -83,13 +99,7 @@ export function MoveDialog({
     )
 }
 
-function RootItem({
-    isSelected,
-    onSelect,
-}: {
-    isSelected: boolean
-    onSelect: () => void
-}) {
+function RootItem({ isSelected, onSelect }: { isSelected: boolean; onSelect: () => void }) {
     const theme = useTheme()
 
     return (

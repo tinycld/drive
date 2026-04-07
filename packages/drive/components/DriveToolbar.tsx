@@ -10,6 +10,7 @@ import {
     List,
     MoreVertical,
     Pencil,
+    RotateCcw,
     Search,
     Trash2,
     Upload,
@@ -20,15 +21,16 @@ import { useCallback, useState } from 'react'
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Button, Dialog, useTheme, XStack } from 'tamagui'
 import { MenuActionItem } from '~/components/DropdownMenu'
+import { ConfirmTrash, SuretyGuard } from '~/components/SuretyGuard'
 import { ToolbarIconButton } from '~/components/ToolbarIconButton'
-import { PlainInput } from '~/ui/PlainInput'
 import { captureException } from '~/lib/errors'
 import { useCurrentRole } from '~/lib/use-current-role'
 import { useOrgSlug } from '~/lib/use-org-slug'
+import { PlainInput } from '~/ui/PlainInput'
 import { useDrive } from '../hooks/useDrive'
-import { MoveDialog } from './MoveDialog'
-import { ShareDialog } from './ShareDialog'
 import type { DriveItemView, ViewMode } from '../types'
+import { ChooseFolderDialog } from './ChooseFolderDialog'
+import { ShareDialog } from './ShareDialog'
 
 type PromptState =
     | { type: 'closed' }
@@ -39,6 +41,7 @@ export function DriveToolbar() {
     const theme = useTheme()
     const {
         selectedItem,
+        activeSection,
         breadcrumbs,
         currentFolderId,
         viewMode,
@@ -79,13 +82,10 @@ export function DriveToolbar() {
         [prompt, createFolder, renameItem]
     )
 
-    const openPrompt = useCallback(
-        (state: PromptState) => {
-            setPrompt(state)
-            setPromptKey(k => k + 1)
-        },
-        []
-    )
+    const openPrompt = useCallback((state: PromptState) => {
+        setPrompt(state)
+        setPromptKey(k => k + 1)
+    }, [])
 
     const promptDialog = (
         <NamePromptDialog
@@ -101,7 +101,7 @@ export function DriveToolbar() {
     )
 
     const moveDialog = (
-        <MoveDialog
+        <ChooseFolderDialog
             open={moveTarget !== null}
             itemName={moveTarget?.name ?? ''}
             excludeId={moveTarget?.id ?? ''}
@@ -154,43 +154,49 @@ export function DriveToolbar() {
 
     const isSearchActive = searchQuery.length >= 2
 
+    const leftContent = (() => {
+        if (isSearchActive) {
+            return (
+                <Text style={[styles.searchLabel, { color: theme.color8.val }]}>
+                    Search results{isSearching ? '...' : ''}
+                </Text>
+            )
+        }
+        if (activeSection === 'trash') {
+            return <Text style={[styles.trashTitle, { color: theme.color.val }]}>Trash</Text>
+        }
+        return (
+            <Breadcrumbs
+                breadcrumbs={breadcrumbs}
+                currentFolderId={currentFolderId}
+                onNavigate={navigateToFolder}
+                onUpload={triggerFilePicker}
+                onNewFolder={() => openPrompt({ type: 'new-folder' })}
+                onRename={
+                    currentFolderId
+                        ? () => {
+                              const current = breadcrumbs.at(-1)
+                              if (current)
+                                  openPrompt({
+                                      type: 'rename',
+                                      itemId: current.id,
+                                      currentName: current.name,
+                                  })
+                          }
+                        : undefined
+                }
+                onDownload={downloadItem}
+                onTrash={moveToTrash}
+            />
+        )
+    })()
+
     return (
         <>
             <View style={[styles.toolbar, { borderBottomColor: theme.borderColor.val }]}>
-                {isSearchActive ? (
-                    <Text style={[styles.searchLabel, { color: theme.color8.val }]}>
-                        Search results{isSearching ? '...' : ''}
-                    </Text>
-                ) : (
-                    <Breadcrumbs
-                        breadcrumbs={breadcrumbs}
-                        currentFolderId={currentFolderId}
-                        onNavigate={navigateToFolder}
-                        onUpload={triggerFilePicker}
-                        onNewFolder={() => openPrompt({ type: 'new-folder' })}
-                        onRename={
-                            currentFolderId
-                                ? () => {
-                                      const current = breadcrumbs.at(-1)
-                                      if (current)
-                                          openPrompt({
-                                              type: 'rename',
-                                              itemId: current.id,
-                                              currentName: current.name,
-                                          })
-                                  }
-                                : undefined
-                        }
-                        onDownload={downloadItem}
-                        onTrash={moveToTrash}
-                    />
-                )}
+                {leftContent}
                 <View style={styles.rightSection}>
-                    <SearchInput
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        theme={theme}
-                    />
+                    <SearchInput value={searchQuery} onChangeText={setSearchQuery} theme={theme} />
                     <ViewToggle viewMode={viewMode} onSetViewMode={setViewMode} theme={theme} />
                 </View>
             </View>
@@ -243,10 +249,7 @@ function Breadcrumbs({
             )}
             {ancestors.map(crumb => (
                 <View key={crumb.id} style={styles.breadcrumbSegment}>
-                    <Pressable
-                        onPress={() => onNavigate(crumb.id)}
-                        style={styles.breadcrumbButton}
-                    >
+                    <Pressable onPress={() => onNavigate(crumb.id)} style={styles.breadcrumbButton}>
                         <Text
                             style={[styles.ancestorText, { color: theme.color.val }]}
                             numberOfLines={1}
@@ -261,10 +264,7 @@ function Breadcrumbs({
             <Menu>
                 <Menu.Trigger asChild>
                     <Pressable
-                        style={[
-                            styles.currentCrumb,
-                            { borderColor: theme.borderColor.val },
-                        ]}
+                        style={[styles.currentCrumb, { borderColor: theme.borderColor.val }]}
                     >
                         <Text
                             style={[styles.currentCrumbText, { color: theme.color.val }]}
@@ -293,11 +293,7 @@ function Breadcrumbs({
                             icon={FolderPlus}
                             onPress={onNewFolder}
                         />
-                        <MenuActionItem
-                            label="Upload file"
-                            icon={Upload}
-                            onPress={onUpload}
-                        />
+                        <MenuActionItem label="Upload file" icon={Upload} onPress={onUpload} />
                         {isInsideFolder && (
                             <MenuActionItem
                                 label="Download"
@@ -306,27 +302,28 @@ function Breadcrumbs({
                             />
                         )}
                         {isInsideFolder && onRename && (
-                            <MenuActionItem
-                                label="Rename"
-                                icon={Pencil}
-                                onPress={onRename}
-                            />
+                            <MenuActionItem label="Rename" icon={Pencil} onPress={onRename} />
                         )}
                         <MenuActionItem label="Share" icon={UserPlus} onPress={() => {}} />
                         <MenuActionItem label="Folder information" icon={Info} onPress={() => {}} />
-                        {isInsideFolder && (
-                            <MenuActionItem
-                                label="Move to trash"
-                                icon={Trash2}
-                                onPress={() => {
-                                    onTrash(currentFolderId)
-                                    onNavigate('')
-                                }}
-                            />
-                        )}
                     </Menu.Content>
                 </Menu.Portal>
             </Menu>
+            {isInsideFolder && (
+                <ConfirmTrash
+                    itemName={currentLabel}
+                    onConfirmed={() => {
+                        onTrash(currentFolderId)
+                        onNavigate('')
+                    }}
+                >
+                    {onOpen => (
+                        <Pressable style={styles.breadcrumbTrash} onPress={onOpen}>
+                            <Trash2 size={14} color={theme.color8.val} />
+                        </Pressable>
+                    )}
+                </ConfirmTrash>
+            )}
         </View>
     )
 }
@@ -378,7 +375,20 @@ function SelectionToolbar({
     onOpenShare,
     theme,
 }: SelectionToolbarProps) {
-    const { uploadNewVersion, downloadItem, moveToTrash } = useDrive()
+    const {
+        activeSection,
+        uploadNewVersion,
+        downloadItem,
+        moveToTrash,
+        restoreFromTrash,
+        permanentlyDelete,
+        canRestoreToOriginalLocation,
+        restoreToFolder,
+        folderTree,
+    } = useDrive()
+    const [restoreMoveTarget, setRestoreMoveTarget] = useState<string | null>(null)
+
+    const isTrash = activeSection === 'trash'
 
     const triggerVersionUpload = () => {
         if (Platform.OS === 'web') {
@@ -395,6 +405,84 @@ function SelectionToolbar({
         }
     }
 
+    if (isTrash) {
+        const handleRestore = () => {
+            if (canRestoreToOriginalLocation(item.id)) {
+                restoreFromTrash(item.id)
+                onClearSelection()
+            } else {
+                setRestoreMoveTarget(item.id)
+            }
+        }
+
+        return (
+            <>
+                <View style={[styles.toolbar, { borderBottomColor: theme.borderColor.val }]}>
+                    <View style={styles.selectionLeft}>
+                        <Pressable onPress={onClearSelection} style={styles.closeButton}>
+                            <X size={16} color={theme.color8.val} />
+                        </Pressable>
+                        <Text
+                            style={[styles.selectionText, { color: theme.color.val }]}
+                            numberOfLines={1}
+                        >
+                            {item.name}
+                        </Text>
+                    </View>
+                    <View style={styles.actions}>
+                        <ToolbarIconButton
+                            icon={RotateCcw}
+                            label="Restore"
+                            onPress={handleRestore}
+                        />
+                        <SuretyGuard
+                            message={`Permanently delete "${item.name}"? This cannot be undone.`}
+                            confirmLabel="Delete permanently"
+                            onConfirmed={() => {
+                                permanentlyDelete(item.id)
+                                onClearSelection()
+                            }}
+                        >
+                            {onOpen => (
+                                <ToolbarIconButton
+                                    icon={Trash2}
+                                    label="Delete permanently"
+                                    onPress={onOpen}
+                                />
+                            )}
+                        </SuretyGuard>
+                        <View
+                            style={[
+                                styles.actionDivider,
+                                { backgroundColor: theme.borderColor.val },
+                            ]}
+                        />
+                        <ViewToggle
+                            viewMode={viewMode}
+                            onSetViewMode={onSetViewMode}
+                            theme={theme}
+                        />
+                    </View>
+                </View>
+                <ChooseFolderDialog
+                    open={restoreMoveTarget !== null}
+                    itemName={item.name}
+                    excludeId={item.id}
+                    folderTree={folderTree}
+                    title="Original location has been removed, select alternative location"
+                    confirmLabel="Restore here"
+                    onMove={targetId => {
+                        if (restoreMoveTarget) {
+                            restoreToFolder(restoreMoveTarget, targetId)
+                            onClearSelection()
+                        }
+                    }}
+                    onClose={() => setRestoreMoveTarget(null)}
+                />
+            </>
+        )
+    }
+
     const actionIcons = [
         ...(!item.isFolder
             ? [
@@ -406,7 +494,12 @@ function SelectionToolbar({
                   },
               ]
             : []),
-        { key: 'share', icon: UserPlus, label: 'Share', onPress: () => onOpenShare(item.id, item.name) },
+        {
+            key: 'share',
+            icon: UserPlus,
+            label: 'Share',
+            onPress: () => onOpenShare(item.id, item.name),
+        },
         {
             key: 'download',
             icon: Download,
@@ -419,15 +512,11 @@ function SelectionToolbar({
             label: 'Rename',
             onPress: () => onOpenRename(item.id, item.name),
         },
-        { key: 'move', icon: FolderInput, label: 'Move', onPress: () => onOpenMove(item.id, item.name) },
         {
-            key: 'trash',
-            icon: Trash2,
-            label: 'Trash',
-            onPress: () => {
-                moveToTrash(item.id)
-                onClearSelection()
-            },
+            key: 'move',
+            icon: FolderInput,
+            label: 'Move',
+            onPress: () => onOpenMove(item.id, item.name),
         },
         { key: 'more', icon: MoreVertical, label: 'More actions', onPress: () => {} },
     ]
@@ -446,6 +535,15 @@ function SelectionToolbar({
                 {actionIcons.map(({ key, icon, label, onPress }) => (
                     <ToolbarIconButton key={key} icon={icon} label={label} onPress={onPress} />
                 ))}
+                <ConfirmTrash
+                    itemName={item.name}
+                    onConfirmed={() => {
+                        moveToTrash(item.id)
+                        onClearSelection()
+                    }}
+                >
+                    {onOpen => <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />}
+                </ConfirmTrash>
                 <View style={[styles.actionDivider, { backgroundColor: theme.borderColor.val }]} />
                 <ViewToggle viewMode={viewMode} onSetViewMode={onSetViewMode} theme={theme} />
             </View>
@@ -521,7 +619,13 @@ function NamePromptDialog({
     }
 
     return (
-        <Dialog modal open={open} onOpenChange={o => { if (!o) onClose() }}>
+        <Dialog
+            modal
+            open={open}
+            onOpenChange={o => {
+                if (!o) onClose()
+            }}
+        >
             <Dialog.Portal>
                 <Dialog.Overlay
                     key="overlay"
@@ -652,6 +756,11 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         flex: 1,
     },
+    trashTitle: {
+        fontSize: 18,
+        fontWeight: '500',
+        flex: 1,
+    },
     viewToggle: {
         flexDirection: 'row',
         gap: 2,
@@ -683,5 +792,9 @@ const styles = StyleSheet.create({
         width: 1,
         height: 20,
         marginHorizontal: 4,
+    },
+    breadcrumbTrash: {
+        padding: 6,
+        marginLeft: 4,
     },
 })
