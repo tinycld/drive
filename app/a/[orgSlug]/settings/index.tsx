@@ -1,4 +1,4 @@
-import { Building2, ChevronRight, User, Users } from 'lucide-react-native'
+import { Bell, Building2, ChevronRight, User, Users } from 'lucide-react-native'
 import { useRouter } from 'one'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { ScrollView, SizableText, useTheme } from 'tamagui'
@@ -25,6 +25,11 @@ export default function SettingsIndex() {
                         label="Profile"
                         onPress={() => router.push(orgHref('settings/profile'))}
                         icon={<User size={20} color={theme.color.val} />}
+                    />
+                    <SettingsLink
+                        label="Notifications"
+                        onPress={() => router.push(orgHref('settings/notifications'))}
+                        icon={<Bell size={20} color={theme.color.val} />}
                     />
                 </SettingsGroup>
 
