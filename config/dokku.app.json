@@ -3,10 +3,9 @@
         "web": [
             {
                 "type": "startup",
-                "name": "api health",
-                "path": "/api/health",
+                "name": "tls listening",
+                "listening": true,
                 "port": 443,
-                "scheme": "https",
                 "attempts": 5,
                 "wait": 5,
                 "timeout": 10
