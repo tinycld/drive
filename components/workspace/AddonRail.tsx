@@ -104,6 +104,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     railItem: {
+        display: 'flex',
         width: 44,
         height: 44,
         borderRadius: 12,

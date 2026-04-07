@@ -24,6 +24,7 @@ declare module 'one' {
         | `/a/[orgSlug]/settings`
         | `/a/[orgSlug]/settings/`
         | `/a/[orgSlug]/settings/members`
+        | `/a/[orgSlug]/settings/notifications`
         | `/a/[orgSlug]/settings/organization`
         | `/a/[orgSlug]/settings/profile`
         | `/a/[orgSlug]/sheets`
@@ -38,6 +39,7 @@ declare module 'one' {
         | `/a/${OneRouter.SingleRoutePart<T>}/calendar/${OneRouter.SingleRoutePart<T>}`
         | `/a/${OneRouter.SingleRoutePart<T>}/contacts/${OneRouter.SingleRoutePart<T>}`
         | `/a/${OneRouter.SingleRoutePart<T>}/docs/${OneRouter.SingleRoutePart<T>}`
+        | `/a/${OneRouter.SingleRoutePart<T>}/drive/${string}`
         | `/a/${OneRouter.SingleRoutePart<T>}/mail/${OneRouter.SingleRoutePart<T>}`
         | `/a/${OneRouter.SingleRoutePart<T>}/settings/${string}`
         | `/a/${OneRouter.SingleRoutePart<T>}/sheets/${OneRouter.SingleRoutePart<T>}`
@@ -46,6 +48,7 @@ declare module 'one' {
         | `/a/[orgSlug]/calendar/[id]`
         | `/a/[orgSlug]/contacts/[id]`
         | `/a/[orgSlug]/docs/[id]`
+        | `/a/[orgSlug]/drive/[...path]`
         | `/a/[orgSlug]/mail/[id]`
         | `/a/[orgSlug]/settings/[...section]`
         | `/a/[orgSlug]/sheets/[id]`
@@ -55,6 +58,7 @@ declare module 'one' {
         '/a/[orgSlug]/calendar/[id]': RouteInfo<{ orgSlug: string; id: string }>
         '/a/[orgSlug]/contacts/[id]': RouteInfo<{ orgSlug: string; id: string }>
         '/a/[orgSlug]/docs/[id]': RouteInfo<{ orgSlug: string; id: string }>
+        '/a/[orgSlug]/drive/[...path]': RouteInfo<{ orgSlug: string; path: string[] }>
         '/a/[orgSlug]/mail/[id]': RouteInfo<{ orgSlug: string; id: string }>
         '/a/[orgSlug]/settings/[...section]': RouteInfo<{ orgSlug: string; section: string[] }>
         '/a/[orgSlug]/sheets/[id]': RouteInfo<{ orgSlug: string; id: string }>
