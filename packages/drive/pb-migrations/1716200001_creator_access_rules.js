@@ -4,8 +4,7 @@ migrate(
         const isCreator = 'created_by.user ?= @request.auth.id'
         const hasShare = 'drive_shares_via_item.user_org.user ?= @request.auth.id'
         const canView = `${isCreator} || ${hasShare}`
-        const canEdit =
-            `${isCreator} || (${hasShare} && drive_shares_via_item.role ?!= "viewer")`
+        const canEdit = `${isCreator} || (${hasShare} && drive_shares_via_item.role ?!= "viewer")`
         const orgMemberRule = 'org.user_org_via_org.user ?= @request.auth.id'
 
         const itemsCol = app.findCollectionByNameOrId('drive_items')
@@ -41,10 +40,8 @@ migrate(
     app => {
         // Revert to share-only rules
         const hasShare = 'drive_shares_via_item.user_org.user ?= @request.auth.id'
-        const isOwnerOrEditor =
-            `${hasShare} && drive_shares_via_item.role ?!= "viewer"`
-        const isOwner =
-            `${hasShare} && drive_shares_via_item.role ?= "owner"`
+        const isOwnerOrEditor = `${hasShare} && drive_shares_via_item.role ?!= "viewer"`
+        const isOwner = `${hasShare} && drive_shares_via_item.role ?= "owner"`
         const orgMemberRule = 'org.user_org_via_org.user ?= @request.auth.id'
 
         const itemsCol = app.findCollectionByNameOrId('drive_items')

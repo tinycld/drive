@@ -10,6 +10,7 @@
         "./collections": "./collections.ts",
         "./screens/_layout": "./screens/_layout.tsx",
         "./screens/index": "./screens/index.tsx",
+        "./screens/[...path]": "./screens/[...path].tsx",
         "./sidebar": "./sidebar.tsx",
         "./provider": "./provider.tsx",
         "./seed": "./seed.ts",

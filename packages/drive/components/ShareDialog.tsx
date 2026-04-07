@@ -86,10 +86,7 @@ export function ShareDialog({
         }
     }, [shareLink])
 
-    const alreadySharedIds = useMemo(
-        () => new Set(shares.map(s => s.userOrgId)),
-        [shares]
-    )
+    const alreadySharedIds = useMemo(() => new Set(shares.map(s => s.userOrgId)), [shares])
     const pendingEmails = useMemo(() => new Set(pending.map(p => p.email.toLowerCase())), [pending])
 
     const suggestions = useMemo(() => {
@@ -186,7 +183,13 @@ export function ShareDialog({
     const otherShares = shares.filter(s => s.userOrgId !== currentUserOrgId)
 
     return (
-        <Dialog modal open={open} onOpenChange={o => { if (!o) onClose() }}>
+        <Dialog
+            modal
+            open={open}
+            onOpenChange={o => {
+                if (!o) onClose()
+            }}
+        >
             <Dialog.Portal>
                 <Dialog.Overlay
                     key="overlay"
@@ -346,9 +349,7 @@ export function ShareDialog({
                                     <Text style={[styles.personName, { color: theme.color.val }]}>
                                         {currentUserShare.name || currentUserShare.email} (you)
                                     </Text>
-                                    <Text
-                                        style={[styles.personEmail, { color: theme.color8.val }]}
-                                    >
+                                    <Text style={[styles.personEmail, { color: theme.color8.val }]}>
                                         {currentUserShare.email}
                                     </Text>
                                 </View>
@@ -360,10 +361,7 @@ export function ShareDialog({
 
                         {otherShares.map(share => (
                             <View key={share.id} style={styles.personRow}>
-                                <NameAvatar
-                                    firstName={share.name || share.email}
-                                    size={36}
-                                />
+                                <NameAvatar firstName={share.name || share.email} size={36} />
                                 <View style={styles.personInfo}>
                                     <Text
                                         style={[styles.personName, { color: theme.color.val }]}
@@ -419,10 +417,7 @@ export function ShareDialog({
                     {/* Footer */}
                     <View style={[styles.footer, { borderTopColor: theme.borderColor.val }]}>
                         <Pressable
-                            style={[
-                                styles.copyLinkButton,
-                                { borderColor: theme.borderColor.val },
-                            ]}
+                            style={[styles.copyLinkButton, { borderColor: theme.borderColor.val }]}
                             onPress={copyLink}
                         >
                             <Link size={16} color={theme.accentBackground.val} />
