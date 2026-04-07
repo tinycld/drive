@@ -1,7 +1,7 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import type { DriveItems } from '@tinycld/drive/types'
-import { FileText } from 'lucide-react-native'
+import { PenLine } from 'lucide-react-native'
 import { useRouter } from 'one'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
@@ -62,7 +62,7 @@ function DocRow({ item }: { item: DriveItems }) {
             style={[styles.row, { borderBottomColor: theme.borderColor.val }]}
         >
             <View style={[styles.titleCell, { flex: 3 }]}>
-                <FileText size={18} color={theme.accentBackground.val} />
+                <PenLine size={18} color={theme.accentBackground.val} />
                 <Text style={[styles.titleText, { color: theme.color.val }]} numberOfLines={1}>
                     {item.name}
                 </Text>

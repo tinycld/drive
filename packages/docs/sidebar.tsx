@@ -1,4 +1,4 @@
-import { FileText, Plus } from 'lucide-react-native'
+import { PenLine, Plus } from 'lucide-react-native'
 import { useRouter } from 'one'
 import {
     SidebarActionButton,
@@ -28,7 +28,7 @@ export default function DocumentsSidebar(_props: DocumentsSidebarProps) {
 
             <SidebarItem
                 label="All documents"
-                icon={FileText}
+                icon={PenLine}
                 isActive
                 onPress={() => router.push(orgHref('docs'))}
             />
