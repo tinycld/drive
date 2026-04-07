@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert'
+import type { CalendarEvents } from '../types'
 import {
     buildRRule,
     describeRRule,
@@ -8,14 +9,8 @@ import {
     parseEventId,
     parseRRule,
 } from './recurrence'
-import type { CalendarEvents } from '../types'
 
-function makeEvent(
-    id: string,
-    start: string,
-    end: string,
-    recurrence = ''
-): CalendarEvents {
+function makeEvent(id: string, start: string, end: string, recurrence = ''): CalendarEvents {
     return {
         id,
         calendar: 'cal1',
@@ -37,12 +32,7 @@ function makeEvent(
     }
 }
 
-function makeAllDayEvent(
-    id: string,
-    start: string,
-    end: string,
-    recurrence = ''
-): CalendarEvents {
+function makeAllDayEvent(id: string, start: string, end: string, recurrence = ''): CalendarEvents {
     return { ...makeEvent(id, start, end, recurrence), all_day: true }
 }
 

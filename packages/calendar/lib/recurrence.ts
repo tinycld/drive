@@ -150,7 +150,7 @@ function getNthWeekdayOfMonth(
     if (n > 0) {
         const first = new Date(year, month, 1)
         const firstDow = first.getDay()
-        let day = 1 + ((weekday - firstDow + 7) % 7) + (n - 1) * 7
+        const day = 1 + ((weekday - firstDow + 7) % 7) + (n - 1) * 7
         if (day > daysInMonth(year, month)) return null
         return new Date(year, month, day)
     }
@@ -158,7 +158,7 @@ function getNthWeekdayOfMonth(
     const last = daysInMonth(year, month)
     const lastDate = new Date(year, month, last)
     const lastDow = lastDate.getDay()
-    let day = last - ((lastDow - weekday + 7) % 7) + (n + 1) * 7
+    const day = last - ((lastDow - weekday + 7) % 7) + (n + 1) * 7
     if (day < 1) return null
     return new Date(year, month, day)
 }
@@ -190,7 +190,15 @@ export function generateOccurrences(
             generateWeekly(eventStart, rule, rangeStart, rangeEnd, maxOccurrences, results, maxIter)
             break
         case 'MONTHLY':
-            generateMonthly(eventStart, rule, rangeStart, rangeEnd, maxOccurrences, results, maxIter)
+            generateMonthly(
+                eventStart,
+                rule,
+                rangeStart,
+                rangeEnd,
+                maxOccurrences,
+                results,
+                maxIter
+            )
             break
         case 'YEARLY':
             generateYearly(eventStart, rule, rangeStart, rangeEnd, maxOccurrences, results, maxIter)
@@ -210,12 +218,10 @@ function generateDaily(
     maxIter: number
 ): number {
     const interval = rule.interval || 1
-    const byDaySet = rule.byDay
-        ? new Set(rule.byDay.map(d => DAY_INDEX[d]))
-        : null
+    const byDaySet = rule.byDay ? new Set(rule.byDay.map(d => DAY_INDEX[d])) : null
 
     let totalEmitted = 0
-    let current = new Date(eventStart)
+    const current = new Date(eventStart)
     let iterations = 0
 
     while (current <= rangeEnd && iterations < maxIter) {
@@ -293,9 +299,7 @@ function generateWeekly(
 
         weekNumber++
         weekStart = new Date(eventStart)
-        weekStart.setDate(
-            eventStart.getDate() - eventStart.getDay() + weekNumber * interval * 7
-        )
+        weekStart.setDate(eventStart.getDate() - eventStart.getDay() + weekNumber * interval * 7)
         weekStart.setHours(
             eventStart.getHours(),
             eventStart.getMinutes(),
@@ -329,12 +333,7 @@ function generateMonthly(
             eventStart.getFullYear() + Math.floor((eventStart.getMonth() + monthOffset) / 12)
         const targetMonth = (eventStart.getMonth() + monthOffset) % 12
 
-        const occurrences = getMonthlyOccurrenceDates(
-            rule,
-            eventStart,
-            targetYear,
-            targetMonth
-        )
+        const occurrences = getMonthlyOccurrenceDates(rule, eventStart, targetYear, targetMonth)
 
         for (const occ of occurrences) {
             if (occ < eventStart) {
@@ -399,12 +398,7 @@ function getMonthlyOccurrenceDates(
         for (const day of rule.byMonthDay) {
             if (day > dim) continue
             const d = new Date(year, month, day)
-            d.setHours(
-                eventStart.getHours(),
-                eventStart.getMinutes(),
-                eventStart.getSeconds(),
-                0
-            )
+            d.setHours(eventStart.getHours(), eventStart.getMinutes(), eventStart.getSeconds(), 0)
             dates.push(d)
         }
         return dates
@@ -415,12 +409,7 @@ function getMonthlyOccurrenceDates(
     const dim = daysInMonth(year, month)
     if (day > dim) return []
     const d = new Date(year, month, day)
-    d.setHours(
-        eventStart.getHours(),
-        eventStart.getMinutes(),
-        eventStart.getSeconds(),
-        0
-    )
+    d.setHours(eventStart.getHours(), eventStart.getMinutes(), eventStart.getSeconds(), 0)
     return [d]
 }
 
@@ -449,12 +438,7 @@ function generateYearly(
         const dim = daysInMonth(year, month)
         if (day <= dim) {
             const occ = new Date(year, month, day)
-            occ.setHours(
-                eventStart.getHours(),
-                eventStart.getMinutes(),
-                eventStart.getSeconds(),
-                0
-            )
+            occ.setHours(eventStart.getHours(), eventStart.getMinutes(), eventStart.getSeconds(), 0)
 
             if (occ > rangeEnd) break
             if (rule.until && occ > rule.until) break
@@ -523,11 +507,7 @@ export function expandRecurringEvents(options: {
     return result
 }
 
-function eventOverlapsRange(
-    event: CalendarEvents,
-    rangeStart: Date,
-    rangeEnd: Date
-): boolean {
+function eventOverlapsRange(event: CalendarEvents, rangeStart: Date, rangeEnd: Date): boolean {
     const eventStart = new Date(event.start)
     const eventEnd = new Date(event.end)
     if (event.all_day) {
@@ -683,9 +663,7 @@ export function getWeekdayPosition(date: Date): { position: number; day: string 
     return { position, day }
 }
 
-export function getContextualPresets(
-    eventStart: Date
-): { label: string; value: string }[] {
+export function getContextualPresets(eventStart: Date): { label: string; value: string }[] {
     const dayName = FULL_DAY_NAMES[eventStart.getDay()]
     const dayAbbr = DAY_NAMES[eventStart.getDay()]
     const { position, day } = getWeekdayPosition(eventStart)

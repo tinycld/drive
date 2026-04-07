@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Pressable, StyleSheet } from 'react-native'
-import { PlainInput } from '~/ui/PlainInput'
 import { Button, Dialog, SizableText, useTheme, XStack, YStack } from 'tamagui'
+import { PlainInput } from '~/ui/PlainInput'
 import {
     buildRRule,
     describeRRule,
@@ -292,10 +292,7 @@ function CustomRecurrenceDialog({
                                 onLongPress={() => {
                                     updateState({ interval: Math.max(state.interval - 1, 1) })
                                 }}
-                                style={[
-                                    styles.numberBox,
-                                    { borderColor: theme.borderColor.val },
-                                ]}
+                                style={[styles.numberBox, { borderColor: theme.borderColor.val }]}
                             >
                                 <SizableText size="$3" color="$color" textAlign="center">
                                     {state.interval}
@@ -316,9 +313,7 @@ function CustomRecurrenceDialog({
                                             onPress={() => updateState({ freq: opt.value })}
                                         >
                                             <Button.Text size="$2">
-                                                {state.interval > 1
-                                                    ? `${opt.label}s`
-                                                    : opt.label}
+                                                {state.interval > 1 ? `${opt.label}s` : opt.label}
                                             </Button.Text>
                                         </Button>
                                     )
@@ -480,15 +475,7 @@ function MonthlyModeSelector({
 
     const dayOfMonth = eventStartDate.getDate()
     const { position } = getWeekdayPosition(eventStartDate)
-    const dayNames = [
-        'Sunday',
-        'Monday',
-        'Tuesday',
-        'Wednesday',
-        'Thursday',
-        'Friday',
-        'Saturday',
-    ]
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const dayName = dayNames[eventStartDate.getDay()]
     const ordinals = ['', 'first', 'second', 'third', 'fourth', 'fifth']
     const ordinal = ordinals[position] ?? `${position}th`
@@ -502,7 +489,9 @@ function MonthlyModeSelector({
                 <Button
                     size="$2"
                     theme={monthlyMode === 'dayOfMonth' ? 'accent' : undefined}
-                    borderColor={monthlyMode === 'dayOfMonth' ? '$accentBackground' : '$borderColor'}
+                    borderColor={
+                        monthlyMode === 'dayOfMonth' ? '$accentBackground' : '$borderColor'
+                    }
                     borderWidth={1}
                     onPress={() => onChange('dayOfMonth')}
                 >
