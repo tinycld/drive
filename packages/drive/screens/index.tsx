@@ -1,6 +1,6 @@
 import { Star } from 'lucide-react-native'
-import { useCallback } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useCallback, useState } from 'react'
+import { type LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import { DataTableHeader } from '~/components/DataTableHeader'
 import { EmptyState } from '~/components/EmptyState'
@@ -155,20 +155,37 @@ function TrashListRow({ item }: { item: DriveItemView }) {
     )
 }
 
+const GRID_GAP = 12
+const GRID_PADDING = 16
+const CARD_MIN = 200
+
+function useGridLayout() {
+    const [cardWidth, setCardWidth] = useState(CARD_MIN)
+    const onLayout = useCallback((e: LayoutChangeEvent) => {
+        const w = e.nativeEvent.layout.width - GRID_PADDING * 2
+        const cols = Math.max(1, Math.floor((w + GRID_GAP) / (CARD_MIN + GRID_GAP)))
+        setCardWidth(Math.floor((w - GRID_GAP * (cols - 1)) / cols))
+    }, [])
+    return { cardWidth, onLayout }
+}
+
 function GridView({ items }: { items: DriveItemView[] }) {
     const folders = items.filter(i => i.isFolder)
     const files = items.filter(i => !i.isFolder)
+    const { cardWidth, onLayout } = useGridLayout()
 
     return (
-        <View style={styles.gridContainer}>
+        <View style={styles.gridContainer} onLayout={onLayout}>
             {folders.length > 0 && (
                 <View style={styles.gridSection}>
                     <GridSectionHeader title="Folders" />
                     <View style={styles.gridWrap}>
                         {folders.map(item => (
-                            <DriveContextMenu key={item.id} item={item}>
-                                <FolderGridCard item={item} />
-                            </DriveContextMenu>
+                            <View key={item.id} style={{ width: cardWidth }}>
+                                <DriveContextMenu item={item}>
+                                    <FolderGridCard item={item} />
+                                </DriveContextMenu>
+                            </View>
                         ))}
                     </View>
                 </View>
@@ -178,9 +195,11 @@ function GridView({ items }: { items: DriveItemView[] }) {
                     <GridSectionHeader title="Files" />
                     <View style={styles.gridWrap}>
                         {files.map(item => (
-                            <DriveContextMenu key={item.id} item={item}>
-                                <FileGridCard item={item} />
-                            </DriveContextMenu>
+                            <View key={item.id} style={{ width: cardWidth }}>
+                                <DriveContextMenu item={item}>
+                                    <FileGridCard item={item} />
+                                </DriveContextMenu>
+                            </View>
                         ))}
                     </View>
                 </View>
@@ -304,14 +323,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        width: 180,
         paddingHorizontal: 12,
         paddingVertical: 10,
         borderWidth: 1,
         borderRadius: 8,
     },
     fileCard: {
-        width: 180,
         borderWidth: 1,
         borderRadius: 8,
         overflow: 'hidden',
