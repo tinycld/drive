@@ -30,7 +30,6 @@ tsconfig.tsbuildinfo
 .env.production.local
 
 .expo
-.vite
 
 # generated code
 /ios

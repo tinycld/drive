@@ -58,12 +58,7 @@
                 "noExplicitAny": "error"
             },
             "complexity": {
-                "noExcessiveCognitiveComplexity": {
-                    "level": "warn",
-                    "options": {
-                        "maxAllowedComplexity": 45
-                    }
-                }
+                "noExcessiveCognitiveComplexity": "warn"
             }
         }
     },
@@ -78,14 +73,11 @@
     },
     "overrides": [
         {
-            "includes": ["scripts/**/*", "tests/**/*", "**/*.test.ts", "**/*.test.tsx"],
+            "includes": ["scripts/**/*", "tests/**/*"],
             "linter": {
                 "rules": {
                     "suspicious": {
                         "noConsole": "off"
-                    },
-                    "style": {
-                        "noNonNullAssertion": "off"
                     }
                 }
             }
