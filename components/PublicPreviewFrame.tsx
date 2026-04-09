@@ -1,7 +1,11 @@
 import { FileIcon } from 'lucide-react-native'
+import { lazy, Suspense } from 'react'
 import { Platform, StyleSheet } from 'react-native'
-import { Image, Paragraph, useTheme, View, YStack } from 'tamagui'
-import { PdfCanvasViewer } from './PdfCanvasViewer'
+import { Image, Paragraph, Spinner, useTheme, View, YStack } from 'tamagui'
+
+const PdfCanvasViewer = lazy(() =>
+    import('./PdfCanvasViewer').then((m) => ({ default: m.PdfCanvasViewer }))
+)
 
 interface PublicPreviewFrameProps {
     name: string
@@ -50,7 +54,11 @@ function PdfPreview({ url }: { url: string }) {
         return <GenericPreview name="PDF Document" mimeType="application/pdf" size={0} />
     }
 
-    return <PdfCanvasViewer url={url} />
+    return (
+        <Suspense fallback={<Spinner />}>
+            <PdfCanvasViewer url={url} />
+        </Suspense>
+    )
 }
 
 function VideoPreview({ url, mimeType }: { url: string; mimeType: string }) {

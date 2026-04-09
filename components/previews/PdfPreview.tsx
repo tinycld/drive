@@ -1,8 +1,13 @@
+import { lazy, Suspense } from 'react'
 import { Platform } from 'react-native'
+import { Spinner } from 'tamagui'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
-import { PdfCanvasViewer } from '../PdfCanvasViewer'
 import { GenericPreview } from './GenericPreview'
+
+const PdfCanvasViewer = lazy(() =>
+    import('../PdfCanvasViewer').then((m) => ({ default: m.PdfCanvasViewer }))
+)
 
 export function PdfPreview(props: PreviewProps) {
     const { item } = props
@@ -11,5 +16,9 @@ export function PdfPreview(props: PreviewProps) {
     if (!fileUrl) return null
     if (Platform.OS !== 'web') return <GenericPreview {...props} />
 
-    return <PdfCanvasViewer url={fileUrl} />
+    return (
+        <Suspense fallback={<Spinner />}>
+            <PdfCanvasViewer url={fileUrl} />
+        </Suspense>
+    )
 }
