@@ -22,8 +22,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Button, Dialog, useTheme, XStack } from 'tamagui'
 import { MenuActionItem } from '~/components/DropdownMenu'
+import { ScreenHeader } from '~/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '~/components/SuretyGuard'
 import { ToolbarIconButton } from '~/components/ToolbarIconButton'
+import { ToolbarSeparator } from '~/components/ToolbarSeparator'
 import { captureException } from '~/lib/errors'
 import { useCurrentRole } from '~/lib/use-current-role'
 import { PlainInput } from '~/ui/PlainInput'
@@ -222,13 +224,19 @@ export function DriveToolbar() {
 
     return (
         <>
-            <View style={[styles.toolbar, { borderBottomColor: theme.borderColor.val }]}>
-                {leftContent}
-                <View style={styles.rightSection}>
-                    <SearchInput value={searchQuery} onChangeText={setSearchQuery} theme={theme} />
-                    <ViewToggle viewMode={viewMode} onSetViewMode={setViewMode} theme={theme} />
+            <ScreenHeader>
+                <View style={styles.toolbar}>
+                    {leftContent}
+                    <View style={styles.rightSection}>
+                        <SearchInput
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            theme={theme}
+                        />
+                        <ViewToggle viewMode={viewMode} onSetViewMode={setViewMode} theme={theme} />
+                    </View>
                 </View>
-            </View>
+            </ScreenHeader>
             {promptDialog}
             {moveDialog}
             {shareDialog}
@@ -448,53 +456,50 @@ function SelectionToolbar({
 
         return (
             <>
-                <View style={[styles.toolbar, { borderBottomColor: theme.borderColor.val }]}>
-                    <View style={styles.selectionLeft}>
-                        <Pressable onPress={onClearSelection} style={styles.closeButton}>
-                            <X size={16} color={theme.color8.val} />
-                        </Pressable>
-                        <Text
-                            style={[styles.selectionText, { color: theme.color.val }]}
-                            numberOfLines={1}
-                        >
-                            {item.name}
-                        </Text>
+                <ScreenHeader>
+                    <View style={styles.toolbar}>
+                        <View style={styles.selectionLeft}>
+                            <Pressable onPress={onClearSelection} style={styles.closeButton}>
+                                <X size={16} color={theme.color8.val} />
+                            </Pressable>
+                            <Text
+                                style={[styles.selectionText, { color: theme.color.val }]}
+                                numberOfLines={1}
+                            >
+                                {item.name}
+                            </Text>
+                        </View>
+                        <View style={styles.actions}>
+                            <ToolbarIconButton
+                                icon={RotateCcw}
+                                label="Restore"
+                                onPress={handleRestore}
+                            />
+                            <SuretyGuard
+                                message={`Permanently delete "${item.name}"? This cannot be undone.`}
+                                confirmLabel="Delete permanently"
+                                onConfirmed={() => {
+                                    permanentlyDelete(item.id)
+                                    onClearSelection()
+                                }}
+                            >
+                                {onOpen => (
+                                    <ToolbarIconButton
+                                        icon={Trash2}
+                                        label="Delete permanently"
+                                        onPress={onOpen}
+                                    />
+                                )}
+                            </SuretyGuard>
+                            <ToolbarSeparator />
+                            <ViewToggle
+                                viewMode={viewMode}
+                                onSetViewMode={onSetViewMode}
+                                theme={theme}
+                            />
+                        </View>
                     </View>
-                    <View style={styles.actions}>
-                        <ToolbarIconButton
-                            icon={RotateCcw}
-                            label="Restore"
-                            onPress={handleRestore}
-                        />
-                        <SuretyGuard
-                            message={`Permanently delete "${item.name}"? This cannot be undone.`}
-                            confirmLabel="Delete permanently"
-                            onConfirmed={() => {
-                                permanentlyDelete(item.id)
-                                onClearSelection()
-                            }}
-                        >
-                            {onOpen => (
-                                <ToolbarIconButton
-                                    icon={Trash2}
-                                    label="Delete permanently"
-                                    onPress={onOpen}
-                                />
-                            )}
-                        </SuretyGuard>
-                        <View
-                            style={[
-                                styles.actionDivider,
-                                { backgroundColor: theme.borderColor.val },
-                            ]}
-                        />
-                        <ViewToggle
-                            viewMode={viewMode}
-                            onSetViewMode={onSetViewMode}
-                            theme={theme}
-                        />
-                    </View>
-                </View>
+                </ScreenHeader>
                 <ChooseFolderDialog
                     open={restoreMoveTarget !== null}
                     itemName={item.name}
@@ -561,32 +566,39 @@ function SelectionToolbar({
     ]
 
     return (
-        <View style={[styles.toolbar, { borderBottomColor: theme.borderColor.val }]}>
-            <View style={styles.selectionLeft}>
-                <Pressable onPress={onClearSelection} style={styles.closeButton}>
-                    <X size={16} color={theme.color8.val} />
-                </Pressable>
-                <Text style={[styles.selectionText, { color: theme.color.val }]} numberOfLines={1}>
-                    {item.name}
-                </Text>
+        <ScreenHeader>
+            <View style={styles.toolbar}>
+                <View style={styles.selectionLeft}>
+                    <Pressable onPress={onClearSelection} style={styles.closeButton}>
+                        <X size={16} color={theme.color8.val} />
+                    </Pressable>
+                    <Text
+                        style={[styles.selectionText, { color: theme.color.val }]}
+                        numberOfLines={1}
+                    >
+                        {item.name}
+                    </Text>
+                </View>
+                <View style={styles.actions}>
+                    {actionIcons.map(({ key, icon, label, onPress }) => (
+                        <ToolbarIconButton key={key} icon={icon} label={label} onPress={onPress} />
+                    ))}
+                    <ConfirmTrash
+                        itemName={item.name}
+                        onConfirmed={() => {
+                            moveToTrash(item.id)
+                            onClearSelection()
+                        }}
+                    >
+                        {onOpen => (
+                            <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />
+                        )}
+                    </ConfirmTrash>
+                    <ToolbarSeparator />
+                    <ViewToggle viewMode={viewMode} onSetViewMode={onSetViewMode} theme={theme} />
+                </View>
             </View>
-            <View style={styles.actions}>
-                {actionIcons.map(({ key, icon, label, onPress }) => (
-                    <ToolbarIconButton key={key} icon={icon} label={label} onPress={onPress} />
-                ))}
-                <ConfirmTrash
-                    itemName={item.name}
-                    onConfirmed={() => {
-                        moveToTrash(item.id)
-                        onClearSelection()
-                    }}
-                >
-                    {onOpen => <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />}
-                </ConfirmTrash>
-                <View style={[styles.actionDivider, { backgroundColor: theme.borderColor.val }]} />
-                <ViewToggle viewMode={viewMode} onSetViewMode={onSetViewMode} theme={theme} />
-            </View>
-        </View>
+        </ScreenHeader>
     )
 }
 
@@ -727,7 +739,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingVertical: 10,
-        borderBottomWidth: 1,
     },
     breadcrumbs: {
         flexDirection: 'row',
@@ -826,11 +837,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-    },
-    actionDivider: {
-        width: 1,
-        height: 20,
-        marginHorizontal: 4,
     },
     breadcrumbTrash: {
         padding: 6,
