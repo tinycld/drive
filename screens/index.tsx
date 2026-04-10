@@ -1,16 +1,52 @@
-import { Star } from 'lucide-react-native'
+import type { LucideIcon } from 'lucide-react-native'
+import { Download, Star, Trash2 } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
-import { type LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native'
+import { type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTheme } from 'tamagui'
 import { DataTableHeader } from '~/components/DataTableHeader'
 import { EmptyState } from '~/components/EmptyState'
+import { ConfirmTrash } from '~/components/SuretyGuard'
 import { formatBytes, formatDate } from '~/lib/format-utils'
+import { useWebStyles } from '~/lib/use-web-styles'
 import { DriveContextMenu } from '../components/DriveContextMenu'
 import { getFileIcon } from '../components/file-icons'
 import { Thumbnail } from '../components/Thumbnail'
 import { useDoubleClick } from '../hooks/useDoubleClick'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveItemView } from '../types'
+
+const tooltipCSS = `
+    .drive-hover-tooltip {
+        position: relative;
+        display: inline-flex;
+    }
+    .drive-hover-tooltip::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        line-height: 1;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s ease-in;
+        background: var(--tooltip-bg);
+        color: var(--tooltip-fg);
+        z-index: 10;
+    }
+    .drive-hover-tooltip.tooltip-above::after {
+        bottom: calc(100% + 6px);
+    }
+    .drive-hover-tooltip.tooltip-below::after {
+        top: calc(100% + 6px);
+    }
+    .drive-hover-tooltip:hover::after {
+        opacity: 1;
+    }
+`
 
 export default function DriveScreen() {
     const { viewMode, activeSection, currentItems, searchQuery, isSearching } = useDrive()
@@ -40,6 +76,7 @@ const DRIVE_COLUMNS = [
     { label: 'Owner', flex: 2 },
     { label: 'Date modified', flex: 2 },
     { label: 'File size', flex: 1 },
+    { label: '', width: 80 },
 ]
 
 const TRASH_COLUMNS = [
@@ -55,25 +92,25 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
     return (
         <View style={styles.listContainer}>
             <DataTableHeader columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS} />
-            {folders.map(item =>
+            {folders.map((item, i) =>
                 isTrash ? (
                     <DriveContextMenu key={item.id} item={item}>
                         <TrashListRow item={item} />
                     </DriveContextMenu>
                 ) : (
                     <DriveContextMenu key={item.id} item={item}>
-                        <FilesListRow item={item} />
+                        <FilesListRow item={item} index={i} />
                     </DriveContextMenu>
                 )
             )}
-            {files.map(item =>
+            {files.map((item, i) =>
                 isTrash ? (
                     <DriveContextMenu key={item.id} item={item}>
                         <TrashListRow item={item} />
                     </DriveContextMenu>
                 ) : (
                     <DriveContextMenu key={item.id} item={item}>
-                        <FilesListRow item={item} />
+                        <FilesListRow item={item} index={folders.length + i} />
                     </DriveContextMenu>
                 )
             )}
@@ -81,11 +118,21 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
     )
 }
 
-function FilesListRow({ item }: { item: DriveItemView }) {
+function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
+    useWebStyles('drive-hover-tooltip', tooltipCSS)
     const theme = useTheme()
-    const { selectedItemId, selectItem, openPreview, navigateToFolder } = useDrive()
+    const {
+        selectedItemId,
+        selectItem,
+        openPreview,
+        navigateToFolder,
+        toggleStar,
+        downloadItem,
+        moveToTrash,
+    } = useDrive()
     const isSelected = selectedItemId === item.id
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, theme.color8.val)
+    const [isHovered, setIsHovered] = useState(false)
 
     const handleSingle = useCallback(() => selectItem(item.id), [item.id, selectItem])
     const handleDouble = useCallback(() => {
@@ -93,6 +140,16 @@ function FilesListRow({ item }: { item: DriveItemView }) {
         else openPreview(item)
     }, [item, openPreview, navigateToFolder])
     const handlePress = useDoubleClick(handleSingle, handleDouble)
+
+    const hoverWebProps =
+        Platform.OS === 'web'
+            ? {
+                  onMouseEnter: () => setIsHovered(true),
+                  onMouseLeave: () => setIsHovered(false),
+              }
+            : {}
+
+    const tooltipPosition = index === 0 ? ('below' as const) : ('above' as const)
 
     return (
         <Pressable
@@ -102,15 +159,13 @@ function FilesListRow({ item }: { item: DriveItemView }) {
                 { borderBottomColor: theme.borderColor.val },
                 isSelected && { backgroundColor: `${theme.activeIndicator.val}12` },
             ]}
+            {...hoverWebProps}
         >
             <View style={[styles.nameCell, { flex: 3 }]}>
                 <FileIcon size={20} color={iconColor} />
                 <Text style={[styles.nameText, { color: theme.color.val }]} numberOfLines={1}>
                     {item.name}
                 </Text>
-                {item.starred && (
-                    <Star size={14} color={theme.yellow8.val} fill={theme.yellow8.val} />
-                )}
             </View>
             <Text style={[styles.cellText, { color: theme.color8.val, flex: 2 }]} numberOfLines={1}>
                 {item.owner}
@@ -121,6 +176,59 @@ function FilesListRow({ item }: { item: DriveItemView }) {
             <Text style={[styles.cellText, { color: theme.color8.val, flex: 1 }]}>
                 {item.isFolder ? '—' : formatBytes(item.size)}
             </Text>
+            <View style={styles.actionsCell}>
+                <Pressable
+                    style={[
+                        styles.hoverActions,
+                        { backgroundColor: theme.background.val },
+                        !isHovered && styles.hidden,
+                    ]}
+                    onPress={e => e.stopPropagation()}
+                >
+                    <ConfirmTrash itemName={item.name} onConfirmed={() => moveToTrash(item.id)}>
+                        {onOpen => (
+                            <HoverAction
+                                icon={Trash2}
+                                label="Delete"
+                                onPress={onOpen}
+                                theme={theme}
+                                tooltipPosition={tooltipPosition}
+                            />
+                        )}
+                    </ConfirmTrash>
+                    {!item.isFolder && (
+                        <HoverAction
+                            icon={Download}
+                            label="Download"
+                            onPress={() => downloadItem(item.id)}
+                            theme={theme}
+                            tooltipPosition={tooltipPosition}
+                        />
+                    )}
+                    <HoverAction
+                        icon={Star}
+                        label={item.starred ? 'Unstar' : 'Star'}
+                        onPress={() => toggleStar(item.id)}
+                        theme={theme}
+                        iconColor={item.starred ? theme.color8.val : theme.yellow8.val}
+                        iconFill={item.starred ? 'transparent' : theme.yellow8.val}
+                        tooltipPosition={tooltipPosition}
+                    />
+                </Pressable>
+                <Pressable
+                    style={[styles.starButton, isHovered && styles.hidden]}
+                    onPress={e => {
+                        e.stopPropagation()
+                        toggleStar(item.id)
+                    }}
+                >
+                    <Star
+                        size={16}
+                        color={item.starred ? theme.yellow8.val : theme.color8.val}
+                        fill={item.starred ? theme.yellow8.val : 'transparent'}
+                    />
+                </Pressable>
+            </View>
         </Pressable>
     )
 }
@@ -153,6 +261,55 @@ function TrashListRow({ item }: { item: DriveItemView }) {
                 {item.isFolder ? '—' : formatBytes(item.size)}
             </Text>
         </Pressable>
+    )
+}
+
+function HoverAction({
+    icon: Icon,
+    label,
+    onPress,
+    theme,
+    iconColor,
+    iconFill,
+    tooltipPosition = 'above',
+}: {
+    icon: LucideIcon
+    label: string
+    onPress: () => void
+    theme: ReturnType<typeof useTheme>
+    iconColor?: string
+    iconFill?: string
+    tooltipPosition?: 'above' | 'below'
+}) {
+    const button = (
+        <Pressable
+            style={styles.hoverButton}
+            onPress={e => {
+                e.stopPropagation()
+                e.preventDefault()
+                onPress()
+            }}
+            accessibilityLabel={label}
+        >
+            <Icon size={16} color={iconColor ?? theme.color8.val} fill={iconFill ?? 'none'} />
+        </Pressable>
+    )
+
+    if (Platform.OS !== 'web') return button
+
+    const tooltipStyle = {
+        '--tooltip-bg': theme.color2.val,
+        '--tooltip-fg': theme.color12.val,
+    }
+
+    return (
+        <div
+            data-tooltip={label}
+            className={`drive-hover-tooltip tooltip-${tooltipPosition}`}
+            style={tooltipStyle as never}
+        >
+            {button}
+        </div>
     )
 }
 
@@ -297,6 +454,32 @@ const styles = StyleSheet.create({
     },
     cellText: {
         fontSize: 13,
+    },
+    actionsCell: {
+        width: 80,
+        flexShrink: 0,
+        position: 'relative',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+    },
+    hoverActions: {
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        bottom: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    hoverButton: {
+        padding: 6,
+        borderRadius: 16,
+    },
+    starButton: {
+        padding: 4,
+    },
+    hidden: {
+        opacity: 0,
+        pointerEvents: 'none' as const,
     },
     gridContainer: {
         flex: 1,
