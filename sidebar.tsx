@@ -138,8 +138,6 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                 depth={1}
             />
 
-            <SidebarItem label="Shared files" icon={Users} isActive={false} onPress={() => {}} />
-
             <SidebarDivider />
 
             <SidebarItem
