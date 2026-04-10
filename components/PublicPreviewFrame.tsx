@@ -4,7 +4,7 @@ import { Platform, StyleSheet } from 'react-native'
 import { Image, Paragraph, Spinner, useTheme, View, YStack } from 'tamagui'
 
 const PdfCanvasViewer = lazy(() =>
-    import('./PdfCanvasViewer').then((m) => ({ default: m.PdfCanvasViewer }))
+    import('./PdfCanvasViewer').then(m => ({ default: m.PdfCanvasViewer }))
 )
 
 interface PublicPreviewFrameProps {

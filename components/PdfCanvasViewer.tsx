@@ -1,23 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Document, Page, pdfjs } from 'react-pdf'
+import { useWebStylesheet } from '~/lib/use-web-styles'
 
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
-
-function ensurePdfStyles() {
-    if (document.getElementById('react-pdf-text-layer-css')) return
-    const textLink = document.createElement('link')
-    textLink.id = 'react-pdf-text-layer-css'
-    textLink.rel = 'stylesheet'
-    textLink.href = '/react-pdf-text-layer.css'
-    document.head.appendChild(textLink)
-
-    const annotationLink = document.createElement('link')
-    annotationLink.id = 'react-pdf-annotation-layer-css'
-    annotationLink.rel = 'stylesheet'
-    annotationLink.href = '/react-pdf-annotation-layer.css'
-    document.head.appendChild(annotationLink)
-}
 
 // Tamagui's modal Dialog uses a FocusScope with trapped={true} that listens for
 // focusin/focusout on the document. During a mouse drag for text selection, the
@@ -103,9 +89,8 @@ export function PdfCanvasViewer({ url }: { url: string }) {
     const [containerWidth, setContainerWidth] = useState(0)
     const containerRef = useRef<HTMLDivElement>(null)
 
-    useEffect(() => {
-        ensurePdfStyles()
-    }, [])
+    useWebStylesheet('react-pdf-text-layer-css', '/react-pdf-text-layer.css')
+    useWebStylesheet('react-pdf-annotation-layer-css', '/react-pdf-annotation-layer.css')
 
     useFocusTrapDragFix(containerRef)
 

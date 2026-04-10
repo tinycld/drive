@@ -6,7 +6,7 @@ import type { PreviewProps } from '../../lib/preview-registry'
 import { GenericPreview } from './GenericPreview'
 
 const PdfCanvasViewer = lazy(() =>
-    import('../PdfCanvasViewer').then((m) => ({ default: m.PdfCanvasViewer }))
+    import('../PdfCanvasViewer').then(m => ({ default: m.PdfCanvasViewer }))
 )
 
 export function PdfPreview(props: PreviewProps) {
