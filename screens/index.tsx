@@ -196,15 +196,13 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
                             />
                         )}
                     </ConfirmTrash>
-                    {!item.isFolder && (
-                        <HoverAction
-                            icon={Download}
-                            label="Download"
-                            onPress={() => downloadItem(item.id)}
-                            theme={theme}
-                            tooltipPosition={tooltipPosition}
-                        />
-                    )}
+                    <HoverAction
+                        icon={Download}
+                        label="Download"
+                        onPress={() => downloadItem(item.id)}
+                        theme={theme}
+                        tooltipPosition={tooltipPosition}
+                    />
                     <HoverAction
                         icon={Star}
                         label={item.starred ? 'Unstar' : 'Star'}

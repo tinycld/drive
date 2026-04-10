@@ -106,6 +106,33 @@ test.describe('Drive — Actions', () => {
         })
     })
 
+    test('download folder via context menu', async ({ page }) => {
+        // Right-click the "Projects" folder to open context menu
+        await page.getByText('Projects').first().click({ button: 'right' })
+
+        // "Download" should be visible in the context menu for folders
+        const downloadMenuItem = page.getByText('Download', { exact: true })
+        await expect(downloadMenuItem).toBeVisible({ timeout: 5_000 })
+
+        // Intercept the download-token request to verify it fires
+        const tokenRequest = page.waitForResponse(
+            resp => resp.url().includes('/api/drive/download-token') && resp.status() === 200
+        )
+
+        // Intercept the subsequent download so the browser doesn't actually save a file
+        const downloadPromise = page.waitForEvent('download')
+
+        await downloadMenuItem.click()
+
+        const tokenResp = await tokenRequest
+        const tokenBody = await tokenResp.json()
+        expect(tokenBody.token).toBeTruthy()
+        expect(tokenBody.url).toContain('/api/drive/download-folder?token=')
+
+        const download = await downloadPromise
+        expect(download.suggestedFilename()).toBe('Projects.zip')
+    })
+
     test('permanently delete from trash', async ({ page }) => {
         await page.getByText('Shared Documents').first().dblclick()
         await expect(page.getByText('Team Meeting Notes.docx').first()).toBeVisible({

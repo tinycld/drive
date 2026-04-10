@@ -526,11 +526,23 @@ export function useDriveState(): DriveContextValue {
     )
 
     const downloadItem = useCallback(
-        (itemId: string) => {
+        async (itemId: string) => {
             const item = itemsById.get(itemId)
-            if (!item?.file) return
-            const url = pb.files.getURL({ collectionId: 'drive_items', id: itemId }, item.file)
-            if (Platform.OS === 'web') {
+            if (!item) return
+            if (Platform.OS !== 'web') return
+
+            if (item.isFolder) {
+                const response = await pb.send('/api/drive/download-token', {
+                    method: 'POST',
+                    body: { item: itemId },
+                })
+                const a = document.createElement('a')
+                a.href = `${pb.baseURL}${response.url}`
+                a.download = `${item.name}.zip`
+                a.click()
+            } else {
+                if (!item.file) return
+                const url = pb.files.getURL({ collectionId: 'drive_items', id: itemId }, item.file)
                 const a = document.createElement('a')
                 a.href = `${url}?download=1`
                 a.download = item.name

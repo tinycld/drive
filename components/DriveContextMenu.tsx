@@ -114,14 +114,7 @@ function NormalMenuItems({
                 <ContextMenuItem label="Preview" icon={Eye} onSelect={onPreview} theme={theme} />
             )}
             <ContextMenuItem label="Open" icon={FolderOpen} onSelect={onOpen} theme={theme} />
-            {!item.isFolder && (
-                <ContextMenuItem
-                    label="Download"
-                    icon={Download}
-                    onSelect={onDownload}
-                    theme={theme}
-                />
-            )}
+            <ContextMenuItem label="Download" icon={Download} onSelect={onDownload} theme={theme} />
             <ContextMenu.Separator borderColor="$borderColor" marginVertical="$1" />
             <ContextMenuItem
                 label={item.starred ? 'Remove star' : 'Add star'}
