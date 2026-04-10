@@ -1,0 +1,133 @@
+import { expect, test } from '@playwright/test'
+import { login, navigateToAddon } from '../../../tests/e2e/helpers'
+
+test.describe('Drive — Actions', () => {
+    test.beforeEach(async ({ page }) => {
+        await login(page)
+        await navigateToAddon(page, 'drive')
+    })
+
+    test('new menu is visible in sidebar', async ({ page }) => {
+        // The "New" button is in the sidebar with a Plus icon
+        await expect(page.getByText('New', { exact: true })).toBeVisible()
+    })
+
+    test('search files', async ({ page }) => {
+        const searchInput = page.getByPlaceholder('Search in Files')
+        await searchInput.fill('Roadmap')
+
+        await expect(page.getByText('Product Roadmap 2026.docx').first()).toBeVisible({
+            timeout: 10_000,
+        })
+
+        await searchInput.clear()
+        await expect(page.getByText('Projects').first()).toBeVisible({ timeout: 10_000 })
+    })
+
+    test('select file shows toolbar with actions', async ({ page }) => {
+        await page.getByText('Projects').first().dblclick()
+        await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
+
+        await page.getByText('Q1 Planning').first().dblclick()
+        await expect(page.getByText('Product Roadmap 2026.docx').first()).toBeVisible({
+            timeout: 10_000,
+        })
+
+        await page.getByText('Product Roadmap 2026.docx').first().click()
+
+        await expect(page.getByLabel('Rename')).toBeVisible({ timeout: 5_000 })
+        await expect(page.getByLabel('Download')).toBeVisible()
+    })
+
+    test('rename file', async ({ page }) => {
+        await page.getByText('Projects').first().dblclick()
+        await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
+
+        await page.getByText('Q1 Planning').first().dblclick()
+        await expect(page.getByText('Strategy Deck.pptx').first()).toBeVisible({ timeout: 10_000 })
+
+        await page.getByText('Strategy Deck.pptx').first().click()
+        await page.getByLabel('Rename').click()
+
+        const newName = `Renamed Deck ${Date.now()}.pptx`
+        const input = page.getByRole('textbox').last()
+        await input.clear()
+        await input.fill(newName)
+
+        await page.getByRole('button', { name: 'Rename' }).click()
+
+        await expect(page.getByText(newName).first()).toBeVisible({ timeout: 10_000 })
+    })
+
+    test('move file to trash', async ({ page }) => {
+        await page.getByText('Personal').first().dblclick()
+        await expect(page.getByText('Profile Photo.jpg').first()).toBeVisible({ timeout: 10_000 })
+
+        await page.getByText('Profile Photo.jpg').first().click()
+        await page.getByLabel('Trash').click()
+
+        // Confirm in the trash dialog
+        await page.getByRole('button', { name: /move to trash/i }).click()
+
+        await expect(page.getByText('Profile Photo.jpg')).not.toBeVisible({ timeout: 10_000 })
+    })
+
+    test('restore from trash', async ({ page }) => {
+        // Trash a file first
+        await page.getByText('Archive').first().dblclick()
+        await expect(page.getByText('Client Proposal (Old).docx').first()).toBeVisible({
+            timeout: 10_000,
+        })
+
+        await page.getByText('Client Proposal (Old).docx').first().click()
+        await page.getByLabel('Trash').click()
+        // Confirm trash dialog
+        const trashConfirm = page
+            .getByRole('button', { name: /move to trash/i })
+            .or(page.getByRole('button', { name: /confirm/i }))
+            .or(page.getByRole('button', { name: /trash/i }).last())
+        await trashConfirm.click()
+
+        await expect(page.getByText('Client Proposal (Old).docx')).not.toBeVisible({
+            timeout: 10_000,
+        })
+
+        // Navigate to Trash via sidebar
+        await page.getByText('Trash').click()
+        await expect(page.getByText('Client Proposal (Old).docx').first()).toBeVisible({
+            timeout: 10_000,
+        })
+
+        await page.getByText('Client Proposal (Old).docx').first().click()
+        await page.getByLabel('Restore').click()
+
+        await expect(page.getByText('Client Proposal (Old).docx')).not.toBeVisible({
+            timeout: 10_000,
+        })
+    })
+
+    test('permanently delete from trash', async ({ page }) => {
+        await page.getByText('Shared Documents').first().dblclick()
+        await expect(page.getByText('Team Meeting Notes.docx').first()).toBeVisible({
+            timeout: 10_000,
+        })
+
+        await page.getByText('Team Meeting Notes.docx').first().click()
+        await page.getByLabel('Trash').click()
+        await page.getByRole('button', { name: /move to trash/i }).click()
+
+        await page.getByText('Trash').click()
+        await expect(page.getByText('Team Meeting Notes.docx').first()).toBeVisible({
+            timeout: 10_000,
+        })
+
+        await page.getByText('Team Meeting Notes.docx').first().click()
+        await page.getByLabel('Delete permanently').click()
+
+        await page.getByRole('button', { name: 'Delete permanently' }).click()
+
+        await expect(page.getByText('Team Meeting Notes.docx')).not.toBeVisible({
+            timeout: 10_000,
+        })
+    })
+})
