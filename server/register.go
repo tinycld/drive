@@ -10,9 +10,27 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
+	"github.com/pocketbase/pocketbase/tools/router"
 )
 
 func Register(app *pocketbase.PocketBase) {
+	// Enforce storage quota before drive_items are created
+	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
+		size := e.Record.GetInt("size")
+		if size <= 0 {
+			return e.Next()
+		}
+		orgID := e.Record.GetString("org")
+		userOrgID := e.Record.GetString("created_by")
+		if orgID == "" || userOrgID == "" {
+			return e.Next()
+		}
+		if err := checkUserStorageQuota(app, userOrgID, orgID, int64(size)); err != nil {
+			return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
+		}
+		return e.Next()
+	})
+
 	// FTS sync hooks for drive_items
 	app.OnRecordAfterCreateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		syncDriveItemToFTS(app, e.Record, "create")
@@ -77,6 +95,20 @@ func Register(app *pocketbase.PocketBase) {
 
 		e.Router.GET("/api/drive/share-links", func(re *core.RequestEvent) error {
 			return handleListShareLinks(app, re)
+		}).BindFunc(requireAuth)
+
+		// Folder download endpoints
+		e.Router.POST("/api/drive/download-token", func(re *core.RequestEvent) error {
+			return handleCreateDownloadToken(app, re)
+		}).BindFunc(requireAuth)
+
+		e.Router.GET("/api/drive/download-folder", func(re *core.RequestEvent) error {
+			return handleDownloadFolder(app, re)
+		})
+
+		// Storage usage endpoint
+		e.Router.GET("/api/drive/storage-usage", func(re *core.RequestEvent) error {
+			return handleStorageUsage(app, re)
 		}).BindFunc(requireAuth)
 
 		// WebDAV handler
@@ -181,13 +213,21 @@ func handleUploadVersion(app *pocketbase.PocketBase, re *core.RequestEvent) erro
 	}
 	defer file.Close()
 
-	if err := snapshotCurrentFile(app, item, userOrgID, "upload", ""); err != nil {
-		app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
-	}
-
 	data, err := io.ReadAll(file)
 	if err != nil {
 		return re.BadRequestError("failed to read file", nil)
+	}
+
+	// Check storage quota: new version size minus the current file size (delta)
+	sizeDelta := int64(len(data)) - int64(item.GetInt("size"))
+	if sizeDelta > 0 {
+		if err := checkUserStorageQuota(app, userOrgID, item.GetString("org"), sizeDelta); err != nil {
+			return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
+		}
+	}
+
+	if err := snapshotCurrentFile(app, item, userOrgID, "upload", ""); err != nil {
+		app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
 	}
 
 	f, err := filesystem.NewFileFromBytes(data, header.Filename)
@@ -240,6 +280,14 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 		return re.BadRequestError("version does not belong to item", nil)
 	}
 
+	// Check storage quota: restored version size minus current size (delta)
+	sizeDelta := int64(version.GetInt("size")) - int64(item.GetInt("size"))
+	if sizeDelta > 0 {
+		if err := checkUserStorageQuota(app, userOrgID, item.GetString("org"), sizeDelta); err != nil {
+			return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
+		}
+	}
+
 	// Snapshot the current file before restoring (system-generated, hidden from UI)
 	if err := snapshotCurrentFile(app, item, userOrgID, "system", ""); err != nil {
 		app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
@@ -288,4 +336,50 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 		"size":      item.GetInt("size"),
 		"mime_type": item.GetString("mime_type"),
 	})
+}
+
+// handleStorageUsage returns storage usage info for the requesting user and their org.
+func handleStorageUsage(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+	orgID := re.Request.URL.Query().Get("org")
+	if orgID == "" {
+		return re.BadRequestError("missing org parameter", nil)
+	}
+
+	userOrg, err := getUserOrgForOrg(app, re.Auth.Id, orgID)
+	if err != nil {
+		return re.ForbiddenError("no org membership", nil)
+	}
+
+	userUsed, err := getUserStorageUsed(app, userOrg.Id)
+	if err != nil {
+		return re.InternalServerError("failed to get user storage", nil)
+	}
+
+	orgDriveBytes, orgMailBytes, err := getOrgStorageUsed(app, orgID)
+	if err != nil {
+		return re.InternalServerError("failed to get org storage", nil)
+	}
+
+	limitBytes := getStorageLimitBytes(app, orgID)
+
+	result := map[string]any{
+		"user_used_bytes": userUsed,
+		"org_drive_bytes": orgDriveBytes,
+		"org_mail_bytes":  orgMailBytes,
+		"limit_bytes":     limitBytes,
+		"has_limit":       limitBytes > 0,
+	}
+
+	if re.Request.URL.Query().Get("breakdown") == "users" {
+		role := userOrg.GetString("role")
+		if role == "owner" || role == "admin" {
+			breakdown, err := getUsersStorageBreakdown(app, orgID)
+			if err != nil {
+				return re.InternalServerError("failed to get breakdown", nil)
+			}
+			result["users"] = breakdown
+		}
+	}
+
+	return re.JSON(http.StatusOK, result)
 }

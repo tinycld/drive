@@ -192,11 +192,25 @@ func (fs *DriveFileSystem) Create(ctx context.Context, name string, body io.Read
 		parentID = parent.Id
 	}
 
+	// Read file data upfront for quota checking
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return nil, false, err
+	}
+
 	// Check if the item already exists (update case)
 	existing, _ := resolveItemByPath(fs.app, org.Id, segments)
 	if existing != nil {
 		if err := checkWritePermission(fs.app, userOrg.Id, existing.Id); err != nil {
 			return nil, false, err
+		}
+
+		// Check quota: only the delta (new size - old size) counts
+		sizeDelta := int64(len(data)) - int64(existing.GetInt("size"))
+		if sizeDelta > 0 {
+			if err := checkUserStorageQuotaWebDAV(fs.app, userOrg.Id, org.Id, sizeDelta); err != nil {
+				return nil, false, err
+			}
 		}
 
 		if existing.GetString("file") != "" {
@@ -205,12 +219,17 @@ func (fs *DriveFileSystem) Create(ctx context.Context, name string, body io.Read
 			}
 		}
 
-		if err := writeFileContent(fs.app, existing, body, itemName); err != nil {
+		if err := writeFileContentFromBytes(fs.app, existing, data, itemName); err != nil {
 			return nil, false, err
 		}
 
 		fi := recordToFileInfo(fs.app, existing, orgSlug)
 		return fi, false, nil
+	}
+
+	// Check quota for new file
+	if err := checkUserStorageQuotaWebDAV(fs.app, userOrg.Id, org.Id, int64(len(data))); err != nil {
+		return nil, false, err
 	}
 
 	// Create new file
@@ -227,7 +246,7 @@ func (fs *DriveFileSystem) Create(ctx context.Context, name string, body io.Read
 	record.Set("created_by", userOrg.Id)
 	record.Set("mime_type", mime.TypeByExtension(path.Ext(itemName)))
 
-	if err := writeFileContent(fs.app, record, body, itemName); err != nil {
+	if err := writeFileContentFromBytes(fs.app, record, data, itemName); err != nil {
 		return nil, false, err
 	}
 
@@ -363,6 +382,16 @@ func (fs *DriveFileSystem) Copy(ctx context.Context, src, dest string, options *
 	collection, err := fs.app.FindCollectionByNameOrId("drive_items")
 	if err != nil {
 		return false, err
+	}
+
+	// Check quota for the copy (use source file size)
+	if !srcRecord.GetBool("is_folder") {
+		srcSize := int64(srcRecord.GetInt("size"))
+		if srcSize > 0 {
+			if err := checkUserStorageQuotaWebDAV(fs.app, userOrg.Id, srcOrg.Id, srcSize); err != nil {
+				return false, err
+			}
+		}
 	}
 
 	newRecord := core.NewRecord(collection)

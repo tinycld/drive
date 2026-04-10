@@ -3,6 +3,7 @@ import { newRecordId } from 'pbtsdb'
 import { useCallback, useRef, useState } from 'react'
 import { Platform } from 'react-native'
 import { captureException } from '~/lib/errors'
+import { formatBytes } from '~/lib/format-utils'
 import { performMutations, useMutation } from '~/lib/mutations'
 import { pb, useStore } from '~/lib/pocketbase'
 
@@ -40,6 +41,20 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
     const uploadMutation = useMutation({
         mutationFn: async (files: File[]) => {
             setUploadingFiles(files.map(f => ({ name: f.name, status: 'pending' })))
+
+            const storageInfo = await pb.send('/api/drive/storage-usage', {
+                query: { org: orgId },
+            })
+            if (storageInfo.has_limit) {
+                const totalUploadSize = files.reduce((sum, f) => sum + f.size, 0)
+                const available = storageInfo.limit_bytes - storageInfo.user_used_bytes
+                if (totalUploadSize > available) {
+                    throw new Error(
+                        `Upload would exceed your storage limit. ` +
+                            `${formatBytes(Math.max(0, available))} available, ${formatBytes(totalUploadSize)} needed.`
+                    )
+                }
+            }
 
             const existing = await pb.collection('drive_items').getFullList({
                 filter: pb.filter('org = {:org} && parent = {:parent}', {
@@ -138,15 +153,31 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
         }
     }, [uploadFiles])
 
-    const uploadNewVersion = useCallback(async (itemId: string, file: File) => {
-        const formData = new FormData()
-        formData.append('item', itemId)
-        formData.append('file', file)
-        await pb.send('/api/drive/upload-version', {
-            method: 'POST',
-            body: formData,
-        })
-    }, [])
+    const uploadNewVersion = useCallback(
+        async (itemId: string, file: File) => {
+            const storageInfo = await pb.send('/api/drive/storage-usage', {
+                query: { org: orgId },
+            })
+            if (storageInfo.has_limit) {
+                const available = storageInfo.limit_bytes - storageInfo.user_used_bytes
+                if (file.size > available) {
+                    throw new Error(
+                        `Upload would exceed your storage limit. ` +
+                            `${formatBytes(Math.max(0, available))} available, ${formatBytes(file.size)} needed.`
+                    )
+                }
+            }
+
+            const formData = new FormData()
+            formData.append('item', itemId)
+            formData.append('file', file)
+            await pb.send('/api/drive/upload-version', {
+                method: 'POST',
+                body: formData,
+            })
+        },
+        [orgId]
+    )
 
     return {
         uploadFiles,

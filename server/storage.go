@@ -37,7 +37,11 @@ func writeFileContent(app *pocketbase.PocketBase, record *core.Record, body io.R
 	if err != nil {
 		return err
 	}
+	return writeFileContentFromBytes(app, record, data, filename)
+}
 
+// writeFileContentFromBytes stores pre-read bytes as a PocketBase file on the record, and saves.
+func writeFileContentFromBytes(app *pocketbase.PocketBase, record *core.Record, data []byte, filename string) error {
 	f, err := filesystem.NewFileFromBytes(data, filename)
 	if err != nil {
 		return err
