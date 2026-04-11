@@ -1,4 +1,4 @@
-import { Slot } from 'one'
+import { Slot } from 'expo-router'
 import { View } from 'react-native'
 import { XStack, YStack } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'

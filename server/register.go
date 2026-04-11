@@ -11,6 +11,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/pocketbase/pocketbase/tools/routine"
 )
 
 func Register(app *pocketbase.PocketBase) {
@@ -34,15 +35,15 @@ func Register(app *pocketbase.PocketBase) {
 	// FTS sync hooks for drive_items
 	app.OnRecordAfterCreateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		syncDriveItemToFTS(app, e.Record, "create")
-		go extractAndIndexDriveItem(app, e.Record)
-		go generateThumbnail(app, e.Record)
+		routine.FireAndForget(func() { extractAndIndexDriveItem(app, e.Record) })
+		routine.FireAndForget(func() { generateThumbnail(app, e.Record) })
 		return e.Next()
 	})
 
 	app.OnRecordAfterUpdateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		syncDriveItemToFTS(app, e.Record, "update")
-		go extractAndIndexDriveItem(app, e.Record)
-		go generateThumbnail(app, e.Record)
+		routine.FireAndForget(func() { extractAndIndexDriveItem(app, e.Record) })
+		routine.FireAndForget(func() { generateThumbnail(app, e.Record) })
 		return e.Next()
 	})
 

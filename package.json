@@ -20,6 +20,6 @@
     "peerDependencies": {
         "react": ">=19",
         "react-native": ">=0.83",
-        "one": ">=1.13"
+        "expo-router": ">=55.0.0"
     }
 }

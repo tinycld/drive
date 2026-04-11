@@ -1,7 +1,7 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
-import type { OneRouter } from 'one'
-import { useActiveParams, usePathname, useRouter } from 'one'
+import type { Href } from 'expo-router'
+import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { newRecordId } from 'pbtsdb'
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { Platform } from 'react-native'
@@ -118,7 +118,7 @@ export function useDriveState(): DriveContextValue {
     const pathname = usePathname()
     const { section: activeSection, folderId: currentFolderId } = parseDrivePath(pathname)
 
-    const params = useActiveParams<{ file?: string; preview?: string }>()
+    const params = useGlobalSearchParams<{ file?: string; preview?: string }>()
     const selectedItemId = params.file ?? null
     const previewItemId = params.preview === '1' && selectedItemId ? selectedItemId : null
 
@@ -570,7 +570,7 @@ export function useDriveState(): DriveContextValue {
                 path = `${driveBase}/${slug}`
             }
             if (opts?.fileId) path += `?file=${opts.fileId}`
-            return path as OneRouter.Href
+            return path as Href
         },
         [driveBase]
     )
@@ -583,14 +583,14 @@ export function useDriveState(): DriveContextValue {
                     folderId: currentFolderId || undefined,
                     fileId: item.id,
                 })
-                router.push(`${href}&preview=1` as OneRouter.Href)
+                router.push(`${href}&preview=1` as Href)
             }
         },
         [router, buildDriveHref, activeSection, currentFolderId]
     )
 
     const closePreview = useCallback(() => {
-        router.push(
+        router.replace(
             buildDriveHref({
                 section: activeSection,
                 folderId: currentFolderId || undefined,
@@ -617,7 +617,7 @@ export function useDriveState(): DriveContextValue {
 
     const selectItem = useCallback(
         (itemId: string | null) => {
-            router.push(
+            router.replace(
                 buildDriveHref({
                     section: activeSection,
                     folderId: currentFolderId || undefined,

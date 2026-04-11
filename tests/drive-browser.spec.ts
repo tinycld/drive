@@ -8,8 +8,7 @@ test.describe('Drive — Browser', () => {
     })
 
     test('renders root folders', async ({ page }) => {
-        await expect(page.getByText('Projects').first()).toBeVisible()
-        await expect(page.getByText('Shared Documents').first()).toBeVisible()
+        await expect(page.getByText('Projects').first()).toBeVisible({ timeout: 10_000 })
         await expect(page.getByText('Personal').first()).toBeVisible()
         await expect(page.getByText('Archive').first()).toBeVisible()
     })

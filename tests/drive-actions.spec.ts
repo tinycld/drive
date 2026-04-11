@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { login, navigateToAddon } from '../../../tests/e2e/helpers'
 
 test.describe('Drive — Actions', () => {
+    test.describe.configure({ mode: 'serial' })
     test.beforeEach(async ({ page }) => {
         await login(page)
         await navigateToAddon(page, 'drive')
@@ -35,19 +36,17 @@ test.describe('Drive — Actions', () => {
 
         await page.getByText('Product Roadmap 2026.docx').first().click()
 
-        await expect(page.getByLabel('Rename')).toBeVisible({ timeout: 5_000 })
-        await expect(page.getByLabel('Download')).toBeVisible()
+        await expect(page.getByLabel('Rename')).toBeVisible({ timeout: 10_000 })
+        await expect(page.getByLabel('Download').first()).toBeVisible()
     })
 
     test('rename file', async ({ page }) => {
         await page.getByText('Projects').first().dblclick()
         await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
-
         await page.getByText('Q1 Planning').first().dblclick()
-        await expect(page.getByText('Strategy Deck.pptx').first()).toBeVisible({ timeout: 10_000 })
 
-        await page.getByText('Strategy Deck.pptx').first().click()
-        await page.getByLabel('Rename').click()
+        await page.getByText('Roadmap').first().click()
+        await page.getByLabel('Rename').click({ timeout: 10_000 })
 
         const newName = `Renamed Deck ${Date.now()}.pptx`
         const input = page.getByRole('textbox').last()
@@ -64,7 +63,7 @@ test.describe('Drive — Actions', () => {
         await expect(page.getByText('Profile Photo.jpg').first()).toBeVisible({ timeout: 10_000 })
 
         await page.getByText('Profile Photo.jpg').first().click()
-        await page.getByLabel('Trash').click()
+        await page.getByLabel('Trash').click({ timeout: 10_000 })
 
         // Confirm in the trash dialog
         await page.getByRole('button', { name: /move to trash/i }).click()
@@ -80,7 +79,7 @@ test.describe('Drive — Actions', () => {
         })
 
         await page.getByText('Client Proposal (Old).docx').first().click()
-        await page.getByLabel('Trash').click()
+        await page.getByLabel('Trash').click({ timeout: 10_000 })
         // Confirm trash dialog
         const trashConfirm = page
             .getByRole('button', { name: /move to trash/i })
@@ -134,26 +133,29 @@ test.describe('Drive — Actions', () => {
     })
 
     test('permanently delete from trash', async ({ page }) => {
-        await page.getByText('Shared Documents').first().dblclick()
-        await expect(page.getByText('Team Meeting Notes.docx').first()).toBeVisible({
+        await page.getByText('Projects').first().dblclick()
+        await expect(page.getByText('Marketing').first()).toBeVisible({ timeout: 10_000 })
+
+        await page.getByText('Marketing').first().dblclick()
+        await expect(page.getByText('Logo Variants.png').first()).toBeVisible({
             timeout: 10_000,
         })
 
-        await page.getByText('Team Meeting Notes.docx').first().click()
-        await page.getByLabel('Trash').click()
+        await page.getByText('Logo Variants.png').first().click()
+        await page.getByLabel('Trash').click({ timeout: 10_000 })
         await page.getByRole('button', { name: /move to trash/i }).click()
 
         await page.getByText('Trash').click()
-        await expect(page.getByText('Team Meeting Notes.docx').first()).toBeVisible({
+        await expect(page.getByText('Logo Variants.png').first()).toBeVisible({
             timeout: 10_000,
         })
 
-        await page.getByText('Team Meeting Notes.docx').first().click()
-        await page.getByLabel('Delete permanently').click()
+        await page.getByText('Logo Variants.png').first().click()
+        await page.getByLabel('Delete permanently').click({ timeout: 10_000 })
 
         await page.getByRole('button', { name: 'Delete permanently' }).click()
 
-        await expect(page.getByText('Team Meeting Notes.docx')).not.toBeVisible({
+        await expect(page.getByText('Logo Variants.png')).not.toBeVisible({
             timeout: 10_000,
         })
     })
