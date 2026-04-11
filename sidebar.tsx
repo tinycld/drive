@@ -11,7 +11,6 @@ import {
     Trash2,
     Upload,
     UserPlus,
-    Users,
 } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
