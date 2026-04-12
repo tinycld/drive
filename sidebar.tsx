@@ -13,8 +13,8 @@ import {
     UserPlus,
 } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { useTheme } from 'tamagui'
+import { Pressable } from 'react-native'
+import { SizableText, useTheme, View } from 'tamagui'
 import { MenuActionItem } from '~/components/DropdownMenu'
 import { SidebarDivider, SidebarItem, SidebarNav } from '~/components/sidebar-primitives'
 import { useDrive } from './hooks/useDrive'
@@ -78,19 +78,24 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
 
     return (
         <SidebarNav>
-            <View style={styles.menuWrapper}>
+            <View paddingHorizontal={12} paddingVertical={8}>
                 <Menu>
                     <Menu.Trigger asChild>
                         <Pressable
-                            style={[
-                                styles.newButton,
-                                { backgroundColor: theme.accentBackground.val },
-                            ]}
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 8,
+                                paddingHorizontal: 16,
+                                paddingVertical: 10,
+                                borderRadius: 20,
+                                backgroundColor: theme.accentBackground.val,
+                            }}
                         >
                             <Plus size={16} color={theme.accentColor.val} />
-                            <Text style={[styles.newButtonText, { color: theme.accentColor.val }]}>
+                            <SizableText size="$3" fontWeight="600" color={theme.accentColor.val}>
                                 New
-                            </Text>
+                            </SizableText>
                         </Pressable>
                     </Menu.Trigger>
                     <Menu.Portal zIndex={100}>
@@ -125,6 +130,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                 label="My Files"
                 icon={HardDrive}
                 isActive={activeSection === 'my-drive' && currentFolderId === ''}
+                closesDrawer
                 onPress={() => navigateToSection('my-drive')}
             />
 
@@ -143,18 +149,21 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                 label="Shared with me"
                 icon={UserPlus}
                 isActive={activeSection === 'shared-with-me'}
+                closesDrawer
                 onPress={() => navigateToSection('shared-with-me')}
             />
             <SidebarItem
                 label="Recent"
                 icon={Clock}
                 isActive={activeSection === 'recent'}
+                closesDrawer
                 onPress={() => navigateToSection('recent')}
             />
             <SidebarItem
                 label="Starred"
                 icon={Star}
                 isActive={activeSection === 'starred'}
+                closesDrawer
                 onPress={() => navigateToSection('starred')}
             />
 
@@ -164,6 +173,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                 label="Trash"
                 icon={Trash2}
                 isActive={activeSection === 'trash'}
+                closesDrawer
                 onPress={() => navigateToSection('trash')}
             />
 
@@ -236,34 +246,41 @@ function FolderTreeItem({
     return (
         <View key={node.item.id}>
             <Pressable
-                style={[
-                    styles.treeItem,
-                    { paddingLeft: depth * 16 },
-                    isSelected && { backgroundColor: `${theme.activeIndicator.val}18` },
-                ]}
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    paddingVertical: 6,
+                    paddingRight: 12,
+                    borderRadius: 8,
+                    paddingLeft: depth * 16,
+                    ...(isSelected ? { backgroundColor: `${theme.activeIndicator.val}18` } : {}),
+                }}
                 onPress={() => onSelect(node.item.id)}
             >
                 {hasChildren ? (
-                    <Pressable onPress={() => onToggle(node.item.id)} style={styles.chevron}>
+                    <Pressable
+                        onPress={() => onToggle(node.item.id)}
+                        style={{ width: 18, alignItems: 'center', justifyContent: 'center' }}
+                    >
                         <ChevronIcon size={14} color={theme.color8.val} />
                     </Pressable>
                 ) : (
-                    <View style={styles.chevron} />
+                    <View width={18} alignItems="center" justifyContent="center" />
                 )}
                 <Folder
                     size={16}
                     color={isSelected ? theme.activeIndicator.val : theme.color8.val}
                 />
-                <Text
-                    style={[
-                        styles.treeLabel,
-                        { color: isSelected ? theme.activeIndicator.val : theme.color.val },
-                        isSelected && styles.treeLabelActive,
-                    ]}
+                <SizableText
+                    size="$2"
+                    flex={1}
+                    color={isSelected ? theme.activeIndicator.val : '$color'}
+                    fontWeight={isSelected ? '600' : undefined}
                     numberOfLines={1}
                 >
                     {node.item.name}
-                </Text>
+                </SizableText>
             </Pressable>
             {isExpanded && node.children.length > 0 && (
                 <FolderTree
@@ -284,74 +301,23 @@ function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
     const percentage = (usedGB / totalGB) * 100
 
     return (
-        <View style={styles.storageContainer}>
-            <View style={[styles.storageTrack, { backgroundColor: `${theme.color8.val}20` }]}>
+        <View paddingHorizontal={12} paddingVertical={8} gap={6}>
+            <View
+                height={4}
+                borderRadius={2}
+                overflow="hidden"
+                backgroundColor={`${theme.color8.val}20`}
+            >
                 <View
-                    style={[
-                        styles.storageFill,
-                        { width: `${percentage}%`, backgroundColor: theme.accentBackground.val },
-                    ]}
+                    height="100%"
+                    borderRadius={2}
+                    width={`${percentage}%`}
+                    backgroundColor="$accentBackground"
                 />
             </View>
-            <Text style={[styles.storageText, { color: theme.color8.val }]}>
+            <SizableText size="$1" color="$color8">
                 {usedGB.toFixed(2)} GB of {totalGB} GB used
-            </Text>
+            </SizableText>
         </View>
     )
 }
-
-const styles = StyleSheet.create({
-    menuWrapper: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-    },
-    newButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 20,
-    },
-    newButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    treeItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingVertical: 6,
-        paddingRight: 12,
-        borderRadius: 8,
-    },
-    chevron: {
-        width: 18,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    treeLabel: {
-        fontSize: 13,
-        flex: 1,
-    },
-    treeLabelActive: {
-        fontWeight: '600',
-    },
-    storageContainer: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        gap: 6,
-    },
-    storageTrack: {
-        height: 4,
-        borderRadius: 2,
-        overflow: 'hidden',
-    },
-    storageFill: {
-        height: '100%',
-        borderRadius: 2,
-    },
-    storageText: {
-        fontSize: 12,
-    },
-})
