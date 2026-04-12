@@ -106,8 +106,8 @@ test.describe('Drive — Actions', () => {
     })
 
     test('download folder via context menu', async ({ page }) => {
-        // Right-click the "Projects" folder to open context menu
-        await page.getByText('Projects').first().click({ button: 'right' })
+        // Right-click the "Projects" folder row in the file list (not the sidebar)
+        await page.getByRole('button', { name: /^Projects / }).click({ button: 'right' })
 
         // "Download" should be visible in the context menu for folders
         const downloadMenuItem = page.getByText('Download', { exact: true })
@@ -121,7 +121,8 @@ test.describe('Drive — Actions', () => {
         // Intercept the subsequent download so the browser doesn't actually save a file
         const downloadPromise = page.waitForEvent('download')
 
-        await downloadMenuItem.click()
+        // dispatchEvent bypasses HeroUI Menu overlay pointer interception
+        await downloadMenuItem.dispatchEvent('click')
 
         const tokenResp = await tokenRequest
         const tokenBody = await tokenResp.json()
