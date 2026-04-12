@@ -3,9 +3,8 @@ import { View } from 'react-native'
 import { XStack, YStack } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { DetailPanel } from '../components/DetailPanel'
-import { DriveToolbar } from '../components/DriveToolbar'
+import { DriveDialogs, DriveToolbar } from '../components/DriveToolbar'
 import { DropZone } from '../components/DropZone'
-import { FileUploadFAB } from '../components/FileUploadFAB'
 import { PreviewModal } from '../components/PreviewModal'
 import { UploadStatusBar } from '../components/UploadStatusBar'
 import { useDrive } from '../hooks/useDrive'
@@ -43,7 +42,6 @@ function DriveLayoutInner() {
                         <Slot />
                     </DropZone>
                     <UploadStatusBar isVisible={isUploading} />
-                    <FileUploadFAB isVisible={isMyDrive} />
                 </View>
                 <DetailPanel
                     isVisible={showDetail}
@@ -52,6 +50,7 @@ function DriveLayoutInner() {
                 />
             </XStack>
             <PreviewModal isVisible={!!previewItem} item={previewItem} onClose={closePreview} />
+            <DriveDialogs />
         </YStack>
     )
 }

@@ -1,13 +1,11 @@
-import { Menu } from '@tamagui/menu'
 import {
-    ChevronDown,
+    ArrowLeft,
     ChevronRight,
     Download,
     Eye,
     FolderInput,
     FolderPlus,
     Grid,
-    Info,
     List,
     MoreVertical,
     Pencil,
@@ -18,10 +16,9 @@ import {
     UserPlus,
     X,
 } from 'lucide-react-native'
-import { useCallback, useEffect, useState } from 'react'
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import { Button, Dialog, useTheme, XStack } from 'tamagui'
-import { MenuActionItem } from '~/components/DropdownMenu'
+import { useState } from 'react'
+import { Platform, Pressable } from 'react-native'
+import { Button, Dialog, SizableText, useMedia, useTheme, XStack, YStack } from 'tamagui'
 import { ScreenHeader } from '~/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '~/components/SuretyGuard'
 import { ToolbarIconButton } from '~/components/ToolbarIconButton'
@@ -34,13 +31,68 @@ import type { DriveItemView, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
 import { ShareDialog } from './ShareDialog'
 
-type PromptState =
-    | { type: 'closed' }
-    | { type: 'new-folder' }
-    | { type: 'rename'; itemId: string; currentName: string }
+export function DriveDialogs() {
+    const {
+        promptDialog,
+        promptKey,
+        handlePromptSubmit,
+        closePrompt,
+        moveTarget,
+        moveItem,
+        selectItem,
+        closeMoveDialog,
+        shareTarget,
+        getSharesForItem,
+        orgMembers,
+        removeShare,
+        closeShareDialog,
+        folderTree,
+    } = useDrive()
+    const { userOrgId } = useCurrentRole()
+
+    return (
+        <>
+            <NamePromptDialog
+                key={promptKey}
+                open={promptDialog.type !== 'closed'}
+                title={promptDialog.type === 'new-folder' ? 'New folder' : 'Rename'}
+                placeholder={promptDialog.type === 'new-folder' ? 'Untitled folder' : ''}
+                defaultValue={promptDialog.type === 'rename' ? promptDialog.currentName : ''}
+                submitLabel={promptDialog.type === 'new-folder' ? 'Create' : 'Rename'}
+                onSubmit={handlePromptSubmit}
+                onClose={closePrompt}
+            />
+            <ChooseFolderDialog
+                open={moveTarget !== null}
+                itemName={moveTarget?.name ?? ''}
+                excludeId={moveTarget?.id ?? ''}
+                folderTree={folderTree}
+                onMove={targetId => {
+                    if (moveTarget) {
+                        moveItem(moveTarget.id, targetId)
+                        selectItem(null)
+                    }
+                }}
+                onClose={closeMoveDialog}
+            />
+            <ShareDialog
+                open={shareTarget !== null}
+                itemId={shareTarget?.id ?? ''}
+                itemName={shareTarget?.name ?? ''}
+                shares={shareTarget ? getSharesForItem(shareTarget.id) : []}
+                orgMembers={orgMembers}
+                currentUserOrgId={userOrgId}
+                onRemoveShare={removeShare}
+                onClose={closeShareDialog}
+            />
+        </>
+    )
+}
 
 export function DriveToolbar() {
     const theme = useTheme()
+    const media = useMedia()
+    const isMobile = !media.md
     const {
         selectedItem,
         activeSection,
@@ -54,314 +106,218 @@ export function DriveToolbar() {
         setSearchQuery,
         isSearching,
         triggerFilePicker,
-        createFolder,
-        renameItem,
-        downloadItem,
-        moveItem,
         moveToTrash,
-        folderTree,
-        removeShare,
-        getSharesForItem,
-        orgMembers,
-        pendingRename,
-        pendingMove,
-        pendingShare,
-        clearPendingRename,
-        clearPendingMove,
-        clearPendingShare,
+        openPrompt,
+        openMoveDialog,
+        openShareDialog,
     } = useDrive()
-    const { userOrgId } = useCurrentRole()
-
-    const [prompt, setPrompt] = useState<PromptState>({ type: 'closed' })
-    const [promptKey, setPromptKey] = useState(0)
-    const [moveTarget, setMoveTarget] = useState<{ id: string; name: string } | null>(null)
-    const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null)
-
-    const handlePromptSubmit = useCallback(
-        (value: string) => {
-            if (prompt.type === 'new-folder') {
-                createFolder(value)
-            } else if (prompt.type === 'rename') {
-                renameItem(prompt.itemId, value)
-            }
-            setPrompt({ type: 'closed' })
-        },
-        [prompt, createFolder, renameItem]
-    )
-
-    const openPrompt = useCallback((state: PromptState) => {
-        setPrompt(state)
-        setPromptKey(k => k + 1)
-    }, [])
-
-    useEffect(() => {
-        if (pendingRename) {
-            openPrompt({
-                type: 'rename',
-                itemId: pendingRename.id,
-                currentName: pendingRename.name,
-            })
-            clearPendingRename()
-        }
-    }, [pendingRename, openPrompt, clearPendingRename])
-
-    useEffect(() => {
-        if (pendingMove) {
-            setMoveTarget({ id: pendingMove.id, name: pendingMove.name })
-            clearPendingMove()
-        }
-    }, [pendingMove, clearPendingMove])
-
-    useEffect(() => {
-        if (pendingShare) {
-            setShareTarget({ id: pendingShare.id, name: pendingShare.name })
-            clearPendingShare()
-        }
-    }, [pendingShare, clearPendingShare])
-
-    const promptDialog = (
-        <NamePromptDialog
-            key={promptKey}
-            open={prompt.type !== 'closed'}
-            title={prompt.type === 'new-folder' ? 'New folder' : 'Rename'}
-            placeholder={prompt.type === 'new-folder' ? 'Untitled folder' : ''}
-            defaultValue={prompt.type === 'rename' ? prompt.currentName : ''}
-            submitLabel={prompt.type === 'new-folder' ? 'Create' : 'Rename'}
-            onSubmit={handlePromptSubmit}
-            onClose={() => setPrompt({ type: 'closed' })}
-        />
-    )
-
-    const moveDialog = (
-        <ChooseFolderDialog
-            open={moveTarget !== null}
-            itemName={moveTarget?.name ?? ''}
-            excludeId={moveTarget?.id ?? ''}
-            folderTree={folderTree}
-            onMove={targetId => {
-                if (moveTarget) {
-                    moveItem(moveTarget.id, targetId)
-                    selectItem(null)
-                }
-            }}
-            onClose={() => setMoveTarget(null)}
-        />
-    )
-
-    const shareDialog = (
-        <ShareDialog
-            open={shareTarget !== null}
-            itemId={shareTarget?.id ?? ''}
-            itemName={shareTarget?.name ?? ''}
-            shares={shareTarget ? getSharesForItem(shareTarget.id) : []}
-            orgMembers={orgMembers}
-            currentUserOrgId={userOrgId}
-            onRemoveShare={removeShare}
-            onClose={() => setShareTarget(null)}
-        />
-    )
 
     if (selectedItem) {
         return (
-            <>
-                <SelectionToolbar
-                    item={selectedItem}
-                    viewMode={viewMode}
-                    onSetViewMode={setViewMode}
-                    onClearSelection={() => selectItem(null)}
-                    onOpenRename={(itemId, name) =>
-                        openPrompt({ type: 'rename', itemId, currentName: name })
-                    }
-                    onOpenMove={(itemId, name) => setMoveTarget({ id: itemId, name })}
-                    onOpenShare={(itemId, name) => setShareTarget({ id: itemId, name })}
-                    theme={theme}
-                />
-                {promptDialog}
-                {moveDialog}
-                {shareDialog}
-            </>
+            <SelectionToolbar
+                item={selectedItem}
+                viewMode={viewMode}
+                onSetViewMode={setViewMode}
+                onClearSelection={() => selectItem(null)}
+                onOpenRename={(itemId, name) =>
+                    openPrompt({ type: 'rename', itemId, currentName: name })
+                }
+                onOpenMove={(itemId, name) => openMoveDialog(itemId, name)}
+                onOpenShare={(itemId, name) => openShareDialog(itemId, name)}
+                theme={theme}
+            />
         )
     }
 
     const isSearchActive = searchQuery.length >= 2
 
-    const leftContent = (() => {
+    const currentFolder = breadcrumbs.at(-1)
+    const currentLabel = currentFolder?.name ?? 'My Files'
+    const isInsideFolder = currentFolderId !== ''
+    const handleRename =
+        isInsideFolder && currentFolder
+            ? () =>
+                  openPrompt({
+                      type: 'rename',
+                      itemId: currentFolder.id,
+                      currentName: currentFolder.name,
+                  })
+            : undefined
+
+    const folderActions = (
+        <XStack alignItems="center" gap={2}>
+            <ToolbarIconButton icon={Upload} label="Upload file" onPress={triggerFilePicker} />
+            <ToolbarIconButton
+                icon={FolderPlus}
+                label="New folder"
+                onPress={() => openPrompt({ type: 'new-folder' })}
+            />
+            {isInsideFolder && handleRename && (
+                <ToolbarIconButton icon={Pencil} label="Rename" onPress={handleRename} />
+            )}
+            {isInsideFolder && (
+                <ConfirmTrash
+                    itemName={currentLabel}
+                    onConfirmed={() => {
+                        moveToTrash(currentFolderId)
+                        navigateToFolder('')
+                    }}
+                >
+                    {onOpen => <ToolbarIconButton icon={Trash2} label="Delete" onPress={onOpen} />}
+                </ConfirmTrash>
+            )}
+        </XStack>
+    )
+
+    const titleContent = (() => {
         if (isSearchActive) {
             return (
-                <Text style={[styles.searchLabel, { color: theme.color8.val }]}>
+                <SizableText size="$3" fontWeight="500" color="$color8" flex={1}>
                     Search results{isSearching ? '...' : ''}
-                </Text>
+                </SizableText>
             )
         }
         if (activeSection === 'trash') {
-            return <Text style={[styles.trashTitle, { color: theme.color.val }]}>Trash</Text>
+            return (
+                <SizableText size="$6" fontWeight="500" color="$color" flex={1}>
+                    Trash
+                </SizableText>
+            )
+        }
+        if (isMobile) {
+            return (
+                <MobileBreadcrumbs
+                    breadcrumbs={breadcrumbs}
+                    currentLabel={currentLabel}
+                    onNavigate={navigateToFolder}
+                    theme={theme}
+                />
+            )
         }
         return (
-            <Breadcrumbs
+            <DesktopBreadcrumbs
                 breadcrumbs={breadcrumbs}
-                currentFolderId={currentFolderId}
+                currentLabel={currentLabel}
                 onNavigate={navigateToFolder}
-                onUpload={triggerFilePicker}
-                onNewFolder={() => openPrompt({ type: 'new-folder' })}
-                onRename={
-                    currentFolderId
-                        ? () => {
-                              const current = breadcrumbs.at(-1)
-                              if (current)
-                                  openPrompt({
-                                      type: 'rename',
-                                      itemId: current.id,
-                                      currentName: current.name,
-                                  })
-                          }
-                        : undefined
-                }
-                onDownload={downloadItem}
-                onTrash={moveToTrash}
+                theme={theme}
             />
         )
     })()
 
     return (
-        <>
-            <ScreenHeader>
-                <View style={styles.toolbar}>
-                    {leftContent}
-                    <View style={styles.rightSection}>
+        <ScreenHeader>
+            {isMobile ? (
+                <YStack paddingHorizontal={16} paddingVertical={10} gap={8}>
+                    <XStack alignItems="center" justifyContent="space-between" gap={8}>
+                        {titleContent}
+                        {folderActions}
+                        <ViewToggle viewMode={viewMode} onSetViewMode={setViewMode} theme={theme} />
+                    </XStack>
+                    <SearchInput
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        theme={theme}
+                        fullWidth
+                    />
+                </YStack>
+            ) : (
+                <XStack
+                    alignItems="center"
+                    justifyContent="space-between"
+                    paddingHorizontal={16}
+                    paddingVertical={10}
+                    gap={12}
+                >
+                    {titleContent}
+                    <ToolbarSeparator />
+                    {folderActions}
+                    <ToolbarSeparator />
+                    <XStack alignItems="center" gap={8} flexShrink={0}>
                         <SearchInput
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                             theme={theme}
                         />
                         <ViewToggle viewMode={viewMode} onSetViewMode={setViewMode} theme={theme} />
-                    </View>
-                </View>
-            </ScreenHeader>
-            {promptDialog}
-            {moveDialog}
-            {shareDialog}
-        </>
+                    </XStack>
+                </XStack>
+            )}
+        </ScreenHeader>
     )
 }
 
-function Breadcrumbs({
+function DesktopBreadcrumbs({
     breadcrumbs,
-    currentFolderId,
+    currentLabel,
     onNavigate,
-    onUpload,
-    onNewFolder,
-    onRename,
-    onDownload,
-    onTrash,
+    theme,
 }: {
     breadcrumbs: DriveItemView[]
-    currentFolderId: string
+    currentLabel: string
     onNavigate: (folderId: string) => void
-    onUpload: () => void
-    onNewFolder: () => void
-    onRename?: () => void
-    onDownload: (itemId: string) => void
-    onTrash: (itemId: string) => void
+    theme: ReturnType<typeof useTheme>
 }) {
-    const theme = useTheme()
     const ancestors = breadcrumbs.slice(0, -1)
-    const current = breadcrumbs.at(-1)
-    const currentLabel = current?.name ?? 'My Files'
-    const isInsideFolder = currentFolderId !== ''
 
     return (
-        <View style={styles.breadcrumbs}>
+        <XStack alignItems="center" flex={1} gap={4} minWidth={0} overflow="hidden">
             {ancestors.length > 0 && (
                 <>
-                    <Pressable onPress={() => onNavigate('')} style={styles.breadcrumbButton}>
-                        <Text
-                            style={[styles.ancestorText, { color: theme.color.val }]}
-                            numberOfLines={1}
-                        >
+                    <Pressable onPress={() => onNavigate('')}>
+                        <SizableText size="$4" color="$color8" numberOfLines={1}>
                             My Files
-                        </Text>
+                        </SizableText>
                     </Pressable>
-                    <ChevronRight size={16} color={theme.color8.val} />
+                    <ChevronRight size={14} color={theme.color8.val} />
                 </>
             )}
             {ancestors.map(crumb => (
-                <View key={crumb.id} style={styles.breadcrumbSegment}>
-                    <Pressable onPress={() => onNavigate(crumb.id)} style={styles.breadcrumbButton}>
-                        <Text
-                            style={[styles.ancestorText, { color: theme.color.val }]}
-                            numberOfLines={1}
-                        >
+                <XStack key={crumb.id} alignItems="center" gap={4} flexShrink={1} minWidth={0}>
+                    <Pressable onPress={() => onNavigate(crumb.id)}>
+                        <SizableText size="$4" color="$color8" numberOfLines={1} flexShrink={1}>
                             {crumb.name}
-                        </Text>
+                        </SizableText>
                     </Pressable>
-                    <ChevronRight size={16} color={theme.color8.val} />
-                </View>
+                    <ChevronRight size={14} color={theme.color8.val} />
+                </XStack>
             ))}
+            <SizableText size="$5" fontWeight="600" color="$color" numberOfLines={1} flexShrink={1}>
+                {currentLabel}
+            </SizableText>
+        </XStack>
+    )
+}
 
-            <Menu>
-                <Menu.Trigger asChild>
-                    <Pressable
-                        style={[styles.currentCrumb, { borderColor: theme.borderColor.val }]}
-                    >
-                        <Text
-                            style={[styles.currentCrumbText, { color: theme.color.val }]}
-                            numberOfLines={1}
-                        >
-                            {currentLabel}
-                        </Text>
-                        <ChevronDown size={16} color={theme.color8.val} />
-                    </Pressable>
-                </Menu.Trigger>
-                <Menu.Portal zIndex={100}>
-                    <Menu.Content
-                        borderRadius={8}
-                        minWidth={220}
-                        backgroundColor="$background"
-                        borderColor="$borderColor"
-                        borderWidth={1}
-                        paddingVertical="$1"
-                        shadowColor="#000"
-                        shadowOffset={{ width: 0, height: 4 }}
-                        shadowOpacity={0.15}
-                        shadowRadius={12}
-                    >
-                        <MenuActionItem
-                            label="New folder"
-                            icon={FolderPlus}
-                            onPress={onNewFolder}
-                        />
-                        <MenuActionItem label="Upload file" icon={Upload} onPress={onUpload} />
-                        {isInsideFolder && (
-                            <MenuActionItem
-                                label="Download"
-                                icon={Download}
-                                onPress={() => onDownload(currentFolderId)}
-                            />
-                        )}
-                        {isInsideFolder && onRename && (
-                            <MenuActionItem label="Rename" icon={Pencil} onPress={onRename} />
-                        )}
-                        <MenuActionItem label="Share" icon={UserPlus} onPress={() => {}} />
-                        <MenuActionItem label="Folder information" icon={Info} onPress={() => {}} />
-                    </Menu.Content>
-                </Menu.Portal>
-            </Menu>
-            {isInsideFolder && (
-                <ConfirmTrash
-                    itemName={currentLabel}
-                    onConfirmed={() => {
-                        onTrash(currentFolderId)
-                        onNavigate('')
-                    }}
-                >
-                    {onOpen => (
-                        <Pressable style={styles.breadcrumbTrash} onPress={onOpen}>
-                            <Trash2 size={14} color={theme.color8.val} />
-                        </Pressable>
-                    )}
-                </ConfirmTrash>
+function MobileBreadcrumbs({
+    breadcrumbs,
+    currentLabel,
+    onNavigate,
+    theme,
+}: {
+    breadcrumbs: DriveItemView[]
+    currentLabel: string
+    onNavigate: (folderId: string) => void
+    theme: ReturnType<typeof useTheme>
+}) {
+    const hasParent = breadcrumbs.length > 1
+    const parent = breadcrumbs.at(-2)
+
+    const goUp = () => {
+        if (parent) onNavigate(parent.id)
+        else onNavigate('')
+    }
+
+    return (
+        <XStack alignItems="center" gap={6} flex={1} minWidth={0}>
+            {hasParent && (
+                <Pressable onPress={goUp} hitSlop={8}>
+                    <ArrowLeft size={20} color={theme.color.val} />
+                </Pressable>
             )}
-        </View>
+            <SizableText size="$5" fontWeight="600" color="$color" numberOfLines={1} flex={1}>
+                {currentLabel}
+            </SizableText>
+        </XStack>
     )
 }
 
@@ -369,14 +325,24 @@ interface SearchInputProps {
     value: string
     onChangeText: (text: string) => void
     theme: ReturnType<typeof useTheme>
+    fullWidth?: boolean
 }
 
-function SearchInput({ value, onChangeText, theme }: SearchInputProps) {
+function SearchInput({ value, onChangeText, theme, fullWidth }: SearchInputProps) {
     return (
-        <View style={[styles.searchContainer, { borderColor: theme.borderColor.val }]}>
+        <XStack
+            alignItems="center"
+            gap={6}
+            borderWidth={1}
+            borderRadius={8}
+            paddingHorizontal={10}
+            paddingVertical={6}
+            width={fullWidth ? '100%' : 240}
+            borderColor="$borderColor"
+        >
             <Search size={14} color={theme.color8.val} />
             <PlainInput
-                style={[styles.searchInput, { color: theme.color.val }]}
+                style={{ flex: 1, fontSize: 13, padding: 0, color: theme.color.val }}
                 placeholder="Search in Files"
                 placeholderTextColor={theme.color8.val}
                 value={value}
@@ -387,7 +353,7 @@ function SearchInput({ value, onChangeText, theme }: SearchInputProps) {
                     <X size={14} color={theme.color8.val} />
                 </Pressable>
             )}
-        </View>
+        </XStack>
     )
 }
 
@@ -457,19 +423,27 @@ function SelectionToolbar({
         return (
             <>
                 <ScreenHeader>
-                    <View style={styles.toolbar}>
-                        <View style={styles.selectionLeft}>
-                            <Pressable onPress={onClearSelection} style={styles.closeButton}>
+                    <XStack
+                        alignItems="center"
+                        justifyContent="space-between"
+                        paddingHorizontal={16}
+                        paddingVertical={10}
+                    >
+                        <XStack alignItems="center" gap={8} flex={1}>
+                            <Pressable onPress={onClearSelection} style={{ padding: 4 }}>
                                 <X size={16} color={theme.color8.val} />
                             </Pressable>
-                            <Text
-                                style={[styles.selectionText, { color: theme.color.val }]}
+                            <SizableText
+                                size="$3"
+                                fontWeight="500"
+                                color="$color"
+                                flex={1}
                                 numberOfLines={1}
                             >
                                 {item.name}
-                            </Text>
-                        </View>
-                        <View style={styles.actions}>
+                            </SizableText>
+                        </XStack>
+                        <XStack alignItems="center" gap={4}>
                             <ToolbarIconButton
                                 icon={RotateCcw}
                                 label="Restore"
@@ -497,8 +471,8 @@ function SelectionToolbar({
                                 onSetViewMode={onSetViewMode}
                                 theme={theme}
                             />
-                        </View>
-                    </View>
+                        </XStack>
+                    </XStack>
                 </ScreenHeader>
                 <ChooseFolderDialog
                     open={restoreMoveTarget !== null}
@@ -567,19 +541,27 @@ function SelectionToolbar({
 
     return (
         <ScreenHeader>
-            <View style={styles.toolbar}>
-                <View style={styles.selectionLeft}>
-                    <Pressable onPress={onClearSelection} style={styles.closeButton}>
+            <XStack
+                alignItems="center"
+                justifyContent="space-between"
+                paddingHorizontal={16}
+                paddingVertical={10}
+            >
+                <XStack alignItems="center" gap={8} flex={1}>
+                    <Pressable onPress={onClearSelection} style={{ padding: 4 }}>
                         <X size={16} color={theme.color8.val} />
                     </Pressable>
-                    <Text
-                        style={[styles.selectionText, { color: theme.color.val }]}
+                    <SizableText
+                        size="$3"
+                        fontWeight="500"
+                        color="$color"
+                        flex={1}
                         numberOfLines={1}
                     >
                         {item.name}
-                    </Text>
-                </View>
-                <View style={styles.actions}>
+                    </SizableText>
+                </XStack>
+                <XStack alignItems="center" gap={4}>
                     {actionIcons.map(({ key, icon, label, onPress }) => (
                         <ToolbarIconButton key={key} icon={icon} label={label} onPress={onPress} />
                     ))}
@@ -596,8 +578,8 @@ function SelectionToolbar({
                     </ConfirmTrash>
                     <ToolbarSeparator />
                     <ViewToggle viewMode={viewMode} onSetViewMode={onSetViewMode} theme={theme} />
-                </View>
-            </View>
+                </XStack>
+            </XStack>
         </ScreenHeader>
     )
 }
@@ -610,15 +592,16 @@ interface ViewToggleProps {
 
 function ViewToggle({ viewMode, onSetViewMode, theme }: ViewToggleProps) {
     return (
-        <View style={styles.viewToggle}>
+        <XStack gap={2}>
             <Pressable
                 onPress={() => onSetViewMode('list')}
-                style={[
-                    styles.viewButton,
-                    viewMode === 'list' && {
-                        backgroundColor: `${theme.activeIndicator.val}18`,
-                    },
-                ]}
+                style={{
+                    padding: 6,
+                    borderRadius: 6,
+                    ...(viewMode === 'list'
+                        ? { backgroundColor: `${theme.activeIndicator.val}18` }
+                        : {}),
+                }}
             >
                 <List
                     size={18}
@@ -627,19 +610,20 @@ function ViewToggle({ viewMode, onSetViewMode, theme }: ViewToggleProps) {
             </Pressable>
             <Pressable
                 onPress={() => onSetViewMode('grid')}
-                style={[
-                    styles.viewButton,
-                    viewMode === 'grid' && {
-                        backgroundColor: `${theme.activeIndicator.val}18`,
-                    },
-                ]}
+                style={{
+                    padding: 6,
+                    borderRadius: 6,
+                    ...(viewMode === 'grid'
+                        ? { backgroundColor: `${theme.activeIndicator.val}18` }
+                        : {}),
+                }}
             >
                 <Grid
                     size={18}
                     color={viewMode === 'grid' ? theme.activeIndicator.val : theme.color8.val}
                 />
             </Pressable>
-        </View>
+        </XStack>
     )
 }
 
@@ -712,11 +696,9 @@ function NamePromptDialog({
                         />
                     </XStack>
                     <XStack gap="$3" justifyContent="flex-end">
-                        <Dialog.Close asChild>
-                            <Button size="$3" chromeless>
-                                <Button.Text>Cancel</Button.Text>
-                            </Button>
-                        </Dialog.Close>
+                        <Button size="$3" chromeless onPress={onClose}>
+                            <Button.Text>Cancel</Button.Text>
+                        </Button>
                         <Button
                             size="$3"
                             theme="accent"
@@ -731,115 +713,3 @@ function NamePromptDialog({
         </Dialog>
     )
 }
-
-const styles = StyleSheet.create({
-    toolbar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-    },
-    breadcrumbs: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        gap: 2,
-        minWidth: 0,
-        overflow: 'hidden',
-    },
-    breadcrumbSegment: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 2,
-        flexShrink: 1,
-        minWidth: 0,
-    },
-    breadcrumbButton: {
-        flexShrink: 1,
-        minWidth: 0,
-    },
-    ancestorText: {
-        fontSize: 18,
-        fontWeight: '400',
-    },
-    currentCrumb: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 20,
-        borderWidth: 1,
-        flexShrink: 1,
-        minWidth: 0,
-        maxWidth: 280,
-    },
-    currentCrumbText: {
-        fontSize: 18,
-        fontWeight: '500',
-        flexShrink: 1,
-    },
-    rightSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        flexShrink: 0,
-    },
-    searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        borderWidth: 1,
-        borderRadius: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        width: 240,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 13,
-        padding: 0,
-    },
-    searchLabel: {
-        fontSize: 14,
-        fontWeight: '500',
-        flex: 1,
-    },
-    trashTitle: {
-        fontSize: 18,
-        fontWeight: '500',
-        flex: 1,
-    },
-    viewToggle: {
-        flexDirection: 'row',
-        gap: 2,
-    },
-    viewButton: {
-        padding: 6,
-        borderRadius: 6,
-    },
-    selectionLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        flex: 1,
-    },
-    closeButton: {
-        padding: 4,
-    },
-    selectionText: {
-        fontSize: 14,
-        fontWeight: '500',
-        flex: 1,
-    },
-    actions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    breadcrumbTrash: {
-        padding: 6,
-        marginLeft: 4,
-    },
-})

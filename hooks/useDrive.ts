@@ -3,9 +3,9 @@ import { useLiveQuery } from '@tanstack/react-db'
 import type { Href } from 'expo-router'
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { newRecordId } from 'pbtsdb'
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 import { Platform } from 'react-native'
-import { useMutation } from '~/lib/mutations'
+import { mutation, useMutation } from '~/lib/mutations'
 import { pb, useStore } from '~/lib/pocketbase'
 import { useCurrentUserOrg } from '~/lib/use-current-user-org'
 import { useOrgInfo } from '~/lib/use-org-info'
@@ -15,7 +15,12 @@ import type { DriveItemView, FolderTreeNode, SidebarSection, ViewMode } from '..
 import { useDriveSearch } from './useDriveSearch'
 import { useFileUpload } from './useFileUpload'
 
-export interface PendingAction {
+type PromptDialog =
+    | { type: 'closed' }
+    | { type: 'new-folder' }
+    | { type: 'rename'; itemId: string; currentName: string }
+
+interface DialogTarget {
     id: string
     name: string
 }
@@ -64,15 +69,17 @@ interface DriveContextValue {
     triggerFilePicker: () => void
     uploadNewVersion: (itemId: string, file: File) => Promise<void>
     getItemPath: (itemId: string) => string
-    pendingRename: PendingAction | null
-    pendingMove: PendingAction | null
-    pendingShare: PendingAction | null
-    requestRename: (id: string, name: string) => void
-    requestMove: (id: string, name: string) => void
-    requestShare: (id: string, name: string) => void
-    clearPendingRename: () => void
-    clearPendingMove: () => void
-    clearPendingShare: () => void
+    promptDialog: PromptDialog
+    promptKey: number
+    openPrompt: (state: PromptDialog) => void
+    closePrompt: () => void
+    handlePromptSubmit: (value: string) => void
+    moveTarget: DialogTarget | null
+    openMoveDialog: (id: string, name: string) => void
+    closeMoveDialog: () => void
+    shareTarget: DialogTarget | null
+    openShareDialog: (id: string, name: string) => void
+    closeShareDialog: () => void
 }
 
 export const DriveContext = createContext<DriveContextValue | null>(null)
@@ -320,7 +327,7 @@ export function useDriveState(): DriveContextValue {
     const isLoading = !rawItems || !rawShares || !rawStates || !orgUserOrgs
 
     const toggleStarMutation = useMutation({
-        mutationFn: function* ({ itemId, starred }: { itemId: string; starred: boolean }) {
+        mutationFn: mutation(function* ({ itemId, starred }: { itemId: string; starred: boolean }) {
             const existing = stateByItem.get(itemId)
             if (existing) {
                 yield stateCollection.update(existing.id, draft => {
@@ -336,11 +343,11 @@ export function useDriveState(): DriveContextValue {
                     last_viewed_at: '',
                 })
             }
-        },
+        }),
     })
 
     const trashMutation = useMutation({
-        mutationFn: function* ({ itemId, restore }: { itemId: string; restore: boolean }) {
+        mutationFn: mutation(function* ({ itemId, restore }: { itemId: string; restore: boolean }) {
             const existing = stateByItem.get(itemId)
             if (existing) {
                 yield stateCollection.update(existing.id, draft => {
@@ -356,70 +363,21 @@ export function useDriveState(): DriveContextValue {
                     last_viewed_at: '',
                 })
             }
-        },
+        }),
     })
 
     const permanentDeleteMutation = useMutation({
-        mutationFn: function* (itemId: string) {
+        mutationFn: mutation(function* (itemId: string) {
             const existing = stateByItem.get(itemId)
             if (existing) {
                 yield stateCollection.delete(existing.id)
             }
             yield itemsCollection.delete(itemId)
-        },
+        }),
     })
 
-    const permanentlyDelete = useCallback(
-        (itemId: string) => permanentDeleteMutation.mutate(itemId),
-        [permanentDeleteMutation]
-    )
-
-    const getItemPath = useCallback(
-        (itemId: string) => {
-            const parts: string[] = []
-            let id = itemId
-            while (id) {
-                const item = itemsById.get(id)
-                if (!item) break
-                parts.unshift(item.name)
-                id = item.parentId
-            }
-            return parts.length > 0 ? `/${parts.join('/')}` : '/My Files'
-        },
-        [itemsById]
-    )
-
-    const canRestoreToOriginalLocation = useCallback(
-        (itemId: string) => {
-            const item = itemsById.get(itemId)
-            if (!item) return false
-            if (!item.parentId) return true
-            const parent = itemsById.get(item.parentId)
-            return !!parent && !parent.trashedAt
-        },
-        [itemsById]
-    )
-
-    const toggleStar = useCallback(
-        (itemId: string) => {
-            const item = itemsById.get(itemId)
-            toggleStarMutation.mutate({ itemId, starred: item?.starred ?? false })
-        },
-        [itemsById, toggleStarMutation]
-    )
-
-    const moveToTrash = useCallback(
-        (itemId: string) => trashMutation.mutate({ itemId, restore: false }),
-        [trashMutation]
-    )
-
-    const restoreFromTrash = useCallback(
-        (itemId: string) => trashMutation.mutate({ itemId, restore: true }),
-        [trashMutation]
-    )
-
     const createFolderMutation = useMutation({
-        mutationFn: function* (name: string) {
+        mutationFn: mutation(function* (name: string) {
             yield itemsCollection.insert({
                 id: newRecordId(),
                 org: orgId,
@@ -432,19 +390,19 @@ export function useDriveState(): DriveContextValue {
                 file: '',
                 description: '',
             })
-        },
+        }),
     })
 
     const renameMutation = useMutation({
-        mutationFn: function* ({ itemId, name }: { itemId: string; name: string }) {
+        mutationFn: mutation(function* ({ itemId, name }: { itemId: string; name: string }) {
             yield itemsCollection.update(itemId, draft => {
                 draft.name = name
             })
-        },
+        }),
     })
 
     const shareMutation = useMutation({
-        mutationFn: function* ({
+        mutationFn: mutation(function* ({
             itemId,
             targetUserOrgId,
             role,
@@ -460,97 +418,109 @@ export function useDriveState(): DriveContextValue {
                 role,
                 created_by: userOrgId,
             })
-        },
+        }),
     })
 
     const unshareMutation = useMutation({
-        mutationFn: function* (shareId: string) {
+        mutationFn: mutation(function* (shareId: string) {
             yield sharesCollection.delete(shareId)
-        },
+        }),
     })
 
-    const shareItem = useCallback(
-        (itemId: string, targetUserOrgId: string, role: 'editor' | 'viewer') =>
-            shareMutation.mutate({ itemId, targetUserOrgId, role }),
-        [shareMutation]
-    )
-
-    const removeShare = useCallback(
-        (shareId: string) => unshareMutation.mutate(shareId),
-        [unshareMutation]
-    )
-
-    const getSharesForItem = useCallback(
-        (itemId: string) => {
-            const shares = sharesByItem.get(itemId) ?? []
-            return shares.map(s => ({
-                id: s.id,
-                userOrgId: s.user_org,
-                name: userOrgNames.get(s.user_org) ?? '',
-                email: userOrgEmails.get(s.user_org) ?? '',
-                role: s.role,
-            }))
-        },
-        [sharesByItem, userOrgNames, userOrgEmails]
-    )
-
     const moveMutation = useMutation({
-        mutationFn: function* ({ itemId, newParentId }: { itemId: string; newParentId: string }) {
+        mutationFn: mutation(function* ({
+            itemId,
+            newParentId,
+        }: {
+            itemId: string
+            newParentId: string
+        }) {
             yield itemsCollection.update(itemId, draft => {
                 draft.parent = newParentId
             })
-        },
+        }),
     })
 
-    const moveItem = useCallback(
-        (itemId: string, newParentId: string) => moveMutation.mutate({ itemId, newParentId }),
-        [moveMutation]
-    )
+    const permanentlyDelete = (itemId: string) => permanentDeleteMutation.mutate(itemId)
 
-    const restoreToFolder = useCallback(
-        (itemId: string, newParentId: string) => {
-            moveMutation.mutate({ itemId, newParentId })
-            trashMutation.mutate({ itemId, restore: true })
-        },
-        [moveMutation, trashMutation]
-    )
+    const getItemPath = (itemId: string) => {
+        const parts: string[] = []
+        let id = itemId
+        while (id) {
+            const item = itemsById.get(id)
+            if (!item) break
+            parts.unshift(item.name)
+            id = item.parentId
+        }
+        return parts.length > 0 ? `/${parts.join('/')}` : '/My Files'
+    }
 
-    const createFolder = useCallback(
-        (name: string) => createFolderMutation.mutate(name),
-        [createFolderMutation]
-    )
+    const canRestoreToOriginalLocation = (itemId: string) => {
+        const item = itemsById.get(itemId)
+        if (!item) return false
+        if (!item.parentId) return true
+        const parent = itemsById.get(item.parentId)
+        return !!parent && !parent.trashedAt
+    }
 
-    const renameItem = useCallback(
-        (itemId: string, name: string) => renameMutation.mutate({ itemId, name }),
-        [renameMutation]
-    )
+    const toggleStar = (itemId: string) => {
+        const item = itemsById.get(itemId)
+        toggleStarMutation.mutate({ itemId, starred: item?.starred ?? false })
+    }
 
-    const downloadItem = useCallback(
-        async (itemId: string) => {
-            const item = itemsById.get(itemId)
-            if (!item) return
-            if (Platform.OS !== 'web') return
+    const moveToTrash = (itemId: string) => trashMutation.mutate({ itemId, restore: false })
+    const restoreFromTrash = (itemId: string) => trashMutation.mutate({ itemId, restore: true })
 
-            if (item.isFolder) {
-                const response = await pb.send('/api/drive/download-token', {
-                    method: 'POST',
-                    body: { item: itemId },
-                })
-                const a = document.createElement('a')
-                a.href = `${pb.baseURL}${response.url}`
-                a.download = `${item.name}.zip`
-                a.click()
-            } else {
-                if (!item.file) return
-                const url = pb.files.getURL({ collectionId: 'drive_items', id: itemId }, item.file)
-                const a = document.createElement('a')
-                a.href = `${url}?download=1`
-                a.download = item.name
-                a.click()
-            }
-        },
-        [itemsById]
-    )
+    const shareItem = (itemId: string, targetUserOrgId: string, role: 'editor' | 'viewer') =>
+        shareMutation.mutate({ itemId, targetUserOrgId, role })
+
+    const removeShare = (shareId: string) => unshareMutation.mutate(shareId)
+
+    const getSharesForItem = (itemId: string) => {
+        const shares = sharesByItem.get(itemId) ?? []
+        return shares.map(s => ({
+            id: s.id,
+            userOrgId: s.user_org,
+            name: userOrgNames.get(s.user_org) ?? '',
+            email: userOrgEmails.get(s.user_org) ?? '',
+            role: s.role,
+        }))
+    }
+
+    const moveItem = (itemId: string, newParentId: string) =>
+        moveMutation.mutate({ itemId, newParentId })
+
+    const restoreToFolder = (itemId: string, newParentId: string) => {
+        moveMutation.mutate({ itemId, newParentId })
+        trashMutation.mutate({ itemId, restore: true })
+    }
+
+    const createFolder = (name: string) => createFolderMutation.mutate(name)
+    const renameItem = (itemId: string, name: string) => renameMutation.mutate({ itemId, name })
+
+    const downloadItem = async (itemId: string) => {
+        const item = itemsById.get(itemId)
+        if (!item) return
+        if (Platform.OS !== 'web') return
+
+        if (item.isFolder) {
+            const response = await pb.send('/api/drive/download-token', {
+                method: 'POST',
+                body: { item: itemId },
+            })
+            const a = document.createElement('a')
+            a.href = `${pb.baseURL}${response.url}`
+            a.download = `${item.name}.zip`
+            a.click()
+        } else {
+            if (!item.file) return
+            const url = pb.files.getURL({ collectionId: 'drive_items', id: itemId }, item.file)
+            const a = document.createElement('a')
+            a.href = `${url}?download=1`
+            a.download = item.name
+            a.click()
+        }
+    }
 
     const { uploadFiles, isUploading, uploadingFiles, triggerFilePicker, uploadNewVersion } =
         useFileUpload({
@@ -561,35 +531,33 @@ export function useDriveState(): DriveContextValue {
 
     const driveBase = `/a/${orgSlug}/drive`
 
-    const buildDriveHref = useCallback(
-        (opts?: { section?: SidebarSection; folderId?: string; fileId?: string }) => {
-            let path = driveBase
-            if (opts?.folderId) path = `${driveBase}/folder/${opts.folderId}`
-            else if (opts?.section && opts.section !== 'my-drive') {
-                const slug = opts.section === 'shared-with-me' ? 'shared' : opts.section
-                path = `${driveBase}/${slug}`
-            }
-            if (opts?.fileId) path += `?file=${opts.fileId}`
-            return path as Href
-        },
-        [driveBase]
-    )
+    const buildDriveHref = (opts?: {
+        section?: SidebarSection
+        folderId?: string
+        fileId?: string
+    }) => {
+        let path = driveBase
+        if (opts?.folderId) path = `${driveBase}/folder/${opts.folderId}`
+        else if (opts?.section && opts.section !== 'my-drive') {
+            const slug = opts.section === 'shared-with-me' ? 'shared' : opts.section
+            path = `${driveBase}/${slug}`
+        }
+        if (opts?.fileId) path += `?file=${opts.fileId}`
+        return path as Href
+    }
 
-    const openPreview = useCallback(
-        (item: DriveItemView) => {
-            if (!item.isFolder) {
-                const href = buildDriveHref({
-                    section: activeSection,
-                    folderId: currentFolderId || undefined,
-                    fileId: item.id,
-                })
-                router.push(`${href}&preview=1` as Href)
-            }
-        },
-        [router, buildDriveHref, activeSection, currentFolderId]
-    )
+    const openPreview = (item: DriveItemView) => {
+        if (!item.isFolder) {
+            const href = buildDriveHref({
+                section: activeSection,
+                folderId: currentFolderId || undefined,
+                fileId: item.id,
+            })
+            router.push(`${href}&preview=1` as Href)
+        }
+    }
 
-    const closePreview = useCallback(() => {
+    const closePreview = () => {
         router.replace(
             buildDriveHref({
                 section: activeSection,
@@ -597,183 +565,123 @@ export function useDriveState(): DriveContextValue {
                 fileId: selectedItemId ?? undefined,
             })
         )
-    }, [router, buildDriveHref, activeSection, currentFolderId, selectedItemId])
+    }
 
-    const navigateToFolder = useCallback(
-        (folderId: string) => {
-            router.push(buildDriveHref({ folderId: folderId || undefined }))
-            setSearchQuery('')
-        },
-        [router, buildDriveHref]
-    )
+    const navigateToFolder = (folderId: string) => {
+        router.push(buildDriveHref({ folderId: folderId || undefined }))
+        setSearchQuery('')
+    }
 
-    const navigateToSection = useCallback(
-        (section: SidebarSection) => {
-            router.push(buildDriveHref({ section }))
-            setSearchQuery('')
-        },
-        [router, buildDriveHref]
-    )
+    const navigateToSection = (section: SidebarSection) => {
+        router.push(buildDriveHref({ section }))
+        setSearchQuery('')
+    }
 
-    const selectItem = useCallback(
-        (itemId: string | null) => {
-            router.replace(
-                buildDriveHref({
-                    section: activeSection,
-                    folderId: currentFolderId || undefined,
-                    fileId: itemId ?? undefined,
-                })
-            )
-        },
-        [router, buildDriveHref, currentFolderId, activeSection]
-    )
+    const selectItem = (itemId: string | null) => {
+        router.replace(
+            buildDriveHref({
+                section: activeSection,
+                folderId: currentFolderId || undefined,
+                fileId: itemId ?? undefined,
+            })
+        )
+    }
 
-    const openItem = useCallback(
-        (item: DriveItemView) => {
-            if (item.isFolder) {
-                navigateToFolder(item.id)
-            } else {
-                selectItem(item.id)
-            }
-        },
-        [navigateToFolder, selectItem]
-    )
+    const openItem = (item: DriveItemView) => {
+        if (item.isFolder) {
+            navigateToFolder(item.id)
+        } else {
+            selectItem(item.id)
+        }
+    }
 
-    const [pendingRename, setPendingRename] = useState<PendingAction | null>(null)
-    const [pendingMove, setPendingMove] = useState<PendingAction | null>(null)
-    const [pendingShare, setPendingShare] = useState<PendingAction | null>(null)
+    const [promptDialog, setPromptDialog] = useState<PromptDialog>({ type: 'closed' })
+    const [promptKey, setPromptKey] = useState(0)
+    const [moveTarget, setMoveTarget] = useState<DialogTarget | null>(null)
+    const [shareTarget, setShareTarget] = useState<DialogTarget | null>(null)
 
-    const requestRename = useCallback(
-        (id: string, name: string) => {
-            selectItem(id)
-            setPendingRename({ id, name })
-        },
-        [selectItem]
-    )
+    const openPrompt = (state: PromptDialog) => {
+        setPromptDialog(state)
+        setPromptKey(k => k + 1)
+    }
 
-    const requestMove = useCallback(
-        (id: string, name: string) => {
-            selectItem(id)
-            setPendingMove({ id, name })
-        },
-        [selectItem]
-    )
+    const closePrompt = () => setPromptDialog({ type: 'closed' })
 
-    const requestShare = useCallback(
-        (id: string, name: string) => {
-            selectItem(id)
-            setPendingShare({ id, name })
-        },
-        [selectItem]
-    )
+    const handlePromptSubmit = (value: string) => {
+        if (promptDialog.type === 'new-folder') {
+            createFolder(value)
+        } else if (promptDialog.type === 'rename') {
+            renameItem(promptDialog.itemId, value)
+        }
+        closePrompt()
+    }
 
-    const clearPendingRename = useCallback(() => setPendingRename(null), [])
-    const clearPendingMove = useCallback(() => setPendingMove(null), [])
-    const clearPendingShare = useCallback(() => setPendingShare(null), [])
+    const openMoveDialog = (id: string, name: string) => {
+        selectItem(id)
+        setMoveTarget({ id, name })
+    }
 
-    return useMemo(
-        () => ({
-            currentFolderId,
-            activeSection,
-            selectedItemId,
-            viewMode,
-            currentItems,
-            breadcrumbs,
-            selectedItem,
-            folderTree,
-            totalStorageUsed,
-            isLoading,
-            searchQuery,
-            setSearchQuery,
-            isSearching,
-            previewItem,
-            openPreview,
-            closePreview,
-            navigateToFolder,
-            navigateToSection,
-            selectItem,
-            setViewMode,
-            openItem,
-            toggleStar,
-            moveToTrash,
-            restoreFromTrash,
-            permanentlyDelete,
-            canRestoreToOriginalLocation,
-            restoreToFolder,
-            createFolder,
-            renameItem,
-            downloadItem,
-            moveItem,
-            shareItem,
-            removeShare,
-            getSharesForItem,
-            orgMembers,
-            uploadFiles,
-            isUploading,
-            uploadingFiles,
-            triggerFilePicker,
-            uploadNewVersion,
-            getItemPath,
-            pendingRename,
-            pendingMove,
-            pendingShare,
-            requestRename,
-            requestMove,
-            requestShare,
-            clearPendingRename,
-            clearPendingMove,
-            clearPendingShare,
-        }),
-        [
-            currentFolderId,
-            activeSection,
-            selectedItemId,
-            viewMode,
-            currentItems,
-            breadcrumbs,
-            selectedItem,
-            folderTree,
-            totalStorageUsed,
-            isLoading,
-            searchQuery,
-            isSearching,
-            previewItem,
-            openPreview,
-            closePreview,
-            navigateToFolder,
-            navigateToSection,
-            selectItem,
-            setViewMode,
-            openItem,
-            toggleStar,
-            moveToTrash,
-            restoreFromTrash,
-            permanentlyDelete,
-            canRestoreToOriginalLocation,
-            restoreToFolder,
-            createFolder,
-            renameItem,
-            downloadItem,
-            moveItem,
-            shareItem,
-            removeShare,
-            getSharesForItem,
-            orgMembers,
-            uploadFiles,
-            isUploading,
-            uploadingFiles,
-            triggerFilePicker,
-            uploadNewVersion,
-            getItemPath,
-            pendingRename,
-            pendingMove,
-            pendingShare,
-            requestRename,
-            requestMove,
-            requestShare,
-            clearPendingRename,
-            clearPendingMove,
-            clearPendingShare,
-        ]
-    )
+    const closeMoveDialog = () => setMoveTarget(null)
+
+    const openShareDialog = (id: string, name: string) => {
+        selectItem(id)
+        setShareTarget({ id, name })
+    }
+
+    const closeShareDialog = () => setShareTarget(null)
+
+    return {
+        currentFolderId,
+        activeSection,
+        selectedItemId,
+        viewMode,
+        currentItems,
+        breadcrumbs,
+        selectedItem,
+        folderTree,
+        totalStorageUsed,
+        isLoading,
+        searchQuery,
+        setSearchQuery,
+        isSearching,
+        previewItem,
+        openPreview,
+        closePreview,
+        navigateToFolder,
+        navigateToSection,
+        selectItem,
+        setViewMode,
+        openItem,
+        toggleStar,
+        moveToTrash,
+        restoreFromTrash,
+        permanentlyDelete,
+        canRestoreToOriginalLocation,
+        restoreToFolder,
+        createFolder,
+        renameItem,
+        downloadItem,
+        moveItem,
+        shareItem,
+        removeShare,
+        getSharesForItem,
+        orgMembers,
+        uploadFiles,
+        isUploading,
+        uploadingFiles,
+        triggerFilePicker,
+        uploadNewVersion,
+        getItemPath,
+        promptDialog,
+        promptKey,
+        openPrompt,
+        closePrompt,
+        handlePromptSubmit,
+        moveTarget,
+        openMoveDialog,
+        closeMoveDialog,
+        shareTarget,
+        openShareDialog,
+        closeShareDialog,
+    }
 }

@@ -34,9 +34,10 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
         restoreFromTrash,
         permanentlyDelete,
         canRestoreToOriginalLocation,
-        requestRename,
-        requestMove,
-        requestShare,
+        openPrompt,
+        openMoveDialog,
+        openShareDialog,
+        selectItem,
     } = useDrive()
 
     const isTrash = activeSection === 'trash'
@@ -62,7 +63,7 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
                             theme={theme}
                             onRestore={() => restoreFromTrash(item.id)}
                             canRestoreToOriginal={canRestoreToOriginalLocation(item.id)}
-                            onRequestMove={() => requestMove(item.id, item.name)}
+                            onRequestMove={() => openMoveDialog(item.id, item.name)}
                             onPermanentDelete={() => permanentlyDelete(item.id)}
                         />
                     ) : (
@@ -73,9 +74,16 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
                             onOpen={() => openItem(item)}
                             onDownload={() => downloadItem(item.id)}
                             onToggleStar={() => toggleStar(item.id)}
-                            onShare={() => requestShare(item.id, item.name)}
-                            onRename={() => requestRename(item.id, item.name)}
-                            onMove={() => requestMove(item.id, item.name)}
+                            onShare={() => openShareDialog(item.id, item.name)}
+                            onRename={() => {
+                                selectItem(item.id)
+                                openPrompt({
+                                    type: 'rename',
+                                    itemId: item.id,
+                                    currentName: item.name,
+                                })
+                            }}
+                            onMove={() => openMoveDialog(item.id, item.name)}
                             onTrash={() => moveToTrash(item.id)}
                         />
                     )}

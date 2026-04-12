@@ -1,7 +1,8 @@
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react-native'
 import { useCallback, useMemo } from 'react'
-import { Pressable, StyleSheet } from 'react-native'
-import { Button, Dialog, SizableText, useTheme, View, XStack } from 'tamagui'
+import { Modal, Platform, Pressable } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Dialog, SizableText, useMedia, useTheme, View, XStack } from 'tamagui'
 import { useDrive } from '../hooks/useDrive'
 import { getPreviewEntry } from '../lib/preview-registry'
 import type { DriveItemView } from '../types'
@@ -14,7 +15,25 @@ interface PreviewModalProps {
 }
 
 export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
+    const media = useMedia()
+    const isMobile = !media.md
+
     if (!item) return null
+
+    if (isMobile || Platform.OS !== 'web') {
+        return (
+            <Modal
+                visible={isVisible}
+                animationType="slide"
+                presentationStyle="fullScreen"
+                onRequestClose={onClose}
+            >
+                <View flex={1} backgroundColor="$background">
+                    <PreviewModalContent item={item} onClose={onClose} />
+                </View>
+            </Modal>
+        )
+    }
 
     return (
         <Dialog
@@ -53,6 +72,7 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
 
 function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
     const theme = useTheme()
+    const insets = useSafeAreaInsets()
     const { currentItems, openPreview, downloadItem } = useDrive()
 
     const files = useMemo(() => currentItems.filter(i => !i.isFolder), [currentItems])
@@ -80,34 +100,45 @@ function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: 
         <>
             <XStack
                 alignItems="center"
-                px="$4"
-                py="$3"
+                paddingHorizontal="$4"
+                paddingVertical="$3"
+                paddingTop={Math.max(insets.top, 12)}
                 borderBottomWidth={1}
                 borderBottomColor="$borderColor"
                 gap="$3"
             >
+                <Pressable onPress={onClose} style={{ padding: 6 }}>
+                    <X size={20} color={theme.color8.val} />
+                </Pressable>
                 <SizableText size="$4" fontWeight="600" color="$color" numberOfLines={1} flex={1}>
                     {item.name}
                 </SizableText>
                 <XStack alignItems="center" gap="$1">
                     {hasPrevious && (
-                        <Pressable onPress={handlePrevious} style={styles.headerButton} hitSlop={8}>
+                        <Pressable
+                            onPress={handlePrevious}
+                            style={{ padding: 6, borderRadius: 6 }}
+                            hitSlop={8}
+                        >
                             <ChevronLeft size={20} color={theme.color8.val} />
                         </Pressable>
                     )}
                     {hasNext && (
-                        <Pressable onPress={handleNext} style={styles.headerButton} hitSlop={8}>
+                        <Pressable
+                            onPress={handleNext}
+                            style={{ padding: 6, borderRadius: 6 }}
+                            hitSlop={8}
+                        >
                             <ChevronRight size={20} color={theme.color8.val} />
                         </Pressable>
                     )}
-                    <Pressable onPress={handleDownload} style={styles.headerButton} hitSlop={8}>
+                    <Pressable
+                        onPress={handleDownload}
+                        style={{ padding: 6, borderRadius: 6 }}
+                        hitSlop={8}
+                    >
                         <Download size={18} color={theme.color8.val} />
                     </Pressable>
-                    <Dialog.Close asChild>
-                        <Button size="$2" chromeless circular>
-                            <X size={20} color={theme.color8.val} />
-                        </Button>
-                    </Dialog.Close>
                 </XStack>
             </XStack>
             <View flex={1} overflow="hidden">
@@ -121,10 +152,3 @@ function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: 
         </>
     )
 }
-
-const styles = StyleSheet.create({
-    headerButton: {
-        padding: 6,
-        borderRadius: 6,
-    },
-})
