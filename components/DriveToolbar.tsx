@@ -1,3 +1,4 @@
+import { Button, Dialog, useThemeColor } from 'heroui-native'
 import {
     ArrowLeft,
     ChevronRight,
@@ -17,13 +18,14 @@ import {
     X,
 } from 'lucide-react-native'
 import { useState } from 'react'
-import { Platform, Pressable } from 'react-native'
-import { Button, Dialog, SizableText, useMedia, useTheme, XStack, YStack } from 'tamagui'
+import { Platform, Pressable, Text, View } from 'react-native'
 import { ScreenHeader } from '~/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '~/components/SuretyGuard'
 import { ToolbarIconButton } from '~/components/ToolbarIconButton'
 import { ToolbarSeparator } from '~/components/ToolbarSeparator'
+import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { captureException } from '~/lib/errors'
+import { useThemeColor as useAppThemeColor } from '~/lib/use-app-theme'
 import { useCurrentRole } from '~/lib/use-current-role'
 import { PlainInput } from '~/ui/PlainInput'
 import { useDrive } from '../hooks/useDrive'
@@ -90,9 +92,9 @@ export function DriveDialogs() {
 }
 
 export function DriveToolbar() {
-    const theme = useTheme()
-    const media = useMedia()
-    const isMobile = !media.md
+    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
+    const activeIndicator = useAppThemeColor('active-indicator')
+    const isMobile = useBreakpoint() === 'mobile'
     const {
         selectedItem,
         activeSection,
@@ -124,7 +126,9 @@ export function DriveToolbar() {
                 }
                 onOpenMove={(itemId, name) => openMoveDialog(itemId, name)}
                 onOpenShare={(itemId, name) => openShareDialog(itemId, name)}
-                theme={theme}
+                mutedColor={mutedColor}
+                fgColor={fgColor}
+                activeIndicator={activeIndicator}
             />
         )
     }
@@ -145,7 +149,7 @@ export function DriveToolbar() {
             : undefined
 
     const folderActions = (
-        <XStack alignItems="center" gap={2}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
             <ToolbarIconButton icon={Upload} label="Upload file" onPress={triggerFilePicker} />
             <ToolbarIconButton
                 icon={FolderPlus}
@@ -166,22 +170,36 @@ export function DriveToolbar() {
                     {onOpen => <ToolbarIconButton icon={Trash2} label="Delete" onPress={onOpen} />}
                 </ConfirmTrash>
             )}
-        </XStack>
+        </View>
     )
 
     const titleContent = (() => {
         if (isSearchActive) {
             return (
-                <SizableText size="$3" fontWeight="500" color="$color8" flex={1}>
+                <Text
+                    style={{
+                        fontSize: 13,
+                        fontWeight: '500',
+                        color: mutedColor,
+                        flex: 1,
+                    }}
+                >
                     Search results{isSearching ? '...' : ''}
-                </SizableText>
+                </Text>
             )
         }
         if (activeSection === 'trash') {
             return (
-                <SizableText size="$6" fontWeight="500" color="$color" flex={1}>
+                <Text
+                    style={{
+                        fontSize: 24,
+                        fontWeight: '500',
+                        color: fgColor,
+                        flex: 1,
+                    }}
+                >
                     Trash
-                </SizableText>
+                </Text>
             )
         }
         if (isMobile) {
@@ -190,7 +208,7 @@ export function DriveToolbar() {
                     breadcrumbs={breadcrumbs}
                     currentLabel={currentLabel}
                     onNavigate={navigateToFolder}
-                    theme={theme}
+                    fgColor={fgColor}
                 />
             )
         }
@@ -199,7 +217,8 @@ export function DriveToolbar() {
                 breadcrumbs={breadcrumbs}
                 currentLabel={currentLabel}
                 onNavigate={navigateToFolder}
-                theme={theme}
+                fgColor={fgColor}
+                mutedColor={mutedColor}
             />
         )
     })()
@@ -207,40 +226,75 @@ export function DriveToolbar() {
     return (
         <ScreenHeader>
             {isMobile ? (
-                <YStack paddingHorizontal={16} paddingVertical={10} gap={8}>
-                    <XStack alignItems="center" justifyContent="space-between" gap={8}>
+                <View
+                    style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        gap: 8,
+                    }}
+                >
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                        }}
+                    >
                         {titleContent}
                         {folderActions}
-                        <ViewToggle viewMode={viewMode} onSetViewMode={setViewMode} theme={theme} />
-                    </XStack>
+                        <ViewToggle
+                            viewMode={viewMode}
+                            onSetViewMode={setViewMode}
+                            mutedColor={mutedColor}
+                            activeIndicator={activeIndicator}
+                        />
+                    </View>
                     <SearchInput
                         value={searchQuery}
                         onChangeText={setSearchQuery}
-                        theme={theme}
+                        mutedColor={mutedColor}
+                        fgColor={fgColor}
                         fullWidth
                     />
-                </YStack>
+                </View>
             ) : (
-                <XStack
-                    alignItems="center"
-                    justifyContent="space-between"
-                    paddingHorizontal={16}
-                    paddingVertical={10}
-                    gap={12}
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        gap: 12,
+                    }}
                 >
                     {titleContent}
                     <ToolbarSeparator />
                     {folderActions}
                     <ToolbarSeparator />
-                    <XStack alignItems="center" gap={8} flexShrink={0}>
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 8,
+                            flexShrink: 0,
+                        }}
+                    >
                         <SearchInput
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            theme={theme}
+                            mutedColor={mutedColor}
+                            fgColor={fgColor}
                         />
-                        <ViewToggle viewMode={viewMode} onSetViewMode={setViewMode} theme={theme} />
-                    </XStack>
-                </XStack>
+                        <ViewToggle
+                            viewMode={viewMode}
+                            onSetViewMode={setViewMode}
+                            mutedColor={mutedColor}
+                            activeIndicator={activeIndicator}
+                        />
+                    </View>
+                </View>
             )}
         </ScreenHeader>
     )
@@ -250,41 +304,76 @@ function DesktopBreadcrumbs({
     breadcrumbs,
     currentLabel,
     onNavigate,
-    theme,
+    fgColor,
+    mutedColor,
 }: {
     breadcrumbs: DriveItemView[]
     currentLabel: string
     onNavigate: (folderId: string) => void
-    theme: ReturnType<typeof useTheme>
+    fgColor: string
+    mutedColor: string
 }) {
     const ancestors = breadcrumbs.slice(0, -1)
 
     return (
-        <XStack alignItems="center" flex={1} gap={4} minWidth={0} overflow="hidden">
+        <View
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                flex: 1,
+                gap: 4,
+                minWidth: 0,
+                overflow: 'hidden',
+            }}
+        >
             {ancestors.length > 0 && (
                 <>
                     <Pressable onPress={() => onNavigate('')}>
-                        <SizableText size="$4" color="$color8" numberOfLines={1}>
+                        <Text numberOfLines={1} style={{ fontSize: 16, color: mutedColor }}>
                             My Files
-                        </SizableText>
+                        </Text>
                     </Pressable>
-                    <ChevronRight size={14} color={theme.color8.val} />
+                    <ChevronRight size={14} color={mutedColor} />
                 </>
             )}
             {ancestors.map(crumb => (
-                <XStack key={crumb.id} alignItems="center" gap={4} flexShrink={1} minWidth={0}>
+                <View
+                    key={crumb.id}
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        flexShrink: 1,
+                        minWidth: 0,
+                    }}
+                >
                     <Pressable onPress={() => onNavigate(crumb.id)}>
-                        <SizableText size="$4" color="$color8" numberOfLines={1} flexShrink={1}>
+                        <Text
+                            numberOfLines={1}
+                            style={{
+                                fontSize: 16,
+                                color: mutedColor,
+                                flexShrink: 1,
+                            }}
+                        >
                             {crumb.name}
-                        </SizableText>
+                        </Text>
                     </Pressable>
-                    <ChevronRight size={14} color={theme.color8.val} />
-                </XStack>
+                    <ChevronRight size={14} color={mutedColor} />
+                </View>
             ))}
-            <SizableText size="$5" fontWeight="600" color="$color" numberOfLines={1} flexShrink={1}>
+            <Text
+                numberOfLines={1}
+                style={{
+                    fontSize: 20,
+                    fontWeight: '600',
+                    color: fgColor,
+                    flexShrink: 1,
+                }}
+            >
                 {currentLabel}
-            </SizableText>
-        </XStack>
+            </Text>
+        </View>
     )
 }
 
@@ -292,12 +381,12 @@ function MobileBreadcrumbs({
     breadcrumbs,
     currentLabel,
     onNavigate,
-    theme,
+    fgColor,
 }: {
     breadcrumbs: DriveItemView[]
     currentLabel: string
     onNavigate: (folderId: string) => void
-    theme: ReturnType<typeof useTheme>
+    fgColor: string
 }) {
     const hasParent = breadcrumbs.length > 1
     const parent = breadcrumbs.at(-2)
@@ -308,52 +397,74 @@ function MobileBreadcrumbs({
     }
 
     return (
-        <XStack alignItems="center" gap={6} flex={1} minWidth={0}>
+        <View
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                flex: 1,
+                minWidth: 0,
+            }}
+        >
             {hasParent && (
                 <Pressable onPress={goUp} hitSlop={8}>
-                    <ArrowLeft size={20} color={theme.color.val} />
+                    <ArrowLeft size={20} color={fgColor} />
                 </Pressable>
             )}
-            <SizableText size="$5" fontWeight="600" color="$color" numberOfLines={1} flex={1}>
+            <Text
+                numberOfLines={1}
+                style={{
+                    fontSize: 20,
+                    fontWeight: '600',
+                    color: fgColor,
+                    flex: 1,
+                }}
+            >
                 {currentLabel}
-            </SizableText>
-        </XStack>
+            </Text>
+        </View>
     )
 }
 
 interface SearchInputProps {
     value: string
     onChangeText: (text: string) => void
-    theme: ReturnType<typeof useTheme>
+    mutedColor: string
+    fgColor: string
     fullWidth?: boolean
 }
 
-function SearchInput({ value, onChangeText, theme, fullWidth }: SearchInputProps) {
+function SearchInput({ value, onChangeText, mutedColor, fgColor, fullWidth }: SearchInputProps) {
+    const borderColor = useThemeColor('border')
+
     return (
-        <XStack
-            alignItems="center"
-            gap={6}
-            borderWidth={1}
-            borderRadius={8}
-            paddingHorizontal={10}
-            paddingVertical={6}
-            width={fullWidth ? '100%' : 240}
-            borderColor="$borderColor"
+        <View
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                borderWidth: 1,
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                width: fullWidth ? '100%' : 240,
+                borderColor,
+            }}
         >
-            <Search size={14} color={theme.color8.val} />
+            <Search size={14} color={mutedColor} />
             <PlainInput
-                style={{ flex: 1, fontSize: 13, padding: 0, color: theme.color.val }}
+                style={{ flex: 1, fontSize: 13, padding: 0, color: fgColor }}
                 placeholder="Search in Files"
-                placeholderTextColor={theme.color8.val}
+                placeholderTextColor={mutedColor}
                 value={value}
                 onChangeText={onChangeText}
             />
             {value.length > 0 && (
                 <Pressable onPress={() => onChangeText('')} hitSlop={8}>
-                    <X size={14} color={theme.color8.val} />
+                    <X size={14} color={mutedColor} />
                 </Pressable>
             )}
-        </XStack>
+        </View>
     )
 }
 
@@ -365,7 +476,9 @@ interface SelectionToolbarProps {
     onOpenRename: (itemId: string, currentName: string) => void
     onOpenMove: (itemId: string, name: string) => void
     onOpenShare: (itemId: string, name: string) => void
-    theme: ReturnType<typeof useTheme>
+    mutedColor: string
+    fgColor: string
+    activeIndicator: string
 }
 
 function SelectionToolbar({
@@ -376,7 +489,9 @@ function SelectionToolbar({
     onOpenRename,
     onOpenMove,
     onOpenShare,
-    theme,
+    mutedColor,
+    fgColor,
+    activeIndicator,
 }: SelectionToolbarProps) {
     const {
         activeSection,
@@ -423,27 +538,39 @@ function SelectionToolbar({
         return (
             <>
                 <ScreenHeader>
-                    <XStack
-                        alignItems="center"
-                        justifyContent="space-between"
-                        paddingHorizontal={16}
-                        paddingVertical={10}
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            paddingHorizontal: 16,
+                            paddingVertical: 10,
+                        }}
                     >
-                        <XStack alignItems="center" gap={8} flex={1}>
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 8,
+                                flex: 1,
+                            }}
+                        >
                             <Pressable onPress={onClearSelection} style={{ padding: 4 }}>
-                                <X size={16} color={theme.color8.val} />
+                                <X size={16} color={mutedColor} />
                             </Pressable>
-                            <SizableText
-                                size="$3"
-                                fontWeight="500"
-                                color="$color"
-                                flex={1}
+                            <Text
                                 numberOfLines={1}
+                                style={{
+                                    fontSize: 13,
+                                    fontWeight: '500',
+                                    color: fgColor,
+                                    flex: 1,
+                                }}
                             >
                                 {item.name}
-                            </SizableText>
-                        </XStack>
-                        <XStack alignItems="center" gap={4}>
+                            </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             <ToolbarIconButton
                                 icon={RotateCcw}
                                 label="Restore"
@@ -469,10 +596,11 @@ function SelectionToolbar({
                             <ViewToggle
                                 viewMode={viewMode}
                                 onSetViewMode={onSetViewMode}
-                                theme={theme}
+                                mutedColor={mutedColor}
+                                activeIndicator={activeIndicator}
                             />
-                        </XStack>
-                    </XStack>
+                        </View>
+                    </View>
                 </ScreenHeader>
                 <ChooseFolderDialog
                     open={restoreMoveTarget !== null}
@@ -541,27 +669,39 @@ function SelectionToolbar({
 
     return (
         <ScreenHeader>
-            <XStack
-                alignItems="center"
-                justifyContent="space-between"
-                paddingHorizontal={16}
-                paddingVertical={10}
+            <View
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                }}
             >
-                <XStack alignItems="center" gap={8} flex={1}>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                        flex: 1,
+                    }}
+                >
                     <Pressable onPress={onClearSelection} style={{ padding: 4 }}>
-                        <X size={16} color={theme.color8.val} />
+                        <X size={16} color={mutedColor} />
                     </Pressable>
-                    <SizableText
-                        size="$3"
-                        fontWeight="500"
-                        color="$color"
-                        flex={1}
+                    <Text
                         numberOfLines={1}
+                        style={{
+                            fontSize: 13,
+                            fontWeight: '500',
+                            color: fgColor,
+                            flex: 1,
+                        }}
                     >
                         {item.name}
-                    </SizableText>
-                </XStack>
-                <XStack alignItems="center" gap={4}>
+                    </Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     {actionIcons.map(({ key, icon, label, onPress }) => (
                         <ToolbarIconButton key={key} icon={icon} label={label} onPress={onPress} />
                     ))}
@@ -577,9 +717,14 @@ function SelectionToolbar({
                         )}
                     </ConfirmTrash>
                     <ToolbarSeparator />
-                    <ViewToggle viewMode={viewMode} onSetViewMode={onSetViewMode} theme={theme} />
-                </XStack>
-            </XStack>
+                    <ViewToggle
+                        viewMode={viewMode}
+                        onSetViewMode={onSetViewMode}
+                        mutedColor={mutedColor}
+                        activeIndicator={activeIndicator}
+                    />
+                </View>
+            </View>
         </ScreenHeader>
     )
 }
@@ -587,43 +732,34 @@ function SelectionToolbar({
 interface ViewToggleProps {
     viewMode: ViewMode
     onSetViewMode: (mode: ViewMode) => void
-    theme: ReturnType<typeof useTheme>
+    mutedColor: string
+    activeIndicator: string
 }
 
-function ViewToggle({ viewMode, onSetViewMode, theme }: ViewToggleProps) {
+function ViewToggle({ viewMode, onSetViewMode, mutedColor, activeIndicator }: ViewToggleProps) {
     return (
-        <XStack gap={2}>
+        <View style={{ flexDirection: 'row', gap: 2 }}>
             <Pressable
                 onPress={() => onSetViewMode('list')}
                 style={{
                     padding: 6,
                     borderRadius: 6,
-                    ...(viewMode === 'list'
-                        ? { backgroundColor: `${theme.activeIndicator.val}18` }
-                        : {}),
+                    ...(viewMode === 'list' ? { backgroundColor: `${activeIndicator}18` } : {}),
                 }}
             >
-                <List
-                    size={18}
-                    color={viewMode === 'list' ? theme.activeIndicator.val : theme.color8.val}
-                />
+                <List size={18} color={viewMode === 'list' ? activeIndicator : mutedColor} />
             </Pressable>
             <Pressable
                 onPress={() => onSetViewMode('grid')}
                 style={{
                     padding: 6,
                     borderRadius: 6,
-                    ...(viewMode === 'grid'
-                        ? { backgroundColor: `${theme.activeIndicator.val}18` }
-                        : {}),
+                    ...(viewMode === 'grid' ? { backgroundColor: `${activeIndicator}18` } : {}),
                 }}
             >
-                <Grid
-                    size={18}
-                    color={viewMode === 'grid' ? theme.activeIndicator.val : theme.color8.val}
-                />
+                <Grid size={18} color={viewMode === 'grid' ? activeIndicator : mutedColor} />
             </Pressable>
-        </XStack>
+        </View>
     )
 }
 
@@ -647,6 +783,7 @@ function NamePromptDialog({
     onClose,
 }: NamePromptDialogProps) {
     const [value, setValue] = useState(defaultValue)
+    const [fgColor, borderColor] = useThemeColor(['foreground', 'border'])
 
     const handleSubmit = () => {
         const trimmed = value.trim()
@@ -655,36 +792,24 @@ function NamePromptDialog({
 
     return (
         <Dialog
-            modal
-            open={open}
+            isOpen={open}
             onOpenChange={o => {
                 if (!o) onClose()
             }}
         >
             <Dialog.Portal>
-                <Dialog.Overlay
-                    key="overlay"
-                    opacity={0.3}
-                    backgroundColor="$shadow6"
-                    enterStyle={{ opacity: 0 }}
-                    exitStyle={{ opacity: 0 }}
-                />
-                <Dialog.Content
-                    key="content"
-                    bordered
-                    elevate
-                    padding="$4"
-                    gap="$3"
-                    width={360}
-                    backgroundColor="$background"
-                >
-                    <Dialog.Title size="$5">{title}</Dialog.Title>
-                    <XStack
-                        borderWidth={1}
-                        borderColor="$borderColor"
-                        borderRadius={8}
-                        paddingHorizontal={12}
-                        paddingVertical={10}
+                <Dialog.Overlay />
+                <Dialog.Content className="w-[360px] p-4 gap-3">
+                    <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>{title}</Text>
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            borderWidth: 1,
+                            borderColor,
+                            borderRadius: 8,
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                        }}
                     >
                         <PlainInput
                             value={value}
@@ -692,22 +817,26 @@ function NamePromptDialog({
                             placeholder={placeholder}
                             autoFocus
                             onSubmitEditing={handleSubmit}
-                            style={{ flex: 1, fontSize: 15 }}
+                            style={{ flex: 1, fontSize: 15, color: fgColor }}
                         />
-                    </XStack>
-                    <XStack gap="$3" justifyContent="flex-end">
-                        <Button size="$3" chromeless onPress={onClose}>
-                            <Button.Text>Cancel</Button.Text>
-                        </Button>
-                        <Button
-                            size="$3"
-                            theme="accent"
-                            onPress={handleSubmit}
-                            disabled={!value.trim()}
+                    </View>
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            gap: 12,
+                            justifyContent: 'flex-end',
+                        }}
+                    >
+                        <Pressable
+                            onPress={onClose}
+                            style={{ paddingHorizontal: 12, paddingVertical: 8 }}
                         >
-                            <Button.Text fontWeight="600">{submitLabel}</Button.Text>
+                            <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
+                        </Pressable>
+                        <Button onPress={handleSubmit} isDisabled={!value.trim()} size="sm">
+                            {submitLabel}
                         </Button>
-                    </XStack>
+                    </View>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog>
