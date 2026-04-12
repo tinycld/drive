@@ -1,4 +1,4 @@
-import { ContextMenu } from '@tamagui/context-menu'
+import { Menu, useThemeColor } from 'heroui-native'
 import type { LucideIcon } from 'lucide-react-native'
 import {
     Download,
@@ -13,7 +13,8 @@ import {
     UserPlus,
 } from 'lucide-react-native'
 import type { ReactNode } from 'react'
-import { useTheme } from 'tamagui'
+import { View } from 'react-native'
+import { ContextMenu } from '~/components/ContextMenu'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveItemView } from '../types'
 
@@ -23,7 +24,7 @@ interface DriveContextMenuProps {
 }
 
 export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
-    const theme = useTheme()
+    const mutedColor = useThemeColor('muted')
     const {
         activeSection,
         openPreview,
@@ -42,60 +43,42 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
 
     const isTrash = activeSection === 'trash'
 
-    return (
-        <ContextMenu>
-            <ContextMenu.Trigger>{children}</ContextMenu.Trigger>
-            <ContextMenu.Portal zIndex={100}>
-                <ContextMenu.Content
-                    borderRadius={8}
-                    minWidth={200}
-                    backgroundColor="$background"
-                    borderColor="$borderColor"
-                    borderWidth={1}
-                    paddingVertical="$1"
-                    shadowColor="#000"
-                    shadowOffset={{ width: 0, height: 4 }}
-                    shadowOpacity={0.15}
-                    shadowRadius={12}
-                >
-                    {isTrash ? (
-                        <TrashMenuItems
-                            theme={theme}
-                            onRestore={() => restoreFromTrash(item.id)}
-                            canRestoreToOriginal={canRestoreToOriginalLocation(item.id)}
-                            onRequestMove={() => openMoveDialog(item.id, item.name)}
-                            onPermanentDelete={() => permanentlyDelete(item.id)}
-                        />
-                    ) : (
-                        <NormalMenuItems
-                            item={item}
-                            theme={theme}
-                            onPreview={() => openPreview(item)}
-                            onOpen={() => openItem(item)}
-                            onDownload={() => downloadItem(item.id)}
-                            onToggleStar={() => toggleStar(item.id)}
-                            onShare={() => openShareDialog(item.id, item.name)}
-                            onRename={() => {
-                                selectItem(item.id)
-                                openPrompt({
-                                    type: 'rename',
-                                    itemId: item.id,
-                                    currentName: item.name,
-                                })
-                            }}
-                            onMove={() => openMoveDialog(item.id, item.name)}
-                            onTrash={() => moveToTrash(item.id)}
-                        />
-                    )}
-                </ContextMenu.Content>
-            </ContextMenu.Portal>
-        </ContextMenu>
+    const menuContent = isTrash ? (
+        <TrashMenuItems
+            mutedColor={mutedColor}
+            onRestore={() => restoreFromTrash(item.id)}
+            canRestoreToOriginal={canRestoreToOriginalLocation(item.id)}
+            onRequestMove={() => openMoveDialog(item.id, item.name)}
+            onPermanentDelete={() => permanentlyDelete(item.id)}
+        />
+    ) : (
+        <NormalMenuItems
+            item={item}
+            mutedColor={mutedColor}
+            onPreview={() => openPreview(item)}
+            onOpen={() => openItem(item)}
+            onDownload={() => downloadItem(item.id)}
+            onToggleStar={() => toggleStar(item.id)}
+            onShare={() => openShareDialog(item.id, item.name)}
+            onRename={() => {
+                selectItem(item.id)
+                openPrompt({
+                    type: 'rename',
+                    itemId: item.id,
+                    currentName: item.name,
+                })
+            }}
+            onMove={() => openMoveDialog(item.id, item.name)}
+            onTrash={() => moveToTrash(item.id)}
+        />
     )
+
+    return <ContextMenu content={menuContent}>{children}</ContextMenu>
 }
 
 function NormalMenuItems({
     item,
-    theme,
+    mutedColor,
     onPreview,
     onOpen,
     onDownload,
@@ -106,7 +89,7 @@ function NormalMenuItems({
     onTrash,
 }: {
     item: DriveItemView
-    theme: ReturnType<typeof useTheme>
+    mutedColor: string
     onPreview: () => void
     onOpen: () => void
     onDownload: () => void
@@ -119,34 +102,69 @@ function NormalMenuItems({
     return (
         <>
             {!item.isFolder && (
-                <ContextMenuItem label="Preview" icon={Eye} onSelect={onPreview} theme={theme} />
+                <ContextMenuItem
+                    label="Preview"
+                    icon={Eye}
+                    onPress={onPreview}
+                    mutedColor={mutedColor}
+                />
             )}
-            <ContextMenuItem label="Open" icon={FolderOpen} onSelect={onOpen} theme={theme} />
-            <ContextMenuItem label="Download" icon={Download} onSelect={onDownload} theme={theme} />
-            <ContextMenu.Separator borderColor="$borderColor" marginVertical="$1" />
+            <ContextMenuItem
+                label="Open"
+                icon={FolderOpen}
+                onPress={onOpen}
+                mutedColor={mutedColor}
+            />
+            <ContextMenuItem
+                label="Download"
+                icon={Download}
+                onPress={onDownload}
+                mutedColor={mutedColor}
+            />
+            <View className="h-px my-1 mx-2 bg-separator" />
             <ContextMenuItem
                 label={item.starred ? 'Remove star' : 'Add star'}
                 icon={item.starred ? StarOff : Star}
-                onSelect={onToggleStar}
-                theme={theme}
+                onPress={onToggleStar}
+                mutedColor={mutedColor}
             />
-            <ContextMenuItem label="Share" icon={UserPlus} onSelect={onShare} theme={theme} />
-            <ContextMenuItem label="Rename" icon={Pencil} onSelect={onRename} theme={theme} />
-            <ContextMenuItem label="Move" icon={FolderInput} onSelect={onMove} theme={theme} />
-            <ContextMenu.Separator borderColor="$borderColor" marginVertical="$1" />
-            <ContextMenuItem label="Move to trash" icon={Trash2} onSelect={onTrash} theme={theme} />
+            <ContextMenuItem
+                label="Share"
+                icon={UserPlus}
+                onPress={onShare}
+                mutedColor={mutedColor}
+            />
+            <ContextMenuItem
+                label="Rename"
+                icon={Pencil}
+                onPress={onRename}
+                mutedColor={mutedColor}
+            />
+            <ContextMenuItem
+                label="Move"
+                icon={FolderInput}
+                onPress={onMove}
+                mutedColor={mutedColor}
+            />
+            <View className="h-px my-1 mx-2 bg-separator" />
+            <ContextMenuItem
+                label="Move to trash"
+                icon={Trash2}
+                onPress={onTrash}
+                mutedColor={mutedColor}
+            />
         </>
     )
 }
 
 function TrashMenuItems({
-    theme,
+    mutedColor,
     onRestore,
     canRestoreToOriginal,
     onRequestMove,
     onPermanentDelete,
 }: {
-    theme: ReturnType<typeof useTheme>
+    mutedColor: string
     onRestore: () => void
     canRestoreToOriginal: boolean
     onRequestMove: () => void
@@ -159,15 +177,15 @@ function TrashMenuItems({
             <ContextMenuItem
                 label={canRestoreToOriginal ? 'Restore' : 'Restore to...'}
                 icon={RotateCcw}
-                onSelect={handleRestore}
-                theme={theme}
+                onPress={handleRestore}
+                mutedColor={mutedColor}
             />
-            <ContextMenu.Separator borderColor="$borderColor" marginVertical="$1" />
+            <View className="h-px my-1 mx-2 bg-separator" />
             <ContextMenuItem
                 label="Delete permanently"
                 icon={Trash2}
-                onSelect={onPermanentDelete}
-                theme={theme}
+                onPress={onPermanentDelete}
+                mutedColor={mutedColor}
             />
         </>
     )
@@ -176,20 +194,18 @@ function TrashMenuItems({
 function ContextMenuItem({
     label,
     icon: Icon,
-    onSelect,
-    theme,
+    onPress,
+    mutedColor,
 }: {
     label: string
     icon: LucideIcon
-    onSelect: () => void
-    theme: ReturnType<typeof useTheme>
+    onPress: () => void
+    mutedColor: string
 }) {
     return (
-        <ContextMenu.Item onSelect={onSelect} gap="$2">
-            <ContextMenu.ItemIcon>
-                <Icon size={16} color={theme.color8.val} />
-            </ContextMenu.ItemIcon>
-            <ContextMenu.ItemTitle size="$3">{label}</ContextMenu.ItemTitle>
-        </ContextMenu.Item>
+        <Menu.Item onPress={onPress}>
+            <Icon size={16} color={mutedColor} />
+            <Menu.ItemTitle>{label}</Menu.ItemTitle>
+        </Menu.Item>
     )
 }
