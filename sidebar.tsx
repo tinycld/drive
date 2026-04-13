@@ -14,7 +14,12 @@ import {
 import { useEffect, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { MenuActionItem } from '~/components/DropdownMenu'
-import { SidebarDivider, SidebarItem, SidebarNav } from '~/components/sidebar-primitives'
+import {
+    SidebarActionButton,
+    SidebarDivider,
+    SidebarItem,
+    SidebarNav,
+} from '~/components/sidebar-primitives'
 import { useThemeColor } from '~/lib/use-app-theme'
 import { Menu } from '~/ui/menu'
 import { useDrive } from './hooks/useDrive'
@@ -35,8 +40,6 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         totalStorageUsed,
         triggerFilePicker,
     } = useDrive()
-    const primaryColor = useThemeColor('primary')
-    const accentFgColor = useThemeColor('accent-foreground')
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
@@ -79,51 +82,22 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
 
     return (
         <SidebarNav>
-            <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
-                <Menu>
-                    <Menu.Trigger>
-                        <Pressable
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 8,
-                                paddingHorizontal: 16,
-                                paddingVertical: 10,
-                                borderRadius: 20,
-                                borderWidth: 1,
-                                borderColor: `${primaryColor}40`,
-                                backgroundColor: `${primaryColor}12`,
-                            }}
-                        >
-                            <Plus size={16} color={accentFgColor} />
-                            <Text
-                                style={{
-                                    fontSize: 13,
-                                    fontWeight: '600',
-                                    color: accentFgColor,
-                                }}
-                            >
-                                New
-                            </Text>
-                        </Pressable>
-                    </Menu.Trigger>
-                    <Menu.Portal>
-                        <Menu.Overlay />
-                        <Menu.Content presentation="popover" placement="bottom" align="start">
-                            <MenuActionItem
-                                label="Upload file"
-                                icon={Upload}
-                                onPress={triggerFilePicker}
-                            />
-                            <MenuActionItem
-                                label="New folder"
-                                icon={FolderPlus}
-                                onPress={() => {}}
-                            />
-                        </Menu.Content>
-                    </Menu.Portal>
-                </Menu>
-            </View>
+            <Menu>
+                <Menu.Trigger>
+                    <SidebarActionButton label="New" icon={Plus} />
+                </Menu.Trigger>
+                <Menu.Portal>
+                    <Menu.Overlay />
+                    <Menu.Content presentation="popover" placement="bottom" align="start">
+                        <MenuActionItem
+                            label="Upload file"
+                            icon={Upload}
+                            onPress={triggerFilePicker}
+                        />
+                        <MenuActionItem label="New folder" icon={FolderPlus} onPress={() => {}} />
+                    </Menu.Content>
+                </Menu.Portal>
+            </Menu>
 
             <SidebarItem
                 label="My Files"
