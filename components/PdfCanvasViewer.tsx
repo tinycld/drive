@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { View } from 'react-native'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { useWebStylesheet } from '~/lib/use-web-styles'
 
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
-// Tamagui's modal Dialog uses a FocusScope with trapped={true} that listens for
+// The modal Dialog uses a FocusScope with trapped={true} that listens for
 // focusin/focusout on the document. During a mouse drag for text selection, the
 // browser fires focus events which trigger the trap's scheduleRefocus(), snapping
 // focus back via rAF and killing the in-progress selection. This hook suppresses
@@ -48,7 +48,6 @@ function useFocusTrapDragFix(containerRef: React.RefObject<HTMLElement | null>) 
 
 const PAGE_GAP = 16
 const PADDING = 16
-// Render pages within 1 viewport above/below the visible area
 const INTERSECTION_MARGIN = '100%'
 
 function LazyPage({ pageNumber, width }: { pageNumber: number; width: number }) {
@@ -97,10 +96,7 @@ export function PdfCanvasViewer({ url }: { url: string }) {
     const pageWidth = containerWidth - PADDING * 2
 
     return (
-        <View
-            style={styles.container}
-            onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}
-        >
+        <View style={{ flex: 1 }} onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}>
             <div ref={containerRef} style={scrollContainerStyles}>
                 <Document file={url} onLoadSuccess={({ numPages }) => setPageCount(numPages)}>
                     {pageWidth > 0 &&
@@ -133,9 +129,3 @@ const scrollContainerStyles: React.CSSProperties = {
 const pageWrapperStyles: React.CSSProperties = {
     boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-})

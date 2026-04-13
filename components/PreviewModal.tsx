@@ -1,8 +1,10 @@
+import { Dialog } from 'heroui-native'
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react-native'
 import { useCallback, useMemo } from 'react'
-import { Modal, Platform, Pressable } from 'react-native'
+import { Modal, Platform, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Dialog, SizableText, useMedia, useTheme, View, XStack } from 'tamagui'
+import { useBreakpoint } from '~/components/workspace/useBreakpoint'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { useDrive } from '../hooks/useDrive'
 import { getPreviewEntry } from '../lib/preview-registry'
 import type { DriveItemView } from '../types'
@@ -15,8 +17,8 @@ interface PreviewModalProps {
 }
 
 export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
-    const media = useMedia()
-    const isMobile = !media.md
+    const isMobile = useBreakpoint() === 'mobile'
+    const background = useThemeColor('background')
 
     if (!item) return null
 
@@ -28,7 +30,7 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
                 presentationStyle="fullScreen"
                 onRequestClose={onClose}
             >
-                <View flex={1} backgroundColor="$background">
+                <View style={{ flex: 1, backgroundColor: background }}>
                     <PreviewModalContent item={item} onClose={onClose} />
                 </View>
             </Modal>
@@ -37,32 +39,14 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
 
     return (
         <Dialog
-            modal
-            open={isVisible}
+            isOpen={isVisible}
             onOpenChange={o => {
                 if (!o) onClose()
             }}
         >
             <Dialog.Portal>
-                <Dialog.Overlay
-                    key="overlay"
-                    opacity={0.6}
-                    backgroundColor="$shadow6"
-                    enterStyle={{ opacity: 0 }}
-                    exitStyle={{ opacity: 0 }}
-                />
-                <Dialog.Content
-                    key="content"
-                    bordered
-                    elevate
-                    padding={0}
-                    width="95vw"
-                    height="90vh"
-                    maxWidth={1400}
-                    backgroundColor="$background"
-                    borderRadius={12}
-                    overflow="hidden"
-                >
+                <Dialog.Overlay />
+                <Dialog.Content className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
                     <PreviewModalContent item={item} onClose={onClose} />
                 </Dialog.Content>
             </Dialog.Portal>
@@ -71,7 +55,12 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
 }
 
 function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, borderColor, _bgColor] = useThemeColor([
+        'muted',
+        'foreground',
+        'border',
+        'background',
+    ])
     const insets = useSafeAreaInsets()
     const { currentItems, openPreview, downloadItem } = useDrive()
 
@@ -98,29 +87,40 @@ function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: 
 
     return (
         <>
-            <XStack
-                alignItems="center"
-                paddingHorizontal="$4"
-                paddingVertical="$3"
-                paddingTop={Math.max(insets.top, 12)}
-                borderBottomWidth={1}
-                borderBottomColor="$borderColor"
-                gap="$3"
+            <View
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    paddingTop: Math.max(insets.top, 12),
+                    borderBottomWidth: 1,
+                    borderBottomColor: borderColor,
+                    gap: 12,
+                }}
             >
                 <Pressable onPress={onClose} style={{ padding: 6 }}>
-                    <X size={20} color={theme.color8.val} />
+                    <X size={20} color={mutedColor} />
                 </Pressable>
-                <SizableText size="$4" fontWeight="600" color="$color" numberOfLines={1} flex={1}>
+                <Text
+                    numberOfLines={1}
+                    style={{
+                        fontSize: 16,
+                        fontWeight: '600',
+                        color: fgColor,
+                        flex: 1,
+                    }}
+                >
                     {item.name}
-                </SizableText>
-                <XStack alignItems="center" gap="$1">
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     {hasPrevious && (
                         <Pressable
                             onPress={handlePrevious}
                             style={{ padding: 6, borderRadius: 6 }}
                             hitSlop={8}
                         >
-                            <ChevronLeft size={20} color={theme.color8.val} />
+                            <ChevronLeft size={20} color={mutedColor} />
                         </Pressable>
                     )}
                     {hasNext && (
@@ -129,7 +129,7 @@ function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: 
                             style={{ padding: 6, borderRadius: 6 }}
                             hitSlop={8}
                         >
-                            <ChevronRight size={20} color={theme.color8.val} />
+                            <ChevronRight size={20} color={mutedColor} />
                         </Pressable>
                     )}
                     <Pressable
@@ -137,11 +137,11 @@ function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: 
                         style={{ padding: 6, borderRadius: 6 }}
                         hitSlop={8}
                     >
-                        <Download size={18} color={theme.color8.val} />
+                        <Download size={18} color={mutedColor} />
                     </Pressable>
-                </XStack>
-            </XStack>
-            <View flex={1} overflow="hidden">
+                </View>
+            </View>
+            <View style={{ flex: 1, overflow: 'hidden' }}>
                 <PreviewComponent
                     item={item}
                     onClose={onClose}

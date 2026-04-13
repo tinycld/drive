@@ -1,4 +1,4 @@
-import { Image, StyleSheet, View } from 'react-native'
+import { Image, View } from 'react-native'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
 
@@ -8,21 +8,12 @@ export function ImagePreview({ item }: PreviewProps) {
     if (!fileUrl) return null
 
     return (
-        <View style={styles.container}>
-            <Image source={{ uri: fileUrl }} style={styles.image} resizeMode="contain" />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <Image
+                source={{ uri: fileUrl }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="contain"
+            />
         </View>
     )
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-    },
-    image: {
-        width: '100%',
-        height: '100%',
-    },
-})

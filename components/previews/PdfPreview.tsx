@@ -1,6 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Platform } from 'react-native'
-import { Spinner } from 'tamagui'
+import { ActivityIndicator, Platform } from 'react-native'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
 import { GenericPreview } from './GenericPreview'
@@ -17,7 +16,7 @@ export function PdfPreview(props: PreviewProps) {
     if (Platform.OS !== 'web') return <GenericPreview {...props} />
 
     return (
-        <Suspense fallback={<Spinner />}>
+        <Suspense fallback={<ActivityIndicator />}>
             <PdfCanvasViewer url={fileUrl} />
         </Suspense>
     )

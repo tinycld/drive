@@ -1,7 +1,7 @@
+import { useThemeColor } from 'heroui-native'
 import { FileIcon } from 'lucide-react-native'
 import { lazy, Suspense } from 'react'
-import { Platform, StyleSheet } from 'react-native'
-import { Image, Paragraph, Spinner, useTheme, View, YStack } from 'tamagui'
+import { ActivityIndicator, Image, Platform, Text, View } from 'react-native'
 
 const PdfCanvasViewer = lazy(() =>
     import('./PdfCanvasViewer').then(m => ({ default: m.PdfCanvasViewer }))
@@ -43,8 +43,13 @@ export function PublicPreviewFrame({
 
 function ImagePreview({ url, name }: { url: string; name: string }) {
     return (
-        <View style={styles.centered}>
-            <Image src={url} alt={name} objectFit="contain" style={styles.imagePreview} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <Image
+                source={{ uri: url }}
+                accessibilityLabel={name}
+                resizeMode="contain"
+                style={{ width: '100%', height: '100%' }}
+            />
         </View>
     )
 }
@@ -55,7 +60,7 @@ function PdfPreview({ url }: { url: string }) {
     }
 
     return (
-        <Suspense fallback={<Spinner />}>
+        <Suspense fallback={<ActivityIndicator />}>
             <PdfCanvasViewer url={url} />
         </Suspense>
     )
@@ -67,7 +72,7 @@ function VideoPreview({ url, mimeType }: { url: string; mimeType: string }) {
     }
 
     return (
-        <View style={styles.centered}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
             {/* biome-ignore lint/a11y/useMediaCaption: shared file preview without captions */}
             <video src={url} controls style={{ maxWidth: '100%', maxHeight: '100%' }} />
         </View>
@@ -75,21 +80,27 @@ function VideoPreview({ url, mimeType }: { url: string; mimeType: string }) {
 }
 
 function AudioPreview({ url, name, mimeType }: { url: string; name: string; mimeType: string }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
 
     if (Platform.OS !== 'web') {
         return <GenericPreview name={name} mimeType={mimeType} size={0} />
     }
 
     return (
-        <YStack items="center" justify="center" flex={1} gap="$4" p="$6">
-            <FileIcon size={64} color={theme.color8.val} />
-            <Paragraph fontWeight="600" color="$color">
-                {name}
-            </Paragraph>
+        <View
+            style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: 1,
+                gap: 16,
+                padding: 24,
+            }}
+        >
+            <FileIcon size={64} color={mutedColor} />
+            <Text style={{ fontWeight: '600', color: fgColor }}>{name}</Text>
             {/* biome-ignore lint/a11y/useMediaCaption: shared file preview without captions */}
             <audio src={url} controls style={{ width: '100%', maxWidth: 400 }} />
-        </YStack>
+        </View>
     )
 }
 
@@ -102,31 +113,24 @@ function GenericPreview({
     mimeType: string
     size: number
 }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
 
     return (
-        <YStack items="center" justify="center" flex={1} gap="$4" p="$6">
-            <FileIcon size={64} color={theme.color8.val} />
-            <Paragraph fontWeight="600" color="$color" text="center">
-                {name}
-            </Paragraph>
-            <Paragraph size="$2" color="$color8">
+        <View
+            style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: 1,
+                gap: 16,
+                padding: 24,
+            }}
+        >
+            <FileIcon size={64} color={mutedColor} />
+            <Text style={{ fontWeight: '600', color: fgColor, textAlign: 'center' }}>{name}</Text>
+            <Text style={{ fontSize: 12, color: mutedColor }}>
                 {mimeType || 'Unknown type'}
                 {size > 0 ? ` \u2022 ${formatFileSize(size)}` : ''}
-            </Paragraph>
-        </YStack>
+            </Text>
+        </View>
     )
 }
-
-const styles = StyleSheet.create({
-    centered: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-    },
-    imagePreview: {
-        width: '100%',
-        height: '100%',
-    },
-})

@@ -1,6 +1,6 @@
 import { Slot } from 'expo-router'
+import { useThemeColor } from 'heroui-native'
 import { View } from 'react-native'
-import { XStack, YStack } from 'tamagui'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { DetailPanel } from '../components/DetailPanel'
 import { DriveDialogs, DriveToolbar } from '../components/DriveToolbar'
@@ -29,14 +29,15 @@ function DriveLayoutInner() {
         previewItem,
         closePreview,
     } = useDrive()
+    const bgColor = useThemeColor('background')
     const isMobile = useBreakpoint() === 'mobile'
     const showDetail = !!selectedItem && !isMobile
     const isMyDrive = activeSection === 'my-drive'
 
     return (
-        <YStack flex={1} backgroundColor="$background">
+        <View style={{ flex: 1, backgroundColor: bgColor }}>
             <DriveToolbar />
-            <XStack flex={1}>
+            <View style={{ flex: 1, flexDirection: 'row' }}>
                 <View style={{ flex: 1 }}>
                     <DropZone onDrop={uploadFiles} isEnabled={isMyDrive}>
                         <Slot />
@@ -48,9 +49,9 @@ function DriveLayoutInner() {
                     item={selectedItem}
                     onClose={() => selectItem(null)}
                 />
-            </XStack>
+            </View>
             <PreviewModal isVisible={!!previewItem} item={previewItem} onClose={closePreview} />
             <DriveDialogs />
-        </YStack>
+        </View>
     )
 }

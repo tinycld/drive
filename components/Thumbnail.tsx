@@ -1,5 +1,5 @@
-import { Image, StyleSheet, View } from 'react-native'
-import { useTheme } from 'tamagui'
+import { useThemeColor } from 'heroui-native'
+import { Image, View } from 'react-native'
 import { getThumbnailURL } from '../lib/file-url'
 import type { DriveItemView } from '../types'
 import { getFileIcon } from './file-icons'
@@ -10,14 +10,21 @@ interface ThumbnailProps {
 }
 
 export function Thumbnail({ item, size = 120 }: ThumbnailProps) {
-    const theme = useTheme()
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, theme.color8.val)
+    const mutedColor = useThemeColor('muted')
+    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
     const thumbnailUrl = getThumbnailURL(item, `${size}x${size}`)
 
     if (!thumbnailUrl) {
         return (
-            <View style={[styles.iconContainer, { height: size }]}>
+            <View
+                style={{
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '100%',
+                    height: size,
+                }}
+            >
                 <FileIcon size={size * 0.33} color={iconColor} />
             </View>
         )
@@ -26,19 +33,8 @@ export function Thumbnail({ item, size = 120 }: ThumbnailProps) {
     return (
         <Image
             source={{ uri: thumbnailUrl }}
-            style={[styles.image, { width: size, height: size }]}
+            style={{ width: size, height: size, borderRadius: 4 }}
             resizeMode="cover"
         />
     )
 }
-
-const styles = StyleSheet.create({
-    iconContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '100%',
-    },
-    image: {
-        borderRadius: 4,
-    },
-})

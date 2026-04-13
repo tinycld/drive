@@ -1,5 +1,5 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
-import { useTheme } from 'tamagui'
+import { useThemeColor } from 'heroui-native'
+import { ActivityIndicator, Text, View } from 'react-native'
 import { useDrive } from '../hooks/useDrive'
 
 interface UploadStatusBarProps {
@@ -7,7 +7,12 @@ interface UploadStatusBarProps {
 }
 
 export function UploadStatusBar({ isVisible }: UploadStatusBarProps) {
-    const theme = useTheme()
+    const [accentColor, fgColor, borderColor, bgColor] = useThemeColor([
+        'accent',
+        'foreground',
+        'border',
+        'background',
+    ])
     const { uploadingFiles } = useDrive()
 
     if (!isVisible) return null
@@ -22,29 +27,19 @@ export function UploadStatusBar({ isVisible }: UploadStatusBarProps) {
 
     return (
         <View
-            style={[
-                styles.bar,
-                { backgroundColor: theme.background.val, borderTopColor: theme.borderColor.val },
-            ]}
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                borderTopWidth: 1,
+                backgroundColor: bgColor,
+                borderTopColor: borderColor,
+            }}
         >
-            {activeCount > 0 && (
-                <ActivityIndicator size="small" color={theme.accentBackground.val} />
-            )}
-            <Text style={[styles.text, { color: theme.color.val }]}>{label}</Text>
+            {activeCount > 0 && <ActivityIndicator size="small" color={accentColor} />}
+            <Text style={{ fontSize: 13, color: fgColor }}>{label}</Text>
         </View>
     )
 }
-
-const styles = StyleSheet.create({
-    bar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderTopWidth: 1,
-    },
-    text: {
-        fontSize: 13,
-    },
-})

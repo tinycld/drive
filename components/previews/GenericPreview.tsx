@@ -1,14 +1,19 @@
+import { useThemeColor } from 'heroui-native'
 import { Download } from 'lucide-react-native'
-import { StyleSheet, View } from 'react-native'
-import { Button, SizableText, useTheme } from 'tamagui'
+import { Pressable, Text, View } from 'react-native'
 import { formatBytes } from '~/lib/format-utils'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
 import { getFileIcon } from '../file-icons'
 
 export function GenericPreview({ item }: PreviewProps) {
-    const theme = useTheme()
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, theme.color8.val)
+    const [mutedColor, fgColor, accentColor, accentFgColor] = useThemeColor([
+        'muted',
+        'foreground',
+        'accent',
+        'accent-foreground',
+    ])
+    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const fileUrl = getFileURL(item)
 
     const handleDownload = () => {
@@ -22,34 +27,39 @@ export function GenericPreview({ item }: PreviewProps) {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
             <FileIcon size={80} color={iconColor} />
-            <SizableText size="$5" fontWeight="600" color="$color" marginTop="$4">
+            <Text
+                style={{
+                    fontSize: 20,
+                    fontWeight: '600',
+                    color: fgColor,
+                    marginTop: 16,
+                }}
+            >
                 {item.name}
-            </SizableText>
-            <SizableText size="$3" color="$color10" marginTop="$1">
+            </Text>
+            <Text style={{ fontSize: 13, color: mutedColor, marginTop: 4 }}>
                 {item.mimeType} · {formatBytes(item.size)}
-            </SizableText>
+            </Text>
             {fileUrl && (
-                <Button
-                    size="$4"
-                    theme="accent"
-                    marginTop="$5"
+                <Pressable
                     onPress={handleDownload}
-                    icon={Download}
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginTop: 20,
+                        paddingHorizontal: 20,
+                        paddingVertical: 12,
+                        borderRadius: 8,
+                        backgroundColor: accentColor,
+                    }}
                 >
-                    <Button.Text fontWeight="600">Download</Button.Text>
-                </Button>
+                    <Download size={16} color={accentFgColor} />
+                    <Text style={{ fontWeight: '600', color: accentFgColor }}>Download</Text>
+                </Pressable>
             )}
         </View>
     )
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 32,
-    },
-})

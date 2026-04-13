@@ -1,7 +1,7 @@
+import { Dialog, useThemeColor } from 'heroui-native'
 import { Download, FolderOpen, RotateCcw, X } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Button, Dialog, SizableText, useTheme, XStack } from 'tamagui'
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
 import { formatBytes, formatDate } from '~/lib/format-utils'
 import { pb } from '~/lib/pocketbase'
 import { useDrive } from '../hooks/useDrive'
@@ -24,22 +24,47 @@ export function DetailPanel({ isVisible, item, onClose }: DetailPanelProps) {
 type DetailTab = 'details' | 'versions' | 'activity'
 
 function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, borderColor, _accentColor, accentFgColor] = useThemeColor([
+        'muted',
+        'foreground',
+        'border',
+        'accent',
+        'accent-foreground',
+    ])
     const [activeTab, setActiveTab] = useState<DetailTab>('details')
     const showVersionsTab = !item.isFolder
 
     return (
-        <View style={[styles.container, { borderLeftColor: theme.borderColor.val }]}>
-            <View style={[styles.header, { borderBottomColor: theme.borderColor.val }]}>
-                <Text style={[styles.headerTitle, { color: theme.color.val }]} numberOfLines={2}>
+        <View style={{ width: 320, borderLeftWidth: 1, borderLeftColor: borderColor }}>
+            <View
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: borderColor,
+                    gap: 8,
+                }}
+            >
+                <Text
+                    numberOfLines={2}
+                    style={{
+                        fontSize: 16,
+                        fontWeight: '600',
+                        flex: 1,
+                        color: fgColor,
+                    }}
+                >
                     {item.name}
                 </Text>
-                <Pressable onPress={onClose} style={styles.closeButton}>
-                    <X size={18} color={theme.color8.val} />
+                <Pressable onPress={onClose} style={{ padding: 4 }}>
+                    <X size={18} color={mutedColor} />
                 </Pressable>
             </View>
 
-            <View style={styles.iconArea}>
+            <View style={{ alignItems: 'center', paddingVertical: 24 }}>
                 <Thumbnail item={item} size={120} />
             </View>
 
@@ -51,7 +76,9 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
                 }
                 activeTab={activeTab}
                 onTabPress={setActiveTab}
-                theme={theme}
+                mutedColor={mutedColor}
+                accentFgColor={accentFgColor}
+                borderColor={borderColor}
             />
 
             {activeTab === 'details' && <DetailsContent item={item} />}
@@ -62,73 +89,162 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
 }
 
 function DetailsContent({ item }: { item: DriveItemView }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, borderColor, accentColor, accentFgColor] = useThemeColor([
+        'muted',
+        'foreground',
+        'border',
+        'accent',
+        'accent-foreground',
+    ])
     const { activeSection, getItemPath } = useDrive()
     const accessText = item.shared ? 'Shared with others' : 'Private to you'
     const isTrash = activeSection === 'trash'
     const originalLocation = isTrash ? getItemPath(item.parentId) : null
 
     return (
-        <View style={styles.content}>
+        <View style={{ padding: 16 }}>
             {isTrash && (
                 <>
-                    <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: theme.color.val }]}>
+                    <View style={{ gap: 8 }}>
+                        <Text
+                            style={{
+                                fontSize: 13,
+                                fontWeight: '600',
+                                color: fgColor,
+                                marginBottom: 4,
+                            }}
+                        >
                             Original location
                         </Text>
-                        <View style={styles.accessRow}>
-                            <FolderOpen size={16} color={theme.color8.val} />
-                            <Text style={[styles.accessText, { color: theme.color8.val }]}>
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 8,
+                            }}
+                        >
+                            <FolderOpen size={16} color={mutedColor} />
+                            <Text style={{ fontSize: 12, color: mutedColor }}>
                                 {originalLocation}
                             </Text>
                         </View>
-                        <DetailRow label="Deleted" value={formatDate(item.trashedAt)} />
+                        <DetailRow
+                            label="Deleted"
+                            value={formatDate(item.trashedAt)}
+                            mutedColor={mutedColor}
+                            fgColor={fgColor}
+                        />
                     </View>
 
-                    <View style={[styles.divider, { backgroundColor: theme.borderColor.val }]} />
+                    <View
+                        style={{
+                            height: 1,
+                            marginVertical: 16,
+                            backgroundColor: borderColor,
+                        }}
+                    />
                 </>
             )}
 
-            <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.color.val }]}>
+            <View style={{ gap: 8 }}>
+                <Text
+                    style={{
+                        fontSize: 13,
+                        fontWeight: '600',
+                        color: fgColor,
+                        marginBottom: 4,
+                    }}
+                >
                     Who has access
                 </Text>
-                <View style={styles.accessRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <View
-                        style={[
-                            styles.avatarCircle,
-                            { backgroundColor: theme.accentBackground.val },
-                        ]}
+                        style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 14,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: accentColor,
+                        }}
                     >
-                        <Text style={[styles.avatarText, { color: theme.accentColor.val }]}>
+                        <Text
+                            style={{
+                                fontSize: 11,
+                                fontWeight: '600',
+                                color: accentFgColor,
+                            }}
+                        >
                             {item.owner === 'me' ? 'Y' : item.owner.charAt(0)}
                         </Text>
                     </View>
-                    <Text style={[styles.accessText, { color: theme.color8.val }]}>
-                        {accessText}
-                    </Text>
+                    <Text style={{ fontSize: 12, color: mutedColor }}>{accessText}</Text>
                 </View>
             </View>
 
-            <View style={[styles.divider, { backgroundColor: theme.borderColor.val }]} />
+            <View
+                style={{
+                    height: 1,
+                    marginVertical: 16,
+                    backgroundColor: borderColor,
+                }}
+            />
 
-            <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.color.val }]}>File details</Text>
-                <DetailRow label="Type" value={item.mimeType} />
-                <DetailRow label="Size" value={formatBytes(item.size)} />
-                <DetailRow label="Owner" value={item.owner} />
-                <DetailRow label="Modified" value={formatDate(item.updated)} />
+            <View style={{ gap: 8 }}>
+                <Text
+                    style={{
+                        fontSize: 13,
+                        fontWeight: '600',
+                        color: fgColor,
+                        marginBottom: 4,
+                    }}
+                >
+                    File details
+                </Text>
+                <DetailRow
+                    label="Type"
+                    value={item.mimeType}
+                    mutedColor={mutedColor}
+                    fgColor={fgColor}
+                />
+                <DetailRow
+                    label="Size"
+                    value={formatBytes(item.size)}
+                    mutedColor={mutedColor}
+                    fgColor={fgColor}
+                />
+                <DetailRow
+                    label="Owner"
+                    value={item.owner}
+                    mutedColor={mutedColor}
+                    fgColor={fgColor}
+                />
+                <DetailRow
+                    label="Modified"
+                    value={formatDate(item.updated)}
+                    mutedColor={mutedColor}
+                    fgColor={fgColor}
+                />
             </View>
         </View>
     )
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-    const theme = useTheme()
+function DetailRow({
+    label,
+    value,
+    mutedColor,
+    fgColor,
+}: {
+    label: string
+    value: string
+    mutedColor: string
+    fgColor: string
+}) {
     return (
-        <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: theme.color8.val }]}>{label}</Text>
-            <Text style={[styles.detailValue, { color: theme.color.val }]} numberOfLines={1}>
+        <View style={{ flexDirection: 'row', paddingVertical: 4 }}>
+            <Text style={{ fontSize: 12, color: mutedColor, width: 80 }}>{label}</Text>
+            <Text numberOfLines={1} style={{ fontSize: 12, color: fgColor, flex: 1 }}>
                 {value}
             </Text>
         </View>
@@ -139,10 +255,19 @@ interface TabBarProps {
     tabs: readonly DetailTab[]
     activeTab: DetailTab
     onTabPress: (tab: DetailTab) => void
-    theme: ReturnType<typeof useTheme>
+    mutedColor: string
+    accentFgColor: string
+    borderColor: string
 }
 
-function TabBar({ tabs, activeTab, onTabPress, theme }: TabBarProps) {
+function TabBar({
+    tabs,
+    activeTab,
+    onTabPress,
+    mutedColor,
+    accentFgColor,
+    borderColor,
+}: TabBarProps) {
     const labels: Record<DetailTab, string> = {
         details: 'Details',
         versions: 'Versions',
@@ -150,26 +275,31 @@ function TabBar({ tabs, activeTab, onTabPress, theme }: TabBarProps) {
     }
 
     return (
-        <View style={[styles.tabs, { borderBottomColor: theme.borderColor.val }]}>
+        <View
+            style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: borderColor }}
+        >
             {tabs.map(tab => (
                 <Pressable
                     key={tab}
-                    style={[
-                        styles.tab,
-                        activeTab === tab && {
-                            borderBottomColor: theme.accentColor.val,
-                            borderBottomWidth: 2,
-                        },
-                    ]}
+                    style={{
+                        flex: 1,
+                        alignItems: 'center',
+                        paddingVertical: 10,
+                        ...(activeTab === tab
+                            ? {
+                                  borderBottomColor: accentFgColor,
+                                  borderBottomWidth: 2,
+                              }
+                            : {}),
+                    }}
                     onPress={() => onTabPress(tab)}
                 >
                     <Text
-                        style={[
-                            styles.tabText,
-                            {
-                                color: activeTab === tab ? theme.accentColor.val : theme.color8.val,
-                            },
-                        ]}
+                        style={{
+                            fontSize: 13,
+                            fontWeight: '500',
+                            color: activeTab === tab ? accentFgColor : mutedColor,
+                        }}
                     >
                         {labels[tab]}
                     </Text>
@@ -180,7 +310,6 @@ function TabBar({ tabs, activeTab, onTabPress, theme }: TabBarProps) {
 }
 
 function VersionsContent({ itemId }: { itemId: string }) {
-    const theme = useTheme()
     const { versions, restoreVersion, isRestoring } = useVersionHistory(itemId)
     const [confirmVersionId, setConfirmVersionId] = useState<string | null>(null)
 
@@ -210,17 +339,15 @@ function VersionsContent({ itemId }: { itemId: string }) {
 
     if (versions.length === 0) {
         return (
-            <View style={styles.content}>
-                <Text style={[styles.placeholderText, { color: theme.color8.val }]}>
-                    No previous versions
-                </Text>
+            <View style={{ padding: 16 }}>
+                <NeutralMessage>No previous versions</NeutralMessage>
             </View>
         )
     }
 
     return (
         <>
-            <ScrollView style={styles.content}>
+            <ScrollView style={{ padding: 16 }}>
                 {versions.map(version => (
                     <VersionRow
                         key={version.id}
@@ -257,47 +384,53 @@ function RestoreConfirmDialog({
     versionNumber,
     onConfirm,
 }: RestoreConfirmDialogProps) {
+    const [fgColor, mutedColor, accentColor, accentFgColor] = useThemeColor([
+        'foreground',
+        'muted',
+        'accent',
+        'accent-foreground',
+    ])
+
     return (
-        <Dialog modal open={open} onOpenChange={onOpenChange}>
+        <Dialog isOpen={open} onOpenChange={onOpenChange}>
             <Dialog.Portal>
-                <Dialog.Overlay
-                    key="overlay"
-                    opacity={0.3}
-                    backgroundColor="$shadow6"
-                    enterStyle={{ opacity: 0 }}
-                    exitStyle={{ opacity: 0 }}
-                />
-                <Dialog.Content
-                    key="content"
-                    bordered
-                    elevate
-                    padding="$4"
-                    gap="$3"
-                    width={340}
-                    backgroundColor="$background"
-                >
-                    <Dialog.Title size="$5">Restore version</Dialog.Title>
-                    <SizableText size="$3" color="$color10">
+                <Dialog.Overlay />
+                <Dialog.Content className="w-[340px] p-4 gap-3">
+                    <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>
+                        Restore version
+                    </Text>
+                    <Text style={{ fontSize: 13, color: mutedColor }}>
                         Restore to version {versionNumber}? The current file will be saved as a new
                         version before restoring.
-                    </SizableText>
-                    <XStack gap="$3" justifyContent="flex-end">
-                        <Dialog.Close asChild>
-                            <Button size="$3" chromeless>
-                                <Button.Text>Cancel</Button.Text>
-                            </Button>
-                        </Dialog.Close>
-                        <Button
-                            size="$3"
-                            theme="accent"
+                    </Text>
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            gap: 12,
+                            justifyContent: 'flex-end',
+                        }}
+                    >
+                        <Pressable
+                            onPress={() => onOpenChange(false)}
+                            style={{ paddingHorizontal: 12, paddingVertical: 8 }}
+                        >
+                            <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
+                        </Pressable>
+                        <Pressable
                             onPress={() => {
                                 onConfirm()
                                 onOpenChange(false)
                             }}
+                            style={{
+                                paddingHorizontal: 16,
+                                paddingVertical: 8,
+                                borderRadius: 6,
+                                backgroundColor: accentColor,
+                            }}
                         >
-                            <Button.Text fontWeight="600">Restore</Button.Text>
-                        </Button>
-                    </XStack>
+                            <Text style={{ fontWeight: '600', color: accentFgColor }}>Restore</Text>
+                        </Pressable>
+                    </View>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog>
@@ -318,32 +451,41 @@ interface VersionRowProps {
 }
 
 function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowProps) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
 
     return (
-        <View style={[styles.versionRow, { borderBottomColor: theme.borderColor.val }]}>
-            <View style={styles.versionInfo}>
-                <Text style={[styles.versionNumber, { color: theme.color.val }]}>
+        <View
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingVertical: 10,
+                borderBottomWidth: 1,
+                borderBottomColor: borderColor,
+            }}
+        >
+            <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ fontSize: 12, fontWeight: '500', color: fgColor }}>
                     Version {version.version_number}
                 </Text>
-                <Text style={[styles.versionMeta, { color: theme.color8.val }]}>
+                <Text style={{ fontSize: 11, color: mutedColor }}>
                     {formatDate(version.created)} · {formatBytes(version.size)}
                 </Text>
             </View>
-            <View style={styles.versionActions}>
-                <Pressable onPress={onDownload} hitSlop={8} style={styles.versionActionButton}>
-                    <Download size={14} color={theme.color8.val} />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pressable onPress={onDownload} hitSlop={8} style={{ padding: 4 }}>
+                    <Download size={14} color={mutedColor} />
                 </Pressable>
                 <Pressable
                     onPress={onRestore}
                     hitSlop={8}
                     disabled={isRestoring}
-                    style={styles.versionActionButton}
+                    style={{ padding: 4 }}
                 >
                     {isRestoring ? (
                         <ActivityIndicator size="small" />
                     ) : (
-                        <RotateCcw size={14} color={theme.color8.val} />
+                        <RotateCcw size={14} color={mutedColor} />
                     )}
                 </Pressable>
             </View>
@@ -351,130 +493,26 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
     )
 }
 
-function ActivityContent() {
-    const theme = useTheme()
+function NeutralMessage({ children }: { children: string }) {
+    const mutedColor = useThemeColor('muted')
     return (
-        <View style={styles.content}>
-            <Text style={[styles.placeholderText, { color: theme.color8.val }]}>
-                No recent activity
-            </Text>
-        </View>
+        <Text
+            style={{
+                fontSize: 13,
+                color: mutedColor,
+                textAlign: 'center',
+                paddingVertical: 24,
+            }}
+        >
+            {children}
+        </Text>
     )
 }
 
-const styles = StyleSheet.create({
-    container: {
-        width: 320,
-        borderLeftWidth: 1,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        gap: 8,
-    },
-    headerTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        flex: 1,
-    },
-    closeButton: {
-        padding: 4,
-    },
-    iconArea: {
-        alignItems: 'center',
-        paddingVertical: 24,
-    },
-    tabs: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-    },
-    tab: {
-        flex: 1,
-        alignItems: 'center',
-        paddingVertical: 10,
-    },
-    tabText: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    content: {
-        padding: 16,
-    },
-    section: {
-        gap: 8,
-    },
-    sectionTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        marginBottom: 4,
-    },
-    accessRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    avatarCircle: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    avatarText: {
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    accessText: {
-        fontSize: 13,
-    },
-    divider: {
-        height: 1,
-        marginVertical: 16,
-    },
-    detailRow: {
-        flexDirection: 'row',
-        paddingVertical: 4,
-    },
-    detailLabel: {
-        fontSize: 13,
-        width: 80,
-    },
-    detailValue: {
-        fontSize: 13,
-        flex: 1,
-    },
-    placeholderText: {
-        fontSize: 14,
-        textAlign: 'center',
-        paddingVertical: 24,
-    },
-    versionRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-    },
-    versionInfo: {
-        flex: 1,
-        gap: 2,
-    },
-    versionNumber: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    versionMeta: {
-        fontSize: 12,
-    },
-    versionActions: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    versionActionButton: {
-        padding: 4,
-    },
-})
+function ActivityContent() {
+    return (
+        <View style={{ padding: 16 }}>
+            <NeutralMessage>No recent activity</NeutralMessage>
+        </View>
+    )
+}

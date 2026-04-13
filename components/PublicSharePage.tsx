@@ -1,17 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
+import { Dialog, useThemeColor } from 'heroui-native'
 import { Download, FileIcon } from 'lucide-react-native'
-import { Platform, Pressable, StyleSheet } from 'react-native'
-import {
-    Dialog,
-    H3,
-    Paragraph,
-    SizableText,
-    Spinner,
-    useTheme,
-    View,
-    XStack,
-    YStack,
-} from 'tamagui'
+import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native'
 import { PB_SERVER_ADDR } from '~/lib/pocketbase'
 import { PublicPreviewFrame } from './PublicPreviewFrame'
 
@@ -51,7 +41,7 @@ class ShareLinkError extends Error {
 }
 
 function ErrorDisplay({ error }: { error: ShareLinkError }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
     const isExpired = error.status === 410
     const title = isExpired ? 'Link expired' : 'Link not found'
     const description = isExpired
@@ -59,22 +49,45 @@ function ErrorDisplay({ error }: { error: ShareLinkError }) {
         : 'This share link is invalid or the file has been removed.'
 
     return (
-        <YStack items="center" justify="center" flex={1} gap="$4" p="$6">
-            <FileIcon size={64} color={theme.color8.val} />
-            <H3 color="$color">{title}</H3>
-            <Paragraph color="$color8" text="center" maxW={400}>
+        <View
+            style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: 1,
+                gap: 16,
+                padding: 24,
+            }}
+        >
+            <FileIcon size={64} color={mutedColor} />
+            <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>{title}</Text>
+            <Text
+                style={{
+                    color: mutedColor,
+                    textAlign: 'center',
+                    maxWidth: 400,
+                }}
+            >
                 {description}
-            </Paragraph>
-        </YStack>
+            </Text>
+        </View>
     )
 }
 
 function LoadingDisplay() {
+    const mutedColor = useThemeColor('muted')
+
     return (
-        <YStack items="center" justify="center" flex={1} gap="$4">
-            <Spinner size="large" />
-            <Paragraph color="$color8">Loading shared file...</Paragraph>
-        </YStack>
+        <View
+            style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: 1,
+                gap: 16,
+            }}
+        >
+            <ActivityIndicator size="large" />
+            <Text style={{ color: mutedColor }}>Loading shared file...</Text>
+        </View>
     )
 }
 
@@ -84,6 +97,7 @@ interface PublicSharePageProps {
 
 export function PublicSharePage({ token }: PublicSharePageProps) {
     const { data, isLoading, error } = useShareLinkData(token)
+    const bgColor = useThemeColor('background')
 
     if (isLoading) return <LoadingDisplay />
     if (error) return <ErrorDisplay error={error as ShareLinkError} />
@@ -95,28 +109,17 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
     const downloadUrl = `${fileUrl}?inline=0`
 
     return (
-        <View style={styles.backdrop} backgroundColor="$background">
-            <Dialog modal open>
+        <View style={{ flex: 1, backgroundColor: bgColor }}>
+            <Dialog isOpen>
                 <Dialog.Portal>
-                    <Dialog.Overlay key="overlay" opacity={0.6} backgroundColor="$shadow6" />
-                    <Dialog.Content
-                        key="content"
-                        bordered
-                        elevate
-                        padding={0}
-                        width="95vw"
-                        height="90vh"
-                        maxWidth={1400}
-                        backgroundColor="$background"
-                        borderRadius={12}
-                        overflow="hidden"
-                    >
+                    <Dialog.Overlay />
+                    <Dialog.Content className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
                         <PreviewHeader
                             name={data.name}
                             orgName={data.org_name}
                             downloadUrl={downloadUrl}
                         />
-                        <View flex={1} overflow="hidden">
+                        <View style={{ flex: 1, overflow: 'hidden' }}>
                             <PublicPreviewFrame
                                 name={data.name}
                                 mimeType={data.mime_type}
@@ -142,44 +145,37 @@ function PreviewHeader({
     orgName: string
     downloadUrl: string
 }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
 
     const handleDownload = () => {
         if (Platform.OS === 'web') window.open(downloadUrl, '_blank')
     }
 
     return (
-        <XStack
-            items="center"
-            px="$4"
-            py="$3"
-            borderBottomWidth={1}
-            borderBottomColor="$borderColor"
-            gap="$3"
+        <View
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: borderColor,
+                gap: 12,
+            }}
         >
-            <YStack flex={1} gap="$1">
-                <SizableText size="$4" fontWeight="600" color="$color" numberOfLines={1}>
+            <View style={{ flex: 1, gap: 4 }}>
+                <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '600', color: fgColor }}>
                     {name}
-                </SizableText>
+                </Text>
                 {orgName ? (
-                    <SizableText size="$2" color="$color8" numberOfLines={1}>
+                    <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
                         Shared from {orgName}
-                    </SizableText>
+                    </Text>
                 ) : null}
-            </YStack>
-            <Pressable onPress={handleDownload} style={styles.headerButton} hitSlop={8}>
-                <Download size={18} color={theme.color8.val} />
+            </View>
+            <Pressable onPress={handleDownload} style={{ padding: 6, borderRadius: 6 }} hitSlop={8}>
+                <Download size={18} color={mutedColor} />
             </Pressable>
-        </XStack>
+        </View>
     )
 }
-
-const styles = StyleSheet.create({
-    backdrop: {
-        flex: 1,
-    },
-    headerButton: {
-        padding: 6,
-        borderRadius: 6,
-    },
-})

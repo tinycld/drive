@@ -1,12 +1,13 @@
+import { useThemeColor } from 'heroui-native'
 import { useCallback, useEffect, useState } from 'react'
-import { Platform, ScrollView, StyleSheet } from 'react-native'
-import { SizableText, Spinner, YStack } from 'tamagui'
+import { ActivityIndicator, Platform, ScrollView, Text, View } from 'react-native'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
 
 export function CodePreview({ item }: PreviewProps) {
     const [content, setContent] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
+    const [fgColor, mutedColor] = useThemeColor(['foreground', 'muted'])
     const fileUrl = getFileURL(item)
 
     const loadContent = useCallback(async () => {
@@ -31,35 +32,30 @@ export function CodePreview({ item }: PreviewProps) {
 
     if (loading) {
         return (
-            <YStack flex={1} items="center" justify="center">
-                <Spinner />
-            </YStack>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator />
+            </View>
         )
     }
 
     if (content === null) {
         return (
-            <YStack flex={1} items="center" justify="center" p="$4">
-                <SizableText color="$color10">Cannot preview this file</SizableText>
-            </YStack>
+            <View
+                style={{
+                    flex: 1,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 16,
+                }}
+            >
+                <Text style={{ color: mutedColor }}>Cannot preview this file</Text>
+            </View>
         )
     }
 
     return (
-        <ScrollView style={styles.container}>
-            <SizableText size="$3" color="$color" style={styles.code}>
-                {content}
-            </SizableText>
+        <ScrollView style={{ flex: 1, padding: 16 }}>
+            <Text style={{ fontSize: 13, color: fgColor, fontFamily: 'monospace' }}>{content}</Text>
         </ScrollView>
     )
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        padding: 16,
-    },
-    code: {
-        fontFamily: 'monospace',
-    },
-})

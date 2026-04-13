@@ -1,7 +1,7 @@
+import { Dialog, useThemeColor } from 'heroui-native'
 import { ChevronDown, ChevronRight, Folder, HardDrive } from 'lucide-react-native'
 import { useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Button, Dialog, useTheme, XStack } from 'tamagui'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { FolderTreeNode } from '../types'
 
 interface ChooseFolderDialogProps {
@@ -26,6 +26,12 @@ export function ChooseFolderDialog({
     confirmLabel = 'Move here',
 }: ChooseFolderDialogProps) {
     const [selectedId, setSelectedId] = useState('')
+    const [fgColor, accentColor, accentFgColor, borderColor] = useThemeColor([
+        'foreground',
+        'accent',
+        'accent-foreground',
+        'border',
+    ])
 
     const handleMove = () => {
         onMove(selectedId)
@@ -34,36 +40,27 @@ export function ChooseFolderDialog({
 
     return (
         <Dialog
-            modal
-            open={open}
+            isOpen={open}
             onOpenChange={o => {
                 if (!o) onClose()
             }}
         >
             <Dialog.Portal>
-                <Dialog.Overlay
-                    key="overlay"
-                    opacity={0.3}
-                    backgroundColor="$shadow6"
-                    enterStyle={{ opacity: 0 }}
-                    exitStyle={{ opacity: 0 }}
-                />
-                <Dialog.Content
-                    key="content"
-                    bordered
-                    elevate
-                    padding={0}
-                    width={400}
-                    maxHeight="70vh"
-                    backgroundColor="$background"
-                >
-                    <View style={styles.header}>
-                        <Dialog.Title size="$4">
+                <Dialog.Overlay />
+                <Dialog.Content className="w-[400px] max-h-[70vh] p-0">
+                    <View
+                        style={{
+                            paddingHorizontal: 16,
+                            paddingTop: 16,
+                            paddingBottom: 8,
+                        }}
+                    >
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: fgColor }}>
                             {title ?? `Move \u201C${itemName}\u201D`}
-                        </Dialog.Title>
+                        </Text>
                     </View>
 
-                    <ScrollView style={styles.treeContainer}>
+                    <ScrollView style={{ maxHeight: 320, paddingVertical: 4 }}>
                         <RootItem
                             isSelected={selectedId === ''}
                             onSelect={() => setSelectedId('')}
@@ -77,22 +74,36 @@ export function ChooseFolderDialog({
                         />
                     </ScrollView>
 
-                    <XStack
-                        gap="$3"
-                        justifyContent="flex-end"
-                        padding="$3"
-                        borderTopWidth={1}
-                        borderColor="$borderColor"
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            gap: 12,
+                            justifyContent: 'flex-end',
+                            padding: 12,
+                            borderTopWidth: 1,
+                            borderColor,
+                        }}
                     >
-                        <Dialog.Close asChild>
-                            <Button size="$3" chromeless>
-                                <Button.Text>Cancel</Button.Text>
-                            </Button>
-                        </Dialog.Close>
-                        <Button size="$3" theme="accent" onPress={handleMove}>
-                            <Button.Text fontWeight="600">{confirmLabel}</Button.Text>
-                        </Button>
-                    </XStack>
+                        <Pressable
+                            onPress={onClose}
+                            style={{ paddingHorizontal: 12, paddingVertical: 8 }}
+                        >
+                            <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
+                        </Pressable>
+                        <Pressable
+                            onPress={handleMove}
+                            style={{
+                                paddingHorizontal: 16,
+                                paddingVertical: 8,
+                                borderRadius: 6,
+                                backgroundColor: accentColor,
+                            }}
+                        >
+                            <Text style={{ fontWeight: '600', color: accentFgColor }}>
+                                {confirmLabel}
+                            </Text>
+                        </Pressable>
+                    </View>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog>
@@ -100,27 +111,31 @@ export function ChooseFolderDialog({
 }
 
 function RootItem({ isSelected, onSelect }: { isSelected: boolean; onSelect: () => void }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, accentColor] = useThemeColor(['muted', 'foreground', 'accent'])
 
     return (
         <Pressable
-            style={[
-                styles.row,
-                { paddingLeft: 12 },
-                isSelected && { backgroundColor: `${theme.accentBackground.val}18` },
-            ]}
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                paddingVertical: 8,
+                paddingRight: 12,
+                borderRadius: 8,
+                marginHorizontal: 8,
+                paddingLeft: 12,
+                ...(isSelected ? { backgroundColor: `${accentColor}18` } : {}),
+            }}
             onPress={onSelect}
         >
-            <HardDrive
-                size={16}
-                color={isSelected ? theme.accentBackground.val : theme.color8.val}
-            />
+            <HardDrive size={16} color={isSelected ? accentColor : mutedColor} />
             <Text
-                style={[
-                    styles.label,
-                    { color: isSelected ? theme.accentBackground.val : theme.color.val },
-                    isSelected && styles.labelActive,
-                ]}
+                style={{
+                    fontSize: 13,
+                    flex: 1,
+                    color: isSelected ? accentColor : fgColor,
+                    fontWeight: isSelected ? '600' : undefined,
+                }}
             >
                 My Files
             </Text>
@@ -173,7 +188,7 @@ function PickerTreeItem({
     onSelect: (id: string) => void
     depth: number
 }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, accentColor] = useThemeColor(['muted', 'foreground', 'accent'])
     const [expanded, setExpanded] = useState(false)
     const isSelected = selectedId === node.item.id
     const hasChildren = node.children.filter(c => c.item.id !== excludeId).length > 0
@@ -182,11 +197,17 @@ function PickerTreeItem({
     return (
         <View>
             <Pressable
-                style={[
-                    styles.row,
-                    { paddingLeft: depth * 20 + 12 },
-                    isSelected && { backgroundColor: `${theme.accentBackground.val}18` },
-                ]}
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    paddingVertical: 8,
+                    paddingRight: 12,
+                    borderRadius: 8,
+                    marginHorizontal: 8,
+                    paddingLeft: depth * 20 + 12,
+                    ...(isSelected ? { backgroundColor: `${accentColor}18` } : {}),
+                }}
                 onPress={() => onSelect(node.item.id)}
             >
                 {hasChildren ? (
@@ -195,24 +216,22 @@ function PickerTreeItem({
                             e.stopPropagation()
                             setExpanded(prev => !prev)
                         }}
-                        style={styles.chevron}
+                        style={{ width: 18, alignItems: 'center', justifyContent: 'center' }}
                     >
-                        <ChevronIcon size={14} color={theme.color8.val} />
+                        <ChevronIcon size={14} color={mutedColor} />
                     </Pressable>
                 ) : (
-                    <View style={styles.chevron} />
+                    <View style={{ width: 18, alignItems: 'center', justifyContent: 'center' }} />
                 )}
-                <Folder
-                    size={16}
-                    color={isSelected ? theme.accentBackground.val : theme.color8.val}
-                />
+                <Folder size={16} color={isSelected ? accentColor : mutedColor} />
                 <Text
-                    style={[
-                        styles.label,
-                        { color: isSelected ? theme.accentBackground.val : theme.color.val },
-                        isSelected && styles.labelActive,
-                    ]}
                     numberOfLines={1}
+                    style={{
+                        fontSize: 13,
+                        flex: 1,
+                        color: isSelected ? accentColor : fgColor,
+                        fontWeight: isSelected ? '600' : undefined,
+                    }}
                 >
                     {node.item.name}
                 </Text>
@@ -229,36 +248,3 @@ function PickerTreeItem({
         </View>
     )
 }
-
-const styles = StyleSheet.create({
-    header: {
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 8,
-    },
-    treeContainer: {
-        maxHeight: 320,
-        paddingVertical: 4,
-    },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 8,
-        paddingRight: 12,
-        borderRadius: 8,
-        marginHorizontal: 8,
-    },
-    chevron: {
-        width: 18,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    label: {
-        fontSize: 14,
-        flex: 1,
-    },
-    labelActive: {
-        fontWeight: '600',
-    },
-})

@@ -1,4 +1,4 @@
-import { Menu } from '@tamagui/menu'
+import { Menu } from 'heroui-native'
 import {
     ChevronDown,
     ChevronRight,
@@ -13,10 +13,10 @@ import {
     UserPlus,
 } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
-import { Pressable } from 'react-native'
-import { SizableText, useTheme, View } from 'tamagui'
+import { Pressable, Text, View } from 'react-native'
 import { MenuActionItem } from '~/components/DropdownMenu'
 import { SidebarDivider, SidebarItem, SidebarNav } from '~/components/sidebar-primitives'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { useDrive } from './hooks/useDrive'
 import type { FolderTreeNode } from './types'
 
@@ -35,7 +35,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         totalStorageUsed,
         triggerFilePicker,
     } = useDrive()
-    const theme = useTheme()
+    const [accentColor, accentFgColor] = useThemeColor(['accent', 'accent-foreground'])
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
@@ -78,9 +78,9 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
 
     return (
         <SidebarNav>
-            <View paddingHorizontal={12} paddingVertical={8}>
+            <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
                 <Menu>
-                    <Menu.Trigger asChild>
+                    <Menu.Trigger>
                         <Pressable
                             style={{
                                 flexDirection: 'row',
@@ -89,28 +89,24 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                                 paddingHorizontal: 16,
                                 paddingVertical: 10,
                                 borderRadius: 20,
-                                backgroundColor: theme.accentBackground.val,
+                                backgroundColor: accentColor,
                             }}
                         >
-                            <Plus size={16} color={theme.accentColor.val} />
-                            <SizableText size="$3" fontWeight="600" color={theme.accentColor.val}>
+                            <Plus size={16} color={accentFgColor} />
+                            <Text
+                                style={{
+                                    fontSize: 13,
+                                    fontWeight: '600',
+                                    color: accentFgColor,
+                                }}
+                            >
                                 New
-                            </SizableText>
+                            </Text>
                         </Pressable>
                     </Menu.Trigger>
-                    <Menu.Portal zIndex={100}>
-                        <Menu.Content
-                            borderRadius={8}
-                            minWidth={200}
-                            backgroundColor="$background"
-                            borderColor="$borderColor"
-                            borderWidth={1}
-                            paddingVertical="$1"
-                            shadowColor="#000"
-                            shadowOffset={{ width: 0, height: 4 }}
-                            shadowOpacity={0.15}
-                            shadowRadius={12}
-                        >
+                    <Menu.Portal>
+                        <Menu.Overlay />
+                        <Menu.Content presentation="popover" className="min-w-[200px]">
                             <MenuActionItem
                                 label="Upload file"
                                 icon={Upload}
@@ -237,7 +233,8 @@ function FolderTreeItem({
     onSelect,
     depth,
 }: FolderTreeItemProps) {
-    const theme = useTheme()
+    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
+    const activeIndicator = useThemeColor('active-indicator')
     const isExpanded = expandedIds.has(node.item.id)
     const isSelected = selectedFolderId === node.item.id
     const hasChildren = node.children.length > 0
@@ -254,7 +251,7 @@ function FolderTreeItem({
                     paddingRight: 12,
                     borderRadius: 8,
                     paddingLeft: depth * 16,
-                    ...(isSelected ? { backgroundColor: `${theme.activeIndicator.val}18` } : {}),
+                    ...(isSelected ? { backgroundColor: `${activeIndicator}18` } : {}),
                 }}
                 onPress={() => onSelect(node.item.id)}
             >
@@ -263,24 +260,23 @@ function FolderTreeItem({
                         onPress={() => onToggle(node.item.id)}
                         style={{ width: 18, alignItems: 'center', justifyContent: 'center' }}
                     >
-                        <ChevronIcon size={14} color={theme.color8.val} />
+                        <ChevronIcon size={14} color={mutedColor} />
                     </Pressable>
                 ) : (
-                    <View width={18} alignItems="center" justifyContent="center" />
+                    <View style={{ width: 18, alignItems: 'center', justifyContent: 'center' }} />
                 )}
-                <Folder
-                    size={16}
-                    color={isSelected ? theme.activeIndicator.val : theme.color8.val}
-                />
-                <SizableText
-                    size="$2"
-                    flex={1}
-                    color={isSelected ? theme.activeIndicator.val : '$color'}
-                    fontWeight={isSelected ? '600' : undefined}
+                <Folder size={16} color={isSelected ? activeIndicator : mutedColor} />
+                <Text
                     numberOfLines={1}
+                    style={{
+                        fontSize: 12,
+                        flex: 1,
+                        color: isSelected ? activeIndicator : fgColor,
+                        fontWeight: isSelected ? '600' : undefined,
+                    }}
                 >
                     {node.item.name}
-                </SizableText>
+                </Text>
             </Pressable>
             {isExpanded && node.children.length > 0 && (
                 <FolderTree
@@ -297,27 +293,31 @@ function FolderTreeItem({
 }
 
 function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
-    const theme = useTheme()
+    const [mutedColor, accentColor] = useThemeColor(['muted', 'accent'])
     const percentage = (usedGB / totalGB) * 100
 
     return (
-        <View paddingHorizontal={12} paddingVertical={8} gap={6}>
+        <View style={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6 }}>
             <View
-                height={4}
-                borderRadius={2}
-                overflow="hidden"
-                backgroundColor={`${theme.color8.val}20`}
+                style={{
+                    height: 4,
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    backgroundColor: `${mutedColor}20`,
+                }}
             >
                 <View
-                    height="100%"
-                    borderRadius={2}
-                    width={`${percentage}%`}
-                    backgroundColor="$accentBackground"
+                    style={{
+                        height: '100%',
+                        borderRadius: 2,
+                        width: `${percentage}%`,
+                        backgroundColor: accentColor,
+                    }}
                 />
             </View>
-            <SizableText size="$1" color="$color8">
+            <Text style={{ fontSize: 11, color: mutedColor }}>
                 {usedGB.toFixed(2)} GB of {totalGB} GB used
-            </SizableText>
+            </Text>
         </View>
     )
 }

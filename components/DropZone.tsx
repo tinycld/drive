@@ -1,7 +1,7 @@
+import { useThemeColor } from 'heroui-native'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { Platform, View } from 'react-native'
-import { Text, useTheme } from 'tamagui'
+import { Platform, Text, View } from 'react-native'
 
 interface DropZoneProps {
     children: ReactNode
@@ -11,7 +11,7 @@ interface DropZoneProps {
 
 export function DropZone({ children, onDrop, isEnabled }: DropZoneProps) {
     const [isDragging, setIsDragging] = useState(false)
-    const theme = useTheme()
+    const accentColor = useThemeColor('accent')
 
     if (Platform.OS !== 'web') {
         return <View style={{ flex: 1 }}>{children}</View>
@@ -78,17 +78,17 @@ export function DropZone({ children, onDrop, isEnabled }: DropZoneProps) {
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        backgroundColor: `${theme.accentBackground.val}15`,
+                        backgroundColor: `${accentColor}15`,
                         borderWidth: 2,
                         borderStyle: 'dashed',
-                        borderColor: theme.accentBackground.val,
+                        borderColor: accentColor,
                         borderRadius: 12,
                         alignItems: 'center',
                         justifyContent: 'center',
                         zIndex: 100,
                     }}
                 >
-                    <Text color="$accentBackground" fontSize="$5" fontWeight="600">
+                    <Text style={{ color: accentColor, fontSize: 20, fontWeight: '600' }}>
                         Drop files to upload
                     </Text>
                 </View>

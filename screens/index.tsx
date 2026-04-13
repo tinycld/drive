@@ -1,52 +1,21 @@
-import type { LucideIcon } from 'lucide-react-native'
+import { useThemeColor } from 'heroui-native'
 import { Download, Star, Trash2 } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
-import { type LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import { useTheme } from 'tamagui'
+import { type LayoutChangeEvent, Platform, Pressable, ScrollView, Text, View } from 'react-native'
 import { DataTableHeader } from '~/components/DataTableHeader'
 import { EmptyState } from '~/components/EmptyState'
+import { HoverAction } from '~/components/HoverAction'
 import { ConfirmTrash } from '~/components/SuretyGuard'
+import { SwipeableRow, SwipeableRowProvider } from '~/components/SwipeableRow'
+import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { formatBytes, formatDate } from '~/lib/format-utils'
-import { useWebStyles } from '~/lib/use-web-styles'
+import { useThemeColor as useAppThemeColor } from '~/lib/use-app-theme'
 import { DriveContextMenu } from '../components/DriveContextMenu'
 import { getFileIcon } from '../components/file-icons'
 import { Thumbnail } from '../components/Thumbnail'
 import { useDoubleClick } from '../hooks/useDoubleClick'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveItemView } from '../types'
-
-const tooltipCSS = `
-    .drive-hover-tooltip {
-        position: relative;
-        display: inline-flex;
-    }
-    .drive-hover-tooltip::after {
-        content: attr(data-tooltip);
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        line-height: 1;
-        white-space: nowrap;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.15s ease-in;
-        background: var(--tooltip-bg);
-        color: var(--tooltip-fg);
-        z-index: 10;
-    }
-    .drive-hover-tooltip.tooltip-above::after {
-        bottom: calc(100% + 6px);
-    }
-    .drive-hover-tooltip.tooltip-below::after {
-        top: calc(100% + 6px);
-    }
-    .drive-hover-tooltip:hover::after {
-        opacity: 1;
-    }
-`
 
 export default function DriveScreen() {
     const { viewMode, activeSection, currentItems, searchQuery, isSearching } = useDrive()
@@ -86,41 +55,53 @@ const TRASH_COLUMNS = [
 ]
 
 function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean }) {
+    const isMobile = useBreakpoint() === 'mobile'
     const folders = items.filter(i => i.isFolder)
     const files = items.filter(i => !i.isFolder)
 
     return (
-        <View style={styles.listContainer}>
-            <DataTableHeader columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS} />
-            {folders.map((item, i) =>
-                isTrash ? (
-                    <DriveContextMenu key={item.id} item={item}>
-                        <TrashListRow item={item} />
-                    </DriveContextMenu>
-                ) : (
-                    <DriveContextMenu key={item.id} item={item}>
-                        <FilesListRow item={item} index={i} />
-                    </DriveContextMenu>
-                )
-            )}
-            {files.map((item, i) =>
-                isTrash ? (
-                    <DriveContextMenu key={item.id} item={item}>
-                        <TrashListRow item={item} />
-                    </DriveContextMenu>
-                ) : (
-                    <DriveContextMenu key={item.id} item={item}>
-                        <FilesListRow item={item} index={folders.length + i} />
-                    </DriveContextMenu>
-                )
-            )}
-        </View>
+        <SwipeableRowProvider>
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: isMobile ? 0 : 16 }}
+            >
+                {!isMobile && <DataTableHeader columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS} />}
+                {folders.map((item, i) =>
+                    isTrash ? (
+                        <DriveContextMenu key={item.id} item={item}>
+                            <TrashListRow item={item} />
+                        </DriveContextMenu>
+                    ) : (
+                        <DriveContextMenu key={item.id} item={item}>
+                            <FilesListRow item={item} index={i} />
+                        </DriveContextMenu>
+                    )
+                )}
+                {files.map((item, i) =>
+                    isTrash ? (
+                        <DriveContextMenu key={item.id} item={item}>
+                            <TrashListRow item={item} />
+                        </DriveContextMenu>
+                    ) : (
+                        <DriveContextMenu key={item.id} item={item}>
+                            <FilesListRow item={item} index={folders.length + i} />
+                        </DriveContextMenu>
+                    )
+                )}
+            </ScrollView>
+        </SwipeableRowProvider>
     )
 }
 
 function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
-    useWebStyles('drive-hover-tooltip', tooltipCSS)
-    const theme = useTheme()
+    const [mutedColor, fgColor, borderColor, bgColor] = useThemeColor([
+        'muted',
+        'foreground',
+        'border',
+        'background',
+    ])
+    const activeIndicator = useAppThemeColor('active-indicator')
+    const isMobile = useBreakpoint() === 'mobile'
     const {
         selectedItemId,
         selectItem,
@@ -131,7 +112,7 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
         moveToTrash,
     } = useDrive()
     const isSelected = selectedItemId === item.id
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, theme.color8.val)
+    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const [isHovered, setIsHovered] = useState(false)
 
     const handleSingle = useCallback(() => selectItem(item.id), [item.id, selectItem])
@@ -141,8 +122,13 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
     }, [item, openPreview, navigateToFolder])
     const handlePress = useDoubleClick(handleSingle, handleDouble)
 
+    const handleMobilePress = useCallback(() => {
+        if (item.isFolder) navigateToFolder(item.id)
+        else openPreview(item)
+    }, [item, openPreview, navigateToFolder])
+
     const hoverWebProps =
-        Platform.OS === 'web'
+        Platform.OS === 'web' && !isMobile
             ? {
                   onMouseEnter: () => setIsHovered(true),
                   onMouseLeave: () => setIsHovered(false),
@@ -151,38 +137,133 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
 
     const tooltipPosition = index === 0 ? ('below' as const) : ('above' as const)
 
+    // Yellow color for star -- not available in theme tokens, using direct hex
+    const yellowColor = '#eab308'
+
+    const swipeActions = [
+        {
+            icon: Trash2,
+            label: 'Delete',
+            onPress: () => moveToTrash(item.id),
+            backgroundColor: '#ef4444',
+        },
+        {
+            icon: Download,
+            label: 'Download',
+            onPress: () => downloadItem(item.id),
+            backgroundColor: '#3b82f6',
+        },
+        {
+            icon: Star,
+            label: item.starred ? 'Unstar' : 'Star',
+            onPress: () => toggleStar(item.id),
+            backgroundColor: yellowColor,
+        },
+    ]
+
+    if (isMobile) {
+        const mobileRow = (
+            <Pressable
+                onPress={handleMobilePress}
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: borderColor,
+                    gap: 12,
+                }}
+            >
+                <FileIcon size={24} color={iconColor} />
+                <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                        numberOfLines={1}
+                        style={{ fontSize: 16, fontWeight: '500', color: fgColor }}
+                    >
+                        {item.name}
+                    </Text>
+                    <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
+                        {formatDate(item.updated)}
+                        {item.isFolder ? '' : ` · ${formatBytes(item.size)}`}
+                    </Text>
+                </View>
+                <Pressable
+                    style={{ padding: 4 }}
+                    onPress={e => {
+                        e.stopPropagation()
+                        toggleStar(item.id)
+                    }}
+                >
+                    <Star
+                        size={18}
+                        color={item.starred ? yellowColor : mutedColor}
+                        fill={item.starred ? yellowColor : 'transparent'}
+                    />
+                </Pressable>
+            </Pressable>
+        )
+
+        return <SwipeableRow actions={swipeActions}>{mobileRow}</SwipeableRow>
+    }
+
     return (
         <Pressable
             onPress={handlePress}
-            style={[
-                styles.listRow,
-                { borderBottomColor: theme.borderColor.val },
-                isSelected && { backgroundColor: `${theme.activeIndicator.val}12` },
-            ]}
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderBottomWidth: 1,
+                borderBottomColor: borderColor,
+                backgroundColor: isSelected ? `${activeIndicator}12` : bgColor,
+            }}
             {...hoverWebProps}
         >
-            <View style={[styles.nameCell, { flex: 3 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 3 }}>
                 <FileIcon size={20} color={iconColor} />
-                <Text style={[styles.nameText, { color: theme.color.val }]} numberOfLines={1}>
+                <Text
+                    numberOfLines={1}
+                    style={{
+                        fontSize: 13,
+                        fontWeight: '500',
+                        color: fgColor,
+                        flex: 1,
+                    }}
+                >
                     {item.name}
                 </Text>
             </View>
-            <Text style={[styles.cellText, { color: theme.color8.val, flex: 2 }]} numberOfLines={1}>
+            <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor, flex: 2 }}>
                 {item.owner}
             </Text>
-            <Text style={[styles.cellText, { color: theme.color8.val, flex: 2 }]}>
+            <Text style={{ fontSize: 12, color: mutedColor, flex: 2 }}>
                 {formatDate(item.updated)}
             </Text>
-            <Text style={[styles.cellText, { color: theme.color8.val, flex: 1 }]}>
-                {item.isFolder ? '—' : formatBytes(item.size)}
+            <Text style={{ fontSize: 12, color: mutedColor, flex: 1 }}>
+                {item.isFolder ? '\u2014' : formatBytes(item.size)}
             </Text>
-            <View style={styles.actionsCell}>
+            <View
+                style={{
+                    width: 80,
+                    flexShrink: 0,
+                    position: 'relative',
+                    alignItems: 'flex-end',
+                    justifyContent: 'center',
+                }}
+            >
                 <Pressable
-                    style={[
-                        styles.hoverActions,
-                        { backgroundColor: theme.background.val },
-                        !isHovered && styles.hidden,
-                    ]}
+                    style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: bgColor,
+                        ...(isHovered ? {} : { opacity: 0, pointerEvents: 'none' as const }),
+                    }}
                     onPress={e => e.stopPropagation()}
                 >
                     <ConfirmTrash itemName={item.name} onConfirmed={() => moveToTrash(item.id)}>
@@ -191,7 +272,6 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
                                 icon={Trash2}
                                 label="Delete"
                                 onPress={onOpen}
-                                theme={theme}
                                 tooltipPosition={tooltipPosition}
                             />
                         )}
@@ -200,21 +280,22 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
                         icon={Download}
                         label="Download"
                         onPress={() => downloadItem(item.id)}
-                        theme={theme}
                         tooltipPosition={tooltipPosition}
                     />
                     <HoverAction
                         icon={Star}
                         label={item.starred ? 'Unstar' : 'Star'}
                         onPress={() => toggleStar(item.id)}
-                        theme={theme}
-                        iconColor={item.starred ? theme.color8.val : theme.yellow8.val}
-                        iconFill={item.starred ? 'transparent' : theme.yellow8.val}
+                        iconColor={item.starred ? mutedColor : yellowColor}
+                        iconFill={item.starred ? 'transparent' : yellowColor}
                         tooltipPosition={tooltipPosition}
                     />
                 </Pressable>
                 <Pressable
-                    style={[styles.starButton, isHovered && styles.hidden]}
+                    style={{
+                        padding: 4,
+                        ...(isHovered ? { opacity: 0, pointerEvents: 'none' as const } : {}),
+                    }}
                     onPress={e => {
                         e.stopPropagation()
                         toggleStar(item.id)
@@ -222,8 +303,8 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
                 >
                     <Star
                         size={16}
-                        color={item.starred ? theme.yellow8.val : theme.color8.val}
-                        fill={item.starred ? theme.yellow8.val : 'transparent'}
+                        color={item.starred ? yellowColor : mutedColor}
+                        fill={item.starred ? yellowColor : 'transparent'}
                     />
                 </Pressable>
             </View>
@@ -232,96 +313,98 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
 }
 
 function TrashListRow({ item }: { item: DriveItemView }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
+    const activeIndicator = useAppThemeColor('active-indicator')
+    const isMobile = useBreakpoint() === 'mobile'
     const { selectedItemId, selectItem } = useDrive()
     const isSelected = selectedItemId === item.id
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, theme.color8.val)
+    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
+
+    if (isMobile) {
+        return (
+            <Pressable
+                onPress={() => selectItem(item.id)}
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: borderColor,
+                    gap: 12,
+                }}
+            >
+                <FileIcon size={24} color={iconColor} />
+                <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                        numberOfLines={1}
+                        style={{ fontSize: 16, fontWeight: '500', color: fgColor }}
+                    >
+                        {item.name}
+                    </Text>
+                    <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
+                        Deleted {formatDate(item.trashedAt)}
+                        {item.isFolder ? '' : ` · ${formatBytes(item.size)}`}
+                    </Text>
+                </View>
+            </Pressable>
+        )
+    }
 
     return (
         <Pressable
             onPress={() => selectItem(item.id)}
-            style={[
-                styles.listRow,
-                { borderBottomColor: theme.borderColor.val },
-                isSelected && { backgroundColor: `${theme.activeIndicator.val}12` },
-            ]}
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderBottomWidth: 1,
+                borderBottomColor: borderColor,
+                ...(isSelected ? { backgroundColor: `${activeIndicator}12` } : {}),
+            }}
         >
-            <View style={[styles.nameCell, { flex: 3 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 3 }}>
                 <FileIcon size={20} color={iconColor} />
-                <Text style={[styles.nameText, { color: theme.color.val }]} numberOfLines={1}>
+                <Text
+                    numberOfLines={1}
+                    style={{
+                        fontSize: 13,
+                        fontWeight: '500',
+                        color: fgColor,
+                        flex: 1,
+                    }}
+                >
                     {item.name}
                 </Text>
             </View>
-            <Text style={[styles.cellText, { color: theme.color8.val, flex: 2 }]}>
+            <Text style={{ fontSize: 12, color: mutedColor, flex: 2 }}>
                 {formatDate(item.trashedAt)}
             </Text>
-            <Text style={[styles.cellText, { color: theme.color8.val, flex: 1 }]}>
-                {item.isFolder ? '—' : formatBytes(item.size)}
+            <Text style={{ fontSize: 12, color: mutedColor, flex: 1 }}>
+                {item.isFolder ? '\u2014' : formatBytes(item.size)}
             </Text>
         </Pressable>
-    )
-}
-
-function HoverAction({
-    icon: Icon,
-    label,
-    onPress,
-    theme,
-    iconColor,
-    iconFill,
-    tooltipPosition = 'above',
-}: {
-    icon: LucideIcon
-    label: string
-    onPress: () => void
-    theme: ReturnType<typeof useTheme>
-    iconColor?: string
-    iconFill?: string
-    tooltipPosition?: 'above' | 'below'
-}) {
-    const button = (
-        <Pressable
-            style={styles.hoverButton}
-            onPress={e => {
-                e.stopPropagation()
-                e.preventDefault()
-                onPress()
-            }}
-            accessibilityLabel={label}
-        >
-            <Icon size={16} color={iconColor ?? theme.color8.val} fill={iconFill ?? 'none'} />
-        </Pressable>
-    )
-
-    if (Platform.OS !== 'web') return button
-
-    const tooltipStyle = {
-        '--tooltip-bg': theme.color2.val,
-        '--tooltip-fg': theme.color12.val,
-    }
-
-    return (
-        <div
-            data-tooltip={label}
-            className={`drive-hover-tooltip tooltip-${tooltipPosition}`}
-            style={tooltipStyle as never}
-        >
-            {button}
-        </div>
     )
 }
 
 const GRID_GAP = 12
 const GRID_PADDING = 16
-const CARD_MIN = 200
+const CARD_MIN_DESKTOP = 200
+const CARD_MIN_MOBILE = 150
 
 function useGridLayout() {
-    const [cardWidth, setCardWidth] = useState(CARD_MIN)
-    const onLayout = useCallback((e: LayoutChangeEvent) => {
-        const w = e.nativeEvent.layout.width - GRID_PADDING * 2
-        const cols = Math.max(1, Math.floor((w + GRID_GAP) / (CARD_MIN + GRID_GAP)))
-        setCardWidth(Math.floor((w - GRID_GAP * (cols - 1)) / cols))
-    }, [])
+    const isMobile = useBreakpoint() === 'mobile'
+    const cardMin = isMobile ? CARD_MIN_MOBILE : CARD_MIN_DESKTOP
+    const [cardWidth, setCardWidth] = useState(cardMin)
+    const onLayout = useCallback(
+        (e: LayoutChangeEvent) => {
+            const w = e.nativeEvent.layout.width - GRID_PADDING * 2
+            const cols = Math.max(2, Math.floor((w + GRID_GAP) / (cardMin + GRID_GAP)))
+            setCardWidth(Math.floor((w - GRID_GAP * (cols - 1)) / cols))
+        },
+        [cardMin]
+    )
     return { cardWidth, onLayout }
 }
 
@@ -331,11 +414,11 @@ function GridView({ items }: { items: DriveItemView[] }) {
     const { cardWidth, onLayout } = useGridLayout()
 
     return (
-        <View style={styles.gridContainer} onLayout={onLayout}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} onLayout={onLayout}>
             {folders.length > 0 && (
-                <View style={styles.gridSection}>
+                <View style={{ marginBottom: 20 }}>
                     <GridSectionHeader title="Folders" />
-                    <View style={styles.gridWrap}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                         {folders.map(item => (
                             <View key={item.id} style={{ width: cardWidth }}>
                                 <DriveContextMenu item={item}>
@@ -347,9 +430,9 @@ function GridView({ items }: { items: DriveItemView[] }) {
                 </View>
             )}
             {files.length > 0 && (
-                <View style={styles.gridSection}>
+                <View style={{ marginBottom: 20 }}>
                     <GridSectionHeader title="Files" />
-                    <View style={styles.gridWrap}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                         {files.map(item => (
                             <View key={item.id} style={{ width: cardWidth }}>
                                 <DriveContextMenu item={item}>
@@ -360,36 +443,66 @@ function GridView({ items }: { items: DriveItemView[] }) {
                     </View>
                 </View>
             )}
-        </View>
+        </ScrollView>
     )
 }
 
 function GridSectionHeader({ title }: { title: string }) {
-    const theme = useTheme()
-    return <Text style={[styles.gridSectionTitle, { color: theme.color8.val }]}>{title}</Text>
+    const mutedColor = useThemeColor('muted')
+
+    return (
+        <Text
+            style={{
+                fontSize: 12,
+                fontWeight: '600',
+                color: mutedColor,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                marginBottom: 10,
+            }}
+        >
+            {title}
+        </Text>
+    )
 }
 
 function FolderGridCard({ item }: { item: DriveItemView }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
+    const activeIndicator = useAppThemeColor('active-indicator')
+    const isMobile = useBreakpoint() === 'mobile'
     const { selectedItemId, selectItem, navigateToFolder } = useDrive()
     const isSelected = selectedItemId === item.id
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, theme.color8.val)
+    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
     const handleSingle = useCallback(() => selectItem(item.id), [item.id, selectItem])
     const handleDouble = useCallback(() => navigateToFolder(item.id), [item.id, navigateToFolder])
-    const handlePress = useDoubleClick(handleSingle, handleDouble)
+    const handleDesktopPress = useDoubleClick(handleSingle, handleDouble)
+    const handlePress = isMobile ? handleDouble : handleDesktopPress
 
     return (
         <Pressable
             onPress={handlePress}
-            style={[
-                styles.folderCard,
-                { borderColor: theme.borderColor.val },
-                isSelected && { borderColor: theme.activeIndicator.val, borderWidth: 2 },
-            ]}
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderWidth: isSelected ? 2 : 1,
+                borderRadius: 8,
+                borderColor: isSelected ? activeIndicator : borderColor,
+            }}
         >
             <FileIcon size={20} color={iconColor} />
-            <Text style={[styles.cardName, { color: theme.color.val }]} numberOfLines={1}>
+            <Text
+                numberOfLines={1}
+                style={{
+                    fontSize: 12,
+                    fontWeight: '500',
+                    color: fgColor,
+                    flex: 1,
+                }}
+            >
                 {item.name}
             </Text>
         </Pressable>
@@ -397,137 +510,62 @@ function FolderGridCard({ item }: { item: DriveItemView }) {
 }
 
 function FileGridCard({ item }: { item: DriveItemView }) {
-    const theme = useTheme()
+    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
+    const activeIndicator = useAppThemeColor('active-indicator')
+    const isMobile = useBreakpoint() === 'mobile'
     const { selectedItemId, selectItem, openPreview } = useDrive()
     const isSelected = selectedItemId === item.id
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, theme.color8.val)
+    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
     const handleSingle = useCallback(() => selectItem(item.id), [item.id, selectItem])
     const handleDouble = useCallback(() => openPreview(item), [item, openPreview])
-    const handlePress = useDoubleClick(handleSingle, handleDouble)
+    const handleDesktopPress = useDoubleClick(handleSingle, handleDouble)
+    const handlePress = isMobile ? handleDouble : handleDesktopPress
 
     return (
         <Pressable
             onPress={handlePress}
-            style={[
-                styles.fileCard,
-                { borderColor: theme.borderColor.val },
-                isSelected && { borderColor: theme.activeIndicator.val, borderWidth: 2 },
-            ]}
+            style={{
+                borderWidth: isSelected ? 2 : 1,
+                borderRadius: 8,
+                overflow: 'hidden',
+                borderColor: isSelected ? activeIndicator : borderColor,
+            }}
         >
-            <View style={[styles.fileCardHeader, { borderBottomColor: theme.borderColor.val }]}>
+            <View
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                    borderBottomWidth: 1,
+                    borderBottomColor: borderColor,
+                }}
+            >
                 <FileIcon size={18} color={iconColor} />
-                <Text style={[styles.cardName, { color: theme.color.val }]} numberOfLines={1}>
+                <Text
+                    numberOfLines={1}
+                    style={{
+                        fontSize: 12,
+                        fontWeight: '500',
+                        color: fgColor,
+                        flex: 1,
+                    }}
+                >
                     {item.name}
                 </Text>
             </View>
-            <View style={[styles.fileCardBody, { backgroundColor: `${theme.color8.val}08` }]}>
+            <View
+                style={{
+                    height: 120,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: `${mutedColor}08`,
+                }}
+            >
                 <Thumbnail item={item} size={120} />
             </View>
         </Pressable>
     )
 }
-
-const styles = StyleSheet.create({
-    listContainer: {
-        flex: 1,
-        paddingHorizontal: 16,
-    },
-    listRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-    },
-    nameCell: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    nameText: {
-        fontSize: 14,
-        fontWeight: '500',
-        flex: 1,
-    },
-    cellText: {
-        fontSize: 13,
-    },
-    actionsCell: {
-        width: 80,
-        flexShrink: 0,
-        position: 'relative',
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-    },
-    hoverActions: {
-        position: 'absolute',
-        right: 0,
-        top: 0,
-        bottom: 0,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    hoverButton: {
-        padding: 6,
-        borderRadius: 16,
-    },
-    starButton: {
-        padding: 4,
-    },
-    hidden: {
-        opacity: 0,
-        pointerEvents: 'none' as const,
-    },
-    gridContainer: {
-        flex: 1,
-        padding: 16,
-    },
-    gridSection: {
-        marginBottom: 20,
-    },
-    gridSectionTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 10,
-    },
-    gridWrap: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-    },
-    folderCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderWidth: 1,
-        borderRadius: 8,
-    },
-    fileCard: {
-        borderWidth: 1,
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    fileCardHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-    },
-    fileCardBody: {
-        height: 120,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    cardName: {
-        fontSize: 13,
-        fontWeight: '500',
-        flex: 1,
-    },
-})
