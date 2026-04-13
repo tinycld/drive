@@ -7,7 +7,7 @@ import { GenericPreview } from './GenericPreview'
 
 export function AudioPreview(props: PreviewProps) {
     const { item } = props
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const fileUrl = getFileURL(item)

@@ -100,7 +100,7 @@ export function ChooseFolderDialog({
 }
 
 function RootItem({ isSelected, onSelect }: { isSelected: boolean; onSelect: () => void }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const accentColor = useThemeColor('accent')
 
@@ -179,7 +179,7 @@ function PickerTreeItem({
     onSelect: (id: string) => void
     depth: number
 }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const accentColor = useThemeColor('accent')
     const [expanded, setExpanded] = useState(false)

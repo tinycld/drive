@@ -14,7 +14,7 @@ import {
 import type { ReactNode } from 'react'
 import { ContextMenu } from '~/components/ContextMenu'
 import { useThemeColor } from '~/lib/use-app-theme'
-import { MenuItem, MenuItemLabel, MenuSeparator } from '~/ui/menu'
+import { Menu, Separator } from '~/ui/menu'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveItemView } from '../types'
 
@@ -24,7 +24,7 @@ interface DriveContextMenuProps {
 }
 
 export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const {
         activeSection,
         openPreview,
@@ -121,7 +121,7 @@ function NormalMenuItems({
                 onPress={onDownload}
                 mutedColor={mutedColor}
             />
-            <MenuSeparator className="my-1 mx-2" />
+            <Separator className="my-1 mx-2" />
             <ContextMenuItem
                 label={item.starred ? 'Remove star' : 'Add star'}
                 icon={item.starred ? StarOff : Star}
@@ -146,7 +146,7 @@ function NormalMenuItems({
                 onPress={onMove}
                 mutedColor={mutedColor}
             />
-            <MenuSeparator className="my-1 mx-2" />
+            <Separator className="my-1 mx-2" />
             <ContextMenuItem
                 label="Move to trash"
                 icon={Trash2}
@@ -180,7 +180,7 @@ function TrashMenuItems({
                 onPress={handleRestore}
                 mutedColor={mutedColor}
             />
-            <MenuSeparator className="my-1 mx-2" />
+            <Separator className="my-1 mx-2" />
             <ContextMenuItem
                 label="Delete permanently"
                 icon={Trash2}
@@ -203,9 +203,9 @@ function ContextMenuItem({
     mutedColor: string
 }) {
     return (
-        <MenuItem onPress={onPress} textValue={label}>
+        <Menu.Item onPress={onPress}>
             <Icon size={16} color={mutedColor} />
-            <MenuItemLabel>{label}</MenuItemLabel>
-        </MenuItem>
+            <Menu.ItemTitle>{label}</Menu.ItemTitle>
+        </Menu.Item>
     )
 }

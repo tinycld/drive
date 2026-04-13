@@ -80,7 +80,7 @@ function VideoPreview({ url, mimeType }: { url: string; mimeType: string }) {
 }
 
 function AudioPreview({ url, name, mimeType }: { url: string; name: string; mimeType: string }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
 
     if (Platform.OS !== 'web') {
@@ -114,7 +114,7 @@ function GenericPreview({
     mimeType: string
     size: number
 }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
 
     return (

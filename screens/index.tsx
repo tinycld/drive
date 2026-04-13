@@ -93,7 +93,7 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
 }
 
 function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const bgColor = useThemeColor('background')
@@ -310,7 +310,7 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
 }
 
 function TrashListRow({ item }: { item: DriveItemView }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const activeIndicator = useThemeColor('active-indicator')
@@ -447,7 +447,7 @@ function GridView({ items }: { items: DriveItemView[] }) {
 }
 
 function GridSectionHeader({ title }: { title: string }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
 
     return (
         <Text
@@ -466,7 +466,7 @@ function GridSectionHeader({ title }: { title: string }) {
 }
 
 function FolderGridCard({ item }: { item: DriveItemView }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const activeIndicator = useThemeColor('active-indicator')
@@ -511,7 +511,7 @@ function FolderGridCard({ item }: { item: DriveItemView }) {
 }
 
 function FileGridCard({ item }: { item: DriveItemView }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const activeIndicator = useThemeColor('active-indicator')

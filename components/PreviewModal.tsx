@@ -48,7 +48,7 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
 }
 
 function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const _bgColor = useThemeColor('background')

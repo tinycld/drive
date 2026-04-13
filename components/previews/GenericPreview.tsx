@@ -7,7 +7,7 @@ import type { PreviewProps } from '../../lib/preview-registry'
 import { getFileIcon } from '../file-icons'
 
 export function GenericPreview({ item }: PreviewProps) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const accentColor = useThemeColor('accent')
     const accentFgColor = useThemeColor('accent-foreground')

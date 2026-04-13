@@ -70,7 +70,7 @@ export function ShareDialog({
     onRemoveShare,
     onClose,
 }: ShareDialogProps) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const accentColor = useThemeColor('accent')
@@ -628,7 +628,7 @@ function GeneralAccessSection({
     onCopyPublicLink: () => void
     linkCopied: boolean
 }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const accentColor = useThemeColor('accent')

@@ -42,7 +42,7 @@ class ShareLinkError extends Error {
 }
 
 function ErrorDisplay({ error }: { error: ShareLinkError }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const isExpired = error.status === 410
     const title = isExpired ? 'Link expired' : 'Link not found'
@@ -76,7 +76,7 @@ function ErrorDisplay({ error }: { error: ShareLinkError }) {
 }
 
 function LoadingDisplay() {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
 
     return (
         <View
@@ -145,7 +145,7 @@ function PreviewHeader({
     orgName: string
     downloadUrl: string
 }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
 

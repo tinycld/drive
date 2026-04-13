@@ -80,10 +80,9 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
     return (
         <SidebarNav>
             <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
-                <Menu
-                    trigger={triggerProps => (
+                <Menu>
+                    <Menu.Trigger>
                         <Pressable
-                            {...triggerProps}
                             style={{
                                 flexDirection: 'row',
                                 alignItems: 'center',
@@ -105,12 +104,22 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                                 New
                             </Text>
                         </Pressable>
-                    )}
-                    placement="bottom left"
-                    className="min-w-[200px]"
-                >
-                    <MenuActionItem label="Upload file" icon={Upload} onPress={triggerFilePicker} />
-                    <MenuActionItem label="New folder" icon={FolderPlus} onPress={() => {}} />
+                    </Menu.Trigger>
+                    <Menu.Portal>
+                        <Menu.Overlay />
+                        <Menu.Content presentation="popover" placement="bottom" align="start">
+                            <MenuActionItem
+                                label="Upload file"
+                                icon={Upload}
+                                onPress={triggerFilePicker}
+                            />
+                            <MenuActionItem
+                                label="New folder"
+                                icon={FolderPlus}
+                                onPress={() => {}}
+                            />
+                        </Menu.Content>
+                    </Menu.Portal>
                 </Menu>
             </View>
 
@@ -225,7 +234,7 @@ function FolderTreeItem({
     onSelect,
     depth,
 }: FolderTreeItemProps) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const activeIndicator = useThemeColor('active-indicator')
     const isExpanded = expandedIds.has(node.item.id)
@@ -286,7 +295,7 @@ function FolderTreeItem({
 }
 
 function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const accentColor = useThemeColor('accent')
     const percentage = (usedGB / totalGB) * 100
 

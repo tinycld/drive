@@ -8,7 +8,7 @@ export function CodePreview({ item }: PreviewProps) {
     const [content, setContent] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const fgColor = useThemeColor('foreground')
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fileUrl = getFileURL(item)
 
     const loadContent = useCallback(async () => {

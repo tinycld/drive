@@ -25,7 +25,7 @@ export function DetailPanel({ isVisible, item, onClose }: DetailPanelProps) {
 type DetailTab = 'details' | 'versions' | 'activity'
 
 function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const _accentColor = useThemeColor('accent')
@@ -88,7 +88,7 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
 }
 
 function DetailsContent({ item }: { item: DriveItemView }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const accentColor = useThemeColor('accent')
@@ -382,7 +382,7 @@ function RestoreConfirmDialog({
     onConfirm,
 }: RestoreConfirmDialogProps) {
     const fgColor = useThemeColor('foreground')
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const accentColor = useThemeColor('accent')
     const accentFgColor = useThemeColor('accent-foreground')
 
@@ -444,7 +444,7 @@ interface VersionRowProps {
 }
 
 function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowProps) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
 
@@ -489,7 +489,7 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
 }
 
 function NeutralMessage({ children }: { children: string }) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     return (
         <Text
             style={{

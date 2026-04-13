@@ -93,7 +93,7 @@ export function DriveDialogs() {
 }
 
 export function DriveToolbar() {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'

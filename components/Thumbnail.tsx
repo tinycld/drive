@@ -10,7 +10,7 @@ interface ThumbnailProps {
 }
 
 export function Thumbnail({ item, size = 120 }: ThumbnailProps) {
-    const mutedColor = useThemeColor('muted')
+    const mutedColor = useThemeColor('muted-foreground')
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
     const thumbnailUrl = getThumbnailURL(item, `${size}x${size}`)
