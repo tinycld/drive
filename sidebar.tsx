@@ -35,7 +35,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         totalStorageUsed,
         triggerFilePicker,
     } = useDrive()
-    const accentColor = useThemeColor('accent')
+    const primaryColor = useThemeColor('primary')
     const accentFgColor = useThemeColor('accent-foreground')
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
@@ -90,7 +90,9 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                                 paddingHorizontal: 16,
                                 paddingVertical: 10,
                                 borderRadius: 20,
-                                backgroundColor: accentColor,
+                                borderWidth: 1,
+                                borderColor: `${primaryColor}40`,
+                                backgroundColor: `${primaryColor}12`,
                             }}
                         >
                             <Plus size={16} color={accentFgColor} />
@@ -296,7 +298,7 @@ function FolderTreeItem({
 
 function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const accentColor = useThemeColor('accent')
+    const primaryColor = useThemeColor('primary')
     const percentage = (usedGB / totalGB) * 100
 
     return (
@@ -314,7 +316,7 @@ function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
                         height: '100%',
                         borderRadius: 2,
                         width: `${percentage}%`,
-                        backgroundColor: accentColor,
+                        backgroundColor: primaryColor,
                     }}
                 />
             </View>
