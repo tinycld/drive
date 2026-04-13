@@ -1,5 +1,5 @@
-import { useThemeColor } from 'heroui-native'
 import { Platform, Text, View } from 'react-native'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
 import { getFileIcon } from '../file-icons'

@@ -1,12 +1,13 @@
 import { useLiveQuery } from '@tanstack/react-db'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Dialog, useThemeColor } from 'heroui-native'
 import { ChevronDown, Globe, Link, Lock, Trash2 } from 'lucide-react-native'
 import { useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native'
 import { NameAvatar } from '~/components/NameAvatar'
 import { captureException } from '~/lib/errors'
 import { pb, useStore } from '~/lib/pocketbase'
+import { useThemeColor } from '~/lib/use-app-theme'
+import { Modal, ModalBackdrop, ModalContent } from '~/ui/modal'
 import { PlainInput } from '~/ui/PlainInput'
 
 interface OrgMember {
@@ -69,16 +70,13 @@ export function ShareDialog({
     onRemoveShare,
     onClose,
 }: ShareDialogProps) {
-    const [mutedColor, fgColor, borderColor, accentColor, accentFgColor, bgColor, _surfaceBgColor] =
-        useThemeColor([
-            'muted',
-            'foreground',
-            'border',
-            'accent',
-            'accent-foreground',
-            'background',
-            'surface-secondary',
-        ])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const accentColor = useThemeColor('accent')
+    const accentFgColor = useThemeColor('accent-foreground')
+    const bgColor = useThemeColor('background')
+    const _surfaceBgColor = useThemeColor('surface-secondary')
     const [search, setSearch] = useState('')
     const [defaultRole, setDefaultRole] = useState<'editor' | 'viewer'>('editor')
     const [pending, setPending] = useState<PendingShare[]>([])
@@ -234,198 +232,133 @@ export function ShareDialog({
     const otherShares = shares.filter(s => s.userOrgId !== currentUserOrgId)
 
     return (
-        <Dialog
-            isOpen={open}
-            onOpenChange={o => {
-                if (!o) onClose()
-            }}
-        >
-            <Dialog.Portal>
-                <Dialog.Overlay />
-                <Dialog.Content className="w-[540px] p-0 rounded-2xl">
+        <Modal isOpen={open} onClose={onClose}>
+            <ModalBackdrop />
+            <ModalContent className="w-[540px] p-0 rounded-2xl">
+                <View
+                    style={{
+                        paddingHorizontal: 24,
+                        paddingTop: 28,
+                        paddingBottom: 16,
+                    }}
+                >
+                    <Text style={{ fontSize: 28, color: fgColor }}>
+                        Share &ldquo;{itemName}&rdquo;
+                    </Text>
+                </View>
+
+                <View
+                    style={{
+                        paddingHorizontal: 24,
+                        paddingBottom: 20,
+                        position: 'relative',
+                        zIndex: 100,
+                        overflow: 'visible',
+                    }}
+                >
                     <View
                         style={{
-                            paddingHorizontal: 24,
-                            paddingTop: 28,
-                            paddingBottom: 16,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 8,
+                            borderWidth: 2,
+                            borderRadius: 8,
+                            paddingHorizontal: 14,
+                            paddingVertical: 14,
+                            borderColor: accentColor,
                         }}
                     >
-                        <Text style={{ fontSize: 28, color: fgColor }}>
-                            Share &ldquo;{itemName}&rdquo;
-                        </Text>
+                        <PlainInput
+                            value={search}
+                            onChangeText={setSearch}
+                            placeholder="Add people by name or email"
+                            placeholderTextColor={accentColor}
+                            style={{ flex: 1, fontSize: 15, color: fgColor }}
+                            autoFocus
+                        />
+                        <RolePicker
+                            value={defaultRole}
+                            onChange={setDefaultRole}
+                            mutedColor={mutedColor}
+                            fgColor={fgColor}
+                            borderColor={borderColor}
+                        />
                     </View>
 
-                    <View
-                        style={{
-                            paddingHorizontal: 24,
-                            paddingBottom: 20,
-                            position: 'relative',
-                            zIndex: 100,
-                            overflow: 'visible',
-                        }}
-                    >
+                    {suggestions.length > 0 && (
                         <View
                             style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 8,
-                                borderWidth: 2,
-                                borderRadius: 8,
-                                paddingHorizontal: 14,
-                                paddingVertical: 14,
-                                borderColor: accentColor,
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                right: 0,
+                                zIndex: 2000,
+                                marginTop: 2,
+                                borderWidth: 1,
+                                borderRadius: 12,
+                                borderColor,
+                                backgroundColor: bgColor,
+                                overflow: 'hidden',
+                                ...(webShadow as object),
                             }}
                         >
-                            <PlainInput
-                                value={search}
-                                onChangeText={setSearch}
-                                placeholder="Add people by name or email"
-                                placeholderTextColor={accentColor}
-                                style={{ flex: 1, fontSize: 15, color: fgColor }}
-                                autoFocus
-                            />
-                            <RolePicker
-                                value={defaultRole}
-                                onChange={setDefaultRole}
-                                mutedColor={mutedColor}
-                                fgColor={fgColor}
-                                borderColor={borderColor}
-                            />
-                        </View>
-
-                        {suggestions.length > 0 && (
-                            <View
-                                style={{
-                                    position: 'absolute',
-                                    top: '100%',
-                                    left: 0,
-                                    right: 0,
-                                    zIndex: 2000,
-                                    marginTop: 2,
-                                    borderWidth: 1,
-                                    borderRadius: 12,
-                                    borderColor,
-                                    backgroundColor: bgColor,
-                                    overflow: 'hidden',
-                                    ...(webShadow as object),
-                                }}
+                            <ScrollView
+                                style={{ maxHeight: 300 }}
+                                keyboardShouldPersistTaps="handled"
                             >
-                                <ScrollView
-                                    style={{ maxHeight: 300 }}
-                                    keyboardShouldPersistTaps="handled"
-                                >
-                                    {suggestions.map(s => {
-                                        const firstName =
-                                            s.name.split(' ')[0] || s.email.split('@')[0]
-                                        const lastName = s.name.split(' ').slice(1).join(' ')
+                                {suggestions.map(s => {
+                                    const firstName = s.name.split(' ')[0] || s.email.split('@')[0]
+                                    const lastName = s.name.split(' ').slice(1).join(' ')
 
-                                        return (
-                                            <Pressable
-                                                key={s.key}
-                                                onPress={() => handleSelect(s)}
-                                                style={{
-                                                    flexDirection: 'row',
-                                                    alignItems: 'center',
-                                                    gap: 8,
-                                                    paddingHorizontal: 12,
-                                                    paddingVertical: 10,
-                                                }}
-                                            >
-                                                <NameAvatar
-                                                    firstName={firstName}
-                                                    lastName={lastName}
-                                                    size={40}
-                                                />
-                                                <View style={{ flex: 1, gap: 2 }}>
-                                                    <Text
-                                                        style={{
-                                                            fontSize: 13,
-                                                            fontWeight: '500',
-                                                            color: fgColor,
-                                                        }}
-                                                    >
-                                                        {s.name || s.email}
-                                                    </Text>
-                                                    <Text
-                                                        style={{
-                                                            fontSize: 12,
-                                                            color: mutedColor,
-                                                        }}
-                                                    >
-                                                        {s.email}
-                                                    </Text>
-                                                </View>
-                                            </Pressable>
-                                        )
-                                    })}
-                                </ScrollView>
-                            </View>
-                        )}
-                    </View>
-
-                    {pending.length > 0 && (
-                        <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
-                            {pending.map(p => (
-                                <View
-                                    key={p.key}
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 12,
-                                        paddingVertical: 6,
-                                    }}
-                                >
-                                    <NameAvatar firstName={p.name || p.email} size={36} />
-                                    <View style={{ flex: 1, gap: 1 }}>
-                                        <Text
-                                            numberOfLines={1}
+                                    return (
+                                        <Pressable
+                                            key={s.key}
+                                            onPress={() => handleSelect(s)}
                                             style={{
-                                                fontSize: 13,
-                                                fontWeight: '500',
-                                                color: fgColor,
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                paddingHorizontal: 12,
+                                                paddingVertical: 10,
                                             }}
                                         >
-                                            {p.name || p.email}
-                                        </Text>
-                                        <Text
-                                            numberOfLines={1}
-                                            style={{ fontSize: 12, color: mutedColor }}
-                                        >
-                                            {p.email}
-                                        </Text>
-                                    </View>
-                                    <RolePicker
-                                        value={p.role}
-                                        onChange={role => setPendingRole(p.key, role)}
-                                        mutedColor={mutedColor}
-                                        fgColor={fgColor}
-                                        borderColor={borderColor}
-                                    />
-                                    <Pressable
-                                        onPress={() => removePending(p.key)}
-                                        style={{ padding: 6 }}
-                                    >
-                                        <Trash2 size={14} color={mutedColor} />
-                                    </Pressable>
-                                </View>
-                            ))}
+                                            <NameAvatar
+                                                firstName={firstName}
+                                                lastName={lastName}
+                                                size={40}
+                                            />
+                                            <View style={{ flex: 1, gap: 2 }}>
+                                                <Text
+                                                    style={{
+                                                        fontSize: 13,
+                                                        fontWeight: '500',
+                                                        color: fgColor,
+                                                    }}
+                                                >
+                                                    {s.name || s.email}
+                                                </Text>
+                                                <Text
+                                                    style={{
+                                                        fontSize: 12,
+                                                        color: mutedColor,
+                                                    }}
+                                                >
+                                                    {s.email}
+                                                </Text>
+                                            </View>
+                                        </Pressable>
+                                    )
+                                })}
+                            </ScrollView>
                         </View>
                     )}
+                </View>
 
+                {pending.length > 0 && (
                     <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
-                        <Text
-                            style={{
-                                fontSize: 16,
-                                fontWeight: '600',
-                                color: fgColor,
-                                marginBottom: 12,
-                            }}
-                        >
-                            People with access
-                        </Text>
-
-                        {currentUserShare && (
+                        {pending.map(p => (
                             <View
+                                key={p.key}
                                 style={{
                                     flexDirection: 'row',
                                     alignItems: 'center',
@@ -433,47 +366,7 @@ export function ShareDialog({
                                     paddingVertical: 6,
                                 }}
                             >
-                                <NameAvatar
-                                    firstName={currentUserShare.name || currentUserShare.email}
-                                    size={36}
-                                />
-                                <View style={{ flex: 1, gap: 1 }}>
-                                    <Text
-                                        style={{
-                                            fontSize: 13,
-                                            fontWeight: '500',
-                                            color: fgColor,
-                                        }}
-                                    >
-                                        {currentUserShare.name || currentUserShare.email} (you)
-                                    </Text>
-                                    <Text style={{ fontSize: 12, color: mutedColor }}>
-                                        {currentUserShare.email}
-                                    </Text>
-                                </View>
-                                <Text
-                                    style={{
-                                        fontSize: 12,
-                                        color: mutedColor,
-                                        textTransform: 'capitalize',
-                                    }}
-                                >
-                                    Owner
-                                </Text>
-                            </View>
-                        )}
-
-                        {otherShares.map(share => (
-                            <View
-                                key={share.id}
-                                style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 12,
-                                    paddingVertical: 6,
-                                }}
-                            >
-                                <NameAvatar firstName={share.name || share.email} size={36} />
+                                <NameAvatar firstName={p.name || p.email} size={36} />
                                 <View style={{ flex: 1, gap: 1 }}>
                                     <Text
                                         numberOfLines={1}
@@ -483,26 +376,24 @@ export function ShareDialog({
                                             color: fgColor,
                                         }}
                                     >
-                                        {share.name || share.email}
+                                        {p.name || p.email}
                                     </Text>
                                     <Text
                                         numberOfLines={1}
                                         style={{ fontSize: 12, color: mutedColor }}
                                     >
-                                        {share.email}
+                                        {p.email}
                                     </Text>
                                 </View>
-                                <Text
-                                    style={{
-                                        fontSize: 12,
-                                        color: mutedColor,
-                                        textTransform: 'capitalize',
-                                    }}
-                                >
-                                    {share.role}
-                                </Text>
+                                <RolePicker
+                                    value={p.role}
+                                    onChange={role => setPendingRole(p.key, role)}
+                                    mutedColor={mutedColor}
+                                    fgColor={fgColor}
+                                    borderColor={borderColor}
+                                />
                                 <Pressable
-                                    onPress={() => onRemoveShare(share.id)}
+                                    onPress={() => removePending(p.key)}
                                     style={{ padding: 6 }}
                                 >
                                     <Trash2 size={14} color={mutedColor} />
@@ -510,122 +401,217 @@ export function ShareDialog({
                             </View>
                         ))}
                     </View>
+                )}
 
-                    <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
-                        <Text
-                            style={{
-                                fontSize: 16,
-                                fontWeight: '600',
-                                color: fgColor,
-                                marginBottom: 12,
-                            }}
-                        >
-                            General access
-                        </Text>
-                        <GeneralAccessSection
-                            activeShareLink={activeShareLink}
-                            isCreatingPublicLink={isCreatingPublicLink}
-                            onTogglePublicLink={async () => {
-                                if (activeShareLink) {
-                                    try {
-                                        await pb.send(
-                                            `/api/drive/share-link/${activeShareLink.id}`,
-                                            { method: 'DELETE' }
-                                        )
-                                        queryClient.invalidateQueries({
-                                            queryKey: ['share-links', itemId],
-                                        })
-                                    } catch (err) {
-                                        captureException('share-link', err)
-                                    }
-                                } else {
-                                    setIsCreatingPublicLink(true)
-                                    try {
-                                        await pb.send('/api/drive/share-link', {
-                                            method: 'POST',
-                                            body: { item_id: itemId, role: 'viewer' },
-                                        })
-                                        queryClient.invalidateQueries({
-                                            queryKey: ['share-links', itemId],
-                                        })
-                                    } catch (err) {
-                                        captureException('share-link', err)
-                                    } finally {
-                                        setIsCreatingPublicLink(false)
-                                    }
-                                }
-                            }}
-                            onCopyPublicLink={() => {
-                                if (Platform.OS === 'web' && publicShareUrl) {
-                                    navigator.clipboard.writeText(publicShareUrl)
-                                    setLinkCopied(true)
-                                    setTimeout(() => setLinkCopied(false), 2000)
-                                }
-                            }}
-                            linkCopied={linkCopied}
-                        />
-                    </View>
-
-                    <View
+                <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
+                    <Text
                         style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            paddingHorizontal: 24,
-                            paddingVertical: 16,
-                            borderTopWidth: 1,
-                            borderTopColor: borderColor,
+                            fontSize: 16,
+                            fontWeight: '600',
+                            color: fgColor,
+                            marginBottom: 12,
                         }}
                     >
-                        <Pressable
+                        People with access
+                    </Text>
+
+                    {currentUserShare && (
+                        <View
                             style={{
                                 flexDirection: 'row',
                                 alignItems: 'center',
-                                gap: 8,
-                                paddingHorizontal: 16,
-                                paddingVertical: 10,
-                                borderRadius: 24,
-                                borderWidth: 1,
-                                borderColor,
+                                gap: 12,
+                                paddingVertical: 6,
                             }}
-                            onPress={copyLink}
                         >
-                            <Link size={16} color={accentColor} />
+                            <NameAvatar
+                                firstName={currentUserShare.name || currentUserShare.email}
+                                size={36}
+                            />
+                            <View style={{ flex: 1, gap: 1 }}>
+                                <Text
+                                    style={{
+                                        fontSize: 13,
+                                        fontWeight: '500',
+                                        color: fgColor,
+                                    }}
+                                >
+                                    {currentUserShare.name || currentUserShare.email} (you)
+                                </Text>
+                                <Text style={{ fontSize: 12, color: mutedColor }}>
+                                    {currentUserShare.email}
+                                </Text>
+                            </View>
                             <Text
                                 style={{
-                                    fontSize: 13,
-                                    fontWeight: '600',
-                                    color: accentColor,
+                                    fontSize: 12,
+                                    color: mutedColor,
+                                    textTransform: 'capitalize',
                                 }}
                             >
-                                {linkCopied ? 'Copied!' : 'Copy link'}
+                                Owner
                             </Text>
-                        </Pressable>
-                        <Pressable
-                            onPress={handleDone}
-                            disabled={isSaving}
+                        </View>
+                    )}
+
+                    {otherShares.map(share => (
+                        <View
+                            key={share.id}
                             style={{
-                                paddingHorizontal: 24,
-                                paddingVertical: 12,
-                                borderRadius: 24,
-                                backgroundColor: accentColor,
-                                opacity: isSaving ? 0.6 : 1,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 12,
+                                paddingVertical: 6,
                             }}
                         >
+                            <NameAvatar firstName={share.name || share.email} size={36} />
+                            <View style={{ flex: 1, gap: 1 }}>
+                                <Text
+                                    numberOfLines={1}
+                                    style={{
+                                        fontSize: 13,
+                                        fontWeight: '500',
+                                        color: fgColor,
+                                    }}
+                                >
+                                    {share.name || share.email}
+                                </Text>
+                                <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
+                                    {share.email}
+                                </Text>
+                            </View>
                             <Text
                                 style={{
-                                    fontWeight: '600',
-                                    fontSize: 14,
-                                    color: accentFgColor,
+                                    fontSize: 12,
+                                    color: mutedColor,
+                                    textTransform: 'capitalize',
                                 }}
                             >
-                                {isSaving ? 'Saving...' : 'Done'}
+                                {share.role}
                             </Text>
-                        </Pressable>
-                    </View>
-                </Dialog.Content>
-            </Dialog.Portal>
-        </Dialog>
+                            <Pressable
+                                onPress={() => onRemoveShare(share.id)}
+                                style={{ padding: 6 }}
+                            >
+                                <Trash2 size={14} color={mutedColor} />
+                            </Pressable>
+                        </View>
+                    ))}
+                </View>
+
+                <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
+                    <Text
+                        style={{
+                            fontSize: 16,
+                            fontWeight: '600',
+                            color: fgColor,
+                            marginBottom: 12,
+                        }}
+                    >
+                        General access
+                    </Text>
+                    <GeneralAccessSection
+                        activeShareLink={activeShareLink}
+                        isCreatingPublicLink={isCreatingPublicLink}
+                        onTogglePublicLink={async () => {
+                            if (activeShareLink) {
+                                try {
+                                    await pb.send(`/api/drive/share-link/${activeShareLink.id}`, {
+                                        method: 'DELETE',
+                                    })
+                                    queryClient.invalidateQueries({
+                                        queryKey: ['share-links', itemId],
+                                    })
+                                } catch (err) {
+                                    captureException('share-link', err)
+                                }
+                            } else {
+                                setIsCreatingPublicLink(true)
+                                try {
+                                    await pb.send('/api/drive/share-link', {
+                                        method: 'POST',
+                                        body: { item_id: itemId, role: 'viewer' },
+                                    })
+                                    queryClient.invalidateQueries({
+                                        queryKey: ['share-links', itemId],
+                                    })
+                                } catch (err) {
+                                    captureException('share-link', err)
+                                } finally {
+                                    setIsCreatingPublicLink(false)
+                                }
+                            }
+                        }}
+                        onCopyPublicLink={() => {
+                            if (Platform.OS === 'web' && publicShareUrl) {
+                                navigator.clipboard.writeText(publicShareUrl)
+                                setLinkCopied(true)
+                                setTimeout(() => setLinkCopied(false), 2000)
+                            }
+                        }}
+                        linkCopied={linkCopied}
+                    />
+                </View>
+
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingHorizontal: 24,
+                        paddingVertical: 16,
+                        borderTopWidth: 1,
+                        borderTopColor: borderColor,
+                    }}
+                >
+                    <Pressable
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 8,
+                            paddingHorizontal: 16,
+                            paddingVertical: 10,
+                            borderRadius: 24,
+                            borderWidth: 1,
+                            borderColor,
+                        }}
+                        onPress={copyLink}
+                    >
+                        <Link size={16} color={accentColor} />
+                        <Text
+                            style={{
+                                fontSize: 13,
+                                fontWeight: '600',
+                                color: accentColor,
+                            }}
+                        >
+                            {linkCopied ? 'Copied!' : 'Copy link'}
+                        </Text>
+                    </Pressable>
+                    <Pressable
+                        onPress={handleDone}
+                        disabled={isSaving}
+                        style={{
+                            paddingHorizontal: 24,
+                            paddingVertical: 12,
+                            borderRadius: 24,
+                            backgroundColor: accentColor,
+                            opacity: isSaving ? 0.6 : 1,
+                        }}
+                    >
+                        <Text
+                            style={{
+                                fontWeight: '600',
+                                fontSize: 14,
+                                color: accentFgColor,
+                            }}
+                        >
+                            {isSaving ? 'Saving...' : 'Done'}
+                        </Text>
+                    </Pressable>
+                </View>
+            </ModalContent>
+        </Modal>
     )
 }
 
@@ -642,8 +628,12 @@ function GeneralAccessSection({
     onCopyPublicLink: () => void
     linkCopied: boolean
 }) {
-    const [mutedColor, fgColor, borderColor, accentColor, surfaceBgColor, successColor] =
-        useThemeColor(['muted', 'foreground', 'border', 'accent', 'surface-secondary', 'success'])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const accentColor = useThemeColor('accent')
+    const surfaceBgColor = useThemeColor('surface-secondary')
+    const successColor = useThemeColor('success')
 
     if (activeShareLink) {
         return (

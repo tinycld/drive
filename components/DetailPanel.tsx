@@ -1,9 +1,10 @@
-import { Dialog, useThemeColor } from 'heroui-native'
 import { Download, FolderOpen, RotateCcw, X } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
 import { formatBytes, formatDate } from '~/lib/format-utils'
 import { pb } from '~/lib/pocketbase'
+import { useThemeColor } from '~/lib/use-app-theme'
+import { Modal, ModalBackdrop, ModalContent } from '~/ui/modal'
 import { useDrive } from '../hooks/useDrive'
 import { useVersionHistory } from '../hooks/useVersionHistory'
 import type { DriveItemView } from '../types'
@@ -24,13 +25,11 @@ export function DetailPanel({ isVisible, item, onClose }: DetailPanelProps) {
 type DetailTab = 'details' | 'versions' | 'activity'
 
 function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
-    const [mutedColor, fgColor, borderColor, _accentColor, accentFgColor] = useThemeColor([
-        'muted',
-        'foreground',
-        'border',
-        'accent',
-        'accent-foreground',
-    ])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const _accentColor = useThemeColor('accent')
+    const accentFgColor = useThemeColor('accent-foreground')
     const [activeTab, setActiveTab] = useState<DetailTab>('details')
     const showVersionsTab = !item.isFolder
 
@@ -89,13 +88,11 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
 }
 
 function DetailsContent({ item }: { item: DriveItemView }) {
-    const [mutedColor, fgColor, borderColor, accentColor, accentFgColor] = useThemeColor([
-        'muted',
-        'foreground',
-        'border',
-        'accent',
-        'accent-foreground',
-    ])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const accentColor = useThemeColor('accent')
+    const accentFgColor = useThemeColor('accent-foreground')
     const { activeSection, getItemPath } = useDrive()
     const accessText = item.shared ? 'Shared with others' : 'Private to you'
     const isTrash = activeSection === 'trash'
@@ -384,56 +381,52 @@ function RestoreConfirmDialog({
     versionNumber,
     onConfirm,
 }: RestoreConfirmDialogProps) {
-    const [fgColor, mutedColor, accentColor, accentFgColor] = useThemeColor([
-        'foreground',
-        'muted',
-        'accent',
-        'accent-foreground',
-    ])
+    const fgColor = useThemeColor('foreground')
+    const mutedColor = useThemeColor('muted')
+    const accentColor = useThemeColor('accent')
+    const accentFgColor = useThemeColor('accent-foreground')
 
     return (
-        <Dialog isOpen={open} onOpenChange={onOpenChange}>
-            <Dialog.Portal>
-                <Dialog.Overlay />
-                <Dialog.Content className="w-[340px] p-4 gap-3">
-                    <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>
-                        Restore version
-                    </Text>
-                    <Text style={{ fontSize: 13, color: mutedColor }}>
-                        Restore to version {versionNumber}? The current file will be saved as a new
-                        version before restoring.
-                    </Text>
-                    <View
+        <Modal isOpen={open} onClose={() => onOpenChange(false)}>
+            <ModalBackdrop />
+            <ModalContent className="w-[340px] p-4 gap-3">
+                <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>
+                    Restore version
+                </Text>
+                <Text style={{ fontSize: 13, color: mutedColor }}>
+                    Restore to version {versionNumber}? The current file will be saved as a new
+                    version before restoring.
+                </Text>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        gap: 12,
+                        justifyContent: 'flex-end',
+                    }}
+                >
+                    <Pressable
+                        onPress={() => onOpenChange(false)}
+                        style={{ paddingHorizontal: 12, paddingVertical: 8 }}
+                    >
+                        <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                        onPress={() => {
+                            onConfirm()
+                            onOpenChange(false)
+                        }}
                         style={{
-                            flexDirection: 'row',
-                            gap: 12,
-                            justifyContent: 'flex-end',
+                            paddingHorizontal: 16,
+                            paddingVertical: 8,
+                            borderRadius: 6,
+                            backgroundColor: accentColor,
                         }}
                     >
-                        <Pressable
-                            onPress={() => onOpenChange(false)}
-                            style={{ paddingHorizontal: 12, paddingVertical: 8 }}
-                        >
-                            <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
-                        </Pressable>
-                        <Pressable
-                            onPress={() => {
-                                onConfirm()
-                                onOpenChange(false)
-                            }}
-                            style={{
-                                paddingHorizontal: 16,
-                                paddingVertical: 8,
-                                borderRadius: 6,
-                                backgroundColor: accentColor,
-                            }}
-                        >
-                            <Text style={{ fontWeight: '600', color: accentFgColor }}>Restore</Text>
-                        </Pressable>
-                    </View>
-                </Dialog.Content>
-            </Dialog.Portal>
-        </Dialog>
+                        <Text style={{ fontWeight: '600', color: accentFgColor }}>Restore</Text>
+                    </Pressable>
+                </View>
+            </ModalContent>
+        </Modal>
     )
 }
 
@@ -451,7 +444,9 @@ interface VersionRowProps {
 }
 
 function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowProps) {
-    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
 
     return (
         <View

@@ -1,5 +1,5 @@
-import { useThemeColor } from 'heroui-native'
 import { Image, View } from 'react-native'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { getThumbnailURL } from '../lib/file-url'
 import type { DriveItemView } from '../types'
 import { getFileIcon } from './file-icons'

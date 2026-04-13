@@ -1,4 +1,3 @@
-import { Menu, useThemeColor } from 'heroui-native'
 import type { LucideIcon } from 'lucide-react-native'
 import {
     Download,
@@ -13,8 +12,9 @@ import {
     UserPlus,
 } from 'lucide-react-native'
 import type { ReactNode } from 'react'
-import { View } from 'react-native'
 import { ContextMenu } from '~/components/ContextMenu'
+import { useThemeColor } from '~/lib/use-app-theme'
+import { MenuItem, MenuItemLabel, MenuSeparator } from '~/ui/menu'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveItemView } from '../types'
 
@@ -121,7 +121,7 @@ function NormalMenuItems({
                 onPress={onDownload}
                 mutedColor={mutedColor}
             />
-            <View className="h-px my-1 mx-2 bg-separator" />
+            <MenuSeparator className="my-1 mx-2" />
             <ContextMenuItem
                 label={item.starred ? 'Remove star' : 'Add star'}
                 icon={item.starred ? StarOff : Star}
@@ -146,7 +146,7 @@ function NormalMenuItems({
                 onPress={onMove}
                 mutedColor={mutedColor}
             />
-            <View className="h-px my-1 mx-2 bg-separator" />
+            <MenuSeparator className="my-1 mx-2" />
             <ContextMenuItem
                 label="Move to trash"
                 icon={Trash2}
@@ -180,7 +180,7 @@ function TrashMenuItems({
                 onPress={handleRestore}
                 mutedColor={mutedColor}
             />
-            <View className="h-px my-1 mx-2 bg-separator" />
+            <MenuSeparator className="my-1 mx-2" />
             <ContextMenuItem
                 label="Delete permanently"
                 icon={Trash2}
@@ -203,9 +203,9 @@ function ContextMenuItem({
     mutedColor: string
 }) {
     return (
-        <Menu.Item onPress={onPress}>
+        <MenuItem onPress={onPress} textValue={label}>
             <Icon size={16} color={mutedColor} />
-            <Menu.ItemTitle>{label}</Menu.ItemTitle>
-        </Menu.Item>
+            <MenuItemLabel>{label}</MenuItemLabel>
+        </MenuItem>
     )
 }

@@ -1,10 +1,10 @@
-import { Dialog } from 'heroui-native'
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react-native'
 import { useCallback, useMemo } from 'react'
-import { Modal, Platform, Pressable, Text, View } from 'react-native'
+import { Platform, Pressable, Modal as RNModal, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { useThemeColor } from '~/lib/use-app-theme'
+import { Modal, ModalBackdrop, ModalContent } from '~/ui/modal'
 import { useDrive } from '../hooks/useDrive'
 import { getPreviewEntry } from '../lib/preview-registry'
 import type { DriveItemView } from '../types'
@@ -24,7 +24,7 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
 
     if (isMobile || Platform.OS !== 'web') {
         return (
-            <Modal
+            <RNModal
                 visible={isVisible}
                 animationType="slide"
                 presentationStyle="fullScreen"
@@ -33,34 +33,25 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
                 <View style={{ flex: 1, backgroundColor: background }}>
                     <PreviewModalContent item={item} onClose={onClose} />
                 </View>
-            </Modal>
+            </RNModal>
         )
     }
 
     return (
-        <Dialog
-            isOpen={isVisible}
-            onOpenChange={o => {
-                if (!o) onClose()
-            }}
-        >
-            <Dialog.Portal>
-                <Dialog.Overlay />
-                <Dialog.Content className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
-                    <PreviewModalContent item={item} onClose={onClose} />
-                </Dialog.Content>
-            </Dialog.Portal>
-        </Dialog>
+        <Modal isOpen={isVisible} onClose={onClose}>
+            <ModalBackdrop />
+            <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
+                <PreviewModalContent item={item} onClose={onClose} />
+            </ModalContent>
+        </Modal>
     )
 }
 
 function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
-    const [mutedColor, fgColor, borderColor, _bgColor] = useThemeColor([
-        'muted',
-        'foreground',
-        'border',
-        'background',
-    ])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const _bgColor = useThemeColor('background')
     const insets = useSafeAreaInsets()
     const { currentItems, openPreview, downloadItem } = useDrive()
 

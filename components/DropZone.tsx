@@ -1,7 +1,7 @@
-import { useThemeColor } from 'heroui-native'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Platform, Text, View } from 'react-native'
+import { useThemeColor } from '~/lib/use-app-theme'
 
 interface DropZoneProps {
     children: ReactNode

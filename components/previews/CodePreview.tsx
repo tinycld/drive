@@ -1,13 +1,14 @@
-import { useThemeColor } from 'heroui-native'
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Platform, ScrollView, Text, View } from 'react-native'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
 
 export function CodePreview({ item }: PreviewProps) {
     const [content, setContent] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
-    const [fgColor, mutedColor] = useThemeColor(['foreground', 'muted'])
+    const fgColor = useThemeColor('foreground')
+    const mutedColor = useThemeColor('muted')
     const fileUrl = getFileURL(item)
 
     const loadContent = useCallback(async () => {

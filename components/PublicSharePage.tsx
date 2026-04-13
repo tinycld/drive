@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { Dialog, useThemeColor } from 'heroui-native'
 import { Download, FileIcon } from 'lucide-react-native'
 import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native'
 import { PB_SERVER_ADDR } from '~/lib/pocketbase'
+import { useThemeColor } from '~/lib/use-app-theme'
+import { Modal, ModalBackdrop, ModalContent } from '~/ui/modal'
 import { PublicPreviewFrame } from './PublicPreviewFrame'
 
 interface ShareLinkMetadata {
@@ -41,7 +42,8 @@ class ShareLinkError extends Error {
 }
 
 function ErrorDisplay({ error }: { error: ShareLinkError }) {
-    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
     const isExpired = error.status === 410
     const title = isExpired ? 'Link expired' : 'Link not found'
     const description = isExpired
@@ -110,28 +112,26 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
 
     return (
         <View style={{ flex: 1, backgroundColor: bgColor }}>
-            <Dialog isOpen>
-                <Dialog.Portal>
-                    <Dialog.Overlay />
-                    <Dialog.Content className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
-                        <PreviewHeader
+            <Modal isOpen onClose={() => {}}>
+                <ModalBackdrop />
+                <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
+                    <PreviewHeader
+                        name={data.name}
+                        orgName={data.org_name}
+                        downloadUrl={downloadUrl}
+                    />
+                    <View style={{ flex: 1, overflow: 'hidden' }}>
+                        <PublicPreviewFrame
                             name={data.name}
-                            orgName={data.org_name}
-                            downloadUrl={downloadUrl}
+                            mimeType={data.mime_type}
+                            category={data.category}
+                            fileUrl={fileUrl}
+                            thumbnailUrl={thumbnailUrl}
+                            size={data.size}
                         />
-                        <View style={{ flex: 1, overflow: 'hidden' }}>
-                            <PublicPreviewFrame
-                                name={data.name}
-                                mimeType={data.mime_type}
-                                category={data.category}
-                                fileUrl={fileUrl}
-                                thumbnailUrl={thumbnailUrl}
-                                size={data.size}
-                            />
-                        </View>
-                    </Dialog.Content>
-                </Dialog.Portal>
-            </Dialog>
+                    </View>
+                </ModalContent>
+            </Modal>
         </View>
     )
 }
@@ -145,7 +145,9 @@ function PreviewHeader({
     orgName: string
     downloadUrl: string
 }) {
-    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
 
     const handleDownload = () => {
         if (Platform.OS === 'web') window.open(downloadUrl, '_blank')

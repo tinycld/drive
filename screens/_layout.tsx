@@ -1,7 +1,7 @@
 import { Slot } from 'expo-router'
-import { useThemeColor } from 'heroui-native'
 import { View } from 'react-native'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { DetailPanel } from '../components/DetailPanel'
 import { DriveDialogs, DriveToolbar } from '../components/DriveToolbar'
 import { DropZone } from '../components/DropZone'

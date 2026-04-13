@@ -1,7 +1,7 @@
-import { useThemeColor } from 'heroui-native'
 import { FileIcon } from 'lucide-react-native'
 import { lazy, Suspense } from 'react'
 import { ActivityIndicator, Image, Platform, Text, View } from 'react-native'
+import { useThemeColor } from '~/lib/use-app-theme'
 
 const PdfCanvasViewer = lazy(() =>
     import('./PdfCanvasViewer').then(m => ({ default: m.PdfCanvasViewer }))
@@ -80,7 +80,8 @@ function VideoPreview({ url, mimeType }: { url: string; mimeType: string }) {
 }
 
 function AudioPreview({ url, name, mimeType }: { url: string; name: string; mimeType: string }) {
-    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
 
     if (Platform.OS !== 'web') {
         return <GenericPreview name={name} mimeType={mimeType} size={0} />
@@ -113,7 +114,8 @@ function GenericPreview({
     mimeType: string
     size: number
 }) {
-    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
 
     return (
         <View

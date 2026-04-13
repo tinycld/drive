@@ -1,18 +1,16 @@
-import { useThemeColor } from 'heroui-native'
 import { Download } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
 import { formatBytes } from '~/lib/format-utils'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
 import { getFileIcon } from '../file-icons'
 
 export function GenericPreview({ item }: PreviewProps) {
-    const [mutedColor, fgColor, accentColor, accentFgColor] = useThemeColor([
-        'muted',
-        'foreground',
-        'accent',
-        'accent-foreground',
-    ])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const accentColor = useThemeColor('accent')
+    const accentFgColor = useThemeColor('accent-foreground')
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const fileUrl = getFileURL(item)
 

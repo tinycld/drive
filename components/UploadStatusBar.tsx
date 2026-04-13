@@ -1,5 +1,5 @@
-import { useThemeColor } from 'heroui-native'
 import { ActivityIndicator, Text, View } from 'react-native'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { useDrive } from '../hooks/useDrive'
 
 interface UploadStatusBarProps {
@@ -7,12 +7,10 @@ interface UploadStatusBarProps {
 }
 
 export function UploadStatusBar({ isVisible }: UploadStatusBarProps) {
-    const [accentColor, fgColor, borderColor, bgColor] = useThemeColor([
-        'accent',
-        'foreground',
-        'border',
-        'background',
-    ])
+    const accentColor = useThemeColor('accent')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const bgColor = useThemeColor('background')
     const { uploadingFiles } = useDrive()
 
     if (!isVisible) return null

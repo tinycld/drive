@@ -1,4 +1,3 @@
-import { Button, Dialog, useThemeColor } from 'heroui-native'
 import {
     ArrowLeft,
     ChevronRight,
@@ -25,8 +24,10 @@ import { ToolbarIconButton } from '~/components/ToolbarIconButton'
 import { ToolbarSeparator } from '~/components/ToolbarSeparator'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { captureException } from '~/lib/errors'
-import { useThemeColor as useAppThemeColor } from '~/lib/use-app-theme'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { useCurrentRole } from '~/lib/use-current-role'
+import { Button, ButtonText } from '~/ui/button'
+import { Modal, ModalBackdrop, ModalContent } from '~/ui/modal'
 import { PlainInput } from '~/ui/PlainInput'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveItemView, ViewMode } from '../types'
@@ -92,8 +93,9 @@ export function DriveDialogs() {
 }
 
 export function DriveToolbar() {
-    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
-    const activeIndicator = useAppThemeColor('active-indicator')
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
     const {
         selectedItem,
@@ -783,7 +785,8 @@ function NamePromptDialog({
     onClose,
 }: NamePromptDialogProps) {
     const [value, setValue] = useState(defaultValue)
-    const [fgColor, borderColor] = useThemeColor(['foreground', 'border'])
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
 
     const handleSubmit = () => {
         const trimmed = value.trim()
@@ -791,54 +794,47 @@ function NamePromptDialog({
     }
 
     return (
-        <Dialog
-            isOpen={open}
-            onOpenChange={o => {
-                if (!o) onClose()
-            }}
-        >
-            <Dialog.Portal>
-                <Dialog.Overlay />
-                <Dialog.Content className="w-[360px] p-4 gap-3">
-                    <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>{title}</Text>
-                    <View
-                        style={{
-                            flexDirection: 'row',
-                            borderWidth: 1,
-                            borderColor,
-                            borderRadius: 8,
-                            paddingHorizontal: 12,
-                            paddingVertical: 10,
-                        }}
+        <Modal isOpen={open} onClose={onClose}>
+            <ModalBackdrop />
+            <ModalContent className="w-[360px] p-4 gap-3">
+                <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>{title}</Text>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        borderWidth: 1,
+                        borderColor,
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                    }}
+                >
+                    <PlainInput
+                        value={value}
+                        onChangeText={setValue}
+                        placeholder={placeholder}
+                        autoFocus
+                        onSubmitEditing={handleSubmit}
+                        style={{ flex: 1, fontSize: 15, color: fgColor }}
+                    />
+                </View>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        gap: 12,
+                        justifyContent: 'flex-end',
+                    }}
+                >
+                    <Pressable
+                        onPress={onClose}
+                        style={{ paddingHorizontal: 12, paddingVertical: 8 }}
                     >
-                        <PlainInput
-                            value={value}
-                            onChangeText={setValue}
-                            placeholder={placeholder}
-                            autoFocus
-                            onSubmitEditing={handleSubmit}
-                            style={{ flex: 1, fontSize: 15, color: fgColor }}
-                        />
-                    </View>
-                    <View
-                        style={{
-                            flexDirection: 'row',
-                            gap: 12,
-                            justifyContent: 'flex-end',
-                        }}
-                    >
-                        <Pressable
-                            onPress={onClose}
-                            style={{ paddingHorizontal: 12, paddingVertical: 8 }}
-                        >
-                            <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
-                        </Pressable>
-                        <Button onPress={handleSubmit} isDisabled={!value.trim()} size="sm">
-                            {submitLabel}
-                        </Button>
-                    </View>
-                </Dialog.Content>
-            </Dialog.Portal>
-        </Dialog>
+                        <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
+                    </Pressable>
+                    <Button onPress={handleSubmit} isDisabled={!value.trim()} size="sm">
+                        <ButtonText>{submitLabel}</ButtonText>
+                    </Button>
+                </View>
+            </ModalContent>
+        </Modal>
     )
 }

@@ -1,7 +1,8 @@
-import { Dialog, useThemeColor } from 'heroui-native'
 import { ChevronDown, ChevronRight, Folder, HardDrive } from 'lucide-react-native'
 import { useState } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
+import { useThemeColor } from '~/lib/use-app-theme'
+import { Modal, ModalBackdrop, ModalContent } from '~/ui/modal'
 import type { FolderTreeNode } from '../types'
 
 interface ChooseFolderDialogProps {
@@ -26,12 +27,10 @@ export function ChooseFolderDialog({
     confirmLabel = 'Move here',
 }: ChooseFolderDialogProps) {
     const [selectedId, setSelectedId] = useState('')
-    const [fgColor, accentColor, accentFgColor, borderColor] = useThemeColor([
-        'foreground',
-        'accent',
-        'accent-foreground',
-        'border',
-    ])
+    const fgColor = useThemeColor('foreground')
+    const accentColor = useThemeColor('accent')
+    const accentFgColor = useThemeColor('accent-foreground')
+    const borderColor = useThemeColor('border')
 
     const handleMove = () => {
         onMove(selectedId)
@@ -39,79 +38,71 @@ export function ChooseFolderDialog({
     }
 
     return (
-        <Dialog
-            isOpen={open}
-            onOpenChange={o => {
-                if (!o) onClose()
-            }}
-        >
-            <Dialog.Portal>
-                <Dialog.Overlay />
-                <Dialog.Content className="w-[400px] max-h-[70vh] p-0">
-                    <View
+        <Modal isOpen={open} onClose={onClose}>
+            <ModalBackdrop />
+            <ModalContent className="w-[400px] max-h-[70vh] p-0">
+                <View
+                    style={{
+                        paddingHorizontal: 16,
+                        paddingTop: 16,
+                        paddingBottom: 8,
+                    }}
+                >
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: fgColor }}>
+                        {title ?? `Move \u201C${itemName}\u201D`}
+                    </Text>
+                </View>
+
+                <ScrollView style={{ maxHeight: 320, paddingVertical: 4 }}>
+                    <RootItem isSelected={selectedId === ''} onSelect={() => setSelectedId('')} />
+                    <PickerTree
+                        nodes={folderTree}
+                        excludeId={excludeId}
+                        selectedId={selectedId}
+                        onSelect={setSelectedId}
+                        depth={1}
+                    />
+                </ScrollView>
+
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        gap: 12,
+                        justifyContent: 'flex-end',
+                        padding: 12,
+                        borderTopWidth: 1,
+                        borderColor,
+                    }}
+                >
+                    <Pressable
+                        onPress={onClose}
+                        style={{ paddingHorizontal: 12, paddingVertical: 8 }}
+                    >
+                        <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                        onPress={handleMove}
                         style={{
                             paddingHorizontal: 16,
-                            paddingTop: 16,
-                            paddingBottom: 8,
+                            paddingVertical: 8,
+                            borderRadius: 6,
+                            backgroundColor: accentColor,
                         }}
                     >
-                        <Text style={{ fontSize: 16, fontWeight: '600', color: fgColor }}>
-                            {title ?? `Move \u201C${itemName}\u201D`}
+                        <Text style={{ fontWeight: '600', color: accentFgColor }}>
+                            {confirmLabel}
                         </Text>
-                    </View>
-
-                    <ScrollView style={{ maxHeight: 320, paddingVertical: 4 }}>
-                        <RootItem
-                            isSelected={selectedId === ''}
-                            onSelect={() => setSelectedId('')}
-                        />
-                        <PickerTree
-                            nodes={folderTree}
-                            excludeId={excludeId}
-                            selectedId={selectedId}
-                            onSelect={setSelectedId}
-                            depth={1}
-                        />
-                    </ScrollView>
-
-                    <View
-                        style={{
-                            flexDirection: 'row',
-                            gap: 12,
-                            justifyContent: 'flex-end',
-                            padding: 12,
-                            borderTopWidth: 1,
-                            borderColor,
-                        }}
-                    >
-                        <Pressable
-                            onPress={onClose}
-                            style={{ paddingHorizontal: 12, paddingVertical: 8 }}
-                        >
-                            <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
-                        </Pressable>
-                        <Pressable
-                            onPress={handleMove}
-                            style={{
-                                paddingHorizontal: 16,
-                                paddingVertical: 8,
-                                borderRadius: 6,
-                                backgroundColor: accentColor,
-                            }}
-                        >
-                            <Text style={{ fontWeight: '600', color: accentFgColor }}>
-                                {confirmLabel}
-                            </Text>
-                        </Pressable>
-                    </View>
-                </Dialog.Content>
-            </Dialog.Portal>
-        </Dialog>
+                    </Pressable>
+                </View>
+            </ModalContent>
+        </Modal>
     )
 }
 
 function RootItem({ isSelected, onSelect }: { isSelected: boolean; onSelect: () => void }) {
-    const [mutedColor, fgColor, accentColor] = useThemeColor(['muted', 'foreground', 'accent'])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const accentColor = useThemeColor('accent')
 
     return (
         <Pressable
@@ -188,7 +179,9 @@ function PickerTreeItem({
     onSelect: (id: string) => void
     depth: number
 }) {
-    const [mutedColor, fgColor, accentColor] = useThemeColor(['muted', 'foreground', 'accent'])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const accentColor = useThemeColor('accent')
     const [expanded, setExpanded] = useState(false)
     const isSelected = selectedId === node.item.id
     const hasChildren = node.children.filter(c => c.item.id !== excludeId).length > 0

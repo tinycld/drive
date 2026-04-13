@@ -1,4 +1,3 @@
-import { Menu } from 'heroui-native'
 import {
     ChevronDown,
     ChevronRight,
@@ -17,6 +16,7 @@ import { Pressable, Text, View } from 'react-native'
 import { MenuActionItem } from '~/components/DropdownMenu'
 import { SidebarDivider, SidebarItem, SidebarNav } from '~/components/sidebar-primitives'
 import { useThemeColor } from '~/lib/use-app-theme'
+import { Menu } from '~/ui/menu'
 import { useDrive } from './hooks/useDrive'
 import type { FolderTreeNode } from './types'
 
@@ -35,7 +35,8 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         totalStorageUsed,
         triggerFilePicker,
     } = useDrive()
-    const [accentColor, accentFgColor] = useThemeColor(['accent', 'accent-foreground'])
+    const accentColor = useThemeColor('accent')
+    const accentFgColor = useThemeColor('accent-foreground')
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
@@ -79,9 +80,10 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
     return (
         <SidebarNav>
             <View style={{ paddingHorizontal: 12, paddingVertical: 8 }}>
-                <Menu>
-                    <Menu.Trigger>
+                <Menu
+                    trigger={triggerProps => (
                         <Pressable
+                            {...triggerProps}
                             style={{
                                 flexDirection: 'row',
                                 alignItems: 'center',
@@ -103,22 +105,12 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                                 New
                             </Text>
                         </Pressable>
-                    </Menu.Trigger>
-                    <Menu.Portal>
-                        <Menu.Overlay />
-                        <Menu.Content presentation="popover" className="min-w-[200px]">
-                            <MenuActionItem
-                                label="Upload file"
-                                icon={Upload}
-                                onPress={triggerFilePicker}
-                            />
-                            <MenuActionItem
-                                label="New folder"
-                                icon={FolderPlus}
-                                onPress={() => {}}
-                            />
-                        </Menu.Content>
-                    </Menu.Portal>
+                    )}
+                    placement="bottom left"
+                    className="min-w-[200px]"
+                >
+                    <MenuActionItem label="Upload file" icon={Upload} onPress={triggerFilePicker} />
+                    <MenuActionItem label="New folder" icon={FolderPlus} onPress={() => {}} />
                 </Menu>
             </View>
 
@@ -233,7 +225,8 @@ function FolderTreeItem({
     onSelect,
     depth,
 }: FolderTreeItemProps) {
-    const [mutedColor, fgColor] = useThemeColor(['muted', 'foreground'])
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
     const activeIndicator = useThemeColor('active-indicator')
     const isExpanded = expandedIds.has(node.item.id)
     const isSelected = selectedFolderId === node.item.id
@@ -293,7 +286,8 @@ function FolderTreeItem({
 }
 
 function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
-    const [mutedColor, accentColor] = useThemeColor(['muted', 'accent'])
+    const mutedColor = useThemeColor('muted')
+    const accentColor = useThemeColor('accent')
     const percentage = (usedGB / totalGB) * 100
 
     return (

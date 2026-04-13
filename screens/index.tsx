@@ -1,4 +1,3 @@
-import { useThemeColor } from 'heroui-native'
 import { Download, Star, Trash2 } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { type LayoutChangeEvent, Platform, Pressable, ScrollView, Text, View } from 'react-native'
@@ -9,7 +8,7 @@ import { ConfirmTrash } from '~/components/SuretyGuard'
 import { SwipeableRow, SwipeableRowProvider } from '~/components/SwipeableRow'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
 import { formatBytes, formatDate } from '~/lib/format-utils'
-import { useThemeColor as useAppThemeColor } from '~/lib/use-app-theme'
+import { useThemeColor } from '~/lib/use-app-theme'
 import { DriveContextMenu } from '../components/DriveContextMenu'
 import { getFileIcon } from '../components/file-icons'
 import { Thumbnail } from '../components/Thumbnail'
@@ -94,13 +93,11 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
 }
 
 function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
-    const [mutedColor, fgColor, borderColor, bgColor] = useThemeColor([
-        'muted',
-        'foreground',
-        'border',
-        'background',
-    ])
-    const activeIndicator = useAppThemeColor('active-indicator')
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const bgColor = useThemeColor('background')
+    const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
     const {
         selectedItemId,
@@ -313,8 +310,10 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
 }
 
 function TrashListRow({ item }: { item: DriveItemView }) {
-    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
-    const activeIndicator = useAppThemeColor('active-indicator')
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
     const { selectedItemId, selectItem } = useDrive()
     const isSelected = selectedItemId === item.id
@@ -467,8 +466,10 @@ function GridSectionHeader({ title }: { title: string }) {
 }
 
 function FolderGridCard({ item }: { item: DriveItemView }) {
-    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
-    const activeIndicator = useAppThemeColor('active-indicator')
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
     const { selectedItemId, selectItem, navigateToFolder } = useDrive()
     const isSelected = selectedItemId === item.id
@@ -510,8 +511,10 @@ function FolderGridCard({ item }: { item: DriveItemView }) {
 }
 
 function FileGridCard({ item }: { item: DriveItemView }) {
-    const [mutedColor, fgColor, borderColor] = useThemeColor(['muted', 'foreground', 'border'])
-    const activeIndicator = useAppThemeColor('active-indicator')
+    const mutedColor = useThemeColor('muted')
+    const fgColor = useThemeColor('foreground')
+    const borderColor = useThemeColor('border')
+    const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
     const { selectedItemId, selectItem, openPreview } = useDrive()
     const isSelected = selectedItemId === item.id
