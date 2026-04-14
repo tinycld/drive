@@ -1,11 +1,11 @@
-import { useLiveQuery } from '@tanstack/react-db'
+import { eq } from '@tanstack/db'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Globe, Link, Lock, Trash2 } from 'lucide-react-native'
 import { useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native'
 import { NameAvatar } from '~/components/NameAvatar'
 import { captureException } from '~/lib/errors'
-import { pb, useStore } from '~/lib/pocketbase'
+import { pb, useOrgLiveQuery, useStore } from '~/lib/pocketbase'
 import { useThemeColor } from '~/lib/use-app-theme'
 import { Modal, ModalBackdrop, ModalContent } from '~/ui/modal'
 import { PlainInput } from '~/ui/PlainInput'
@@ -103,12 +103,11 @@ export function ShareDialog({
         : ''
 
     const [contactsCollection] = useStore('contacts')
-    const { data: contacts } = useLiveQuery(
-        query =>
-            query
-                .from({ contacts: contactsCollection })
-                .orderBy(({ contacts: c }) => c.first_name, 'asc'),
-        []
+    const { data: contacts } = useOrgLiveQuery((query, { userOrgId }) =>
+        query
+            .from({ contacts: contactsCollection })
+            .where(({ contacts: c }) => eq(c.owner, userOrgId))
+            .orderBy(({ contacts: c }) => c.first_name, 'asc')
     )
 
     const copyLink = useCallback(async () => {
@@ -235,34 +234,17 @@ export function ShareDialog({
         <Modal isOpen={open} onClose={onClose}>
             <ModalBackdrop />
             <ModalContent className="w-[540px] p-0 rounded-2xl">
-                <View
-                    style={{
-                        paddingHorizontal: 24,
-                        paddingTop: 28,
-                        paddingBottom: 16,
-                    }}
-                >
+                <View className="px-6 pb-4" style={{ paddingTop: 28 }}>
                     <Text style={{ fontSize: 28, color: fgColor }}>
                         Share &ldquo;{itemName}&rdquo;
                     </Text>
                 </View>
 
-                <View
-                    style={{
-                        paddingHorizontal: 24,
-                        paddingBottom: 20,
-                        position: 'relative',
-                        zIndex: 100,
-                        overflow: 'visible',
-                    }}
-                >
+                <View className="px-6 pb-5 relative overflow-visible" style={{ zIndex: 100 }}>
                     <View
+                        className="flex-row items-center gap-2 rounded-lg"
                         style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 8,
                             borderWidth: 2,
-                            borderRadius: 8,
                             paddingHorizontal: 14,
                             paddingVertical: 14,
                             borderColor: primaryColor,
@@ -273,7 +255,8 @@ export function ShareDialog({
                             onChangeText={setSearch}
                             placeholder="Add people by name or email"
                             placeholderTextColor={primaryColor}
-                            style={{ flex: 1, fontSize: 15, color: fgColor }}
+                            className="flex-1"
+                            style={{ fontSize: 15, color: fgColor }}
                             autoFocus
                         />
                         <RolePicker
@@ -314,20 +297,15 @@ export function ShareDialog({
                                         <Pressable
                                             key={s.key}
                                             onPress={() => handleSelect(s)}
-                                            style={{
-                                                flexDirection: 'row',
-                                                alignItems: 'center',
-                                                gap: 8,
-                                                paddingHorizontal: 12,
-                                                paddingVertical: 10,
-                                            }}
+                                            className="flex-row items-center gap-2 px-3"
+                                            style={{ paddingVertical: 10 }}
                                         >
                                             <NameAvatar
                                                 firstName={firstName}
                                                 lastName={lastName}
                                                 size={40}
                                             />
-                                            <View style={{ flex: 1, gap: 2 }}>
+                                            <View className="flex-1 gap-0.5">
                                                 <Text
                                                     style={{
                                                         fontSize: 13,
@@ -355,19 +333,15 @@ export function ShareDialog({
                 </View>
 
                 {pending.length > 0 && (
-                    <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
+                    <View className="px-6 pb-4">
                         {pending.map(p => (
                             <View
                                 key={p.key}
-                                style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 12,
-                                    paddingVertical: 6,
-                                }}
+                                className="flex-row items-center gap-3"
+                                style={{ paddingVertical: 6 }}
                             >
                                 <NameAvatar firstName={p.name || p.email} size={36} />
-                                <View style={{ flex: 1, gap: 1 }}>
+                                <View className="flex-1" style={{ gap: 1 }}>
                                     <Text
                                         numberOfLines={1}
                                         style={{
@@ -392,10 +366,7 @@ export function ShareDialog({
                                     fgColor={fgColor}
                                     borderColor={borderColor}
                                 />
-                                <Pressable
-                                    onPress={() => removePending(p.key)}
-                                    style={{ padding: 6 }}
-                                >
+                                <Pressable onPress={() => removePending(p.key)} className="p-1.5">
                                     <Trash2 size={14} color={mutedColor} />
                                 </Pressable>
                             </View>
@@ -403,13 +374,13 @@ export function ShareDialog({
                     </View>
                 )}
 
-                <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
+                <View className="px-6 pb-4">
                     <Text
+                        className="mb-3"
                         style={{
                             fontSize: 16,
                             fontWeight: '600',
                             color: fgColor,
-                            marginBottom: 12,
                         }}
                     >
                         People with access
@@ -417,18 +388,14 @@ export function ShareDialog({
 
                     {currentUserShare && (
                         <View
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 12,
-                                paddingVertical: 6,
-                            }}
+                            className="flex-row items-center gap-3"
+                            style={{ paddingVertical: 6 }}
                         >
                             <NameAvatar
                                 firstName={currentUserShare.name || currentUserShare.email}
                                 size={36}
                             />
-                            <View style={{ flex: 1, gap: 1 }}>
+                            <View className="flex-1" style={{ gap: 1 }}>
                                 <Text
                                     style={{
                                         fontSize: 13,
@@ -457,15 +424,11 @@ export function ShareDialog({
                     {otherShares.map(share => (
                         <View
                             key={share.id}
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 12,
-                                paddingVertical: 6,
-                            }}
+                            className="flex-row items-center gap-3"
+                            style={{ paddingVertical: 6 }}
                         >
                             <NameAvatar firstName={share.name || share.email} size={36} />
-                            <View style={{ flex: 1, gap: 1 }}>
+                            <View className="flex-1" style={{ gap: 1 }}>
                                 <Text
                                     numberOfLines={1}
                                     style={{
@@ -489,23 +452,20 @@ export function ShareDialog({
                             >
                                 {share.role}
                             </Text>
-                            <Pressable
-                                onPress={() => onRemoveShare(share.id)}
-                                style={{ padding: 6 }}
-                            >
+                            <Pressable onPress={() => onRemoveShare(share.id)} className="p-1.5">
                                 <Trash2 size={14} color={mutedColor} />
                             </Pressable>
                         </View>
                     ))}
                 </View>
 
-                <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
+                <View className="px-6 pb-4">
                     <Text
+                        className="mb-3"
                         style={{
                             fontSize: 16,
                             fontWeight: '600',
                             color: fgColor,
-                            marginBottom: 12,
                         }}
                     >
                         General access
@@ -554,25 +514,16 @@ export function ShareDialog({
                 </View>
 
                 <View
+                    className="flex-row items-center justify-between px-6 py-4"
                     style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        paddingHorizontal: 24,
-                        paddingVertical: 16,
                         borderTopWidth: 1,
                         borderTopColor: borderColor,
                     }}
                 >
                     <Pressable
+                        className="flex-row items-center gap-2 px-4 rounded-full border"
                         style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 8,
-                            paddingHorizontal: 16,
                             paddingVertical: 10,
-                            borderRadius: 24,
-                            borderWidth: 1,
                             borderColor,
                         }}
                         onPress={copyLink}
@@ -591,13 +542,8 @@ export function ShareDialog({
                     <Pressable
                         onPress={handleDone}
                         disabled={isSaving}
-                        style={{
-                            paddingHorizontal: 24,
-                            paddingVertical: 12,
-                            borderRadius: 24,
-                            backgroundColor: primaryColor,
-                            opacity: isSaving ? 0.6 : 1,
-                        }}
+                        className={`px-6 py-3 rounded-3xl ${isSaving ? 'opacity-60' : 'opacity-100'}`}
+                        style={{ backgroundColor: primaryColor }}
                     >
                         <Text
                             style={{
@@ -639,27 +585,20 @@ function GeneralAccessSection({
         return (
             <View>
                 <Pressable
-                    style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 12,
-                        paddingVertical: 6,
-                    }}
+                    className="flex-row items-center gap-3"
+                    style={{ paddingVertical: 6 }}
                     onPress={onTogglePublicLink}
                 >
                     <View
+                        className="size-9 items-center justify-center"
                         style={{
-                            width: 36,
-                            height: 36,
                             borderRadius: 18,
-                            alignItems: 'center',
-                            justifyContent: 'center',
                             backgroundColor: `${successColor}20`,
                         }}
                     >
                         <Globe size={16} color={successColor} />
                     </View>
-                    <View style={{ flex: 1, gap: 1 }}>
+                    <View className="flex-1" style={{ gap: 1 }}>
                         <Text style={{ fontSize: 13, fontWeight: '500', color: fgColor }}>
                             Anyone with the link
                         </Text>
@@ -668,22 +607,11 @@ function GeneralAccessSection({
                         </Text>
                     </View>
                 </Pressable>
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        gap: 8,
-                        marginTop: 8,
-                    }}
-                >
+                <View className="flex-row gap-2 mt-2">
                     <Pressable
+                        className="flex-row items-center gap-2 px-4 rounded-full border"
                         style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 8,
-                            paddingHorizontal: 16,
                             paddingVertical: 10,
-                            borderRadius: 24,
-                            borderWidth: 1,
                             borderColor,
                         }}
                         onPress={onCopyPublicLink}
@@ -700,14 +628,9 @@ function GeneralAccessSection({
                         </Text>
                     </Pressable>
                     <Pressable
+                        className="flex-row items-center gap-2 px-4 rounded-full border"
                         style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 8,
-                            paddingHorizontal: 16,
                             paddingVertical: 10,
-                            borderRadius: 24,
-                            borderWidth: 1,
                             borderColor,
                         }}
                         onPress={onTogglePublicLink}
@@ -730,22 +653,15 @@ function GeneralAccessSection({
 
     return (
         <Pressable
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 12,
-                paddingVertical: 6,
-            }}
+            className="flex-row items-center gap-3"
+            style={{ paddingVertical: 6 }}
             onPress={onTogglePublicLink}
             disabled={isCreatingPublicLink}
         >
             <View
+                className="size-9 items-center justify-center"
                 style={{
-                    width: 36,
-                    height: 36,
                     borderRadius: 18,
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     backgroundColor: surfaceBgColor,
                 }}
             >
@@ -755,7 +671,7 @@ function GeneralAccessSection({
                     <Lock size={16} color={mutedColor} />
                 )}
             </View>
-            <View style={{ flex: 1, gap: 1 }}>
+            <View className="flex-1" style={{ gap: 1 }}>
                 <Text style={{ fontSize: 13, fontWeight: '500', color: fgColor }}>Restricted</Text>
                 <Text style={{ fontSize: 12, color: mutedColor }}>
                     Only people with access can open with the link
@@ -780,16 +696,8 @@ function RolePicker({
 }) {
     return (
         <Pressable
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 4,
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 6,
-                borderWidth: 1,
-                borderColor,
-            }}
+            className="flex-row items-center gap-1 px-2 py-1 rounded-md border"
+            style={{ borderColor }}
             onPress={() => onChange(value === 'editor' ? 'viewer' : 'editor')}
         >
             <Text style={{ fontSize: 12, color: fgColor }}>

@@ -1,12 +1,11 @@
 import { and, eq } from '@tanstack/db'
-import { useLiveQuery } from '@tanstack/react-db'
 import { useMutation } from '~/lib/mutations'
-import { pb, useStore } from '~/lib/pocketbase'
+import { pb, useOrgLiveQuery, useStore } from '~/lib/pocketbase'
 
 export function useVersionHistory(itemId: string) {
     const [versionsCollection] = useStore('drive_item_versions')
 
-    const { data: versions } = useLiveQuery(
+    const { data: versions } = useOrgLiveQuery(
         query =>
             query
                 .from({ v: versionsCollection })

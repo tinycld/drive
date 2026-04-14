@@ -107,7 +107,6 @@ export function useDriveState(): DriveContextValue {
     )
 
     const items = useDriveItems({
-        orgId,
         userOrgId,
         activeSection,
         currentFolderId,

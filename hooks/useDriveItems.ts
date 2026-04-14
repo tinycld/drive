@@ -1,5 +1,4 @@
 import { eq } from '@tanstack/db'
-import { useLiveQuery } from '@tanstack/react-db'
 import { useMemo } from 'react'
 import { useOrgLiveQuery, useStore } from '~/lib/pocketbase'
 import { mimeTypeToCategory } from '../components/file-icons'
@@ -7,7 +6,6 @@ import type { DriveItemView, FolderTreeNode, SidebarSection } from '../types'
 import type { DriveSearchResult } from './useDriveSearch'
 
 interface UseDriveItemsParams {
-    orgId: string
     userOrgId: string
     activeSection: SidebarSection
     currentFolderId: string
@@ -19,7 +17,6 @@ interface UseDriveItemsParams {
 }
 
 export function useDriveItems({
-    orgId,
     userOrgId,
     activeSection,
     currentFolderId,
@@ -33,9 +30,8 @@ export function useDriveItems({
     const [stateCollection] = useStore('drive_item_state')
     const [userOrgCollection] = useStore('user_org')
 
-    const { data: rawItems } = useLiveQuery(
-        query => query.from({ item: itemsCollection }).where(({ item }) => eq(item.org, orgId)),
-        [orgId]
+    const { data: rawItems } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
+        query.from({ item: itemsCollection }).where(({ item }) => eq(item.org, scopedOrgId))
     )
 
     const { data: rawShares } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
@@ -46,17 +42,14 @@ export function useDriveItems({
             .select(({ share }) => share)
     )
 
-    const { data: rawStates } = useLiveQuery(
-        query =>
-            query
-                .from({ state: stateCollection })
-                .where(({ state }) => eq(state.user_org, userOrgId)),
-        [userOrgId]
+    const { data: rawStates } = useOrgLiveQuery((query, { userOrgId: scopedUserOrgId }) =>
+        query
+            .from({ state: stateCollection })
+            .where(({ state }) => eq(state.user_org, scopedUserOrgId))
     )
 
-    const { data: orgUserOrgs } = useLiveQuery(
-        query => query.from({ uo: userOrgCollection }).where(({ uo }) => eq(uo.org, orgId)),
-        [orgId]
+    const { data: orgUserOrgs } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
+        query.from({ uo: userOrgCollection }).where(({ uo }) => eq(uo.org, scopedOrgId))
     )
 
     const userOrgNames = useMemo(
