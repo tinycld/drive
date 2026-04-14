@@ -1,7 +1,7 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useMemo } from 'react'
-import { useStore } from '~/lib/pocketbase'
+import { useOrgLiveQuery, useStore } from '~/lib/pocketbase'
 import { mimeTypeToCategory } from '../components/file-icons'
 import type { DriveItemView, FolderTreeNode, SidebarSection } from '../types'
 import type { DriveSearchResult } from './useDriveSearch'
@@ -38,7 +38,13 @@ export function useDriveItems({
         [orgId]
     )
 
-    const { data: rawShares } = useLiveQuery(query => query.from({ share: sharesCollection }), [])
+    const { data: rawShares } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
+        query
+            .from({ share: sharesCollection })
+            .join({ item: itemsCollection }, ({ share, item }) => eq(share.item, item.id))
+            .where(({ item }) => eq(item.org, scopedOrgId))
+            .select(({ share }) => share)
+    )
 
     const { data: rawStates } = useLiveQuery(
         query =>
@@ -82,7 +88,7 @@ export function useDriveItems({
     )
 
     const sharesByItem = useMemo(() => {
-        const map = new Map<string, typeof rawShares>()
+        const map = new Map<string, NonNullable<typeof rawShares>>()
         for (const share of rawShares ?? []) {
             const list = map.get(share.item) ?? []
             list.push(share)
