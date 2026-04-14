@@ -1,6 +1,14 @@
 import { Download, Star, Trash2 } from 'lucide-react-native'
-import { useCallback, useState } from 'react'
-import { type LayoutChangeEvent, Platform, Pressable, ScrollView, Text, View } from 'react-native'
+import { useCallback, useMemo, useState } from 'react'
+import {
+    type GestureResponderEvent,
+    type LayoutChangeEvent,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    View,
+} from 'react-native'
 import { DataTableHeader } from '~/components/DataTableHeader'
 import { EmptyState } from '~/components/EmptyState'
 import { HoverAction } from '~/components/HoverAction'
@@ -15,6 +23,7 @@ import { getFileIcon } from '../components/file-icons'
 import { Thumbnail } from '../components/Thumbnail'
 import { useDoubleClick } from '../hooks/useDoubleClick'
 import { useDrive } from '../hooks/useDrive'
+import { useFileSelection } from '../hooks/useFileSelection'
 import type { DriveItemView } from '../types'
 
 export default function DriveScreen() {
@@ -58,6 +67,8 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
     const isMobile = useBreakpoint() === 'mobile'
     const folders = items.filter(i => i.isFolder)
     const files = items.filter(i => !i.isFolder)
+    const orderedIds = useMemo(() => [...folders, ...files].map(i => i.id), [folders, files])
+    const { handleSelect, isSelected } = useFileSelection(orderedIds)
 
     return (
         <SwipeableRowProvider>
@@ -69,22 +80,40 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
                 {folders.map((item, i) =>
                     isTrash ? (
                         <DriveContextMenu key={item.id} item={item}>
-                            <TrashListRow item={item} />
+                            <TrashListRow
+                                item={item}
+                                isSelected={isSelected(item.id)}
+                                onSelect={handleSelect}
+                            />
                         </DriveContextMenu>
                     ) : (
                         <DriveContextMenu key={item.id} item={item}>
-                            <FilesListRow item={item} index={i} />
+                            <FilesListRow
+                                item={item}
+                                index={i}
+                                isSelected={isSelected(item.id)}
+                                onSelect={handleSelect}
+                            />
                         </DriveContextMenu>
                     )
                 )}
                 {files.map((item, i) =>
                     isTrash ? (
                         <DriveContextMenu key={item.id} item={item}>
-                            <TrashListRow item={item} />
+                            <TrashListRow
+                                item={item}
+                                isSelected={isSelected(item.id)}
+                                onSelect={handleSelect}
+                            />
                         </DriveContextMenu>
                     ) : (
                         <DriveContextMenu key={item.id} item={item}>
-                            <FilesListRow item={item} index={folders.length + i} />
+                            <FilesListRow
+                                item={item}
+                                index={folders.length + i}
+                                isSelected={isSelected(item.id)}
+                                onSelect={handleSelect}
+                            />
                         </DriveContextMenu>
                     )
                 )}
@@ -93,27 +122,31 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
     )
 }
 
-function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
+interface SelectableRowProps {
+    isSelected: boolean
+    onSelect: (itemId: string, event: GestureResponderEvent) => void
+}
+
+function FilesListRow({
+    item,
+    index,
+    isSelected,
+    onSelect,
+}: { item: DriveItemView; index: number } & SelectableRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const bgColor = useThemeColor('background')
     const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
-    const {
-        selectedItemId,
-        selectItem,
-        openPreview,
-        navigateToFolder,
-        toggleStar,
-        downloadItem,
-        moveToTrash,
-    } = useDrive()
-    const isSelected = selectedItemId === item.id
+    const { openPreview, navigateToFolder, toggleStar, downloadItem, moveToTrash } = useDrive()
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const [isHovered, setIsHovered] = useState(false)
 
-    const handleSingle = useCallback(() => selectItem(item.id), [item.id, selectItem])
+    const handleSingle = useCallback(
+        (event: GestureResponderEvent) => onSelect(item.id, event),
+        [item.id, onSelect]
+    )
     const handleDouble = useCallback(() => {
         if (item.isFolder) navigateToFolder(item.id)
         else openPreview(item)
@@ -299,20 +332,22 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
     )
 }
 
-function TrashListRow({ item }: { item: DriveItemView }) {
+function TrashListRow({
+    item,
+    isSelected,
+    onSelect,
+}: { item: DriveItemView } & SelectableRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
-    const { selectedItemId, selectItem } = useDrive()
-    const isSelected = selectedItemId === item.id
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
     if (isMobile) {
         return (
             <Pressable
-                onPress={() => selectItem(item.id)}
+                onPress={e => onSelect(item.id, e)}
                 style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -342,7 +377,7 @@ function TrashListRow({ item }: { item: DriveItemView }) {
 
     return (
         <Pressable
-            onPress={() => selectItem(item.id)}
+            onPress={e => onSelect(item.id, e)}
             style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -401,6 +436,8 @@ function GridView({ items }: { items: DriveItemView[] }) {
     const folders = items.filter(i => i.isFolder)
     const files = items.filter(i => !i.isFolder)
     const { cardWidth, onLayout } = useGridLayout()
+    const orderedIds = useMemo(() => [...folders, ...files].map(i => i.id), [folders, files])
+    const { handleSelect, isSelected } = useFileSelection(orderedIds)
 
     return (
         <ScrollView className="flex-1" contentContainerStyle={{ padding: 16 }} onLayout={onLayout}>
@@ -411,7 +448,11 @@ function GridView({ items }: { items: DriveItemView[] }) {
                         {folders.map(item => (
                             <View key={item.id} style={{ width: cardWidth }}>
                                 <DriveContextMenu item={item}>
-                                    <FolderGridCard item={item} />
+                                    <FolderGridCard
+                                        item={item}
+                                        isSelected={isSelected(item.id)}
+                                        onSelect={handleSelect}
+                                    />
                                 </DriveContextMenu>
                             </View>
                         ))}
@@ -425,7 +466,11 @@ function GridView({ items }: { items: DriveItemView[] }) {
                         {files.map(item => (
                             <View key={item.id} style={{ width: cardWidth }}>
                                 <DriveContextMenu item={item}>
-                                    <FileGridCard item={item} />
+                                    <FileGridCard
+                                        item={item}
+                                        isSelected={isSelected(item.id)}
+                                        onSelect={handleSelect}
+                                    />
                                 </DriveContextMenu>
                             </View>
                         ))}
@@ -455,17 +500,20 @@ function GridSectionHeader({ title }: { title: string }) {
     )
 }
 
-function FolderGridCard({ item }: { item: DriveItemView }) {
+function FolderGridCard({
+    item,
+    isSelected,
+    onSelect,
+}: { item: DriveItemView } & SelectableRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
-    const borderColor = useThemeColor('border')
-    const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
-    const { selectedItemId, selectItem, navigateToFolder } = useDrive()
-    const isSelected = selectedItemId === item.id
+    const { navigateToFolder } = useDrive()
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
-    const handleSingle = useCallback(() => selectItem(item.id), [item.id, selectItem])
+    const handleSingle = useCallback(
+        (event: GestureResponderEvent) => onSelect(item.id, event),
+        [item.id, onSelect]
+    )
     const handleDouble = useCallback(() => navigateToFolder(item.id), [item.id, navigateToFolder])
     const handleDesktopPress = useDoubleClick(handleSingle, handleDouble)
     const handlePress = isMobile ? handleDouble : handleDesktopPress
@@ -473,44 +521,30 @@ function FolderGridCard({ item }: { item: DriveItemView }) {
     return (
         <Pressable
             onPress={handlePress}
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                borderWidth: isSelected ? 2 : 1,
-                borderRadius: 8,
-                borderColor: isSelected ? activeIndicator : borderColor,
-            }}
+            className={`flex-row items-center gap-2.5 px-3 py-2.5 rounded-lg border ${isSelected ? 'border-2 border-active-indicator' : 'border-border'}`}
         >
             <FileIcon size={20} color={iconColor} />
-            <Text
-                numberOfLines={1}
-                className="flex-1"
-                style={{
-                    fontSize: 12,
-                    fontWeight: '500',
-                    color: fgColor,
-                }}
-            >
+            <Text numberOfLines={1} className="flex-1 text-xs font-medium text-foreground">
                 {item.name}
             </Text>
         </Pressable>
     )
 }
 
-function FileGridCard({ item }: { item: DriveItemView }) {
+function FileGridCard({
+    item,
+    isSelected,
+    onSelect,
+}: { item: DriveItemView } & SelectableRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
-    const borderColor = useThemeColor('border')
-    const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
-    const { selectedItemId, selectItem, openPreview } = useDrive()
-    const isSelected = selectedItemId === item.id
+    const { openPreview } = useDrive()
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
-    const handleSingle = useCallback(() => selectItem(item.id), [item.id, selectItem])
+    const handleSingle = useCallback(
+        (event: GestureResponderEvent) => onSelect(item.id, event),
+        [item.id, onSelect]
+    )
     const handleDouble = useCallback(() => openPreview(item), [item, openPreview])
     const handleDesktopPress = useDoubleClick(handleSingle, handleDouble)
     const handlePress = isMobile ? handleDouble : handleDesktopPress
@@ -518,31 +552,11 @@ function FileGridCard({ item }: { item: DriveItemView }) {
     return (
         <Pressable
             onPress={handlePress}
-            className="rounded-lg overflow-hidden"
-            style={{
-                borderWidth: isSelected ? 2 : 1,
-                borderColor: isSelected ? activeIndicator : borderColor,
-            }}
+            className={`rounded-lg overflow-hidden border ${isSelected ? 'border-2 border-active-indicator' : 'border-border'}`}
         >
-            <View
-                className="flex-row items-center gap-2"
-                style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 8,
-                    borderBottomWidth: 1,
-                    borderBottomColor: borderColor,
-                }}
-            >
+            <View className="flex-row items-center gap-2 px-2.5 py-2 border-b border-border">
                 <FileIcon size={18} color={iconColor} />
-                <Text
-                    numberOfLines={1}
-                    className="flex-1"
-                    style={{
-                        fontSize: 12,
-                        fontWeight: '500',
-                        color: fgColor,
-                    }}
-                >
+                <Text numberOfLines={1} className="flex-1 text-xs font-medium text-foreground">
                     {item.name}
                 </Text>
             </View>

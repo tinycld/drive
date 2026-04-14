@@ -27,16 +27,18 @@ interface UseDriveNavigationParams {
     orgSlug: string
     activeSection: SidebarSection
     currentFolderId: string
-    selectedItemId: string | null
+    selectItem: (itemId: string | null) => void
     clearSearch: () => void
+    clearSelection: () => void
 }
 
 export function useDriveNavigation({
     orgSlug,
     activeSection,
     currentFolderId,
-    selectedItemId,
+    selectItem,
     clearSearch,
+    clearSelection,
 }: UseDriveNavigationParams) {
     const router = useRouter()
     const driveBase = `/a/${orgSlug}/drive`
@@ -72,7 +74,6 @@ export function useDriveNavigation({
             buildDriveHref({
                 section: activeSection,
                 folderId: currentFolderId || undefined,
-                fileId: selectedItemId ?? undefined,
             })
         )
     }
@@ -80,21 +81,13 @@ export function useDriveNavigation({
     const navigateToFolder = (folderId: string) => {
         router.push(buildDriveHref({ folderId: folderId || undefined }))
         clearSearch()
+        clearSelection()
     }
 
     const navigateToSection = (section: SidebarSection) => {
         router.push(buildDriveHref({ section }))
         clearSearch()
-    }
-
-    const selectItem = (itemId: string | null) => {
-        router.replace(
-            buildDriveHref({
-                section: activeSection,
-                folderId: currentFolderId || undefined,
-                fileId: itemId ?? undefined,
-            })
-        )
+        clearSelection()
     }
 
     const openItem = (item: DriveItemView) => {
@@ -108,7 +101,6 @@ export function useDriveNavigation({
     return {
         navigateToFolder,
         navigateToSection,
-        selectItem,
         openItem,
         openPreview,
         closePreview,

@@ -14,6 +14,8 @@ export interface DriveContextValue {
     currentFolderId: string
     activeSection: SidebarSection
     selectedItemId: string | null
+    selectedIds: Set<string>
+    clearSelection: () => void
     viewMode: ViewMode
     currentItems: DriveItemView[]
     breadcrumbs: DriveItemView[]
@@ -84,7 +86,10 @@ export function useDriveState(): DriveContextValue {
     const { section: activeSection, folderId: currentFolderId } = parseDrivePath(pathname)
 
     const params = useGlobalSearchParams<{ file?: string; preview?: string }>()
-    const selectedItemId = params.file ?? null
+    const selectedItemId = useDriveUIStore(s => s.selectedItemId) ?? params.file ?? null
+    const selectItem = useDriveUIStore(s => s.selectItem)
+    const selectedIds = useDriveUIStore(s => s.selectedIds)
+    const clearSelection = useDriveUIStore(s => s.clearSelection)
     const previewItemId = params.preview === '1' && selectedItemId ? selectedItemId : null
 
     const [viewMode, setViewMode] = useUserPreference<ViewMode>('drive', 'view_mode', 'list')
@@ -140,17 +145,18 @@ export function useDriveState(): DriveContextValue {
         orgSlug,
         activeSection,
         currentFolderId,
-        selectedItemId,
+        selectItem,
         clearSearch: () => setSearchQuery(''),
+        clearSelection,
     })
 
     const openMoveDialog = (id: string, name: string) => {
-        nav.selectItem(id)
+        selectItem(id)
         openMoveDialogStore(id, name)
     }
 
     const openShareDialog = (id: string, name: string) => {
-        nav.selectItem(id)
+        selectItem(id)
         openShareDialogStore(id, name)
     }
 
@@ -167,6 +173,8 @@ export function useDriveState(): DriveContextValue {
         currentFolderId,
         activeSection,
         selectedItemId,
+        selectedIds,
+        clearSelection,
         viewMode,
         currentItems: items.currentItems,
         breadcrumbs: items.breadcrumbs,
@@ -186,7 +194,7 @@ export function useDriveState(): DriveContextValue {
         closeDetailPanel,
         navigateToFolder: nav.navigateToFolder,
         navigateToSection: nav.navigateToSection,
-        selectItem: nav.selectItem,
+        selectItem,
         setViewMode,
         openItem: nav.openItem,
         toggleStar: mutations.toggleStar,

@@ -63,7 +63,14 @@ export function DropZone({ children, onDrop, isEnabled }: DropZoneProps) {
         // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop zone requires native DOM events
         <div
             role="presentation"
-            style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}
+            style={{
+                flex: 1,
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+                overflow: 'hidden',
+            }}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}

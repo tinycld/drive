@@ -44,6 +44,8 @@ export function DriveDialogs() {
         moveTarget,
         moveItem,
         selectItem,
+        selectedIds,
+        clearSelection,
         closeMoveDialog,
         shareTarget,
         getSharesForItem,
@@ -53,6 +55,19 @@ export function DriveDialogs() {
         folderTree,
     } = useDrive()
     const { userOrgId } = useCurrentRole()
+
+    const isMultiMove = moveTarget?.id === '__multi__'
+
+    const handleMove = (targetId: string) => {
+        if (!moveTarget) return
+        if (isMultiMove) {
+            for (const id of selectedIds) moveItem(id, targetId)
+            clearSelection()
+        } else {
+            moveItem(moveTarget.id, targetId)
+        }
+        selectItem(null)
+    }
 
     return (
         <>
@@ -69,14 +84,9 @@ export function DriveDialogs() {
             <ChooseFolderDialog
                 open={moveTarget !== null}
                 itemName={moveTarget?.name ?? ''}
-                excludeId={moveTarget?.id ?? ''}
+                excludeId={isMultiMove ? '' : (moveTarget?.id ?? '')}
                 folderTree={folderTree}
-                onMove={targetId => {
-                    if (moveTarget) {
-                        moveItem(moveTarget.id, targetId)
-                        selectItem(null)
-                    }
-                }}
+                onMove={handleMove}
                 onClose={closeMoveDialog}
             />
             <ShareDialog
@@ -100,6 +110,8 @@ export function DriveToolbar() {
     const isMobile = useBreakpoint() === 'mobile'
     const {
         selectedItem,
+        selectedIds,
+        clearSelection,
         activeSection,
         breadcrumbs,
         currentFolderId,
@@ -117,13 +129,23 @@ export function DriveToolbar() {
         openShareDialog,
     } = useDrive()
 
-    if (selectedItem) {
+    const selectionCount = selectedIds.size
+    const hasSelection = selectionCount > 0 || selectedItem
+
+    if (hasSelection) {
+        const handleClear = () => {
+            selectItem(null)
+            clearSelection()
+        }
+
         return (
             <SelectionToolbar
-                item={selectedItem}
+                selectedIds={selectedIds}
+                selectedItem={selectedItem}
+                selectionCount={selectionCount}
                 viewMode={viewMode}
                 onSetViewMode={setViewMode}
-                onClearSelection={() => selectItem(null)}
+                onClearSelection={handleClear}
                 onOpenRename={(itemId, name) =>
                     openPrompt({ type: 'rename', itemId, currentName: name })
                 }
@@ -425,7 +447,9 @@ function SearchInput({ value, onChangeText, mutedColor, fgColor, fullWidth }: Se
 }
 
 interface SelectionToolbarProps {
-    item: { name: string; isFolder: boolean; id: string }
+    selectedIds: Set<string>
+    selectedItem: DriveItemView | undefined
+    selectionCount: number
     viewMode: ViewMode
     onSetViewMode: (mode: ViewMode) => void
     onClearSelection: () => void
@@ -438,7 +462,9 @@ interface SelectionToolbarProps {
 }
 
 function SelectionToolbar({
-    item,
+    selectedIds,
+    selectedItem,
+    selectionCount,
     viewMode,
     onSetViewMode,
     onClearSelection,
@@ -460,15 +486,19 @@ function SelectionToolbar({
         restoreToFolder,
         folderTree,
         openPreview,
-        selectedItem,
         toggleDetailPanel,
     } = useDrive()
     const [restoreMoveTarget, setRestoreMoveTarget] = useState<string | null>(null)
 
     const isTrash = activeSection === 'trash'
+    const isSingle = selectionCount <= 1
+    const item = selectedItem
+    const selectedIdArray = useMemo(() => [...selectedIds], [selectedIds])
+
+    const displayLabel = isSingle ? (item?.name ?? '') : `${selectionCount} selected`
 
     const triggerVersionUpload = useCallback(() => {
-        if (Platform.OS === 'web') {
+        if (Platform.OS === 'web' && item) {
             const input = document.createElement('input')
             input.type = 'file'
             input.onchange = () => {
@@ -480,7 +510,16 @@ function SelectionToolbar({
             }
             input.click()
         }
-    }, [uploadNewVersion, item.id])
+    }, [uploadNewVersion, item])
+
+    const handleDownloadAll = useCallback(() => {
+        for (const id of selectedIdArray) downloadItem(id)
+    }, [selectedIdArray, downloadItem])
+
+    const handleTrashAll = useCallback(() => {
+        for (const id of selectedIdArray) moveToTrash(id)
+        onClearSelection()
+    }, [selectedIdArray, moveToTrash, onClearSelection])
 
     const toolbarItems: ToolbarItem[] = useMemo(() => {
         const items: ToolbarItem[] = [
@@ -502,13 +541,13 @@ function SelectionToolbar({
                         className="flex-1"
                         style={{ fontSize: 13, fontWeight: '500', color: fgColor }}
                     >
-                        {item.name}
+                        {displayLabel}
                     </Text>
                 ),
             },
         ]
 
-        if (!item.isFolder) {
+        if (isSingle && item && !item.isFolder) {
             items.push(
                 {
                     type: 'button',
@@ -529,52 +568,65 @@ function SelectionToolbar({
             )
         }
 
+        if (isSingle && item) {
+            items.push(
+                {
+                    type: 'button',
+                    key: 'share',
+                    icon: UserPlus,
+                    label: 'Share',
+                    onPress: () => onOpenShare(item.id, item.name),
+                },
+                {
+                    type: 'button',
+                    key: 'rename',
+                    icon: Pencil,
+                    label: 'Rename',
+                    onPress: () => onOpenRename(item.id, item.name),
+                },
+                {
+                    type: 'button',
+                    key: 'info',
+                    icon: Info,
+                    label: 'Info',
+                    onPress: toggleDetailPanel,
+                }
+            )
+        }
+
+        // Multi-capable actions: download, move, trash
         items.push(
-            {
-                type: 'button',
-                key: 'share',
-                icon: UserPlus,
-                label: 'Share',
-                onPress: () => onOpenShare(item.id, item.name),
-            },
             {
                 type: 'button',
                 key: 'download',
                 icon: Download,
                 label: 'Download',
-                onPress: () => downloadItem(item.id),
-            },
-            {
-                type: 'button',
-                key: 'rename',
-                icon: Pencil,
-                label: 'Rename',
-                onPress: () => onOpenRename(item.id, item.name),
+                onPress: isSingle && item ? () => downloadItem(item.id) : handleDownloadAll,
             },
             {
                 type: 'button',
                 key: 'move',
                 icon: FolderInput,
                 label: 'Move',
-                onPress: () => onOpenMove(item.id, item.name),
-            },
-            {
-                type: 'button',
-                key: 'info',
-                icon: Info,
-                label: 'Info',
-                onPress: toggleDetailPanel,
+                onPress:
+                    isSingle && item
+                        ? () => onOpenMove(item.id, item.name)
+                        : () => onOpenMove('__multi__', `${selectionCount} items`),
             },
             {
                 type: 'custom',
                 key: 'trash',
                 element: (
                     <ConfirmTrash
-                        itemName={item.name}
-                        onConfirmed={() => {
-                            moveToTrash(item.id)
-                            onClearSelection()
-                        }}
+                        itemName={isSingle && item ? item.name : `${selectionCount} items`}
+                        onConfirmed={
+                            isSingle && item
+                                ? () => {
+                                      moveToTrash(item.id)
+                                      onClearSelection()
+                                  }
+                                : handleTrashAll
+                        }
                     >
                         {onOpen => (
                             <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />
@@ -586,7 +638,10 @@ function SelectionToolbar({
 
         return items
     }, [
+        isSingle,
         item,
+        displayLabel,
+        selectionCount,
         mutedColor,
         fgColor,
         selectedItem,
@@ -594,9 +649,11 @@ function SelectionToolbar({
         triggerVersionUpload,
         onOpenShare,
         downloadItem,
+        handleDownloadAll,
         onOpenRename,
         onOpenMove,
         moveToTrash,
+        handleTrashAll,
         onClearSelection,
         toggleDetailPanel,
     ])
@@ -620,7 +677,20 @@ function SelectionToolbar({
     )
 
     if (isTrash) {
-        const handleRestore = () => {
+        const handleRestoreAll = () => {
+            for (const id of selectedIdArray) {
+                if (canRestoreToOriginalLocation(id)) restoreFromTrash(id)
+            }
+            onClearSelection()
+        }
+
+        const handleDeleteAll = () => {
+            for (const id of selectedIdArray) permanentlyDelete(id)
+            onClearSelection()
+        }
+
+        const handleRestoreSingle = () => {
+            if (!item) return
             if (canRestoreToOriginalLocation(item.id)) {
                 restoreFromTrash(item.id)
                 onClearSelection()
@@ -649,22 +719,30 @@ function SelectionToolbar({
                                     color: fgColor,
                                 }}
                             >
-                                {item.name}
+                                {displayLabel}
                             </Text>
                         </View>
                         <View className="flex-row items-center gap-1">
                             <ToolbarIconButton
                                 icon={RotateCcw}
                                 label="Restore"
-                                onPress={handleRestore}
+                                onPress={isSingle ? handleRestoreSingle : handleRestoreAll}
                             />
                             <SuretyGuard
-                                message={`Permanently delete "${item.name}"? This cannot be undone.`}
+                                message={
+                                    isSingle && item
+                                        ? `Permanently delete "${item.name}"? This cannot be undone.`
+                                        : `Permanently delete ${selectionCount} items? This cannot be undone.`
+                                }
                                 confirmLabel="Delete permanently"
-                                onConfirmed={() => {
-                                    permanentlyDelete(item.id)
-                                    onClearSelection()
-                                }}
+                                onConfirmed={
+                                    isSingle && item
+                                        ? () => {
+                                              permanentlyDelete(item.id)
+                                              onClearSelection()
+                                          }
+                                        : handleDeleteAll
+                                }
                             >
                                 {onOpen => (
                                     <ToolbarIconButton
@@ -684,21 +762,23 @@ function SelectionToolbar({
                         </View>
                     </View>
                 </ScreenHeader>
-                <ChooseFolderDialog
-                    open={restoreMoveTarget !== null}
-                    itemName={item.name}
-                    excludeId={item.id}
-                    folderTree={folderTree}
-                    title="Original location has been removed, select alternative location"
-                    confirmLabel="Restore here"
-                    onMove={targetId => {
-                        if (restoreMoveTarget) {
-                            restoreToFolder(restoreMoveTarget, targetId)
-                            onClearSelection()
-                        }
-                    }}
-                    onClose={() => setRestoreMoveTarget(null)}
-                />
+                {item && isSingle && (
+                    <ChooseFolderDialog
+                        open={restoreMoveTarget !== null}
+                        itemName={item.name}
+                        excludeId={item.id}
+                        folderTree={folderTree}
+                        title="Original location has been removed, select alternative location"
+                        confirmLabel="Restore here"
+                        onMove={targetId => {
+                            if (restoreMoveTarget) {
+                                restoreToFolder(restoreMoveTarget, targetId)
+                                onClearSelection()
+                            }
+                        }}
+                        onClose={() => setRestoreMoveTarget(null)}
+                    />
+                )}
             </>
         )
     }

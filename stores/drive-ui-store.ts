@@ -11,6 +11,9 @@ interface DialogTarget {
 }
 
 interface DriveUIState {
+    selectedItemId: string | null
+    selectedIds: Set<string>
+    lastSelectedId: string | null
     searchQuery: string
     promptDialog: PromptDialog
     promptKey: number
@@ -20,6 +23,11 @@ interface DriveUIState {
 }
 
 interface DriveUIActions {
+    selectItem: (itemId: string | null) => void
+    selectSingle: (id: string) => void
+    selectToggle: (id: string) => void
+    selectRange: (id: string, orderedIds: string[]) => void
+    clearSelection: () => void
     setSearchQuery: (query: string) => void
     openPrompt: (state: PromptDialog) => void
     closePrompt: () => void
@@ -35,12 +43,43 @@ interface DriveUIActions {
 export type { DialogTarget, PromptDialog }
 
 export const useDriveUIStore = create<DriveUIState & DriveUIActions>(set => ({
+    selectedItemId: null,
+    selectedIds: new Set<string>(),
+    lastSelectedId: null,
     searchQuery: '',
     promptDialog: { type: 'closed' },
     promptKey: 0,
     moveTarget: null,
     shareTarget: null,
     detailPanelOpen: false,
+
+    selectItem: (itemId: string | null) => set({ selectedItemId: itemId }),
+
+    selectSingle: (id: string) => set({ selectedIds: new Set([id]), lastSelectedId: id }),
+
+    selectToggle: (id: string) =>
+        set(prev => {
+            const next = new Set(prev.selectedIds)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return { selectedIds: next, lastSelectedId: id }
+        }),
+
+    selectRange: (id: string, orderedIds: string[]) =>
+        set(prev => {
+            const anchor = prev.lastSelectedId
+            if (!anchor) return { selectedIds: new Set([id]), lastSelectedId: id }
+            const startIdx = orderedIds.indexOf(anchor)
+            const endIdx = orderedIds.indexOf(id)
+            if (startIdx === -1 || endIdx === -1)
+                return { selectedIds: new Set([id]), lastSelectedId: id }
+            const lo = Math.min(startIdx, endIdx)
+            const hi = Math.max(startIdx, endIdx)
+            const rangeIds = orderedIds.slice(lo, hi + 1)
+            return { selectedIds: new Set([...prev.selectedIds, ...rangeIds]), lastSelectedId: id }
+        }),
+
+    clearSelection: () => set({ selectedIds: new Set<string>(), lastSelectedId: null }),
 
     setSearchQuery: (query: string) => set({ searchQuery: query }),
 

@@ -33,7 +33,16 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
     const showVersionsTab = !item.isFolder
 
     return (
-        <View style={{ width: 320, borderLeftWidth: 1, borderLeftColor: borderColor }}>
+        <View
+            style={{
+                width: 320,
+                borderLeftWidth: 1,
+                borderLeftColor: borderColor,
+                alignSelf: 'stretch',
+                minHeight: 0,
+                overflow: 'hidden',
+            }}
+        >
             <View
                 className="flex-row items-start justify-between px-4 py-3 gap-2"
                 style={{
@@ -57,26 +66,30 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
                 </Pressable>
             </View>
 
-            <View className="items-center py-6">
-                <Thumbnail item={item} size={120} />
-            </View>
+            <ScrollView className="flex-1">
+                <View className="items-center py-6">
+                    <Thumbnail item={item} size={120} />
+                </View>
 
-            <TabBar
-                tabs={
-                    showVersionsTab
-                        ? (['details', 'versions', 'activity'] as const)
-                        : (['details', 'activity'] as const)
-                }
-                activeTab={activeTab}
-                onTabPress={setActiveTab}
-                mutedColor={mutedColor}
-                primaryColor={primaryColor}
-                borderColor={borderColor}
-            />
+                <TabBar
+                    tabs={
+                        showVersionsTab
+                            ? (['details', 'versions', 'activity'] as const)
+                            : (['details', 'activity'] as const)
+                    }
+                    activeTab={activeTab}
+                    onTabPress={setActiveTab}
+                    mutedColor={mutedColor}
+                    primaryColor={primaryColor}
+                    borderColor={borderColor}
+                />
 
-            {activeTab === 'details' && <DetailsContent item={item} />}
-            {activeTab === 'versions' && showVersionsTab && <VersionsContent itemId={item.id} />}
-            {activeTab === 'activity' && <ActivityContent />}
+                {activeTab === 'details' && <DetailsContent item={item} />}
+                {activeTab === 'versions' && showVersionsTab && (
+                    <VersionsContent itemId={item.id} />
+                )}
+                {activeTab === 'activity' && <ActivityContent />}
+            </ScrollView>
         </View>
     )
 }
@@ -326,7 +339,7 @@ function VersionsContent({ itemId }: { itemId: string }) {
 
     return (
         <>
-            <ScrollView className="p-4">
+            <View className="p-4">
                 {versions.map(version => (
                     <VersionRow
                         key={version.id}
@@ -336,7 +349,7 @@ function VersionsContent({ itemId }: { itemId: string }) {
                         isRestoring={isRestoring}
                     />
                 ))}
-            </ScrollView>
+            </View>
 
             <RestoreConfirmDialog
                 open={!!confirmingVersion}
