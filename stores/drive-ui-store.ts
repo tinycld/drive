@@ -16,6 +16,7 @@ interface DriveUIState {
     promptKey: number
     moveTarget: DialogTarget | null
     shareTarget: DialogTarget | null
+    detailPanelOpen: boolean
 }
 
 interface DriveUIActions {
@@ -26,6 +27,9 @@ interface DriveUIActions {
     closeMoveDialog: () => void
     openShareDialog: (id: string, name: string) => void
     closeShareDialog: () => void
+    toggleDetailPanel: () => void
+    openDetailPanel: () => void
+    closeDetailPanel: () => void
 }
 
 export type { DialogTarget, PromptDialog }
@@ -36,6 +40,7 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>(set => ({
     promptKey: 0,
     moveTarget: null,
     shareTarget: null,
+    detailPanelOpen: false,
 
     setSearchQuery: (query: string) => set({ searchQuery: query }),
 
@@ -51,4 +56,8 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>(set => ({
     openShareDialog: (id: string, name: string) => set({ shareTarget: { id, name } }),
 
     closeShareDialog: () => set({ shareTarget: null }),
+
+    toggleDetailPanel: () => set(prev => ({ detailPanelOpen: !prev.detailPanelOpen })),
+    openDetailPanel: () => set({ detailPanelOpen: true }),
+    closeDetailPanel: () => set({ detailPanelOpen: false }),
 }))

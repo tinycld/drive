@@ -22,16 +22,17 @@ export default function DriveLayout() {
 function DriveLayoutInner() {
     const {
         selectedItem,
-        selectItem,
         activeSection,
         uploadFiles,
         isUploading,
         previewItem,
         closePreview,
+        detailPanelOpen,
+        closeDetailPanel,
     } = useDrive()
     const bgColor = useThemeColor('background')
     const isMobile = useBreakpoint() === 'mobile'
-    const showDetail = !!selectedItem && !isMobile
+    const showDetail = detailPanelOpen && !!selectedItem && !isMobile
     const isMyDrive = activeSection === 'my-drive'
 
     return (
@@ -47,7 +48,7 @@ function DriveLayoutInner() {
                 <DetailPanel
                     isVisible={showDetail}
                     item={selectedItem}
-                    onClose={() => selectItem(null)}
+                    onClose={closeDetailPanel}
                 />
             </View>
             <PreviewModal isVisible={!!previewItem} item={previewItem} onClose={closePreview} />

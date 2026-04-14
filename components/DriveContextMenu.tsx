@@ -4,6 +4,7 @@ import {
     Eye,
     FolderInput,
     FolderOpen,
+    Info,
     Pencil,
     RotateCcw,
     Star,
@@ -39,6 +40,7 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
         openMoveDialog,
         openShareDialog,
         selectItem,
+        openDetailPanel,
     } = useDrive()
 
     const isTrash = activeSection === 'trash'
@@ -60,6 +62,10 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
             onDownload={() => downloadItem(item.id)}
             onToggleStar={() => toggleStar(item.id)}
             onShare={() => openShareDialog(item.id, item.name)}
+            onInfo={() => {
+                selectItem(item.id)
+                openDetailPanel()
+            }}
             onRename={() => {
                 selectItem(item.id)
                 openPrompt({
@@ -84,6 +90,7 @@ function NormalMenuItems({
     onDownload,
     onToggleStar,
     onShare,
+    onInfo,
     onRename,
     onMove,
     onTrash,
@@ -95,6 +102,7 @@ function NormalMenuItems({
     onDownload: () => void
     onToggleStar: () => void
     onShare: () => void
+    onInfo: () => void
     onRename: () => void
     onMove: () => void
     onTrash: () => void
@@ -115,6 +123,7 @@ function NormalMenuItems({
                 onPress={onOpen}
                 mutedColor={mutedColor}
             />
+            <ContextMenuItem label="Info" icon={Info} onPress={onInfo} mutedColor={mutedColor} />
             <ContextMenuItem
                 label="Download"
                 icon={Download}

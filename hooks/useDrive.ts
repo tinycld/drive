@@ -27,6 +27,10 @@ export interface DriveContextValue {
     previewItem: DriveItemView | null
     openPreview: (item: DriveItemView) => void
     closePreview: () => void
+    detailPanelOpen: boolean
+    toggleDetailPanel: () => void
+    openDetailPanel: () => void
+    closeDetailPanel: () => void
     navigateToFolder: (folderId: string) => void
     navigateToSection: (section: SidebarSection) => void
     selectItem: (itemId: string | null) => void
@@ -98,6 +102,10 @@ export function useDriveState(): DriveContextValue {
         shareTarget,
         openShareDialog: openShareDialogStore,
         closeShareDialog,
+        detailPanelOpen,
+        toggleDetailPanel,
+        openDetailPanel,
+        closeDetailPanel,
     } = useDriveUIStore()
 
     const isSearchActive = searchQuery.length >= 2
@@ -172,6 +180,10 @@ export function useDriveState(): DriveContextValue {
         previewItem: items.previewItem,
         openPreview: nav.openPreview,
         closePreview: nav.closePreview,
+        detailPanelOpen,
+        toggleDetailPanel,
+        openDetailPanel,
+        closeDetailPanel,
         navigateToFolder: nav.navigateToFolder,
         navigateToSection: nav.navigateToSection,
         selectItem: nav.selectItem,
