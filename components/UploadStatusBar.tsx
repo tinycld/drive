@@ -7,7 +7,7 @@ interface UploadStatusBarProps {
 }
 
 export function UploadStatusBar({ isVisible }: UploadStatusBarProps) {
-    const accentColor = useThemeColor('accent')
+    const accentColor = useThemeColor('primary')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const bgColor = useThemeColor('background')

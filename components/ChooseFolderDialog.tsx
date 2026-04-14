@@ -86,7 +86,7 @@ export function ChooseFolderDialog({
 function RootItem({ isSelected, onSelect }: { isSelected: boolean; onSelect: () => void }) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
-    const accentColor = useThemeColor('accent')
+    const accentColor = useThemeColor('primary')
 
     return (
         <Pressable
@@ -152,7 +152,7 @@ function PickerTreeItem({
 }) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
-    const accentColor = useThemeColor('accent')
+    const accentColor = useThemeColor('primary')
     const [expanded, setExpanded] = useState(false)
     const isSelected = selectedId === node.item.id
     const hasChildren = node.children.filter(c => c.item.id !== excludeId).length > 0

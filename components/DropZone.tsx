@@ -11,7 +11,7 @@ interface DropZoneProps {
 
 export function DropZone({ children, onDrop, isEnabled }: DropZoneProps) {
     const [isDragging, setIsDragging] = useState(false)
-    const accentColor = useThemeColor('accent')
+    const accentColor = useThemeColor('primary')
 
     if (Platform.OS !== 'web') {
         return <View className="flex-1">{children}</View>
