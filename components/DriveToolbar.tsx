@@ -6,8 +6,8 @@ import {
     FolderInput,
     FolderPlus,
     Grid,
+    Info,
     List,
-    MoreVertical,
     Pencil,
     RotateCcw,
     Search,
@@ -16,8 +16,9 @@ import {
     UserPlus,
     X,
 } from 'lucide-react-native'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
+import { ResponsiveToolbar, type ToolbarItem } from '~/components/ResponsiveToolbar'
 import { ScreenHeader } from '~/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '~/components/SuretyGuard'
 import { ToolbarIconButton } from '~/components/ToolbarIconButton'
@@ -460,12 +461,13 @@ function SelectionToolbar({
         folderTree,
         openPreview,
         selectedItem,
+        toggleDetailPanel,
     } = useDrive()
     const [restoreMoveTarget, setRestoreMoveTarget] = useState<string | null>(null)
 
     const isTrash = activeSection === 'trash'
 
-    const triggerVersionUpload = () => {
+    const triggerVersionUpload = useCallback(() => {
         if (Platform.OS === 'web') {
             const input = document.createElement('input')
             input.type = 'file'
@@ -478,7 +480,144 @@ function SelectionToolbar({
             }
             input.click()
         }
-    }
+    }, [uploadNewVersion, item.id])
+
+    const toolbarItems: ToolbarItem[] = useMemo(() => {
+        const items: ToolbarItem[] = [
+            {
+                type: 'custom',
+                key: 'close',
+                element: (
+                    <Pressable onPress={onClearSelection} className="p-1">
+                        <X size={16} color={mutedColor} />
+                    </Pressable>
+                ),
+            },
+            {
+                type: 'custom',
+                key: 'name',
+                element: (
+                    <Text
+                        numberOfLines={1}
+                        className="flex-1"
+                        style={{ fontSize: 13, fontWeight: '500', color: fgColor }}
+                    >
+                        {item.name}
+                    </Text>
+                ),
+            },
+        ]
+
+        if (!item.isFolder) {
+            items.push(
+                {
+                    type: 'button',
+                    key: 'preview',
+                    icon: Eye,
+                    label: 'Preview',
+                    onPress: () => {
+                        if (selectedItem) openPreview(selectedItem)
+                    },
+                },
+                {
+                    type: 'button',
+                    key: 'upload-version',
+                    icon: Upload,
+                    label: 'Upload new version',
+                    onPress: triggerVersionUpload,
+                }
+            )
+        }
+
+        items.push(
+            {
+                type: 'button',
+                key: 'share',
+                icon: UserPlus,
+                label: 'Share',
+                onPress: () => onOpenShare(item.id, item.name),
+            },
+            {
+                type: 'button',
+                key: 'download',
+                icon: Download,
+                label: 'Download',
+                onPress: () => downloadItem(item.id),
+            },
+            {
+                type: 'button',
+                key: 'rename',
+                icon: Pencil,
+                label: 'Rename',
+                onPress: () => onOpenRename(item.id, item.name),
+            },
+            {
+                type: 'button',
+                key: 'move',
+                icon: FolderInput,
+                label: 'Move',
+                onPress: () => onOpenMove(item.id, item.name),
+            },
+            {
+                type: 'button',
+                key: 'info',
+                icon: Info,
+                label: 'Info',
+                onPress: toggleDetailPanel,
+            },
+            {
+                type: 'custom',
+                key: 'trash',
+                element: (
+                    <ConfirmTrash
+                        itemName={item.name}
+                        onConfirmed={() => {
+                            moveToTrash(item.id)
+                            onClearSelection()
+                        }}
+                    >
+                        {onOpen => (
+                            <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />
+                        )}
+                    </ConfirmTrash>
+                ),
+            }
+        )
+
+        return items
+    }, [
+        item,
+        mutedColor,
+        fgColor,
+        selectedItem,
+        openPreview,
+        triggerVersionUpload,
+        onOpenShare,
+        downloadItem,
+        onOpenRename,
+        onOpenMove,
+        moveToTrash,
+        onClearSelection,
+        toggleDetailPanel,
+    ])
+
+    const rightItems: ToolbarItem[] = useMemo(
+        () => [
+            {
+                type: 'custom',
+                key: 'view-toggle',
+                element: (
+                    <ViewToggle
+                        viewMode={viewMode}
+                        onSetViewMode={onSetViewMode}
+                        mutedColor={mutedColor}
+                        activeIndicator={activeIndicator}
+                    />
+                ),
+            },
+        ],
+        [viewMode, onSetViewMode, mutedColor, activeIndicator]
+    )
 
     if (isTrash) {
         const handleRestore = () => {
@@ -564,97 +703,10 @@ function SelectionToolbar({
         )
     }
 
-    const actionIcons = [
-        ...(!item.isFolder
-            ? [
-                  {
-                      key: 'preview',
-                      icon: Eye,
-                      label: 'Preview',
-                      onPress: () => {
-                          if (selectedItem) openPreview(selectedItem)
-                      },
-                  },
-                  {
-                      key: 'upload-version',
-                      icon: Upload,
-                      label: 'Upload new version',
-                      onPress: triggerVersionUpload,
-                  },
-              ]
-            : []),
-        {
-            key: 'share',
-            icon: UserPlus,
-            label: 'Share',
-            onPress: () => onOpenShare(item.id, item.name),
-        },
-        {
-            key: 'download',
-            icon: Download,
-            label: 'Download',
-            onPress: () => downloadItem(item.id),
-        },
-        {
-            key: 'rename',
-            icon: Pencil,
-            label: 'Rename',
-            onPress: () => onOpenRename(item.id, item.name),
-        },
-        {
-            key: 'move',
-            icon: FolderInput,
-            label: 'Move',
-            onPress: () => onOpenMove(item.id, item.name),
-        },
-        { key: 'more', icon: MoreVertical, label: 'More actions', onPress: () => {} },
-    ]
-
     return (
         <ScreenHeader>
-            <View
-                className="flex-row items-center justify-between px-4"
-                style={{ paddingVertical: 10 }}
-            >
-                <View className="flex-row items-center gap-2 flex-1">
-                    <Pressable onPress={onClearSelection} className="p-1">
-                        <X size={16} color={mutedColor} />
-                    </Pressable>
-                    <Text
-                        numberOfLines={1}
-                        className="flex-1"
-                        style={{
-                            fontSize: 13,
-                            fontWeight: '500',
-                            color: fgColor,
-                        }}
-                    >
-                        {item.name}
-                    </Text>
-                </View>
-                <View className="flex-row items-center gap-1">
-                    {actionIcons.map(({ key, icon, label, onPress }) => (
-                        <ToolbarIconButton key={key} icon={icon} label={label} onPress={onPress} />
-                    ))}
-                    <ConfirmTrash
-                        itemName={item.name}
-                        onConfirmed={() => {
-                            moveToTrash(item.id)
-                            onClearSelection()
-                        }}
-                    >
-                        {onOpen => (
-                            <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />
-                        )}
-                    </ConfirmTrash>
-                    <ToolbarSeparator />
-                    <ViewToggle
-                        viewMode={viewMode}
-                        onSetViewMode={onSetViewMode}
-                        mutedColor={mutedColor}
-                        activeIndicator={activeIndicator}
-                    />
-                </View>
+            <View style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                <ResponsiveToolbar items={toolbarItems} rightItems={rightItems} />
             </View>
         </ScreenHeader>
     )
