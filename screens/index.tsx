@@ -4,6 +4,7 @@ import { type LayoutChangeEvent, Platform, Pressable, ScrollView, Text, View } f
 import { DataTableHeader } from '~/components/DataTableHeader'
 import { EmptyState } from '~/components/EmptyState'
 import { HoverAction } from '~/components/HoverAction'
+import { StarIcon } from '~/components/StarIcon'
 import { ConfirmTrash } from '~/components/SuretyGuard'
 import { SwipeableRow, SwipeableRowProvider } from '~/components/SwipeableRow'
 import { useBreakpoint } from '~/components/workspace/useBreakpoint'
@@ -134,8 +135,7 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
 
     const tooltipPosition = index === 0 ? ('below' as const) : ('above' as const)
 
-    // Yellow color for star -- not available in theme tokens, using direct hex
-    const yellowColor = '#eab308'
+    const yellowColor = '#facc15'
 
     const swipeActions = [
         {
@@ -192,11 +192,7 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
                         toggleStar(item.id)
                     }}
                 >
-                    <Star
-                        size={18}
-                        color={item.starred ? yellowColor : mutedColor}
-                        fill={item.starred ? yellowColor : 'transparent'}
-                    />
+                    <StarIcon isStarred={item.starred} size={18} />
                 </Pressable>
             </Pressable>
         )
@@ -296,11 +292,7 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
                         toggleStar(item.id)
                     }}
                 >
-                    <Star
-                        size={16}
-                        color={item.starred ? yellowColor : mutedColor}
-                        fill={item.starred ? yellowColor : 'transparent'}
-                    />
+                    <StarIcon isStarred={item.starred} size={16} />
                 </Pressable>
             </View>
         </Pressable>
