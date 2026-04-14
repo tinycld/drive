@@ -18,10 +18,8 @@ export function Thumbnail({ item, size = 120 }: ThumbnailProps) {
     if (!thumbnailUrl) {
         return (
             <View
+                className="items-center justify-center w-full"
                 style={{
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '100%',
                     height: size,
                 }}
             >

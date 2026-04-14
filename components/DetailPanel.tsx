@@ -35,34 +35,29 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
     return (
         <View style={{ width: 320, borderLeftWidth: 1, borderLeftColor: borderColor }}>
             <View
+                className="flex-row items-start justify-between px-4 py-3 gap-2"
                 style={{
-                    flexDirection: 'row',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
                     borderBottomWidth: 1,
                     borderBottomColor: borderColor,
-                    gap: 8,
                 }}
             >
                 <Text
                     numberOfLines={2}
+                    className="flex-1"
                     style={{
                         fontSize: 16,
                         fontWeight: '600',
-                        flex: 1,
                         color: fgColor,
                     }}
                 >
                     {item.name}
                 </Text>
-                <Pressable onPress={onClose} style={{ padding: 4 }}>
+                <Pressable onPress={onClose} className="p-1">
                     <X size={18} color={mutedColor} />
                 </Pressable>
             </View>
 
-            <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+            <View className="items-center py-6">
                 <Thumbnail item={item} size={120} />
             </View>
 
@@ -98,27 +93,21 @@ function DetailsContent({ item }: { item: DriveItemView }) {
     const originalLocation = isTrash ? getItemPath(item.parentId) : null
 
     return (
-        <View style={{ padding: 16 }}>
+        <View className="p-4">
             {isTrash && (
                 <>
-                    <View style={{ gap: 8 }}>
+                    <View className="gap-2">
                         <Text
+                            className="mb-1"
                             style={{
                                 fontSize: 13,
                                 fontWeight: '600',
                                 color: fgColor,
-                                marginBottom: 4,
                             }}
                         >
                             Original location
                         </Text>
-                        <View
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 8,
-                            }}
-                        >
+                        <View className="flex-row items-center gap-2">
                             <FolderOpen size={16} color={mutedColor} />
                             <Text style={{ fontSize: 12, color: mutedColor }}>
                                 {originalLocation}
@@ -133,34 +122,31 @@ function DetailsContent({ item }: { item: DriveItemView }) {
                     </View>
 
                     <View
+                        className="my-4"
                         style={{
                             height: 1,
-                            marginVertical: 16,
                             backgroundColor: borderColor,
                         }}
                     />
                 </>
             )}
 
-            <View style={{ gap: 8 }}>
+            <View className="gap-2">
                 <Text
+                    className="mb-1"
                     style={{
                         fontSize: 13,
                         fontWeight: '600',
                         color: fgColor,
-                        marginBottom: 4,
                     }}
                 >
                     Who has access
                 </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View className="flex-row items-center gap-2">
                     <View
+                        className="size-7 items-center justify-center"
                         style={{
-                            width: 28,
-                            height: 28,
                             borderRadius: 14,
-                            alignItems: 'center',
-                            justifyContent: 'center',
                             backgroundColor: accentColor,
                         }}
                     >
@@ -179,20 +165,20 @@ function DetailsContent({ item }: { item: DriveItemView }) {
             </View>
 
             <View
+                className="my-4"
                 style={{
                     height: 1,
-                    marginVertical: 16,
                     backgroundColor: borderColor,
                 }}
             />
 
-            <View style={{ gap: 8 }}>
+            <View className="gap-2">
                 <Text
+                    className="mb-1"
                     style={{
                         fontSize: 13,
                         fontWeight: '600',
                         color: fgColor,
-                        marginBottom: 4,
                     }}
                 >
                     File details
@@ -238,9 +224,9 @@ function DetailRow({
     fgColor: string
 }) {
     return (
-        <View style={{ flexDirection: 'row', paddingVertical: 4 }}>
+        <View className="flex-row py-1">
             <Text style={{ fontSize: 12, color: mutedColor, width: 80 }}>{label}</Text>
-            <Text numberOfLines={1} style={{ fontSize: 12, color: fgColor, flex: 1 }}>
+            <Text numberOfLines={1} className="flex-1" style={{ fontSize: 12, color: fgColor }}>
                 {value}
             </Text>
         </View>
@@ -271,15 +257,12 @@ function TabBar({
     }
 
     return (
-        <View
-            style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: borderColor }}
-        >
+        <View className="flex-row" style={{ borderBottomWidth: 1, borderBottomColor: borderColor }}>
             {tabs.map(tab => (
                 <Pressable
                     key={tab}
+                    className="flex-1 items-center"
                     style={{
-                        flex: 1,
-                        alignItems: 'center',
                         paddingVertical: 10,
                         ...(activeTab === tab
                             ? {
@@ -335,7 +318,7 @@ function VersionsContent({ itemId }: { itemId: string }) {
 
     if (versions.length === 0) {
         return (
-            <View style={{ padding: 16 }}>
+            <View className="p-4">
                 <NeutralMessage>No previous versions</NeutralMessage>
             </View>
         )
@@ -343,7 +326,7 @@ function VersionsContent({ itemId }: { itemId: string }) {
 
     return (
         <>
-            <ScrollView style={{ padding: 16 }}>
+            <ScrollView className="p-4">
                 {versions.map(version => (
                     <VersionRow
                         key={version.id}
@@ -396,17 +379,8 @@ function RestoreConfirmDialog({
                     Restore to version {versionNumber}? The current file will be saved as a new
                     version before restoring.
                 </Text>
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        gap: 12,
-                        justifyContent: 'flex-end',
-                    }}
-                >
-                    <Pressable
-                        onPress={() => onOpenChange(false)}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8 }}
-                    >
+                <View className="flex-row gap-3 justify-end">
+                    <Pressable onPress={() => onOpenChange(false)} className="px-3 py-2">
                         <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
                     </Pressable>
                     <Pressable
@@ -414,12 +388,8 @@ function RestoreConfirmDialog({
                             onConfirm()
                             onOpenChange(false)
                         }}
-                        style={{
-                            paddingHorizontal: 16,
-                            paddingVertical: 8,
-                            borderRadius: 6,
-                            backgroundColor: primaryColor,
-                        }}
+                        className="px-4 py-2 rounded-md"
+                        style={{ backgroundColor: primaryColor }}
                     >
                         <Text style={{ fontWeight: '600', color: primaryFgColor }}>Restore</Text>
                     </Pressable>
@@ -449,16 +419,14 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
 
     return (
         <View
+            className="flex-row items-center justify-between"
             style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
                 paddingVertical: 10,
                 borderBottomWidth: 1,
                 borderBottomColor: borderColor,
             }}
         >
-            <View style={{ flex: 1, gap: 2 }}>
+            <View className="flex-1 gap-0.5">
                 <Text style={{ fontSize: 12, fontWeight: '500', color: fgColor }}>
                     Version {version.version_number}
                 </Text>
@@ -466,16 +434,11 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
                     {formatDate(version.created)} · {formatBytes(version.size)}
                 </Text>
             </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Pressable onPress={onDownload} hitSlop={8} style={{ padding: 4 }}>
+            <View className="flex-row gap-2">
+                <Pressable onPress={onDownload} hitSlop={8} className="p-1">
                     <Download size={14} color={mutedColor} />
                 </Pressable>
-                <Pressable
-                    onPress={onRestore}
-                    hitSlop={8}
-                    disabled={isRestoring}
-                    style={{ padding: 4 }}
-                >
+                <Pressable onPress={onRestore} hitSlop={8} disabled={isRestoring} className="p-1">
                     {isRestoring ? (
                         <ActivityIndicator size="small" />
                     ) : (
@@ -491,11 +454,10 @@ function NeutralMessage({ children }: { children: string }) {
     const mutedColor = useThemeColor('muted-foreground')
     return (
         <Text
+            className="text-center py-6"
             style={{
                 fontSize: 13,
                 color: mutedColor,
-                textAlign: 'center',
-                paddingVertical: 24,
             }}
         >
             {children}
@@ -505,7 +467,7 @@ function NeutralMessage({ children }: { children: string }) {
 
 function ActivityContent() {
     return (
-        <View style={{ padding: 16 }}>
+        <View className="p-4">
             <NeutralMessage>No recent activity</NeutralMessage>
         </View>
     )

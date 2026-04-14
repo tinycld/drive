@@ -61,7 +61,7 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
     return (
         <SwipeableRowProvider>
             <ScrollView
-                style={{ flex: 1 }}
+                className="flex-1"
                 contentContainerStyle={{ paddingHorizontal: isMobile ? 0 : 16 }}
             >
                 {!isMobile && <DataTableHeader columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS} />}
@@ -173,7 +173,7 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
                 }}
             >
                 <FileIcon size={24} color={iconColor} />
-                <View style={{ flex: 1, gap: 2 }}>
+                <View className="flex-1 gap-0.5">
                     <Text
                         numberOfLines={1}
                         style={{ fontSize: 16, fontWeight: '500', color: fgColor }}
@@ -186,7 +186,7 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
                     </Text>
                 </View>
                 <Pressable
-                    style={{ padding: 4 }}
+                    className="p-1"
                     onPress={e => {
                         e.stopPropagation()
                         toggleStar(item.id)
@@ -218,15 +218,15 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
             }}
             {...hoverWebProps}
         >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 3 }}>
+            <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
                 <FileIcon size={20} color={iconColor} />
                 <Text
                     numberOfLines={1}
+                    className="flex-1"
                     style={{
                         fontSize: 13,
                         fontWeight: '500',
                         color: fgColor,
-                        flex: 1,
                     }}
                 >
                     {item.name}
@@ -242,12 +242,10 @@ function FilesListRow({ item, index }: { item: DriveItemView; index: number }) {
                 {item.isFolder ? '\u2014' : formatBytes(item.size)}
             </Text>
             <View
+                className="relative items-end justify-center"
                 style={{
                     width: 80,
                     flexShrink: 0,
-                    position: 'relative',
-                    alignItems: 'flex-end',
-                    justifyContent: 'center',
                 }}
             >
                 <Pressable
@@ -334,7 +332,7 @@ function TrashListRow({ item }: { item: DriveItemView }) {
                 }}
             >
                 <FileIcon size={24} color={iconColor} />
-                <View style={{ flex: 1, gap: 2 }}>
+                <View className="flex-1 gap-0.5">
                     <Text
                         numberOfLines={1}
                         style={{ fontSize: 16, fontWeight: '500', color: fgColor }}
@@ -363,15 +361,15 @@ function TrashListRow({ item }: { item: DriveItemView }) {
                 ...(isSelected ? { backgroundColor: `${activeIndicator}12` } : {}),
             }}
         >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 3 }}>
+            <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
                 <FileIcon size={20} color={iconColor} />
                 <Text
                     numberOfLines={1}
+                    className="flex-1"
                     style={{
                         fontSize: 13,
                         fontWeight: '500',
                         color: fgColor,
-                        flex: 1,
                     }}
                 >
                     {item.name}
@@ -413,11 +411,11 @@ function GridView({ items }: { items: DriveItemView[] }) {
     const { cardWidth, onLayout } = useGridLayout()
 
     return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} onLayout={onLayout}>
+        <ScrollView className="flex-1" contentContainerStyle={{ padding: 16 }} onLayout={onLayout}>
             {folders.length > 0 && (
-                <View style={{ marginBottom: 20 }}>
+                <View className="mb-5">
                     <GridSectionHeader title="Folders" />
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                    <View className="flex-row flex-wrap gap-3">
                         {folders.map(item => (
                             <View key={item.id} style={{ width: cardWidth }}>
                                 <DriveContextMenu item={item}>
@@ -429,9 +427,9 @@ function GridView({ items }: { items: DriveItemView[] }) {
                 </View>
             )}
             {files.length > 0 && (
-                <View style={{ marginBottom: 20 }}>
+                <View className="mb-5">
                     <GridSectionHeader title="Files" />
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                    <View className="flex-row flex-wrap gap-3">
                         {files.map(item => (
                             <View key={item.id} style={{ width: cardWidth }}>
                                 <DriveContextMenu item={item}>
@@ -451,11 +449,11 @@ function GridSectionHeader({ title }: { title: string }) {
 
     return (
         <Text
+            className="uppercase"
             style={{
                 fontSize: 12,
                 fontWeight: '600',
                 color: mutedColor,
-                textTransform: 'uppercase',
                 letterSpacing: 0.5,
                 marginBottom: 10,
             }}
@@ -497,11 +495,11 @@ function FolderGridCard({ item }: { item: DriveItemView }) {
             <FileIcon size={20} color={iconColor} />
             <Text
                 numberOfLines={1}
+                className="flex-1"
                 style={{
                     fontSize: 12,
                     fontWeight: '500',
                     color: fgColor,
-                    flex: 1,
                 }}
             >
                 {item.name}
@@ -528,18 +526,15 @@ function FileGridCard({ item }: { item: DriveItemView }) {
     return (
         <Pressable
             onPress={handlePress}
+            className="rounded-lg overflow-hidden"
             style={{
                 borderWidth: isSelected ? 2 : 1,
-                borderRadius: 8,
-                overflow: 'hidden',
                 borderColor: isSelected ? activeIndicator : borderColor,
             }}
         >
             <View
+                className="flex-row items-center gap-2"
                 style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
                     paddingHorizontal: 10,
                     paddingVertical: 8,
                     borderBottomWidth: 1,
@@ -549,21 +544,20 @@ function FileGridCard({ item }: { item: DriveItemView }) {
                 <FileIcon size={18} color={iconColor} />
                 <Text
                     numberOfLines={1}
+                    className="flex-1"
                     style={{
                         fontSize: 12,
                         fontWeight: '500',
                         color: fgColor,
-                        flex: 1,
                     }}
                 >
                     {item.name}
                 </Text>
             </View>
             <View
+                className="items-center justify-center"
                 style={{
                     height: 120,
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     backgroundColor: `${mutedColor}08`,
                 }}
             >

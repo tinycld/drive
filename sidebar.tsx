@@ -221,13 +221,10 @@ function FolderTreeItem({
     return (
         <View key={node.item.id}>
             <Pressable
+                className="flex-row items-center rounded-lg pr-3"
                 style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
                     gap: 6,
                     paddingVertical: 6,
-                    paddingRight: 12,
-                    borderRadius: 8,
                     paddingLeft: depth * 16,
                     ...(isSelected ? { backgroundColor: `${activeIndicator}18` } : {}),
                 }}
@@ -236,19 +233,20 @@ function FolderTreeItem({
                 {hasChildren ? (
                     <Pressable
                         onPress={() => onToggle(node.item.id)}
-                        style={{ width: 18, alignItems: 'center', justifyContent: 'center' }}
+                        className="items-center justify-center"
+                        style={{ width: 18 }}
                     >
                         <ChevronIcon size={14} color={mutedColor} />
                     </Pressable>
                 ) : (
-                    <View style={{ width: 18, alignItems: 'center', justifyContent: 'center' }} />
+                    <View className="items-center justify-center" style={{ width: 18 }} />
                 )}
                 <Folder size={16} color={isSelected ? activeIndicator : mutedColor} />
                 <Text
                     numberOfLines={1}
+                    className="flex-1"
                     style={{
                         fontSize: 12,
-                        flex: 1,
                         color: isSelected ? activeIndicator : fgColor,
                         fontWeight: isSelected ? '600' : undefined,
                     }}
@@ -276,19 +274,17 @@ function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
     const percentage = (usedGB / totalGB) * 100
 
     return (
-        <View style={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6 }}>
+        <View className="px-3 py-2" style={{ gap: 6 }}>
             <View
+                className="overflow-hidden rounded-sm"
                 style={{
                     height: 4,
-                    borderRadius: 2,
-                    overflow: 'hidden',
                     backgroundColor: `${mutedColor}20`,
                 }}
             >
                 <View
+                    className="h-full rounded-sm"
                     style={{
-                        height: '100%',
-                        borderRadius: 2,
                         width: `${percentage}%`,
                         backgroundColor: primaryColor,
                     }}

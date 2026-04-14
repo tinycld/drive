@@ -30,7 +30,7 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
                 presentationStyle="fullScreen"
                 onRequestClose={onClose}
             >
-                <View style={{ flex: 1, backgroundColor: background }}>
+                <View className="flex-1" style={{ backgroundColor: background }}>
                     <PreviewModalContent item={item} onClose={onClose} />
                 </View>
             </RNModal>
@@ -79,60 +79,48 @@ function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: 
     return (
         <>
             <View
+                className="flex-row items-center px-4 py-3 gap-3"
                 style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
                     paddingTop: Math.max(insets.top, 12),
                     borderBottomWidth: 1,
                     borderBottomColor: borderColor,
-                    gap: 12,
                 }}
             >
-                <Pressable onPress={onClose} style={{ padding: 6 }}>
+                <Pressable onPress={onClose} className="p-1.5">
                     <X size={20} color={mutedColor} />
                 </Pressable>
                 <Text
                     numberOfLines={1}
+                    className="flex-1"
                     style={{
                         fontSize: 16,
                         fontWeight: '600',
                         color: fgColor,
-                        flex: 1,
                     }}
                 >
                     {item.name}
                 </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View className="flex-row items-center gap-1">
                     {hasPrevious && (
                         <Pressable
                             onPress={handlePrevious}
-                            style={{ padding: 6, borderRadius: 6 }}
+                            className="p-1.5 rounded-md"
                             hitSlop={8}
                         >
                             <ChevronLeft size={20} color={mutedColor} />
                         </Pressable>
                     )}
                     {hasNext && (
-                        <Pressable
-                            onPress={handleNext}
-                            style={{ padding: 6, borderRadius: 6 }}
-                            hitSlop={8}
-                        >
+                        <Pressable onPress={handleNext} className="p-1.5 rounded-md" hitSlop={8}>
                             <ChevronRight size={20} color={mutedColor} />
                         </Pressable>
                     )}
-                    <Pressable
-                        onPress={handleDownload}
-                        style={{ padding: 6, borderRadius: 6 }}
-                        hitSlop={8}
-                    >
+                    <Pressable onPress={handleDownload} className="p-1.5 rounded-md" hitSlop={8}>
                         <Download size={18} color={mutedColor} />
                     </Pressable>
                 </View>
             </View>
-            <View style={{ flex: 1, overflow: 'hidden' }}>
+            <View className="flex-1 overflow-hidden">
                 <PreviewComponent
                     item={item}
                     onClose={onClose}

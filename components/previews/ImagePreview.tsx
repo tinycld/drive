@@ -8,12 +8,8 @@ export function ImagePreview({ item }: PreviewProps) {
     if (!fileUrl) return null
 
     return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <Image
-                source={{ uri: fileUrl }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="contain"
-            />
+        <View className="flex-1 items-center justify-center p-4">
+            <Image source={{ uri: fileUrl }} className="w-full h-full" resizeMode="contain" />
         </View>
     )
 }

@@ -16,26 +16,19 @@ export function AudioPreview(props: PreviewProps) {
 
     if (Platform.OS === 'web') {
         return (
-            <View
-                style={{
-                    flex: 1,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 32,
-                }}
-            >
+            <View className="flex-1 items-center justify-center p-8">
                 <FileIcon size={80} color={iconColor} />
                 <Text
+                    className="mt-4"
                     style={{
                         fontSize: 20,
                         fontWeight: '600',
                         color: fgColor,
-                        marginTop: 16,
                     }}
                 >
                     {item.name}
                 </Text>
-                <View style={{ width: '100%', maxWidth: 400, marginTop: 24 }}>
+                <View className="w-full mt-6" style={{ maxWidth: 400 }}>
                     {/* biome-ignore lint/a11y/useMediaCaption: captions not available for user uploads */}
                     <audio src={fileUrl} controls style={{ width: '100%' }} />
                 </View>

@@ -43,12 +43,12 @@ export function PublicPreviewFrame({
 
 function ImagePreview({ url, name }: { url: string; name: string }) {
     return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <View className="flex-1 items-center justify-center p-6">
             <Image
                 source={{ uri: url }}
                 accessibilityLabel={name}
                 resizeMode="contain"
-                style={{ width: '100%', height: '100%' }}
+                className="w-full h-full"
             />
         </View>
     )
@@ -72,7 +72,7 @@ function VideoPreview({ url, mimeType }: { url: string; mimeType: string }) {
     }
 
     return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <View className="flex-1 items-center justify-center p-6">
             {/* biome-ignore lint/a11y/useMediaCaption: shared file preview without captions */}
             <video src={url} controls style={{ maxWidth: '100%', maxHeight: '100%' }} />
         </View>
@@ -88,15 +88,7 @@ function AudioPreview({ url, name, mimeType }: { url: string; name: string; mime
     }
 
     return (
-        <View
-            style={{
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: 1,
-                gap: 16,
-                padding: 24,
-            }}
-        >
+        <View className="items-center justify-center flex-1 gap-4 p-6">
             <FileIcon size={64} color={mutedColor} />
             <Text style={{ fontWeight: '600', color: fgColor }}>{name}</Text>
             {/* biome-ignore lint/a11y/useMediaCaption: shared file preview without captions */}
@@ -118,17 +110,11 @@ function GenericPreview({
     const fgColor = useThemeColor('foreground')
 
     return (
-        <View
-            style={{
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: 1,
-                gap: 16,
-                padding: 24,
-            }}
-        >
+        <View className="items-center justify-center flex-1 gap-4 p-6">
             <FileIcon size={64} color={mutedColor} />
-            <Text style={{ fontWeight: '600', color: fgColor, textAlign: 'center' }}>{name}</Text>
+            <Text className="text-center" style={{ fontWeight: '600', color: fgColor }}>
+                {name}
+            </Text>
             <Text style={{ fontSize: 12, color: mutedColor }}>
                 {mimeType || 'Unknown type'}
                 {size > 0 ? ` \u2022 ${formatFileSize(size)}` : ''}

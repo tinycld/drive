@@ -11,7 +11,7 @@ export function VideoPreview(props: PreviewProps) {
 
     if (Platform.OS === 'web') {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <View className="flex-1 items-center justify-center">
                 {/* biome-ignore lint/a11y/useMediaCaption: captions not available for user uploads */}
                 <video src={fileUrl} controls style={{ maxWidth: '100%', maxHeight: '100%' }} />
             </View>

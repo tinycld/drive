@@ -151,7 +151,7 @@ export function DriveToolbar() {
             : undefined
 
     const folderActions = (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+        <View className="flex-row items-center gap-0.5">
             <ToolbarIconButton icon={Upload} label="Upload file" onPress={triggerFilePicker} />
             <ToolbarIconButton
                 icon={FolderPlus}
@@ -179,11 +179,11 @@ export function DriveToolbar() {
         if (isSearchActive) {
             return (
                 <Text
+                    className="flex-1"
                     style={{
                         fontSize: 13,
                         fontWeight: '500',
                         color: mutedColor,
-                        flex: 1,
                     }}
                 >
                     Search results{isSearching ? '...' : ''}
@@ -193,11 +193,11 @@ export function DriveToolbar() {
         if (activeSection === 'trash') {
             return (
                 <Text
+                    className="flex-1"
                     style={{
                         fontSize: 24,
                         fontWeight: '500',
                         color: fgColor,
-                        flex: 1,
                     }}
                 >
                     Trash
@@ -228,21 +228,8 @@ export function DriveToolbar() {
     return (
         <ScreenHeader>
             {isMobile ? (
-                <View
-                    style={{
-                        paddingHorizontal: 16,
-                        paddingVertical: 10,
-                        gap: 8,
-                    }}
-                >
-                    <View
-                        style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 8,
-                        }}
-                    >
+                <View className="px-4 gap-2" style={{ paddingVertical: 10 }}>
+                    <View className="flex-row items-center justify-between gap-2">
                         {titleContent}
                         {folderActions}
                         <ViewToggle
@@ -262,27 +249,14 @@ export function DriveToolbar() {
                 </View>
             ) : (
                 <View
-                    style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        paddingHorizontal: 16,
-                        paddingVertical: 10,
-                        gap: 12,
-                    }}
+                    className="flex-row items-center justify-between px-4 gap-3"
+                    style={{ paddingVertical: 10 }}
                 >
                     {titleContent}
                     <ToolbarSeparator />
                     {folderActions}
                     <ToolbarSeparator />
-                    <View
-                        style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 8,
-                            flexShrink: 0,
-                        }}
-                    >
+                    <View className="flex-row items-center gap-2 shrink-0">
                         <SearchInput
                             value={searchQuery}
                             onChangeText={setSearchQuery}
@@ -319,14 +293,8 @@ function DesktopBreadcrumbs({
 
     return (
         <View
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                flex: 1,
-                gap: 4,
-                minWidth: 0,
-                overflow: 'hidden',
-            }}
+            className="flex-row items-center flex-1 gap-1 overflow-hidden"
+            style={{ minWidth: 0 }}
         >
             {ancestors.length > 0 && (
                 <>
@@ -341,13 +309,8 @@ function DesktopBreadcrumbs({
             {ancestors.map(crumb => (
                 <View
                     key={crumb.id}
-                    style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 4,
-                        flexShrink: 1,
-                        minWidth: 0,
-                    }}
+                    className="flex-row items-center gap-1 shrink"
+                    style={{ minWidth: 0 }}
                 >
                     <Pressable onPress={() => onNavigate(crumb.id)}>
                         <Text
@@ -399,15 +362,7 @@ function MobileBreadcrumbs({
     }
 
     return (
-        <View
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                flex: 1,
-                minWidth: 0,
-            }}
-        >
+        <View className="flex-row items-center flex-1" style={{ gap: 6, minWidth: 0 }}>
             {hasParent && (
                 <Pressable onPress={goUp} hitSlop={8}>
                     <ArrowLeft size={20} color={fgColor} />
@@ -441,12 +396,9 @@ function SearchInput({ value, onChangeText, mutedColor, fgColor, fullWidth }: Se
 
     return (
         <View
+            className="flex-row items-center border rounded-lg"
             style={{
-                flexDirection: 'row',
-                alignItems: 'center',
                 gap: 6,
-                borderWidth: 1,
-                borderRadius: 8,
                 paddingHorizontal: 10,
                 paddingVertical: 6,
                 width: fullWidth ? '100%' : 240,
@@ -455,7 +407,8 @@ function SearchInput({ value, onChangeText, mutedColor, fgColor, fullWidth }: Se
         >
             <Search size={14} color={mutedColor} />
             <PlainInput
-                style={{ flex: 1, fontSize: 13, padding: 0, color: fgColor }}
+                className="flex-1 p-0"
+                style={{ fontSize: 13, color: fgColor }}
                 placeholder="Search in Files"
                 placeholderTextColor={mutedColor}
                 value={value}
@@ -541,38 +494,26 @@ function SelectionToolbar({
             <>
                 <ScreenHeader>
                     <View
-                        style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            paddingHorizontal: 16,
-                            paddingVertical: 10,
-                        }}
+                        className="flex-row items-center justify-between px-4"
+                        style={{ paddingVertical: 10 }}
                     >
-                        <View
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 8,
-                                flex: 1,
-                            }}
-                        >
-                            <Pressable onPress={onClearSelection} style={{ padding: 4 }}>
+                        <View className="flex-row items-center gap-2 flex-1">
+                            <Pressable onPress={onClearSelection} className="p-1">
                                 <X size={16} color={mutedColor} />
                             </Pressable>
                             <Text
                                 numberOfLines={1}
+                                className="flex-1"
                                 style={{
                                     fontSize: 13,
                                     fontWeight: '500',
                                     color: fgColor,
-                                    flex: 1,
                                 }}
                             >
                                 {item.name}
                             </Text>
                         </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <View className="flex-row items-center gap-1">
                             <ToolbarIconButton
                                 icon={RotateCcw}
                                 label="Restore"
@@ -672,38 +613,26 @@ function SelectionToolbar({
     return (
         <ScreenHeader>
             <View
-                style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                }}
+                className="flex-row items-center justify-between px-4"
+                style={{ paddingVertical: 10 }}
             >
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 8,
-                        flex: 1,
-                    }}
-                >
-                    <Pressable onPress={onClearSelection} style={{ padding: 4 }}>
+                <View className="flex-row items-center gap-2 flex-1">
+                    <Pressable onPress={onClearSelection} className="p-1">
                         <X size={16} color={mutedColor} />
                     </Pressable>
                     <Text
                         numberOfLines={1}
+                        className="flex-1"
                         style={{
                             fontSize: 13,
                             fontWeight: '500',
                             color: fgColor,
-                            flex: 1,
                         }}
                     >
                         {item.name}
                     </Text>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View className="flex-row items-center gap-1">
                     {actionIcons.map(({ key, icon, label, onPress }) => (
                         <ToolbarIconButton key={key} icon={icon} label={label} onPress={onPress} />
                     ))}
@@ -740,7 +669,7 @@ interface ViewToggleProps {
 
 function ViewToggle({ viewMode, onSetViewMode, mutedColor, activeIndicator }: ViewToggleProps) {
     return (
-        <View style={{ flexDirection: 'row', gap: 2 }}>
+        <View className="flex-row gap-0.5">
             <Pressable
                 onPress={() => onSetViewMode('list')}
                 style={{
@@ -799,12 +728,9 @@ function NamePromptDialog({
             <ModalContent className="w-[360px] p-4 gap-3">
                 <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>{title}</Text>
                 <View
+                    className="flex-row border rounded-lg px-3"
                     style={{
-                        flexDirection: 'row',
-                        borderWidth: 1,
                         borderColor,
-                        borderRadius: 8,
-                        paddingHorizontal: 12,
                         paddingVertical: 10,
                     }}
                 >
@@ -814,20 +740,12 @@ function NamePromptDialog({
                         placeholder={placeholder}
                         autoFocus
                         onSubmitEditing={handleSubmit}
-                        style={{ flex: 1, fontSize: 15, color: fgColor }}
+                        className="flex-1"
+                        style={{ fontSize: 15, color: fgColor }}
                     />
                 </View>
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        gap: 12,
-                        justifyContent: 'flex-end',
-                    }}
-                >
-                    <Pressable
-                        onPress={onClose}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8 }}
-                    >
+                <View className="flex-row gap-3 justify-end">
+                    <Pressable onPress={onClose} className="px-3 py-2">
                         <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
                     </Pressable>
                     <Button onPress={handleSubmit} isDisabled={!value.trim()} size="sm">

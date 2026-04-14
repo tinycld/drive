@@ -35,10 +35,10 @@ function DriveLayoutInner() {
     const isMyDrive = activeSection === 'my-drive'
 
     return (
-        <View style={{ flex: 1, backgroundColor: bgColor }}>
+        <View className="flex-1" style={{ backgroundColor: bgColor }}>
             <DriveToolbar />
-            <View style={{ flex: 1, flexDirection: 'row' }}>
-                <View style={{ flex: 1 }}>
+            <View className="flex-1 flex-row">
+                <View className="flex-1">
                     <DropZone onDrop={uploadFiles} isEnabled={isMyDrive}>
                         <Slot />
                     </DropZone>

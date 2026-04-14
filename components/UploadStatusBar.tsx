@@ -25,12 +25,8 @@ export function UploadStatusBar({ isVisible }: UploadStatusBarProps) {
 
     return (
         <View
+            className="flex-row items-center gap-2 px-4 py-2.5"
             style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
                 borderTopWidth: 1,
                 backgroundColor: bgColor,
                 borderTopColor: borderColor,

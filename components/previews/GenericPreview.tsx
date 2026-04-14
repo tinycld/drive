@@ -25,32 +25,26 @@ export function GenericPreview({ item }: PreviewProps) {
     }
 
     return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <View className="flex-1 items-center justify-center p-8">
             <FileIcon size={80} color={iconColor} />
             <Text
+                className="mt-4"
                 style={{
                     fontSize: 20,
                     fontWeight: '600',
                     color: fgColor,
-                    marginTop: 16,
                 }}
             >
                 {item.name}
             </Text>
-            <Text style={{ fontSize: 13, color: mutedColor, marginTop: 4 }}>
+            <Text className="mt-1" style={{ fontSize: 13, color: mutedColor }}>
                 {item.mimeType} · {formatBytes(item.size)}
             </Text>
             {fileUrl && (
                 <Pressable
                     onPress={handleDownload}
+                    className="flex-row items-center gap-2 mt-5 px-5 py-3 rounded-lg"
                     style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 8,
-                        marginTop: 20,
-                        paddingHorizontal: 20,
-                        paddingVertical: 12,
-                        borderRadius: 8,
                         backgroundColor: primaryColor,
                     }}
                 >

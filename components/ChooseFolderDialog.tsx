@@ -41,13 +41,7 @@ export function ChooseFolderDialog({
         <Modal isOpen={open} onClose={onClose}>
             <ModalBackdrop />
             <ModalContent className="w-[400px] max-h-[70vh] p-0">
-                <View
-                    style={{
-                        paddingHorizontal: 16,
-                        paddingTop: 16,
-                        paddingBottom: 8,
-                    }}
-                >
+                <View className="px-4 pt-4 pb-2">
                     <Text style={{ fontSize: 16, fontWeight: '600', color: fgColor }}>
                         {title ?? `Move \u201C${itemName}\u201D`}
                     </Text>
@@ -65,29 +59,19 @@ export function ChooseFolderDialog({
                 </ScrollView>
 
                 <View
+                    className="flex-row gap-3 justify-end p-3"
                     style={{
-                        flexDirection: 'row',
-                        gap: 12,
-                        justifyContent: 'flex-end',
-                        padding: 12,
                         borderTopWidth: 1,
                         borderColor,
                     }}
                 >
-                    <Pressable
-                        onPress={onClose}
-                        style={{ paddingHorizontal: 12, paddingVertical: 8 }}
-                    >
+                    <Pressable onPress={onClose} className="px-3 py-2">
                         <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
                     </Pressable>
                     <Pressable
                         onPress={handleMove}
-                        style={{
-                            paddingHorizontal: 16,
-                            paddingVertical: 8,
-                            borderRadius: 6,
-                            backgroundColor: primaryColor,
-                        }}
+                        className="px-4 py-2 rounded-md"
+                        style={{ backgroundColor: primaryColor }}
                     >
                         <Text style={{ fontWeight: '600', color: primaryFgColor }}>
                             {confirmLabel}
@@ -106,27 +90,14 @@ function RootItem({ isSelected, onSelect }: { isSelected: boolean; onSelect: () 
 
     return (
         <Pressable
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingVertical: 8,
-                paddingRight: 12,
-                borderRadius: 8,
-                marginHorizontal: 8,
-                paddingLeft: 12,
-                ...(isSelected ? { backgroundColor: `${accentColor}18` } : {}),
-            }}
+            className="flex-row items-center gap-2 py-2 pr-3 rounded-lg mx-2 pl-3"
+            style={isSelected ? { backgroundColor: `${accentColor}18` } : undefined}
             onPress={onSelect}
         >
             <HardDrive size={16} color={isSelected ? accentColor : mutedColor} />
             <Text
-                style={{
-                    fontSize: 13,
-                    flex: 1,
-                    color: isSelected ? accentColor : fgColor,
-                    fontWeight: isSelected ? '600' : undefined,
-                }}
+                className={`flex-1 text-[13px] ${isSelected ? 'font-semibold' : ''}`}
+                style={{ color: isSelected ? accentColor : fgColor }}
             >
                 My Files
             </Text>
@@ -190,14 +161,8 @@ function PickerTreeItem({
     return (
         <View>
             <Pressable
+                className="flex-row items-center gap-2 py-2 pr-3 rounded-lg mx-2"
                 style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    paddingVertical: 8,
-                    paddingRight: 12,
-                    borderRadius: 8,
-                    marginHorizontal: 8,
                     paddingLeft: depth * 20 + 12,
                     ...(isSelected ? { backgroundColor: `${accentColor}18` } : {}),
                 }}
@@ -209,22 +174,19 @@ function PickerTreeItem({
                             e.stopPropagation()
                             setExpanded(prev => !prev)
                         }}
-                        style={{ width: 18, alignItems: 'center', justifyContent: 'center' }}
+                        className="items-center justify-center"
+                        style={{ width: 18 }}
                     >
                         <ChevronIcon size={14} color={mutedColor} />
                     </Pressable>
                 ) : (
-                    <View style={{ width: 18, alignItems: 'center', justifyContent: 'center' }} />
+                    <View className="items-center justify-center" style={{ width: 18 }} />
                 )}
                 <Folder size={16} color={isSelected ? accentColor : mutedColor} />
                 <Text
                     numberOfLines={1}
-                    style={{
-                        fontSize: 13,
-                        flex: 1,
-                        color: isSelected ? accentColor : fgColor,
-                        fontWeight: isSelected ? '600' : undefined,
-                    }}
+                    className={`flex-1 text-[13px] ${isSelected ? 'font-semibold' : ''}`}
+                    style={{ color: isSelected ? accentColor : fgColor }}
                 >
                     {node.item.name}
                 </Text>

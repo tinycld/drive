@@ -33,7 +33,7 @@ export function CodePreview({ item }: PreviewProps) {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <View className="flex-1 items-center justify-center">
                 <ActivityIndicator />
             </View>
         )
@@ -41,21 +41,14 @@ export function CodePreview({ item }: PreviewProps) {
 
     if (content === null) {
         return (
-            <View
-                style={{
-                    flex: 1,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 16,
-                }}
-            >
+            <View className="flex-1 items-center justify-center p-4">
                 <Text style={{ color: mutedColor }}>Cannot preview this file</Text>
             </View>
         )
     }
 
     return (
-        <ScrollView style={{ flex: 1, padding: 16 }}>
+        <ScrollView className="flex-1 p-4">
             <Text style={{ fontSize: 13, color: fgColor, fontFamily: 'monospace' }}>{content}</Text>
         </ScrollView>
     )

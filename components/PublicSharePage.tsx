@@ -51,21 +51,13 @@ function ErrorDisplay({ error }: { error: ShareLinkError }) {
         : 'This share link is invalid or the file has been removed.'
 
     return (
-        <View
-            style={{
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: 1,
-                gap: 16,
-                padding: 24,
-            }}
-        >
+        <View className="items-center justify-center flex-1 gap-4 p-6">
             <FileIcon size={64} color={mutedColor} />
             <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>{title}</Text>
             <Text
+                className="text-center"
                 style={{
                     color: mutedColor,
-                    textAlign: 'center',
                     maxWidth: 400,
                 }}
             >
@@ -79,14 +71,7 @@ function LoadingDisplay() {
     const mutedColor = useThemeColor('muted-foreground')
 
     return (
-        <View
-            style={{
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: 1,
-                gap: 16,
-            }}
-        >
+        <View className="items-center justify-center flex-1 gap-4">
             <ActivityIndicator size="large" />
             <Text style={{ color: mutedColor }}>Loading shared file...</Text>
         </View>
@@ -111,7 +96,7 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
     const downloadUrl = `${fileUrl}?inline=0`
 
     return (
-        <View style={{ flex: 1, backgroundColor: bgColor }}>
+        <View className="flex-1" style={{ backgroundColor: bgColor }}>
             <Modal isOpen onClose={() => {}}>
                 <ModalBackdrop />
                 <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
@@ -120,7 +105,7 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
                         orgName={data.org_name}
                         downloadUrl={downloadUrl}
                     />
-                    <View style={{ flex: 1, overflow: 'hidden' }}>
+                    <View className="flex-1 overflow-hidden">
                         <PublicPreviewFrame
                             name={data.name}
                             mimeType={data.mime_type}
@@ -155,17 +140,13 @@ function PreviewHeader({
 
     return (
         <View
+            className="flex-row items-center px-4 py-3 gap-3"
             style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingHorizontal: 16,
-                paddingVertical: 12,
                 borderBottomWidth: 1,
                 borderBottomColor: borderColor,
-                gap: 12,
             }}
         >
-            <View style={{ flex: 1, gap: 4 }}>
+            <View className="flex-1 gap-1">
                 <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '600', color: fgColor }}>
                     {name}
                 </Text>
@@ -175,7 +156,7 @@ function PreviewHeader({
                     </Text>
                 ) : null}
             </View>
-            <Pressable onPress={handleDownload} style={{ padding: 6, borderRadius: 6 }} hitSlop={8}>
+            <Pressable onPress={handleDownload} className="p-1.5 rounded-md" hitSlop={8}>
                 <Download size={18} color={mutedColor} />
             </Pressable>
         </View>

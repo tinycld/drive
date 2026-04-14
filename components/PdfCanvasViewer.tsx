@@ -96,7 +96,7 @@ export function PdfCanvasViewer({ url }: { url: string }) {
     const pageWidth = containerWidth - PADDING * 2
 
     return (
-        <View style={{ flex: 1 }} onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}>
+        <View className="flex-1" onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}>
             <div ref={containerRef} style={scrollContainerStyles}>
                 <Document file={url} onLoadSuccess={({ numPages }) => setPageCount(numPages)}>
                     {pageWidth > 0 &&

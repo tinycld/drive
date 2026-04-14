@@ -14,7 +14,7 @@ export function DropZone({ children, onDrop, isEnabled }: DropZoneProps) {
     const accentColor = useThemeColor('accent')
 
     if (Platform.OS !== 'web') {
-        return <View style={{ flex: 1 }}>{children}</View>
+        return <View className="flex-1">{children}</View>
     }
 
     const handleDragEnter = (e: React.DragEvent) => {
@@ -72,19 +72,12 @@ export function DropZone({ children, onDrop, isEnabled }: DropZoneProps) {
             {children}
             {isDragging && isEnabled && (
                 <View
+                    className="absolute top-0 left-0 right-0 bottom-0 items-center justify-center rounded-xl"
                     style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
                         backgroundColor: `${accentColor}15`,
                         borderWidth: 2,
                         borderStyle: 'dashed',
                         borderColor: accentColor,
-                        borderRadius: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
                         zIndex: 100,
                     }}
                 >
