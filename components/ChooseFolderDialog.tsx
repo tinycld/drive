@@ -28,8 +28,8 @@ export function ChooseFolderDialog({
 }: ChooseFolderDialogProps) {
     const [selectedId, setSelectedId] = useState('')
     const fgColor = useThemeColor('foreground')
-    const accentColor = useThemeColor('accent')
-    const accentFgColor = useThemeColor('accent-foreground')
+    const primaryColor = useThemeColor('primary')
+    const primaryFgColor = useThemeColor('primary-foreground')
     const borderColor = useThemeColor('border')
 
     const handleMove = () => {
@@ -86,10 +86,10 @@ export function ChooseFolderDialog({
                             paddingHorizontal: 16,
                             paddingVertical: 8,
                             borderRadius: 6,
-                            backgroundColor: accentColor,
+                            backgroundColor: primaryColor,
                         }}
                     >
-                        <Text style={{ fontWeight: '600', color: accentFgColor }}>
+                        <Text style={{ fontWeight: '600', color: primaryFgColor }}>
                             {confirmLabel}
                         </Text>
                     </Pressable>

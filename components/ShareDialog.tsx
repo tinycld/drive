@@ -73,8 +73,8 @@ export function ShareDialog({
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
-    const accentColor = useThemeColor('accent')
-    const accentFgColor = useThemeColor('accent-foreground')
+    const primaryColor = useThemeColor('primary')
+    const primaryFgColor = useThemeColor('primary-foreground')
     const bgColor = useThemeColor('background')
     const _surfaceBgColor = useThemeColor('surface-secondary')
     const [search, setSearch] = useState('')
@@ -265,14 +265,14 @@ export function ShareDialog({
                             borderRadius: 8,
                             paddingHorizontal: 14,
                             paddingVertical: 14,
-                            borderColor: accentColor,
+                            borderColor: primaryColor,
                         }}
                     >
                         <PlainInput
                             value={search}
                             onChangeText={setSearch}
                             placeholder="Add people by name or email"
-                            placeholderTextColor={accentColor}
+                            placeholderTextColor={primaryColor}
                             style={{ flex: 1, fontSize: 15, color: fgColor }}
                             autoFocus
                         />
@@ -577,12 +577,12 @@ export function ShareDialog({
                         }}
                         onPress={copyLink}
                     >
-                        <Link size={16} color={accentColor} />
+                        <Link size={16} color={primaryColor} />
                         <Text
                             style={{
                                 fontSize: 13,
                                 fontWeight: '600',
-                                color: accentColor,
+                                color: primaryColor,
                             }}
                         >
                             {linkCopied ? 'Copied!' : 'Copy link'}
@@ -595,7 +595,7 @@ export function ShareDialog({
                             paddingHorizontal: 24,
                             paddingVertical: 12,
                             borderRadius: 24,
-                            backgroundColor: accentColor,
+                            backgroundColor: primaryColor,
                             opacity: isSaving ? 0.6 : 1,
                         }}
                     >
@@ -603,7 +603,7 @@ export function ShareDialog({
                             style={{
                                 fontWeight: '600',
                                 fontSize: 14,
-                                color: accentFgColor,
+                                color: primaryFgColor,
                             }}
                         >
                             {isSaving ? 'Saving...' : 'Done'}
@@ -631,7 +631,7 @@ function GeneralAccessSection({
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
-    const accentColor = useThemeColor('accent')
+    const primaryColor = useThemeColor('primary')
     const surfaceBgColor = useThemeColor('surface-secondary')
     const successColor = useThemeColor('success')
 
@@ -688,12 +688,12 @@ function GeneralAccessSection({
                         }}
                         onPress={onCopyPublicLink}
                     >
-                        <Link size={14} color={accentColor} />
+                        <Link size={14} color={primaryColor} />
                         <Text
                             style={{
                                 fontSize: 12,
                                 fontWeight: '600',
-                                color: accentColor,
+                                color: primaryColor,
                             }}
                         >
                             {linkCopied ? 'Copied!' : 'Copy public link'}

@@ -9,8 +9,8 @@ import { getFileIcon } from '../file-icons'
 export function GenericPreview({ item }: PreviewProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
-    const accentColor = useThemeColor('accent')
-    const accentFgColor = useThemeColor('accent-foreground')
+    const primaryColor = useThemeColor('primary')
+    const primaryFgColor = useThemeColor('primary-foreground')
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const fileUrl = getFileURL(item)
 
@@ -51,11 +51,11 @@ export function GenericPreview({ item }: PreviewProps) {
                         paddingHorizontal: 20,
                         paddingVertical: 12,
                         borderRadius: 8,
-                        backgroundColor: accentColor,
+                        backgroundColor: primaryColor,
                     }}
                 >
-                    <Download size={16} color={accentFgColor} />
-                    <Text style={{ fontWeight: '600', color: accentFgColor }}>Download</Text>
+                    <Download size={16} color={primaryFgColor} />
+                    <Text style={{ fontWeight: '600', color: primaryFgColor }}>Download</Text>
                 </Pressable>
             )}
         </View>

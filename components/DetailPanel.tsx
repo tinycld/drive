@@ -28,8 +28,7 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
-    const _accentColor = useThemeColor('accent')
-    const accentFgColor = useThemeColor('accent-foreground')
+    const primaryColor = useThemeColor('primary')
     const [activeTab, setActiveTab] = useState<DetailTab>('details')
     const showVersionsTab = !item.isFolder
 
@@ -76,7 +75,7 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
                 activeTab={activeTab}
                 onTabPress={setActiveTab}
                 mutedColor={mutedColor}
-                accentFgColor={accentFgColor}
+                primaryColor={primaryColor}
                 borderColor={borderColor}
             />
 
@@ -253,7 +252,7 @@ interface TabBarProps {
     activeTab: DetailTab
     onTabPress: (tab: DetailTab) => void
     mutedColor: string
-    accentFgColor: string
+    primaryColor: string
     borderColor: string
 }
 
@@ -262,7 +261,7 @@ function TabBar({
     activeTab,
     onTabPress,
     mutedColor,
-    accentFgColor,
+    primaryColor,
     borderColor,
 }: TabBarProps) {
     const labels: Record<DetailTab, string> = {
@@ -284,7 +283,7 @@ function TabBar({
                         paddingVertical: 10,
                         ...(activeTab === tab
                             ? {
-                                  borderBottomColor: accentFgColor,
+                                  borderBottomColor: primaryColor,
                                   borderBottomWidth: 2,
                               }
                             : {}),
@@ -295,7 +294,7 @@ function TabBar({
                         style={{
                             fontSize: 13,
                             fontWeight: '500',
-                            color: activeTab === tab ? accentFgColor : mutedColor,
+                            color: activeTab === tab ? primaryColor : mutedColor,
                         }}
                     >
                         {labels[tab]}
@@ -383,8 +382,8 @@ function RestoreConfirmDialog({
 }: RestoreConfirmDialogProps) {
     const fgColor = useThemeColor('foreground')
     const mutedColor = useThemeColor('muted-foreground')
-    const accentColor = useThemeColor('accent')
-    const accentFgColor = useThemeColor('accent-foreground')
+    const primaryColor = useThemeColor('primary')
+    const primaryFgColor = useThemeColor('primary-foreground')
 
     return (
         <Modal isOpen={open} onClose={() => onOpenChange(false)}>
@@ -419,10 +418,10 @@ function RestoreConfirmDialog({
                             paddingHorizontal: 16,
                             paddingVertical: 8,
                             borderRadius: 6,
-                            backgroundColor: accentColor,
+                            backgroundColor: primaryColor,
                         }}
                     >
-                        <Text style={{ fontWeight: '600', color: accentFgColor }}>Restore</Text>
+                        <Text style={{ fontWeight: '600', color: primaryFgColor }}>Restore</Text>
                     </Pressable>
                 </View>
             </ModalContent>
