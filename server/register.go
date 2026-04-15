@@ -12,9 +12,26 @@ import (
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/pocketbase/pocketbase/tools/routine"
+	"tinycld.org/audit"
 )
 
 func Register(app *pocketbase.PocketBase) {
+	// Audit logging for drive collections
+	audit.RegisterCollection(app, "drive_items", &audit.CollectionConfig{
+		ExtractLabel: audit.LabelFromField("name"),
+	})
+	driveItemOrgResolver := &audit.CollectionConfig{
+		ResolveOrg: func(a core.App, record *core.Record) string {
+			itemID := record.GetString("item")
+			if itemID == "" {
+				return ""
+			}
+			return audit.ResolveViaRelation(a, "drive_items", itemID, "org")
+		},
+	}
+	audit.RegisterCollection(app, "drive_item_state", driveItemOrgResolver)
+	audit.RegisterCollection(app, "drive_shares", driveItemOrgResolver)
+
 	// Enforce storage quota before drive_items are created
 	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		size := e.Record.GetInt("size")

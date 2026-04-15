@@ -1,4 +1,4 @@
-module tinycld.org/addons/drive
+module tinycld.org/packages/drive
 
 go 1.25.0
 
@@ -6,10 +6,13 @@ require (
 	github.com/emersion/go-webdav v0.7.0
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.36.8
+	tinycld.org/audit v0.0.0
 	tinycld.org/mailer v0.0.0
 	tinycld.org/textextract v0.0.0
 	tinycld.org/thumbnails v0.0.0
 )
+
+replace tinycld.org/audit => ../../../server/audit
 
 replace tinycld.org/textextract => ../../../server/textextract
 

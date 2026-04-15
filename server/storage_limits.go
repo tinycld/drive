@@ -60,7 +60,7 @@ func getOrgStorageUsed(app *pocketbase.PocketBase, orgID string) (int64, int64, 
 		WHERE d.org = {:orgID}
 	`).Bind(map[string]any{"orgID": orgID}).One(&mailResult)
 	if err != nil {
-		// Mail tables may not exist if addon is not installed
+		// Mail tables may not exist if package is not installed
 		mailResult.Total = 0
 	}
 
