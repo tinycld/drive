@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
-import { login, navigateToAddon } from '../../../tests/e2e/helpers'
+import { login, navigateToPackage } from '../../../tests/e2e/helpers'
 
 test.describe('Drive — Browser', () => {
     test.beforeEach(async ({ page }) => {
         await login(page)
-        await navigateToAddon(page, 'drive')
+        await navigateToPackage(page, 'drive')
     })
 
     test('renders root folders', async ({ page }) => {
