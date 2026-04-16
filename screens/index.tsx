@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { DataTableHeader } from '~/components/DataTableHeader'
 import { EmptyState } from '~/components/EmptyState'
+import { rowFocusStyle } from '~/components/focusable-row'
 import { HoverAction } from '~/components/HoverAction'
 import { StarIcon } from '~/components/StarIcon'
 import { ConfirmTrash } from '~/components/SuretyGuard'
@@ -74,7 +75,7 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
     const { handleSelect, isSelected } = useFileSelection(orderedIds)
     const { activeSection, currentFolderId, navigateToFolder, openPreview, openPrompt } = useDrive()
     const selectToggle = useDriveUIStore(s => s.selectToggle)
-    useDriveShortcuts({
+    const { focusedId } = useDriveShortcuts({
         items: orderedItems,
         toggleSelect: selectToggle,
         openItem: item => {
@@ -108,6 +109,7 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
                                 item={item}
                                 index={i}
                                 isSelected={isSelected(item.id)}
+                                isFocused={item.id === focusedId}
                                 onSelect={handleSelect}
                             />
                         </DriveContextMenu>
@@ -128,6 +130,7 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
                                 item={item}
                                 index={folders.length + i}
                                 isSelected={isSelected(item.id)}
+                                isFocused={item.id === focusedId}
                                 onSelect={handleSelect}
                             />
                         </DriveContextMenu>
@@ -147,8 +150,9 @@ function FilesListRow({
     item,
     index,
     isSelected,
+    isFocused,
     onSelect,
-}: { item: DriveItemView; index: number } & SelectableRowProps) {
+}: { item: DriveItemView; index: number; isFocused?: boolean } & SelectableRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
@@ -249,18 +253,23 @@ function FilesListRow({
         return <SwipeableRow actions={swipeActions}>{mobileRow}</SwipeableRow>
     }
 
+    const effectStyle = rowFocusStyle({ isFocused, isHovered, borderColor, activeIndicator })
+
     return (
         <Pressable
             onPress={handlePress}
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                borderBottomWidth: 1,
-                borderBottomColor: borderColor,
-                backgroundColor: isSelected ? `${activeIndicator}12` : bgColor,
-            }}
+            style={[
+                {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    borderBottomWidth: 1,
+                    borderBottomColor: borderColor,
+                    backgroundColor: isSelected ? `${activeIndicator}12` : bgColor,
+                },
+                effectStyle,
+            ]}
             {...hoverWebProps}
         >
             <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
