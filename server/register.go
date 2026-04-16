@@ -3,6 +3,7 @@ package drive
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/pocketbase/pocketbase/tools/routine"
 	"tinycld.org/audit"
+	"tinycld.org/notify"
 )
 
 func Register(app *pocketbase.PocketBase) {
@@ -66,6 +68,12 @@ func Register(app *pocketbase.PocketBase) {
 
 	app.OnRecordAfterDeleteSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		syncDriveItemToFTS(app, e.Record, "delete")
+		return e.Next()
+	})
+
+	// Notify recipient when a drive item is shared with them
+	app.OnRecordAfterCreateSuccess("drive_shares").BindFunc(func(e *core.RecordEvent) error {
+		go notifyDriveShare(app, e.Record)
 		return e.Next()
 	})
 
@@ -400,4 +408,41 @@ func handleStorageUsage(app *pocketbase.PocketBase, re *core.RequestEvent) error
 	}
 
 	return re.JSON(http.StatusOK, result)
+}
+
+func notifyDriveShare(app *pocketbase.PocketBase, shareRecord *core.Record) {
+	userOrgID := shareRecord.GetString("user_org")
+	itemID := shareRecord.GetString("item")
+
+	if userOrgID == "" || itemID == "" {
+		return
+	}
+
+	userOrgRecord, err := app.FindRecordById("user_org", userOrgID)
+	if err != nil {
+		return
+	}
+	userID := userOrgRecord.GetString("user")
+	orgID := userOrgRecord.GetString("org")
+
+	item, err := app.FindRecordById("drive_items", itemID)
+	if err != nil {
+		return
+	}
+	itemName := item.GetString("name")
+
+	orgRecord, err := app.FindRecordById("orgs", orgID)
+	if err != nil {
+		return
+	}
+	orgSlug := orgRecord.GetString("slug")
+
+	notify.NotifyUser(app, notify.NotifyParams{
+		UserID:  userID,
+		OrgID:   orgID,
+		Type:    "drive_file_shared",
+		Package: "drive",
+		Title:   fmt.Sprintf("File shared with you: %s", itemName),
+		URL:     fmt.Sprintf("/a/%s/drive", orgSlug),
+	})
 }
