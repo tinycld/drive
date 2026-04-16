@@ -72,7 +72,7 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
     const orderedItems = useMemo(() => [...folders, ...files], [folders, files])
     const orderedIds = useMemo(() => orderedItems.map(i => i.id), [orderedItems])
     const { handleSelect, isSelected } = useFileSelection(orderedIds)
-    const { navigateToFolder, openPreview, openPrompt } = useDrive()
+    const { activeSection, currentFolderId, navigateToFolder, openPreview, openPrompt } = useDrive()
     const selectToggle = useDriveUIStore(s => s.selectToggle)
     useDriveShortcuts({
         items: orderedItems,
@@ -83,6 +83,7 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
         },
         onNewFolder: () => openPrompt({ type: 'new-folder' }),
         isEnabled: !isTrash,
+        listKey: `${activeSection}:${currentFolderId}`,
     })
 
     return (

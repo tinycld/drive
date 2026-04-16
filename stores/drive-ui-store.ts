@@ -20,6 +20,11 @@ interface DriveUIState {
     moveTarget: DialogTarget | null
     shareTarget: DialogTarget | null
     detailPanelOpen: boolean
+    /**
+     * Keyboard-driven focus index into the current file listing. Persisted so
+     * opening a file and returning lands back on the row the user was on.
+     */
+    focusedIndex: number
 }
 
 interface DriveUIActions {
@@ -38,6 +43,7 @@ interface DriveUIActions {
     toggleDetailPanel: () => void
     openDetailPanel: () => void
     closeDetailPanel: () => void
+    setFocusedIndex: (i: number | ((prev: number) => number)) => void
 }
 
 export type { DialogTarget, PromptDialog }
@@ -52,6 +58,7 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>(set => ({
     moveTarget: null,
     shareTarget: null,
     detailPanelOpen: false,
+    focusedIndex: 0,
 
     selectItem: (itemId: string | null) => set({ selectedItemId: itemId }),
 
@@ -99,4 +106,8 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>(set => ({
     toggleDetailPanel: () => set(prev => ({ detailPanelOpen: !prev.detailPanelOpen })),
     openDetailPanel: () => set({ detailPanelOpen: true }),
     closeDetailPanel: () => set({ detailPanelOpen: false }),
+    setFocusedIndex: next =>
+        set(state => ({
+            focusedIndex: typeof next === 'function' ? next(state.focusedIndex) : next,
+        })),
 }))

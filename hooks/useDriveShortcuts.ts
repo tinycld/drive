@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef } from 'react'
 import { type Shortcut, useRegisterShortcuts, useShortcutScope } from '~/lib/shortcuts'
+import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
 
 interface UseDriveShortcutsArgs {
@@ -8,6 +9,8 @@ interface UseDriveShortcutsArgs {
     openItem: (item: DriveItemView) => void
     onNewFolder: () => void
     isEnabled: boolean
+    /** Identifier for the current listing — resets focus when it changes. */
+    listKey: string
 }
 
 export function useDriveShortcuts({
@@ -16,11 +19,22 @@ export function useDriveShortcuts({
     openItem,
     onNewFolder,
     isEnabled,
+    listKey,
 }: UseDriveShortcutsArgs) {
-    const [focusedIndex, setFocusedIndex] = useState(0)
+    const storedIndex = useDriveUIStore(s => s.focusedIndex)
+    const setFocusedIndex = useDriveUIStore(s => s.setFocusedIndex)
 
     useShortcutScope('list')
 
+    // Reset the persisted focus when we navigate into a different folder /
+    // section so we don't land on a stale row.
+    const prevListKeyRef = useRef(listKey)
+    if (listKey !== prevListKeyRef.current) {
+        prevListKeyRef.current = listKey
+        if (storedIndex !== 0) setFocusedIndex(0)
+    }
+
+    const focusedIndex = items.length === 0 ? 0 : Math.min(storedIndex, items.length - 1)
     const focused = items[focusedIndex] ?? null
 
     const shortcuts = useMemo<Shortcut[]>(() => {
@@ -73,7 +87,7 @@ export function useDriveShortcuts({
                 run: () => onNewFolder(),
             },
         ]
-    }, [isEnabled, items.length, focused, openItem, toggleSelect, onNewFolder])
+    }, [isEnabled, items.length, focused, openItem, toggleSelect, onNewFolder, setFocusedIndex])
 
     useRegisterShortcuts(shortcuts)
 
