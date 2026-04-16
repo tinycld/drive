@@ -5,6 +5,7 @@ import {
     Eye,
     FolderInput,
     FolderPlus,
+    FolderUp,
     Grid,
     Info,
     List,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react-native'
 import { useCallback, useMemo, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
+import { MenuActionItem } from '~/components/DropdownMenu'
 import { ResponsiveToolbar, type ToolbarItem } from '~/components/ResponsiveToolbar'
 import { ScreenHeader } from '~/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '~/components/SuretyGuard'
@@ -28,6 +30,7 @@ import { captureException } from '~/lib/errors'
 import { useThemeColor } from '~/lib/use-app-theme'
 import { useCurrentRole } from '~/lib/use-current-role'
 import { Button, ButtonText } from '~/ui/button'
+import { Menu } from '~/ui/menu'
 import { Modal, ModalBackdrop, ModalContent } from '~/ui/modal'
 import { PlainInput } from '~/ui/PlainInput'
 import { useDrive } from '../hooks/useDrive'
@@ -123,6 +126,7 @@ export function DriveToolbar() {
         setSearchQuery,
         isSearching,
         triggerFilePicker,
+        triggerFolderPicker,
         moveToTrash,
         openPrompt,
         openMoveDialog,
@@ -175,7 +179,26 @@ export function DriveToolbar() {
 
     const folderActions = (
         <View className="flex-row items-center gap-0.5">
-            <ToolbarIconButton icon={Upload} label="Upload file" onPress={triggerFilePicker} />
+            <Menu>
+                <Menu.Trigger>
+                    <ToolbarIconButton icon={Upload} label="Upload" />
+                </Menu.Trigger>
+                <Menu.Portal>
+                    <Menu.Overlay />
+                    <Menu.Content presentation="popover" placement="bottom" align="start">
+                        <MenuActionItem
+                            label="Upload file"
+                            icon={Upload}
+                            onPress={triggerFilePicker}
+                        />
+                        <MenuActionItem
+                            label="Upload folder"
+                            icon={FolderUp}
+                            onPress={triggerFolderPicker}
+                        />
+                    </Menu.Content>
+                </Menu.Portal>
+            </Menu>
             <ToolbarIconButton
                 icon={FolderPlus}
                 label="New folder"

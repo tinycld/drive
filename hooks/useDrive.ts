@@ -55,9 +55,11 @@ export interface DriveContextValue {
     ) => { id: string; userOrgId: string; name: string; email: string; role: string }[]
     orgMembers: { userOrgId: string; name: string; email: string }[]
     uploadFiles: (files: File[]) => void
+    uploadTree: (entries: import('./useFileUpload').DroppedEntry[]) => void
     isUploading: boolean
     uploadingFiles: { name: string; status: 'pending' | 'uploading' | 'done' | 'error' }[]
     triggerFilePicker: () => void
+    triggerFolderPicker: () => void
     uploadNewVersion: (itemId: string, file: File) => Promise<void>
     getItemPath: (itemId: string) => string
     promptDialog: PromptDialog
@@ -212,9 +214,11 @@ export function useDriveState(): DriveContextValue {
         getSharesForItem: mutations.getSharesForItem,
         orgMembers: items.orgMembers,
         uploadFiles: mutations.uploadFiles,
+        uploadTree: mutations.uploadTree,
         isUploading: mutations.isUploading,
         uploadingFiles: mutations.uploadingFiles,
         triggerFilePicker: mutations.triggerFilePicker,
+        triggerFolderPicker: mutations.triggerFolderPicker,
         uploadNewVersion: mutations.uploadNewVersion,
         getItemPath: mutations.getItemPath,
         promptDialog,

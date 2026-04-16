@@ -225,12 +225,19 @@ export function useDriveMutations({
         }
     }
 
-    const { uploadFiles, isUploading, uploadingFiles, triggerFilePicker, uploadNewVersion } =
-        useFileUpload({
-            orgId,
-            userOrgId,
-            currentFolderId,
-        })
+    const {
+        uploadFiles,
+        uploadTree,
+        isUploading,
+        uploadingFiles,
+        triggerFilePicker,
+        triggerFolderPicker,
+        uploadNewVersion,
+    } = useFileUpload({
+        orgId,
+        userOrgId,
+        currentFolderId,
+    })
 
     return {
         toggleStar,
@@ -248,9 +255,11 @@ export function useDriveMutations({
         getSharesForItem,
         getItemPath,
         uploadFiles,
+        uploadTree,
         isUploading,
         uploadingFiles,
         triggerFilePicker,
+        triggerFolderPicker,
         uploadNewVersion,
     }
 }

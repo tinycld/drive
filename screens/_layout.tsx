@@ -24,6 +24,7 @@ function DriveLayoutInner() {
         selectedItem,
         activeSection,
         uploadFiles,
+        uploadTree,
         isUploading,
         previewItem,
         closePreview,
@@ -40,7 +41,7 @@ function DriveLayoutInner() {
             <DriveToolbar />
             <View className="flex-1 flex-row">
                 <View className="flex-1">
-                    <DropZone onDrop={uploadFiles} isEnabled={isMyDrive}>
+                    <DropZone onDrop={uploadFiles} onDropTree={uploadTree} isEnabled={isMyDrive}>
                         <Slot />
                     </DropZone>
                     <UploadStatusBar isVisible={isUploading} />
