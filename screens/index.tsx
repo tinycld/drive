@@ -23,7 +23,9 @@ import { getFileIcon } from '../components/file-icons'
 import { Thumbnail } from '../components/Thumbnail'
 import { useDoubleClick } from '../hooks/useDoubleClick'
 import { useDrive } from '../hooks/useDrive'
+import { useDriveShortcuts } from '../hooks/useDriveShortcuts'
 import { useFileSelection } from '../hooks/useFileSelection'
+import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
 
 export default function DriveScreen() {
@@ -67,8 +69,21 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
     const isMobile = useBreakpoint() === 'mobile'
     const folders = items.filter(i => i.isFolder)
     const files = items.filter(i => !i.isFolder)
-    const orderedIds = useMemo(() => [...folders, ...files].map(i => i.id), [folders, files])
+    const orderedItems = useMemo(() => [...folders, ...files], [folders, files])
+    const orderedIds = useMemo(() => orderedItems.map(i => i.id), [orderedItems])
     const { handleSelect, isSelected } = useFileSelection(orderedIds)
+    const { navigateToFolder, openPreview, openPrompt } = useDrive()
+    const selectToggle = useDriveUIStore(s => s.selectToggle)
+    useDriveShortcuts({
+        items: orderedItems,
+        toggleSelect: selectToggle,
+        openItem: item => {
+            if (item.isFolder) navigateToFolder(item.id)
+            else openPreview(item)
+        },
+        onNewFolder: () => openPrompt({ type: 'new-folder' }),
+        isEnabled: !isTrash,
+    })
 
     return (
         <SwipeableRowProvider>
