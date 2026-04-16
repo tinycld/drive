@@ -1,5 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker'
-import { newRecordId } from 'pbtsdb'
+import { newRecordId } from 'pbtsdb/core'
 import { useCallback, useRef, useState } from 'react'
 import { Platform } from 'react-native'
 import { captureException } from '~/lib/errors'

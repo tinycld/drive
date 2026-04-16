@@ -1,4 +1,4 @@
-import { newRecordId } from 'pbtsdb'
+import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
 import { mutation, useMutation } from '~/lib/mutations'
 import { pb, useStore } from '~/lib/pocketbase'
