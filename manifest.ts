@@ -4,6 +4,7 @@ const manifest = {
     version: '0.1.0',
     description: 'Cloud file storage for your organization',
     routes: { directory: 'screens' },
+    publicRoutes: { directory: 'public-screens' },
     nav: { label: 'Drive', icon: 'hard-drive', order: 12, shortcut: 'd' },
     sidebar: { component: 'sidebar' },
     provider: { component: 'provider' },

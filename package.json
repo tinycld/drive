@@ -15,7 +15,8 @@
         "./provider": "./provider.tsx",
         "./seed": "./seed.ts",
         "./hooks/*": "./hooks/*.ts",
-        "./components/*": "./components/*.tsx"
+        "./components/*": "./components/*.tsx",
+        "./public-screens/*": "./public-screens/*.tsx"
     },
     "peerDependencies": {
         "react": ">=19",
