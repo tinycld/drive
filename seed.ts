@@ -13,7 +13,7 @@ interface SeedContext {
     userOrg: { id: string }
 }
 
-const ASSETS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../tests/assets/drive')
+const ASSETS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), 'tests/assets')
 
 const ASSET_FILES = {
     docx: {
