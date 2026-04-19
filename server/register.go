@@ -413,8 +413,16 @@ func handleStorageUsage(app *pocketbase.PocketBase, re *core.RequestEvent) error
 func notifyDriveShare(app *pocketbase.PocketBase, shareRecord *core.Record) {
 	userOrgID := shareRecord.GetString("user_org")
 	itemID := shareRecord.GetString("item")
+	createdBy := shareRecord.GetString("created_by")
 
 	if userOrgID == "" || itemID == "" {
+		return
+	}
+
+	// Self-shares (owner/author sharing with themselves) aren't real notifications
+	// for the recipient — they're the bookkeeping rows created alongside every
+	// upload/folder so the author retains access after rule changes.
+	if userOrgID == createdBy {
 		return
 	}
 
