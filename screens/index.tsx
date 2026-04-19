@@ -258,6 +258,8 @@ function FilesListRow({
     return (
         <Pressable
             onPress={handlePress}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.name} ${item.owner} ${formatDate(item.updated)}`}
             style={[
                 {
                     flexDirection: 'row',
