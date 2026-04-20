@@ -1,0 +1,38 @@
+import { Image, View } from 'react-native'
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { getThumbnailURL } from '../lib/file-url'
+import type { DriveItemView } from '../types'
+import { getFileIcon } from './file-icons'
+
+interface ThumbnailProps {
+    item: DriveItemView
+    size?: number
+}
+
+export function Thumbnail({ item, size = 120 }: ThumbnailProps) {
+    const mutedColor = useThemeColor('muted-foreground')
+    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
+
+    const thumbnailUrl = getThumbnailURL(item, `${size}x${size}`)
+
+    if (!thumbnailUrl) {
+        return (
+            <View
+                className="items-center justify-center w-full"
+                style={{
+                    height: size,
+                }}
+            >
+                <FileIcon size={size * 0.33} color={iconColor} />
+            </View>
+        )
+    }
+
+    return (
+        <Image
+            source={{ uri: thumbnailUrl }}
+            style={{ width: size, height: size, borderRadius: 4 }}
+            resizeMode="cover"
+        />
+    )
+}
