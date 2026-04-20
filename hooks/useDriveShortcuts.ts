@@ -21,8 +21,8 @@ export function useDriveShortcuts({
     isEnabled,
     listKey,
 }: UseDriveShortcutsArgs) {
-    const storedIndex = useDriveUIStore(s => s.focusedIndex)
-    const setFocusedIndex = useDriveUIStore(s => s.setFocusedIndex)
+    const storedIndex = useDriveUIStore((s) => s.focusedIndex)
+    const setFocusedIndex = useDriveUIStore((s) => s.setFocusedIndex)
 
     useShortcutScope('list')
 
@@ -46,7 +46,7 @@ export function useDriveShortcuts({
                 scope: 'list',
                 group: 'Drive',
                 description: 'Next item',
-                run: () => setFocusedIndex(i => Math.min(i + 1, Math.max(items.length - 1, 0))),
+                run: () => setFocusedIndex((i) => Math.min(i + 1, Math.max(items.length - 1, 0))),
             },
             {
                 id: 'drive.list.prev',
@@ -54,7 +54,7 @@ export function useDriveShortcuts({
                 scope: 'list',
                 group: 'Drive',
                 description: 'Previous item',
-                run: () => setFocusedIndex(i => Math.max(i - 1, 0)),
+                run: () => setFocusedIndex((i) => Math.max(i - 1, 0)),
             },
             {
                 id: 'drive.list.open',

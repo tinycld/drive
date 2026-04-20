@@ -43,11 +43,7 @@ export function useDriveNavigation({
     const router = useRouter()
     const driveBase = `/a/${orgSlug}/drive`
 
-    const buildDriveHref = (opts?: {
-        section?: SidebarSection
-        folderId?: string
-        fileId?: string
-    }) => {
+    const buildDriveHref = (opts?: { section?: SidebarSection; folderId?: string; fileId?: string }) => {
         let path = driveBase
         if (opts?.folderId) path = `${driveBase}/folder/${opts.folderId}`
         else if (opts?.section && opts.section !== 'my-drive') {

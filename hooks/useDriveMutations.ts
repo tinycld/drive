@@ -34,7 +34,7 @@ export function useDriveMutations({
         mutationFn: mutation(function* ({ itemId, starred }: { itemId: string; starred: boolean }) {
             const existing = stateByItem.get(itemId)
             if (existing) {
-                yield stateCollection.update(existing.id, draft => {
+                yield stateCollection.update(existing.id, (draft) => {
                     draft.is_starred = !starred
                 })
             } else {
@@ -54,7 +54,7 @@ export function useDriveMutations({
         mutationFn: mutation(function* ({ itemId, restore }: { itemId: string; restore: boolean }) {
             const existing = stateByItem.get(itemId)
             if (existing) {
-                yield stateCollection.update(existing.id, draft => {
+                yield stateCollection.update(existing.id, (draft) => {
                     draft.trashed_at = restore ? '' : new Date().toISOString()
                 })
             } else if (!restore) {
@@ -99,7 +99,7 @@ export function useDriveMutations({
 
     const renameMutation = useMutation({
         mutationFn: mutation(function* ({ itemId, name }: { itemId: string; name: string }) {
-            yield itemsCollection.update(itemId, draft => {
+            yield itemsCollection.update(itemId, (draft) => {
                 draft.name = name
             })
         }),
@@ -132,14 +132,8 @@ export function useDriveMutations({
     })
 
     const moveMutation = useMutation({
-        mutationFn: mutation(function* ({
-            itemId,
-            newParentId,
-        }: {
-            itemId: string
-            newParentId: string
-        }) {
-            yield itemsCollection.update(itemId, draft => {
+        mutationFn: mutation(function* ({ itemId, newParentId }: { itemId: string; newParentId: string }) {
+            yield itemsCollection.update(itemId, (draft) => {
                 draft.parent = newParentId
             })
         }),
@@ -162,8 +156,7 @@ export function useDriveMutations({
 
     const removeShare = (shareId: string) => unshareMutation.mutate(shareId)
 
-    const moveItem = (itemId: string, newParentId: string) =>
-        moveMutation.mutate({ itemId, newParentId })
+    const moveItem = (itemId: string, newParentId: string) => moveMutation.mutate({ itemId, newParentId })
 
     const restoreToFolder = (itemId: string, newParentId: string) => {
         moveMutation.mutate({ itemId, newParentId })
@@ -192,7 +185,7 @@ export function useDriveMutations({
 
     const getSharesForItem = (itemId: string) => {
         const shares = sharesByItem.get(itemId) ?? []
-        return shares.map(s => ({
+        return shares.map((s) => ({
             id: s.id,
             userOrgId: s.user_org,
             name: userOrgNames.get(s.user_org) ?? '',

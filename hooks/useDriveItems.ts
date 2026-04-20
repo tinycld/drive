@@ -44,9 +44,7 @@ export function useDriveItems({
     )
 
     const { data: rawStates } = useOrgLiveQuery((query, { userOrgId: scopedUserOrgId }) =>
-        query
-            .from({ state: stateCollection })
-            .where(({ state }) => eq(state.user_org, scopedUserOrgId))
+        query.from({ state: stateCollection }).where(({ state }) => eq(state.user_org, scopedUserOrgId))
     )
 
     const { data: orgUserOrgs } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
@@ -54,21 +52,15 @@ export function useDriveItems({
     )
 
     const userOrgNames = useMemo(
-        () =>
-            new Map(
-                (orgUserOrgs ?? []).map(uo => [
-                    uo.id,
-                    uo.expand?.user?.name || uo.expand?.user?.email || '',
-                ])
-            ),
+        () => new Map((orgUserOrgs ?? []).map((uo) => [uo.id, uo.expand?.user?.name || uo.expand?.user?.email || ''])),
         [orgUserOrgs]
     )
 
     const orgMembers = useMemo(
         () =>
             (orgUserOrgs ?? [])
-                .filter(uo => uo.id !== userOrgId)
-                .map(uo => ({
+                .filter((uo) => uo.id !== userOrgId)
+                .map((uo) => ({
                     userOrgId: uo.id,
                     name: uo.expand?.user?.name || '',
                     email: uo.expand?.user?.email || '',
@@ -77,7 +69,7 @@ export function useDriveItems({
     )
 
     const userOrgEmails = useMemo(
-        () => new Map((orgUserOrgs ?? []).map(uo => [uo.id, uo.expand?.user?.email || ''])),
+        () => new Map((orgUserOrgs ?? []).map((uo) => [uo.id, uo.expand?.user?.email || ''])),
         [orgUserOrgs]
     )
 
@@ -91,14 +83,14 @@ export function useDriveItems({
         return map
     }, [rawShares])
 
-    const stateByItem = useMemo(() => new Map((rawStates ?? []).map(s => [s.item, s])), [rawStates])
+    const stateByItem = useMemo(() => new Map((rawStates ?? []).map((s) => [s.item, s])), [rawStates])
 
     const allItems = useMemo<DriveItemView[]>(
         () =>
-            (rawItems ?? []).map(item => {
+            (rawItems ?? []).map((item) => {
                 const state = stateByItem.get(item.id)
                 const shares = sharesByItem.get(item.id) ?? []
-                const hasNonOwnerShares = shares.some(s => s.role !== 'owner')
+                const hasNonOwnerShares = shares.some((s) => s.role !== 'owner')
                 const ownerName = userOrgNames.get(item.created_by) ?? ''
 
                 return {
@@ -123,11 +115,11 @@ export function useDriveItems({
         [rawItems, stateByItem, sharesByItem, userOrgId, userOrgNames]
     )
 
-    const itemsById = useMemo(() => new Map(allItems.map(i => [i.id, i])), [allItems])
+    const itemsById = useMemo(() => new Map(allItems.map((i) => [i.id, i])), [allItems])
 
     const searchItemViews = useMemo<DriveItemView[]>(() => {
         if (!isSearchActive) return []
-        return searchResults.map(sr => {
+        return searchResults.map((sr) => {
             const existing = itemsById.get(sr.id)
             if (existing) return existing
             return {
@@ -157,22 +149,19 @@ export function useDriveItems({
         switch (activeSection) {
             case 'my-drive':
                 return allItems.filter(
-                    i =>
-                        i.ownerUserOrgId === userOrgId &&
-                        i.parentId === currentFolderId &&
-                        !i.trashedAt
+                    (i) => i.ownerUserOrgId === userOrgId && i.parentId === currentFolderId && !i.trashedAt
                 )
             case 'shared-with-me':
-                return allItems.filter(i => i.ownerUserOrgId !== userOrgId && !i.trashedAt)
+                return allItems.filter((i) => i.ownerUserOrgId !== userOrgId && !i.trashedAt)
             case 'recent':
                 return allItems
-                    .filter(i => !i.isFolder && !i.trashedAt)
+                    .filter((i) => !i.isFolder && !i.trashedAt)
                     .sort((a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime())
                     .slice(0, 20)
             case 'starred':
-                return allItems.filter(i => i.starred && !i.trashedAt)
+                return allItems.filter((i) => i.starred && !i.trashedAt)
             case 'trash':
-                return allItems.filter(i => !!i.trashedAt)
+                return allItems.filter((i) => !!i.trashedAt)
             default:
                 return []
         }
@@ -201,14 +190,12 @@ export function useDriveItems({
     )
 
     const folderTree = useMemo(() => {
-        const folders = allItems.filter(
-            i => i.isFolder && i.ownerUserOrgId === userOrgId && !i.trashedAt
-        )
+        const folders = allItems.filter((i) => i.isFolder && i.ownerUserOrgId === userOrgId && !i.trashedAt)
 
         function buildTree(parentId: string): FolderTreeNode[] {
             return folders
-                .filter(f => f.parentId === parentId)
-                .map(folder => ({
+                .filter((f) => f.parentId === parentId)
+                .map((folder) => ({
                     item: folder,
                     children: buildTree(folder.id),
                 }))
