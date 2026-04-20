@@ -110,26 +110,11 @@ function NormalMenuItems({
     return (
         <>
             {!item.isFolder && (
-                <ContextMenuItem
-                    label="Preview"
-                    icon={Eye}
-                    onPress={onPreview}
-                    mutedColor={mutedColor}
-                />
+                <ContextMenuItem label="Preview" icon={Eye} onPress={onPreview} mutedColor={mutedColor} />
             )}
-            <ContextMenuItem
-                label="Open"
-                icon={FolderOpen}
-                onPress={onOpen}
-                mutedColor={mutedColor}
-            />
+            <ContextMenuItem label="Open" icon={FolderOpen} onPress={onOpen} mutedColor={mutedColor} />
             <ContextMenuItem label="Info" icon={Info} onPress={onInfo} mutedColor={mutedColor} />
-            <ContextMenuItem
-                label="Download"
-                icon={Download}
-                onPress={onDownload}
-                mutedColor={mutedColor}
-            />
+            <ContextMenuItem label="Download" icon={Download} onPress={onDownload} mutedColor={mutedColor} />
             <Separator className="my-1 mx-2" />
             <ContextMenuItem
                 label={item.starred ? 'Remove star' : 'Add star'}
@@ -137,31 +122,11 @@ function NormalMenuItems({
                 onPress={onToggleStar}
                 mutedColor={mutedColor}
             />
-            <ContextMenuItem
-                label="Share"
-                icon={UserPlus}
-                onPress={onShare}
-                mutedColor={mutedColor}
-            />
-            <ContextMenuItem
-                label="Rename"
-                icon={Pencil}
-                onPress={onRename}
-                mutedColor={mutedColor}
-            />
-            <ContextMenuItem
-                label="Move"
-                icon={FolderInput}
-                onPress={onMove}
-                mutedColor={mutedColor}
-            />
+            <ContextMenuItem label="Share" icon={UserPlus} onPress={onShare} mutedColor={mutedColor} />
+            <ContextMenuItem label="Rename" icon={Pencil} onPress={onRename} mutedColor={mutedColor} />
+            <ContextMenuItem label="Move" icon={FolderInput} onPress={onMove} mutedColor={mutedColor} />
             <Separator className="my-1 mx-2" />
-            <ContextMenuItem
-                label="Move to trash"
-                icon={Trash2}
-                onPress={onTrash}
-                mutedColor={mutedColor}
-            />
+            <ContextMenuItem label="Move to trash" icon={Trash2} onPress={onTrash} mutedColor={mutedColor} />
         </>
     )
 }

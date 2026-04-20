@@ -115,7 +115,7 @@ test.describe('Drive — Actions', () => {
 
         // Intercept the download-token request to verify it fires
         const tokenRequest = page.waitForResponse(
-            resp => resp.url().includes('/api/drive/download-token') && resp.status() === 200
+            (resp) => resp.url().includes('/api/drive/download-token') && resp.status() === 200
         )
 
         // Intercept the subsequent download so the browser doesn't actually save a file

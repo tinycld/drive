@@ -85,9 +85,7 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
                 />
 
                 {activeTab === 'details' && <DetailsContent item={item} />}
-                {activeTab === 'versions' && showVersionsTab && (
-                    <VersionsContent itemId={item.id} />
-                )}
+                {activeTab === 'versions' && showVersionsTab && <VersionsContent itemId={item.id} />}
                 {activeTab === 'activity' && <ActivityContent />}
             </ScrollView>
         </View>
@@ -122,9 +120,7 @@ function DetailsContent({ item }: { item: DriveItemView }) {
                         </Text>
                         <View className="flex-row items-center gap-2">
                             <FolderOpen size={16} color={mutedColor} />
-                            <Text style={{ fontSize: 12, color: mutedColor }}>
-                                {originalLocation}
-                            </Text>
+                            <Text style={{ fontSize: 12, color: mutedColor }}>{originalLocation}</Text>
                         </View>
                         <DetailRow
                             label="Deleted"
@@ -196,24 +192,9 @@ function DetailsContent({ item }: { item: DriveItemView }) {
                 >
                     File details
                 </Text>
-                <DetailRow
-                    label="Type"
-                    value={item.mimeType}
-                    mutedColor={mutedColor}
-                    fgColor={fgColor}
-                />
-                <DetailRow
-                    label="Size"
-                    value={formatBytes(item.size)}
-                    mutedColor={mutedColor}
-                    fgColor={fgColor}
-                />
-                <DetailRow
-                    label="Owner"
-                    value={item.owner}
-                    mutedColor={mutedColor}
-                    fgColor={fgColor}
-                />
+                <DetailRow label="Type" value={item.mimeType} mutedColor={mutedColor} fgColor={fgColor} />
+                <DetailRow label="Size" value={formatBytes(item.size)} mutedColor={mutedColor} fgColor={fgColor} />
+                <DetailRow label="Owner" value={item.owner} mutedColor={mutedColor} fgColor={fgColor} />
                 <DetailRow
                     label="Modified"
                     value={formatDate(item.updated)}
@@ -255,14 +236,7 @@ interface TabBarProps {
     borderColor: string
 }
 
-function TabBar({
-    tabs,
-    activeTab,
-    onTabPress,
-    mutedColor,
-    primaryColor,
-    borderColor,
-}: TabBarProps) {
+function TabBar({ tabs, activeTab, onTabPress, mutedColor, primaryColor, borderColor }: TabBarProps) {
     const labels: Record<DetailTab, string> = {
         details: 'Details',
         versions: 'Versions',
@@ -271,7 +245,7 @@ function TabBar({
 
     return (
         <View className="flex-row" style={{ borderBottomWidth: 1, borderBottomColor: borderColor }}>
-            {tabs.map(tab => (
+            {tabs.map((tab) => (
                 <Pressable
                     key={tab}
                     className="flex-1 items-center"
@@ -305,9 +279,7 @@ function VersionsContent({ itemId }: { itemId: string }) {
     const { versions, restoreVersion, isRestoring } = useVersionHistory(itemId)
     const [confirmVersionId, setConfirmVersionId] = useState<string | null>(null)
 
-    const confirmingVersion = confirmVersionId
-        ? versions.find(v => v.id === confirmVersionId)
-        : null
+    const confirmingVersion = confirmVersionId ? versions.find((v) => v.id === confirmVersionId) : null
 
     const handleConfirmRestore = useCallback(() => {
         if (!confirmVersionId) return
@@ -340,7 +312,7 @@ function VersionsContent({ itemId }: { itemId: string }) {
     return (
         <>
             <View className="p-4">
-                {versions.map(version => (
+                {versions.map((version) => (
                     <VersionRow
                         key={version.id}
                         version={version}
@@ -353,7 +325,7 @@ function VersionsContent({ itemId }: { itemId: string }) {
 
             <RestoreConfirmDialog
                 open={!!confirmingVersion}
-                onOpenChange={open => {
+                onOpenChange={(open) => {
                     if (!open) setConfirmVersionId(null)
                 }}
                 versionNumber={confirmingVersion?.version_number ?? 0}
@@ -370,12 +342,7 @@ interface RestoreConfirmDialogProps {
     onConfirm: () => void
 }
 
-function RestoreConfirmDialog({
-    open,
-    onOpenChange,
-    versionNumber,
-    onConfirm,
-}: RestoreConfirmDialogProps) {
+function RestoreConfirmDialog({ open, onOpenChange, versionNumber, onConfirm }: RestoreConfirmDialogProps) {
     const fgColor = useThemeColor('foreground')
     const mutedColor = useThemeColor('muted-foreground')
     const primaryColor = useThemeColor('primary')
@@ -385,12 +352,10 @@ function RestoreConfirmDialog({
         <Modal isOpen={open} onClose={() => onOpenChange(false)}>
             <ModalBackdrop />
             <ModalContent className="w-[340px] p-4 gap-3">
-                <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>
-                    Restore version
-                </Text>
+                <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>Restore version</Text>
                 <Text style={{ fontSize: 13, color: mutedColor }}>
-                    Restore to version {versionNumber}? The current file will be saved as a new
-                    version before restoring.
+                    Restore to version {versionNumber}? The current file will be saved as a new version before
+                    restoring.
                 </Text>
                 <View className="flex-row gap-3 justify-end">
                     <Pressable onPress={() => onOpenChange(false)} className="px-3 py-2">
@@ -452,11 +417,7 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
                     <Download size={14} color={mutedColor} />
                 </Pressable>
                 <Pressable onPress={onRestore} hitSlop={8} disabled={isRestoring} className="p-1">
-                    {isRestoring ? (
-                        <ActivityIndicator size="small" />
-                    ) : (
-                        <RotateCcw size={14} color={mutedColor} />
-                    )}
+                    {isRestoring ? <ActivityIndicator size="small" /> : <RotateCcw size={14} color={mutedColor} />}
                 </Pressable>
             </View>
         </View>

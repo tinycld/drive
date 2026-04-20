@@ -46,11 +46,7 @@ function DriveLayoutInner() {
                     </DropZone>
                     <UploadStatusBar isVisible={isUploading} />
                 </View>
-                <DetailPanel
-                    isVisible={showDetail}
-                    item={selectedItem}
-                    onClose={closeDetailPanel}
-                />
+                <DetailPanel isVisible={showDetail} item={selectedItem} onClose={closeDetailPanel} />
             </View>
             <PreviewModal isVisible={!!previewItem} item={previewItem} onClose={closePreview} />
             <DriveDialogs />

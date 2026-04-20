@@ -15,13 +15,9 @@ export function UploadStatusBar({ isVisible }: UploadStatusBarProps) {
 
     if (!isVisible) return null
 
-    const activeCount = uploadingFiles.filter(
-        f => f.status !== 'done' && f.status !== 'error'
-    ).length
+    const activeCount = uploadingFiles.filter((f) => f.status !== 'done' && f.status !== 'error').length
     const label =
-        activeCount > 0
-            ? `Uploading ${activeCount} file${activeCount !== 1 ? 's' : ''}...`
-            : 'Upload complete'
+        activeCount > 0 ? `Uploading ${activeCount} file${activeCount !== 1 ? 's' : ''}...` : 'Upload complete'
 
     return (
         <View

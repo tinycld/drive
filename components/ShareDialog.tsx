@@ -1,15 +1,14 @@
-import { eq } from '@tanstack/db'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Globe, Link, Lock, Trash2 } from 'lucide-react-native'
 import { useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native'
 import { NameAvatar } from '~/components/NameAvatar'
 import { captureException } from '~/lib/errors'
-import { pb, useStore } from '~/lib/pocketbase'
+import { pb } from '~/lib/pocketbase'
 import { useThemeColor } from '~/lib/use-app-theme'
-import { useOrgLiveQuery } from '~/lib/use-org-live-query'
 import { Modal, ModalBackdrop, ModalContent } from '~/ui/modal'
 import { PlainInput } from '~/ui/PlainInput'
+import { type ContactSuggestion, ContactSuggestionsSource } from './ContactSuggestionsSource'
 
 interface OrgMember {
     userOrgId: string
@@ -56,10 +55,7 @@ interface ShareDialogProps {
     onClose: () => void
 }
 
-const webShadow =
-    Platform.OS === 'web'
-        ? ({ boxShadow: '0 4px 16px rgba(0,0,0,0.18)' } as Record<string, unknown>)
-        : {}
+const webShadow = Platform.OS === 'web' ? ({ boxShadow: '0 4px 16px rgba(0,0,0,0.18)' } as Record<string, unknown>) : {}
 
 export function ShareDialog({
     open,
@@ -97,19 +93,14 @@ export function ShareDialog({
         enabled: open && !!itemId,
     })
 
-    const activeShareLink = shareLinksData?.links?.find(l => l.is_active)
+    const activeShareLink = shareLinksData?.links?.find((l) => l.is_active)
 
-    const publicShareUrl = activeShareLink
-        ? `${window.location.origin}/share/${activeShareLink.token}`
-        : ''
+    const publicShareUrl = activeShareLink ? `${window.location.origin}/share/${activeShareLink.token}` : ''
 
-    const [contactsCollection] = useStore('contacts')
-    const { data: contacts } = useOrgLiveQuery((query, { userOrgId }) =>
-        query
-            .from({ contacts: contactsCollection })
-            .where(({ contacts: c }) => eq(c.owner, userOrgId))
-            .orderBy(({ contacts: c }) => c.first_name, 'asc')
-    )
+    // Contacts is an optional sibling package; load suggestions from it
+    // only when installed. The source component mounts no hooks when
+    // @tinycld/contacts isn't linked, so ShareDialog works without it.
+    const [contacts, setContacts] = useState<ContactSuggestion[]>([])
 
     const copyLink = useCallback(async () => {
         if (Platform.OS !== 'web') return
@@ -135,8 +126,8 @@ export function ShareDialog({
         setTimeout(() => setLinkCopied(false), 2000)
     }, [publicShareUrl, itemId, queryClient])
 
-    const alreadySharedIds = useMemo(() => new Set(shares.map(s => s.userOrgId)), [shares])
-    const pendingEmails = useMemo(() => new Set(pending.map(p => p.email.toLowerCase())), [pending])
+    const alreadySharedIds = useMemo(() => new Set(shares.map((s) => s.userOrgId)), [shares])
+    const pendingEmails = useMemo(() => new Set(pending.map((p) => p.email.toLowerCase())), [pending])
 
     const suggestions = useMemo(() => {
         if (search.length < 1) return []
@@ -144,13 +135,13 @@ export function ShareDialog({
 
         const memberResults = orgMembers
             .filter(
-                m =>
+                (m) =>
                     !alreadySharedIds.has(m.userOrgId) &&
                     !pendingEmails.has(m.email.toLowerCase()) &&
                     m.userOrgId !== currentUserOrgId &&
                     (m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
             )
-            .map(m => ({
+            .map((m) => ({
                 key: `member:${m.userOrgId}`,
                 userOrgId: m.userOrgId,
                 name: m.name,
@@ -158,9 +149,9 @@ export function ShareDialog({
                 source: 'member' as const,
             }))
 
-        const memberEmails = new Set(orgMembers.map(m => m.email.toLowerCase()))
+        const memberEmails = new Set(orgMembers.map((m) => m.email.toLowerCase()))
         const contactResults = (contacts ?? [])
-            .filter(c => {
+            .filter((c) => {
                 if (!c.email) return false
                 if (memberEmails.has(c.email.toLowerCase())) return false
                 if (pendingEmails.has(c.email.toLowerCase())) return false
@@ -168,7 +159,7 @@ export function ShareDialog({
                 return fullName.includes(q) || c.email.toLowerCase().includes(q)
             })
             .slice(0, 5)
-            .map(c => ({
+            .map((c) => ({
                 key: `contact:${c.id}`,
                 userOrgId: '',
                 name: `${c.first_name} ${c.last_name}`.trim(),
@@ -180,7 +171,7 @@ export function ShareDialog({
     }, [search, orgMembers, contacts, alreadySharedIds, pendingEmails, currentUserOrgId])
 
     const handleSelect = (s: (typeof suggestions)[number]) => {
-        setPending(prev => [
+        setPending((prev) => [
             ...prev,
             {
                 key: s.key,
@@ -194,11 +185,11 @@ export function ShareDialog({
     }
 
     const removePending = (key: string) => {
-        setPending(prev => prev.filter(p => p.key !== key))
+        setPending((prev) => prev.filter((p) => p.key !== key))
     }
 
     const setPendingRole = (key: string, role: 'editor' | 'viewer') => {
-        setPending(prev => prev.map(p => (p.key === key ? { ...p, role } : p)))
+        setPending((prev) => prev.map((p) => (p.key === key ? { ...p, role } : p)))
     }
 
     const handleDone = async () => {
@@ -209,7 +200,7 @@ export function ShareDialog({
                     method: 'POST',
                     body: {
                         item_id: itemId,
-                        recipients: pending.map(p => ({
+                        recipients: pending.map((p) => ({
                             user_org_id: p.userOrgId || undefined,
                             email: p.email,
                             name: p.name,
@@ -228,17 +219,16 @@ export function ShareDialog({
         onClose()
     }
 
-    const currentUserShare = shares.find(s => s.userOrgId === currentUserOrgId)
-    const otherShares = shares.filter(s => s.userOrgId !== currentUserOrgId)
+    const currentUserShare = shares.find((s) => s.userOrgId === currentUserOrgId)
+    const otherShares = shares.filter((s) => s.userOrgId !== currentUserOrgId)
 
     return (
         <Modal isOpen={open} onClose={onClose}>
             <ModalBackdrop />
             <ModalContent className="w-[540px] p-0 rounded-2xl">
+                <ContactSuggestionsSource onChange={setContacts} />
                 <View className="px-6 pb-4" style={{ paddingTop: 28 }}>
-                    <Text style={{ fontSize: 28, color: fgColor }}>
-                        Share &ldquo;{itemName}&rdquo;
-                    </Text>
+                    <Text style={{ fontSize: 28, color: fgColor }}>Share &ldquo;{itemName}&rdquo;</Text>
                 </View>
 
                 <View className="px-6 pb-5 relative overflow-visible" style={{ zIndex: 100 }}>
@@ -286,11 +276,8 @@ export function ShareDialog({
                                 ...(webShadow as object),
                             }}
                         >
-                            <ScrollView
-                                style={{ maxHeight: 300 }}
-                                keyboardShouldPersistTaps="handled"
-                            >
-                                {suggestions.map(s => {
+                            <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
+                                {suggestions.map((s) => {
                                     const firstName = s.name.split(' ')[0] || s.email.split('@')[0]
                                     const lastName = s.name.split(' ').slice(1).join(' ')
 
@@ -301,11 +288,7 @@ export function ShareDialog({
                                             className="flex-row items-center gap-2 px-3"
                                             style={{ paddingVertical: 10 }}
                                         >
-                                            <NameAvatar
-                                                firstName={firstName}
-                                                lastName={lastName}
-                                                size={40}
-                                            />
+                                            <NameAvatar firstName={firstName} lastName={lastName} size={40} />
                                             <View className="flex-1 gap-0.5">
                                                 <Text
                                                     style={{
@@ -335,12 +318,8 @@ export function ShareDialog({
 
                 {pending.length > 0 && (
                     <View className="px-6 pb-4">
-                        {pending.map(p => (
-                            <View
-                                key={p.key}
-                                className="flex-row items-center gap-3"
-                                style={{ paddingVertical: 6 }}
-                            >
+                        {pending.map((p) => (
+                            <View key={p.key} className="flex-row items-center gap-3" style={{ paddingVertical: 6 }}>
                                 <NameAvatar firstName={p.name || p.email} size={36} />
                                 <View className="flex-1" style={{ gap: 1 }}>
                                     <Text
@@ -353,16 +332,13 @@ export function ShareDialog({
                                     >
                                         {p.name || p.email}
                                     </Text>
-                                    <Text
-                                        numberOfLines={1}
-                                        style={{ fontSize: 12, color: mutedColor }}
-                                    >
+                                    <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
                                         {p.email}
                                     </Text>
                                 </View>
                                 <RolePicker
                                     value={p.role}
-                                    onChange={role => setPendingRole(p.key, role)}
+                                    onChange={(role) => setPendingRole(p.key, role)}
                                     mutedColor={mutedColor}
                                     fgColor={fgColor}
                                     borderColor={borderColor}
@@ -388,14 +364,8 @@ export function ShareDialog({
                     </Text>
 
                     {currentUserShare && (
-                        <View
-                            className="flex-row items-center gap-3"
-                            style={{ paddingVertical: 6 }}
-                        >
-                            <NameAvatar
-                                firstName={currentUserShare.name || currentUserShare.email}
-                                size={36}
-                            />
+                        <View className="flex-row items-center gap-3" style={{ paddingVertical: 6 }}>
+                            <NameAvatar firstName={currentUserShare.name || currentUserShare.email} size={36} />
                             <View className="flex-1" style={{ gap: 1 }}>
                                 <Text
                                     style={{
@@ -406,9 +376,7 @@ export function ShareDialog({
                                 >
                                     {currentUserShare.name || currentUserShare.email} (you)
                                 </Text>
-                                <Text style={{ fontSize: 12, color: mutedColor }}>
-                                    {currentUserShare.email}
-                                </Text>
+                                <Text style={{ fontSize: 12, color: mutedColor }}>{currentUserShare.email}</Text>
                             </View>
                             <Text
                                 style={{
@@ -422,12 +390,8 @@ export function ShareDialog({
                         </View>
                     )}
 
-                    {otherShares.map(share => (
-                        <View
-                            key={share.id}
-                            className="flex-row items-center gap-3"
-                            style={{ paddingVertical: 6 }}
-                        >
+                    {otherShares.map((share) => (
+                        <View key={share.id} className="flex-row items-center gap-3" style={{ paddingVertical: 6 }}>
                             <NameAvatar firstName={share.name || share.email} size={36} />
                             <View className="flex-1" style={{ gap: 1 }}>
                                 <Text
@@ -600,9 +564,7 @@ function GeneralAccessSection({
                         <Globe size={16} color={successColor} />
                     </View>
                     <View className="flex-1" style={{ gap: 1 }}>
-                        <Text style={{ fontSize: 13, fontWeight: '500', color: fgColor }}>
-                            Anyone with the link
-                        </Text>
+                        <Text style={{ fontSize: 13, fontWeight: '500', color: fgColor }}>Anyone with the link</Text>
                         <Text style={{ fontSize: 12, color: mutedColor }}>
                             Anyone on the internet with the link can view
                         </Text>
@@ -666,17 +628,11 @@ function GeneralAccessSection({
                     backgroundColor: surfaceBgColor,
                 }}
             >
-                {isCreatingPublicLink ? (
-                    <ActivityIndicator size="small" />
-                ) : (
-                    <Lock size={16} color={mutedColor} />
-                )}
+                {isCreatingPublicLink ? <ActivityIndicator size="small" /> : <Lock size={16} color={mutedColor} />}
             </View>
             <View className="flex-1" style={{ gap: 1 }}>
                 <Text style={{ fontSize: 13, fontWeight: '500', color: fgColor }}>Restricted</Text>
-                <Text style={{ fontSize: 12, color: mutedColor }}>
-                    Only people with access can open with the link
-                </Text>
+                <Text style={{ fontSize: 12, color: mutedColor }}>Only people with access can open with the link</Text>
             </View>
         </Pressable>
     )
@@ -701,9 +657,7 @@ function RolePicker({
             style={{ borderColor }}
             onPress={() => onChange(value === 'editor' ? 'viewer' : 'editor')}
         >
-            <Text style={{ fontSize: 12, color: fgColor }}>
-                {value === 'editor' ? 'Editor' : 'Viewer'}
-            </Text>
+            <Text style={{ fontSize: 12, color: fgColor }}>{value === 'editor' ? 'Editor' : 'Viewer'}</Text>
             <ChevronDown size={14} color={mutedColor} />
         </Pressable>
     )
