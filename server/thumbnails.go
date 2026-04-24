@@ -9,7 +9,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 
-	"tinycld.org/thumbnails"
+	"tinycld.org/core/thumbnails"
 )
 
 // generateThumbnail generates a thumbnail for a drive item's file and stores it

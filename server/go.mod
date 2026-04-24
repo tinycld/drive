@@ -6,24 +6,10 @@ require (
 	github.com/emersion/go-webdav v0.7.0
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.36.8
-	tinycld.org/audit v0.0.0
-	tinycld.org/mailer v0.0.0
-	tinycld.org/notify v0.0.0-00010101000000-000000000000
-	tinycld.org/textextract v0.0.0
-	tinycld.org/thumbnails v0.0.0
+	tinycld.org/core v0.0.0
 )
 
-replace tinycld.org/audit => ../../../server/audit
-
-replace tinycld.org/notify => ../../../server/notify
-
-replace tinycld.org/push => ../../../server/push
-
-replace tinycld.org/textextract => ../../../server/textextract
-
-replace tinycld.org/mailer => ../../../server/mailer
-
-replace tinycld.org/thumbnails => ../../../server/thumbnails
+replace tinycld.org/core => ../../core/server
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0 // indirect
@@ -64,5 +50,4 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.48.0 // indirect
-	tinycld.org/push v0.0.0 // indirect
 )

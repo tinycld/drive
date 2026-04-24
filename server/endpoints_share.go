@@ -10,7 +10,7 @@ import (
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	"tinycld.org/mailer"
+	"tinycld.org/core/mailer"
 )
 
 type shareRecipient struct {

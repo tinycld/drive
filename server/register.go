@@ -13,8 +13,8 @@ import (
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/pocketbase/pocketbase/tools/routine"
-	"tinycld.org/audit"
-	"tinycld.org/notify"
+	"tinycld.org/core/audit"
+	"tinycld.org/core/notify"
 )
 
 func Register(app *pocketbase.PocketBase) {
