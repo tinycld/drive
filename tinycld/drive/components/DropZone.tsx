@@ -46,11 +46,9 @@ async function walkEntry(entry: FileSystemEntry, path: string): Promise<DroppedE
 
 async function extractDroppedEntries(dataTransfer: DataTransfer): Promise<DroppedEntry[] | null> {
     const items = Array.from(dataTransfer.items)
-    const entries = items
-        .map(item => item.webkitGetAsEntry?.())
-        .filter((e): e is FileSystemEntry => e != null)
+    const entries = items.map((item) => item.webkitGetAsEntry?.()).filter((e): e is FileSystemEntry => e != null)
 
-    const hasDirectory = entries.some(e => e.isDirectory)
+    const hasDirectory = entries.some((e) => e.isDirectory)
     if (!hasDirectory) return null
 
     const results: DroppedEntry[] = []
@@ -90,12 +88,7 @@ export function DropZone({ children, onDrop, onDropTree, isEnabled }: DropZonePr
         e.stopPropagation()
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
         const { clientX, clientY } = e
-        if (
-            clientX <= rect.left ||
-            clientX >= rect.right ||
-            clientY <= rect.top ||
-            clientY >= rect.bottom
-        ) {
+        if (clientX <= rect.left || clientX >= rect.right || clientY <= rect.top || clientY >= rect.bottom) {
             setIsDragging(false)
         }
     }
@@ -147,9 +140,7 @@ export function DropZone({ children, onDrop, onDropTree, isEnabled }: DropZonePr
                         zIndex: 100,
                     }}
                 >
-                    <Text style={{ color: accentColor, fontSize: 20, fontWeight: '600' }}>
-                        Drop files to upload
-                    </Text>
+                    <Text style={{ color: accentColor, fontSize: 20, fontWeight: '600' }}>Drop files to upload</Text>
                 </View>
             )}
         </div>

@@ -50,9 +50,7 @@ export interface DriveContextValue {
     moveItem: (itemId: string, newParentId: string) => void
     shareItem: (itemId: string, userOrgId: string, role: 'editor' | 'viewer') => void
     removeShare: (shareId: string) => void
-    getSharesForItem: (
-        itemId: string
-    ) => { id: string; userOrgId: string; name: string; email: string; role: string }[]
+    getSharesForItem: (itemId: string) => { id: string; userOrgId: string; name: string; email: string; role: string }[]
     orgMembers: { userOrgId: string; name: string; email: string }[]
     uploadFiles: (files: File[]) => void
     uploadTree: (entries: import('./useFileUpload').DroppedEntry[]) => void
@@ -88,10 +86,10 @@ export function useDriveState(): DriveContextValue {
     const { section: activeSection, folderId: currentFolderId } = parseDrivePath(pathname)
 
     const params = useGlobalSearchParams<{ file?: string; preview?: string }>()
-    const selectedItemId = useDriveUIStore(s => s.selectedItemId) ?? params.file ?? null
-    const selectItem = useDriveUIStore(s => s.selectItem)
-    const selectedIds = useDriveUIStore(s => s.selectedIds)
-    const clearSelection = useDriveUIStore(s => s.clearSelection)
+    const selectedItemId = useDriveUIStore((s) => s.selectedItemId) ?? params.file ?? null
+    const selectItem = useDriveUIStore((s) => s.selectItem)
+    const selectedIds = useDriveUIStore((s) => s.selectedIds)
+    const clearSelection = useDriveUIStore((s) => s.clearSelection)
     const previewItemId = params.preview === '1' && selectedItemId ? selectedItemId : null
 
     const [viewMode, setViewMode] = useUserPreference<ViewMode>('drive', 'view_mode', 'list')
@@ -116,10 +114,7 @@ export function useDriveState(): DriveContextValue {
     } = useDriveUIStore()
 
     const isSearchActive = searchQuery.length >= 2
-    const { results: searchResults, isSearching } = useDriveSearch(
-        isSearchActive ? searchQuery : '',
-        orgId
-    )
+    const { results: searchResults, isSearching } = useDriveSearch(isSearchActive ? searchQuery : '', orgId)
 
     const items = useDriveItems({
         userOrgId,

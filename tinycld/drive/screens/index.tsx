@@ -68,17 +68,17 @@ const TRASH_COLUMNS = [
 
 function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean }) {
     const isMobile = useBreakpoint() === 'mobile'
-    const folders = items.filter(i => i.isFolder)
-    const files = items.filter(i => !i.isFolder)
+    const folders = items.filter((i) => i.isFolder)
+    const files = items.filter((i) => !i.isFolder)
     const orderedItems = useMemo(() => [...folders, ...files], [folders, files])
-    const orderedIds = useMemo(() => orderedItems.map(i => i.id), [orderedItems])
+    const orderedIds = useMemo(() => orderedItems.map((i) => i.id), [orderedItems])
     const { handleSelect, isSelected } = useFileSelection(orderedIds)
     const { activeSection, currentFolderId, navigateToFolder, openPreview, openPrompt } = useDrive()
-    const selectToggle = useDriveUIStore(s => s.selectToggle)
+    const selectToggle = useDriveUIStore((s) => s.selectToggle)
     const { focusedId } = useDriveShortcuts({
         items: orderedItems,
         toggleSelect: selectToggle,
-        openItem: item => {
+        openItem: (item) => {
             if (item.isFolder) navigateToFolder(item.id)
             else openPreview(item)
         },
@@ -89,19 +89,12 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
 
     return (
         <SwipeableRowProvider>
-            <ScrollView
-                className="flex-1"
-                contentContainerStyle={{ paddingHorizontal: isMobile ? 0 : 16 }}
-            >
+            <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: isMobile ? 0 : 16 }}>
                 {!isMobile && <DataTableHeader columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS} />}
                 {folders.map((item, i) =>
                     isTrash ? (
                         <DriveContextMenu key={item.id} item={item}>
-                            <TrashListRow
-                                item={item}
-                                isSelected={isSelected(item.id)}
-                                onSelect={handleSelect}
-                            />
+                            <TrashListRow item={item} isSelected={isSelected(item.id)} onSelect={handleSelect} />
                         </DriveContextMenu>
                     ) : (
                         <DriveContextMenu key={item.id} item={item}>
@@ -118,11 +111,7 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
                 {files.map((item, i) =>
                     isTrash ? (
                         <DriveContextMenu key={item.id} item={item}>
-                            <TrashListRow
-                                item={item}
-                                isSelected={isSelected(item.id)}
-                                onSelect={handleSelect}
-                            />
+                            <TrashListRow item={item} isSelected={isSelected(item.id)} onSelect={handleSelect} />
                         </DriveContextMenu>
                     ) : (
                         <DriveContextMenu key={item.id} item={item}>
@@ -163,10 +152,7 @@ function FilesListRow({
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const [isHovered, setIsHovered] = useState(false)
 
-    const handleSingle = useCallback(
-        (event: GestureResponderEvent) => onSelect(item.id, event),
-        [item.id, onSelect]
-    )
+    const handleSingle = useCallback((event: GestureResponderEvent) => onSelect(item.id, event), [item.id, onSelect])
     const handleDouble = useCallback(() => {
         if (item.isFolder) navigateToFolder(item.id)
         else openPreview(item)
@@ -227,10 +213,7 @@ function FilesListRow({
             >
                 <FileIcon size={24} color={iconColor} />
                 <View className="flex-1 gap-0.5">
-                    <Text
-                        numberOfLines={1}
-                        style={{ fontSize: 16, fontWeight: '500', color: fgColor }}
-                    >
+                    <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '500', color: fgColor }}>
                         {item.name}
                     </Text>
                     <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
@@ -240,7 +223,7 @@ function FilesListRow({
                 </View>
                 <Pressable
                     className="p-1"
-                    onPress={e => {
+                    onPress={(e) => {
                         e.stopPropagation()
                         toggleStar(item.id)
                     }}
@@ -291,9 +274,7 @@ function FilesListRow({
             <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor, flex: 2 }}>
                 {item.owner}
             </Text>
-            <Text style={{ fontSize: 12, color: mutedColor, flex: 2 }}>
-                {formatDate(item.updated)}
-            </Text>
+            <Text style={{ fontSize: 12, color: mutedColor, flex: 2 }}>{formatDate(item.updated)}</Text>
             <Text style={{ fontSize: 12, color: mutedColor, flex: 1 }}>
                 {item.isFolder ? '\u2014' : formatBytes(item.size)}
             </Text>
@@ -315,10 +296,10 @@ function FilesListRow({
                         backgroundColor: bgColor,
                         ...(isHovered ? {} : { opacity: 0, pointerEvents: 'none' as const }),
                     }}
-                    onPress={e => e.stopPropagation()}
+                    onPress={(e) => e.stopPropagation()}
                 >
                     <ConfirmTrash itemName={item.name} onConfirmed={() => moveToTrash(item.id)}>
-                        {onOpen => (
+                        {(onOpen) => (
                             <HoverAction
                                 icon={Trash2}
                                 label="Delete"
@@ -347,7 +328,7 @@ function FilesListRow({
                         padding: 4,
                         ...(isHovered ? { opacity: 0, pointerEvents: 'none' as const } : {}),
                     }}
-                    onPress={e => {
+                    onPress={(e) => {
                         e.stopPropagation()
                         toggleStar(item.id)
                     }}
@@ -359,11 +340,7 @@ function FilesListRow({
     )
 }
 
-function TrashListRow({
-    item,
-    isSelected,
-    onSelect,
-}: { item: DriveItemView } & SelectableRowProps) {
+function TrashListRow({ item, isSelected, onSelect }: { item: DriveItemView } & SelectableRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
@@ -374,7 +351,7 @@ function TrashListRow({
     if (isMobile) {
         return (
             <Pressable
-                onPress={e => onSelect(item.id, e)}
+                onPress={(e) => onSelect(item.id, e)}
                 style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -387,10 +364,7 @@ function TrashListRow({
             >
                 <FileIcon size={24} color={iconColor} />
                 <View className="flex-1 gap-0.5">
-                    <Text
-                        numberOfLines={1}
-                        style={{ fontSize: 16, fontWeight: '500', color: fgColor }}
-                    >
+                    <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '500', color: fgColor }}>
                         {item.name}
                     </Text>
                     <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
@@ -404,7 +378,7 @@ function TrashListRow({
 
     return (
         <Pressable
-            onPress={e => onSelect(item.id, e)}
+            onPress={(e) => onSelect(item.id, e)}
             style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -429,9 +403,7 @@ function TrashListRow({
                     {item.name}
                 </Text>
             </View>
-            <Text style={{ fontSize: 12, color: mutedColor, flex: 2 }}>
-                {formatDate(item.trashedAt)}
-            </Text>
+            <Text style={{ fontSize: 12, color: mutedColor, flex: 2 }}>{formatDate(item.trashedAt)}</Text>
             <Text style={{ fontSize: 12, color: mutedColor, flex: 1 }}>
                 {item.isFolder ? '\u2014' : formatBytes(item.size)}
             </Text>
@@ -460,10 +432,10 @@ function useGridLayout() {
 }
 
 function GridView({ items }: { items: DriveItemView[] }) {
-    const folders = items.filter(i => i.isFolder)
-    const files = items.filter(i => !i.isFolder)
+    const folders = items.filter((i) => i.isFolder)
+    const files = items.filter((i) => !i.isFolder)
     const { cardWidth, onLayout } = useGridLayout()
-    const orderedIds = useMemo(() => [...folders, ...files].map(i => i.id), [folders, files])
+    const orderedIds = useMemo(() => [...folders, ...files].map((i) => i.id), [folders, files])
     const { handleSelect, isSelected } = useFileSelection(orderedIds)
 
     return (
@@ -472,7 +444,7 @@ function GridView({ items }: { items: DriveItemView[] }) {
                 <View className="mb-5">
                     <GridSectionHeader title="Folders" />
                     <View className="flex-row flex-wrap gap-3">
-                        {folders.map(item => (
+                        {folders.map((item) => (
                             <View key={item.id} style={{ width: cardWidth }}>
                                 <DriveContextMenu item={item}>
                                     <FolderGridCard
@@ -490,7 +462,7 @@ function GridView({ items }: { items: DriveItemView[] }) {
                 <View className="mb-5">
                     <GridSectionHeader title="Files" />
                     <View className="flex-row flex-wrap gap-3">
-                        {files.map(item => (
+                        {files.map((item) => (
                             <View key={item.id} style={{ width: cardWidth }}>
                                 <DriveContextMenu item={item}>
                                     <FileGridCard
@@ -527,20 +499,13 @@ function GridSectionHeader({ title }: { title: string }) {
     )
 }
 
-function FolderGridCard({
-    item,
-    isSelected,
-    onSelect,
-}: { item: DriveItemView } & SelectableRowProps) {
+function FolderGridCard({ item, isSelected, onSelect }: { item: DriveItemView } & SelectableRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const isMobile = useBreakpoint() === 'mobile'
     const { navigateToFolder } = useDrive()
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
-    const handleSingle = useCallback(
-        (event: GestureResponderEvent) => onSelect(item.id, event),
-        [item.id, onSelect]
-    )
+    const handleSingle = useCallback((event: GestureResponderEvent) => onSelect(item.id, event), [item.id, onSelect])
     const handleDouble = useCallback(() => navigateToFolder(item.id), [item.id, navigateToFolder])
     const handleDesktopPress = useDoubleClick(handleSingle, handleDouble)
     const handlePress = isMobile ? handleDouble : handleDesktopPress
@@ -558,20 +523,13 @@ function FolderGridCard({
     )
 }
 
-function FileGridCard({
-    item,
-    isSelected,
-    onSelect,
-}: { item: DriveItemView } & SelectableRowProps) {
+function FileGridCard({ item, isSelected, onSelect }: { item: DriveItemView } & SelectableRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const isMobile = useBreakpoint() === 'mobile'
     const { openPreview } = useDrive()
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
-    const handleSingle = useCallback(
-        (event: GestureResponderEvent) => onSelect(item.id, event),
-        [item.id, onSelect]
-    )
+    const handleSingle = useCallback((event: GestureResponderEvent) => onSelect(item.id, event), [item.id, onSelect])
     const handleDouble = useCallback(() => openPreview(item), [item, openPreview])
     const handleDesktopPress = useDoubleClick(handleSingle, handleDouble)
     const handlePress = isMobile ? handleDouble : handleDesktopPress

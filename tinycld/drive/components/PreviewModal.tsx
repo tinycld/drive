@@ -24,12 +24,7 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
 
     if (isMobile || Platform.OS !== 'web') {
         return (
-            <RNModal
-                visible={isVisible}
-                animationType="slide"
-                presentationStyle="fullScreen"
-                onRequestClose={onClose}
-            >
+            <RNModal visible={isVisible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
                 <View className="flex-1" style={{ backgroundColor: background }}>
                     <PreviewModalContent item={item} onClose={onClose} />
                 </View>
@@ -55,8 +50,8 @@ function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: 
     const insets = useSafeAreaInsets()
     const { currentItems, openPreview, downloadItem } = useDrive()
 
-    const files = useMemo(() => currentItems.filter(i => !i.isFolder), [currentItems])
-    const currentIndex = files.findIndex(f => f.id === item.id)
+    const files = useMemo(() => currentItems.filter((i) => !i.isFolder), [currentItems])
+    const currentIndex = files.findIndex((f) => f.id === item.id)
 
     const handlePrevious = useCallback(() => {
         if (currentIndex > 0) openPreview(files[currentIndex - 1])
@@ -102,11 +97,7 @@ function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: 
                 </Text>
                 <View className="flex-row items-center gap-1">
                     {hasPrevious && (
-                        <Pressable
-                            onPress={handlePrevious}
-                            className="p-1.5 rounded-md"
-                            hitSlop={8}
-                        >
+                        <Pressable onPress={handlePrevious} className="p-1.5 rounded-md" hitSlop={8}>
                             <ChevronLeft size={20} color={mutedColor} />
                         </Pressable>
                     )}

@@ -46,7 +46,7 @@ function ContactSuggestionsBridge({ onChange }: ContactSuggestionsSourceProps) {
 // isn't installed we skip the subscription entirely.
 export function ContactSuggestionsSource(props: ContactSuggestionsSourceProps) {
     const packages = usePackages()
-    const contactsInstalled = packages.some(p => p.slug === 'contacts')
+    const contactsInstalled = packages.some((p) => p.slug === 'contacts')
     if (!contactsInstalled) return null
     return <ContactSuggestionsBridge {...props} />
 }

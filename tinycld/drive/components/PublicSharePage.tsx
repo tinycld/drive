@@ -100,11 +100,7 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
             <Modal isOpen onClose={() => {}}>
                 <ModalBackdrop />
                 <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
-                    <PreviewHeader
-                        name={data.name}
-                        orgName={data.org_name}
-                        downloadUrl={downloadUrl}
-                    />
+                    <PreviewHeader name={data.name} orgName={data.org_name} downloadUrl={downloadUrl} />
                     <View className="flex-1 overflow-hidden">
                         <PublicPreviewFrame
                             name={data.name}
@@ -121,15 +117,7 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
     )
 }
 
-function PreviewHeader({
-    name,
-    orgName,
-    downloadUrl,
-}: {
-    name: string
-    orgName: string
-    downloadUrl: string
-}) {
+function PreviewHeader({ name, orgName, downloadUrl }: { name: string; orgName: string; downloadUrl: string }) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
