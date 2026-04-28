@@ -1,6 +1,6 @@
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Platform, ScrollView, Text, View } from 'react-native'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
 

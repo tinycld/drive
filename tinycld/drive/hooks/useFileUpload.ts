@@ -1,11 +1,11 @@
-import * as DocumentPicker from 'expo-document-picker'
-import { newRecordId } from 'pbtsdb/core'
-import { useCallback, useRef, useState } from 'react'
-import { Platform } from 'react-native'
 import { captureException } from '@tinycld/core/lib/errors'
 import { formatBytes } from '@tinycld/core/lib/format-utils'
 import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
+import * as DocumentPicker from 'expo-document-picker'
+import { newRecordId } from 'pbtsdb/core'
+import { useCallback, useRef, useState } from 'react'
+import { Platform } from 'react-native'
 
 export interface DroppedEntry {
     path: string
@@ -45,7 +45,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
 
     const uploadMutation = useMutation({
         mutationFn: async (files: File[]) => {
-            setUploadingFiles(files.map((f) => ({ name: f.name, status: 'pending' })))
+            setUploadingFiles(files.map(f => ({ name: f.name, status: 'pending' })))
 
             const storageInfo = await pb.send('/api/drive/storage-usage', {
                 query: { org: orgId },
@@ -68,11 +68,13 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                 }),
                 fields: 'name',
             })
-            const usedNames = new Set(existing.map((r) => r.name))
+            const usedNames = new Set(existing.map(r => r.name))
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i]
-                setUploadingFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: 'uploading' } : f)))
+                setUploadingFiles(prev =>
+                    prev.map((f, idx) => (idx === i ? { ...f, status: 'uploading' } : f))
+                )
 
                 try {
                     const itemId = newRecordId()
@@ -103,9 +105,13 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                         })
                     })
 
-                    setUploadingFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: 'done' } : f)))
+                    setUploadingFiles(prev =>
+                        prev.map((f, idx) => (idx === i ? { ...f, status: 'done' } : f))
+                    )
                 } catch (err) {
-                    setUploadingFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: 'error' } : f)))
+                    setUploadingFiles(prev =>
+                        prev.map((f, idx) => (idx === i ? { ...f, status: 'error' } : f))
+                    )
                     captureException('useFileUpload', err)
                     throw err
                 }
@@ -136,10 +142,10 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             }
             input.click()
         } else {
-            DocumentPicker.getDocumentAsync({ multiple: true }).then((result) => {
+            DocumentPicker.getDocumentAsync({ multiple: true }).then(result => {
                 if (result.canceled) return
                 const files = result.assets.map(
-                    (asset) =>
+                    asset =>
                         ({
                             uri: asset.uri,
                             name: asset.name,
@@ -154,8 +160,8 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
 
     const uploadTreeMutation = useMutation({
         mutationFn: async (entries: DroppedEntry[]) => {
-            const fileEntries = entries.filter((e) => e.file)
-            setUploadingFiles(fileEntries.map((e) => ({ name: e.path, status: 'pending' })))
+            const fileEntries = entries.filter(e => e.file)
+            setUploadingFiles(fileEntries.map(e => ({ name: e.path, status: 'pending' })))
 
             const totalUploadSize = fileEntries.reduce((sum, e) => sum + (e.file?.size ?? 0), 0)
             const storageInfo = await pb.send('/api/drive/storage-usage', {
@@ -179,7 +185,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                 }),
                 fields: 'name',
             })
-            const rootUsedNames = new Set(existing.map((r) => r.name))
+            const rootUsedNames = new Set(existing.map(r => r.name))
 
             // Map directory path -> PocketBase record ID
             const folderIds = new Map<string, string>()
@@ -201,7 +207,8 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
 
                 if (!entry.file) {
                     // Directory entry — deduplicate top-level names only
-                    const folderName = segments.length === 1 ? deduplicateName(name, rootUsedNames) : name
+                    const folderName =
+                        segments.length === 1 ? deduplicateName(name, rootUsedNames) : name
                     if (segments.length === 1) rootUsedNames.add(folderName)
 
                     const folderId = newRecordId()
@@ -232,8 +239,10 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                     // File entry
                     const currentFileIndex = fileIndex
                     fileIndex++
-                    setUploadingFiles((prev) =>
-                        prev.map((f, idx) => (idx === currentFileIndex ? { ...f, status: 'uploading' } : f))
+                    setUploadingFiles(prev =>
+                        prev.map((f, idx) =>
+                            idx === currentFileIndex ? { ...f, status: 'uploading' } : f
+                        )
                     )
 
                     try {
@@ -262,12 +271,16 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                             })
                         })
 
-                        setUploadingFiles((prev) =>
-                            prev.map((f, idx) => (idx === currentFileIndex ? { ...f, status: 'done' } : f))
+                        setUploadingFiles(prev =>
+                            prev.map((f, idx) =>
+                                idx === currentFileIndex ? { ...f, status: 'done' } : f
+                            )
                         )
                     } catch (err) {
-                        setUploadingFiles((prev) =>
-                            prev.map((f, idx) => (idx === currentFileIndex ? { ...f, status: 'error' } : f))
+                        setUploadingFiles(prev =>
+                            prev.map((f, idx) =>
+                                idx === currentFileIndex ? { ...f, status: 'error' } : f
+                            )
                         )
                         captureException('useFileUpload.uploadTree', err)
                         throw err
@@ -298,7 +311,8 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             const entries: DroppedEntry[] = []
             const dirNames = new Set<string>()
             for (const file of Array.from(input.files)) {
-                const relativePath = (file as File & { webkitRelativePath: string }).webkitRelativePath
+                const relativePath = (file as File & { webkitRelativePath: string })
+                    .webkitRelativePath
                 if (!relativePath) continue
                 const segments = relativePath.split('/')
                 for (let depth = 1; depth < segments.length; depth++) {

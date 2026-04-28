@@ -48,7 +48,7 @@ interface DriveUIActions {
 
 export type { DialogTarget, PromptDialog }
 
-export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
+export const useDriveUIStore = create<DriveUIState & DriveUIActions>(set => ({
     selectedItemId: null,
     selectedIds: new Set<string>(),
     lastSelectedId: null,
@@ -65,7 +65,7 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
     selectSingle: (id: string) => set({ selectedIds: new Set([id]), lastSelectedId: id }),
 
     selectToggle: (id: string) =>
-        set((prev) => {
+        set(prev => {
             const next = new Set(prev.selectedIds)
             if (next.has(id)) next.delete(id)
             else next.add(id)
@@ -73,12 +73,13 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
         }),
 
     selectRange: (id: string, orderedIds: string[]) =>
-        set((prev) => {
+        set(prev => {
             const anchor = prev.lastSelectedId
             if (!anchor) return { selectedIds: new Set([id]), lastSelectedId: id }
             const startIdx = orderedIds.indexOf(anchor)
             const endIdx = orderedIds.indexOf(id)
-            if (startIdx === -1 || endIdx === -1) return { selectedIds: new Set([id]), lastSelectedId: id }
+            if (startIdx === -1 || endIdx === -1)
+                return { selectedIds: new Set([id]), lastSelectedId: id }
             const lo = Math.min(startIdx, endIdx)
             const hi = Math.max(startIdx, endIdx)
             const rangeIds = orderedIds.slice(lo, hi + 1)
@@ -89,7 +90,8 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
 
     setSearchQuery: (query: string) => set({ searchQuery: query }),
 
-    openPrompt: (state: PromptDialog) => set((prev) => ({ promptDialog: state, promptKey: prev.promptKey + 1 })),
+    openPrompt: (state: PromptDialog) =>
+        set(prev => ({ promptDialog: state, promptKey: prev.promptKey + 1 })),
 
     closePrompt: () => set({ promptDialog: { type: 'closed' } }),
 
@@ -101,11 +103,11 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
 
     closeShareDialog: () => set({ shareTarget: null }),
 
-    toggleDetailPanel: () => set((prev) => ({ detailPanelOpen: !prev.detailPanelOpen })),
+    toggleDetailPanel: () => set(prev => ({ detailPanelOpen: !prev.detailPanelOpen })),
     openDetailPanel: () => set({ detailPanelOpen: true }),
     closeDetailPanel: () => set({ detailPanelOpen: false }),
-    setFocusedIndex: (next) =>
-        set((state) => ({
+    setFocusedIndex: next =>
+        set(state => ({
             focusedIndex: typeof next === 'function' ? next(state.focusedIndex) : next,
         })),
 }))

@@ -1,8 +1,8 @@
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { ChevronDown, ChevronRight, Folder, HardDrive } from 'lucide-react-native'
 import { useState } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import type { FolderTreeNode } from '../types'
 
 interface ChooseFolderDialogProps {
@@ -73,7 +73,9 @@ export function ChooseFolderDialog({
                         className="px-4 py-2 rounded-md"
                         style={{ backgroundColor: primaryColor }}
                     >
-                        <Text style={{ fontWeight: '600', color: primaryFgColor }}>{confirmLabel}</Text>
+                        <Text style={{ fontWeight: '600', color: primaryFgColor }}>
+                            {confirmLabel}
+                        </Text>
                     </Pressable>
                 </View>
             </ModalContent>
@@ -118,7 +120,7 @@ function PickerTree({
 }) {
     return (
         <>
-            {nodes.map((node) => {
+            {nodes.map(node => {
                 if (node.item.id === excludeId) return null
                 return (
                     <PickerTreeItem
@@ -153,7 +155,7 @@ function PickerTreeItem({
     const accentColor = useThemeColor('primary')
     const [expanded, setExpanded] = useState(false)
     const isSelected = selectedId === node.item.id
-    const hasChildren = node.children.filter((c) => c.item.id !== excludeId).length > 0
+    const hasChildren = node.children.filter(c => c.item.id !== excludeId).length > 0
     const ChevronIcon = expanded ? ChevronDown : ChevronRight
 
     return (
@@ -168,9 +170,9 @@ function PickerTreeItem({
             >
                 {hasChildren ? (
                     <Pressable
-                        onPress={(e) => {
+                        onPress={e => {
                             e.stopPropagation()
-                            setExpanded((prev) => !prev)
+                            setExpanded(prev => !prev)
                         }}
                         className="items-center justify-center"
                         style={{ width: 18 }}

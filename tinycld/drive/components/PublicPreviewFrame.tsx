@@ -1,9 +1,11 @@
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { FileIcon } from 'lucide-react-native'
 import { lazy, Suspense } from 'react'
 import { ActivityIndicator, Image, Platform, Text, View } from 'react-native'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 
-const PdfCanvasViewer = lazy(() => import('./PdfCanvasViewer').then((m) => ({ default: m.PdfCanvasViewer })))
+const PdfCanvasViewer = lazy(() =>
+    import('./PdfCanvasViewer').then(m => ({ default: m.PdfCanvasViewer }))
+)
 
 interface PublicPreviewFrameProps {
     name: string
@@ -21,13 +23,20 @@ function formatFileSize(bytes: number) {
     return `${(bytes / 1024 ** i).toFixed(i > 0 ? 1 : 0)} ${units[i]}`
 }
 
-export function PublicPreviewFrame({ name, mimeType, category, fileUrl, size }: PublicPreviewFrameProps) {
+export function PublicPreviewFrame({
+    name,
+    mimeType,
+    category,
+    fileUrl,
+    size,
+}: PublicPreviewFrameProps) {
     const inlineUrl = `${fileUrl}${fileUrl.includes('?') ? '&' : '?'}inline=1`
 
     if (category === 'image') return <ImagePreview url={inlineUrl} name={name} />
     if (category === 'pdf') return <PdfPreview url={inlineUrl} />
     if (category === 'video') return <VideoPreview url={inlineUrl} mimeType={mimeType} />
-    if (category === 'audio') return <AudioPreview url={inlineUrl} name={name} mimeType={mimeType} />
+    if (category === 'audio')
+        return <AudioPreview url={inlineUrl} name={name} mimeType={mimeType} />
 
     return <GenericPreview name={name} mimeType={mimeType} size={size} />
 }
@@ -35,7 +44,12 @@ export function PublicPreviewFrame({ name, mimeType, category, fileUrl, size }: 
 function ImagePreview({ url, name }: { url: string; name: string }) {
     return (
         <View className="flex-1 items-center justify-center p-6">
-            <Image source={{ uri: url }} accessibilityLabel={name} resizeMode="contain" className="w-full h-full" />
+            <Image
+                source={{ uri: url }}
+                accessibilityLabel={name}
+                resizeMode="contain"
+                className="w-full h-full"
+            />
         </View>
     )
 }
@@ -83,7 +97,15 @@ function AudioPreview({ url, name, mimeType }: { url: string; name: string; mime
     )
 }
 
-function GenericPreview({ name, mimeType, size }: { name: string; mimeType: string; size: number }) {
+function GenericPreview({
+    name,
+    mimeType,
+    size,
+}: {
+    name: string
+    mimeType: string
+    size: number
+}) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
 

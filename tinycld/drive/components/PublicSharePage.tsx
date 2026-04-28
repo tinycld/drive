@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { Download, FileIcon } from 'lucide-react-native'
-import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native'
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
+import { Download, FileIcon } from 'lucide-react-native'
+import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native'
 import { PublicPreviewFrame } from './PublicPreviewFrame'
 
 interface ShareLinkMetadata {
@@ -100,7 +100,11 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
             <Modal isOpen onClose={() => {}}>
                 <ModalBackdrop />
                 <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
-                    <PreviewHeader name={data.name} orgName={data.org_name} downloadUrl={downloadUrl} />
+                    <PreviewHeader
+                        name={data.name}
+                        orgName={data.org_name}
+                        downloadUrl={downloadUrl}
+                    />
                     <View className="flex-1 overflow-hidden">
                         <PublicPreviewFrame
                             name={data.name}
@@ -117,7 +121,15 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
     )
 }
 
-function PreviewHeader({ name, orgName, downloadUrl }: { name: string; orgName: string; downloadUrl: string }) {
+function PreviewHeader({
+    name,
+    orgName,
+    downloadUrl,
+}: {
+    name: string
+    orgName: string
+    downloadUrl: string
+}) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')

@@ -1,8 +1,8 @@
 import { eq } from '@tanstack/db'
-import { useEffect } from 'react'
 import { usePackages } from '@tinycld/core/lib/packages/use-packages'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
+import { useEffect } from 'react'
 
 export interface ContactSuggestion {
     id: string
@@ -46,7 +46,7 @@ function ContactSuggestionsBridge({ onChange }: ContactSuggestionsSourceProps) {
 // isn't installed we skip the subscription entirely.
 export function ContactSuggestionsSource(props: ContactSuggestionsSourceProps) {
     const packages = usePackages()
-    const contactsInstalled = packages.some((p) => p.slug === 'contacts')
+    const contactsInstalled = packages.some(p => p.slug === 'contacts')
     if (!contactsInstalled) return null
     return <ContactSuggestionsBridge {...props} />
 }

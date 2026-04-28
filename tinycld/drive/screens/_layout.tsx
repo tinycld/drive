@@ -1,7 +1,7 @@
-import { Slot } from 'expo-router'
-import { View } from 'react-native'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { Slot } from 'expo-router'
+import { View } from 'react-native'
 import { DetailPanel } from '../components/DetailPanel'
 import { DriveDialogs, DriveToolbar } from '../components/DriveToolbar'
 import { DropZone } from '../components/DropZone'
@@ -46,7 +46,11 @@ function DriveLayoutInner() {
                     </DropZone>
                     <UploadStatusBar isVisible={isUploading} />
                 </View>
-                <DetailPanel isVisible={showDetail} item={selectedItem} onClose={closeDetailPanel} />
+                <DetailPanel
+                    isVisible={showDetail}
+                    item={selectedItem}
+                    onClose={closeDetailPanel}
+                />
             </View>
             <PreviewModal isVisible={!!previewItem} item={previewItem} onClose={closePreview} />
             <DriveDialogs />

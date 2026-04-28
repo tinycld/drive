@@ -1,5 +1,5 @@
-import { Platform, Text, View } from 'react-native'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { Platform, Text, View } from 'react-native'
 import { getFileURL } from '../../lib/file-url'
 import type { PreviewProps } from '../../lib/preview-registry'
 import { getFileIcon } from '../file-icons'

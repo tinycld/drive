@@ -1,5 +1,5 @@
-import { Image, View } from 'react-native'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { Image, View } from 'react-native'
 import { getThumbnailURL } from '../lib/file-url'
 import type { DriveItemView } from '../types'
 import { getFileIcon } from './file-icons'

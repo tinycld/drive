@@ -3,11 +3,11 @@ import { type GestureResponderEvent, Platform } from 'react-native'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 
 export function useFileSelection(orderedItemIds: string[]) {
-    const selectSingle = useDriveUIStore((s) => s.selectSingle)
-    const selectToggle = useDriveUIStore((s) => s.selectToggle)
-    const selectRange = useDriveUIStore((s) => s.selectRange)
-    const selectItem = useDriveUIStore((s) => s.selectItem)
-    const selectedIds = useDriveUIStore((s) => s.selectedIds)
+    const selectSingle = useDriveUIStore(s => s.selectSingle)
+    const selectToggle = useDriveUIStore(s => s.selectToggle)
+    const selectRange = useDriveUIStore(s => s.selectRange)
+    const selectItem = useDriveUIStore(s => s.selectItem)
+    const selectedIds = useDriveUIStore(s => s.selectedIds)
 
     const handleSelect = useCallback(
         (itemId: string, event: GestureResponderEvent) => {

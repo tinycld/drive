@@ -310,7 +310,11 @@ async function seedFiles(
     }
 }
 
-async function seedFolderStars(pb: PocketBase, userOrgId: string, folderIds: Record<string, string>) {
+async function seedFolderStars(
+    pb: PocketBase,
+    userOrgId: string,
+    folderIds: Record<string, string>
+) {
     // Star the Projects and Engineering folders
     const starredFolders = ['projects', 'engineering']
     for (const key of starredFolders) {

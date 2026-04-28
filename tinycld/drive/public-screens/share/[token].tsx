@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Redirect, useLocalSearchParams } from 'expo-router'
-import { ActivityIndicator, View } from 'react-native'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
+import { Redirect, useLocalSearchParams } from 'expo-router'
+import { ActivityIndicator, View } from 'react-native'
 import { PublicSharePage } from '../../components/PublicSharePage'
 
 function useShareLinkRouting(token: string) {

@@ -3,7 +3,10 @@ import { type GestureResponderEvent, Platform } from 'react-native'
 
 const DOUBLE_CLICK_MS = 300
 
-export function useDoubleClick(onSingleClick: (event: GestureResponderEvent) => void, onDoubleClick: () => void) {
+export function useDoubleClick(
+    onSingleClick: (event: GestureResponderEvent) => void,
+    onDoubleClick: () => void
+) {
     const lastTapRef = useRef(0)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const pendingEventRef = useRef<GestureResponderEvent | null>(null)

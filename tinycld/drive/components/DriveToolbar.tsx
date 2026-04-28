@@ -1,3 +1,17 @@
+import { MenuActionItem } from '@tinycld/core/components/DropdownMenu'
+import { ResponsiveToolbar, type ToolbarItem } from '@tinycld/core/components/ResponsiveToolbar'
+import { ScreenHeader } from '@tinycld/core/components/ScreenHeader'
+import { ConfirmTrash, SuretyGuard } from '@tinycld/core/components/SuretyGuard'
+import { ToolbarIconButton } from '@tinycld/core/components/ToolbarIconButton'
+import { ToolbarSeparator } from '@tinycld/core/components/ToolbarSeparator'
+import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import { captureException } from '@tinycld/core/lib/errors'
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { useCurrentRole } from '@tinycld/core/lib/use-current-role'
+import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { Menu } from '@tinycld/core/ui/menu'
+import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
+import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import {
     ArrowLeft,
     ChevronRight,
@@ -19,20 +33,6 @@ import {
 } from 'lucide-react-native'
 import { useCallback, useMemo, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
-import { MenuActionItem } from '@tinycld/core/components/DropdownMenu'
-import { ResponsiveToolbar, type ToolbarItem } from '@tinycld/core/components/ResponsiveToolbar'
-import { ScreenHeader } from '@tinycld/core/components/ScreenHeader'
-import { ConfirmTrash, SuretyGuard } from '@tinycld/core/components/SuretyGuard'
-import { ToolbarIconButton } from '@tinycld/core/components/ToolbarIconButton'
-import { ToolbarSeparator } from '@tinycld/core/components/ToolbarSeparator'
-import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { captureException } from '@tinycld/core/lib/errors'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { useCurrentRole } from '@tinycld/core/lib/use-current-role'
-import { Button, ButtonText } from '@tinycld/core/ui/button'
-import { Menu } from '@tinycld/core/ui/menu'
-import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
-import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveItemView, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
@@ -150,7 +150,9 @@ export function DriveToolbar() {
                 viewMode={viewMode}
                 onSetViewMode={setViewMode}
                 onClearSelection={handleClear}
-                onOpenRename={(itemId, name) => openPrompt({ type: 'rename', itemId, currentName: name })}
+                onOpenRename={(itemId, name) =>
+                    openPrompt({ type: 'rename', itemId, currentName: name })
+                }
                 onOpenMove={(itemId, name) => openMoveDialog(itemId, name)}
                 onOpenShare={(itemId, name) => openShareDialog(itemId, name)}
                 mutedColor={mutedColor}
@@ -184,8 +186,16 @@ export function DriveToolbar() {
                 <Menu.Portal>
                     <Menu.Overlay />
                     <Menu.Content presentation="popover" placement="bottom" align="start">
-                        <MenuActionItem label="Upload file" icon={Upload} onPress={triggerFilePicker} />
-                        <MenuActionItem label="Upload folder" icon={FolderUp} onPress={triggerFolderPicker} />
+                        <MenuActionItem
+                            label="Upload file"
+                            icon={Upload}
+                            onPress={triggerFilePicker}
+                        />
+                        <MenuActionItem
+                            label="Upload folder"
+                            icon={FolderUp}
+                            onPress={triggerFolderPicker}
+                        />
                     </Menu.Content>
                 </Menu.Portal>
             </Menu>
@@ -205,7 +215,7 @@ export function DriveToolbar() {
                         navigateToFolder('')
                     }}
                 >
-                    {(onOpen) => <ToolbarIconButton icon={Trash2} label="Delete" onPress={onOpen} />}
+                    {onOpen => <ToolbarIconButton icon={Trash2} label="Delete" onPress={onOpen} />}
                 </ConfirmTrash>
             )}
         </View>
@@ -284,7 +294,10 @@ export function DriveToolbar() {
                     />
                 </View>
             ) : (
-                <View className="flex-row items-center justify-between px-4 gap-3" style={{ paddingVertical: 10 }}>
+                <View
+                    className="flex-row items-center justify-between px-4 gap-3"
+                    style={{ paddingVertical: 10 }}
+                >
                     {titleContent}
                     <ToolbarSeparator />
                     {folderActions}
@@ -325,7 +338,10 @@ function DesktopBreadcrumbs({
     const ancestors = breadcrumbs.slice(0, -1)
 
     return (
-        <View className="flex-row items-center flex-1 gap-1 overflow-hidden" style={{ minWidth: 0 }}>
+        <View
+            className="flex-row items-center flex-1 gap-1 overflow-hidden"
+            style={{ minWidth: 0 }}
+        >
             {ancestors.length > 0 && (
                 <>
                     <Pressable onPress={() => onNavigate('')}>
@@ -336,8 +352,12 @@ function DesktopBreadcrumbs({
                     <ChevronRight size={14} color={mutedColor} />
                 </>
             )}
-            {ancestors.map((crumb) => (
-                <View key={crumb.id} className="flex-row items-center gap-1 shrink" style={{ minWidth: 0 }}>
+            {ancestors.map(crumb => (
+                <View
+                    key={crumb.id}
+                    className="flex-row items-center gap-1 shrink"
+                    style={{ minWidth: 0 }}
+                >
                     <Pressable onPress={() => onNavigate(crumb.id)}>
                         <Text
                             numberOfLines={1}
@@ -506,7 +526,9 @@ function SelectionToolbar({
             input.type = 'file'
             input.onchange = () => {
                 if (input.files?.[0]) {
-                    uploadNewVersion(item.id, input.files[0]).catch((err) => captureException('uploadNewVersion', err))
+                    uploadNewVersion(item.id, input.files[0]).catch(err =>
+                        captureException('uploadNewVersion', err)
+                    )
                 }
             }
             input.click()
@@ -629,7 +651,9 @@ function SelectionToolbar({
                                 : handleTrashAll
                         }
                     >
-                        {(onOpen) => <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />}
+                        {onOpen => (
+                            <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />
+                        )}
                     </ConfirmTrash>
                 ),
             }
@@ -701,7 +725,10 @@ function SelectionToolbar({
         return (
             <>
                 <ScreenHeader>
-                    <View className="flex-row items-center justify-between px-4" style={{ paddingVertical: 10 }}>
+                    <View
+                        className="flex-row items-center justify-between px-4"
+                        style={{ paddingVertical: 10 }}
+                    >
                         <View className="flex-row items-center gap-2 flex-1">
                             <Pressable onPress={onClearSelection} className="p-1">
                                 <X size={16} color={mutedColor} />
@@ -740,8 +767,12 @@ function SelectionToolbar({
                                         : handleDeleteAll
                                 }
                             >
-                                {(onOpen) => (
-                                    <ToolbarIconButton icon={Trash2} label="Delete permanently" onPress={onOpen} />
+                                {onOpen => (
+                                    <ToolbarIconButton
+                                        icon={Trash2}
+                                        label="Delete permanently"
+                                        onPress={onOpen}
+                                    />
                                 )}
                             </SuretyGuard>
                             <ToolbarSeparator />
@@ -762,7 +793,7 @@ function SelectionToolbar({
                         folderTree={folderTree}
                         title="Original location has been removed, select alternative location"
                         confirmLabel="Restore here"
-                        onMove={(targetId) => {
+                        onMove={targetId => {
                             if (restoreMoveTarget) {
                                 restoreToFolder(restoreMoveTarget, targetId)
                                 onClearSelection()

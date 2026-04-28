@@ -7,7 +7,7 @@ export function useVersionHistory(itemId: string) {
     const [versionsCollection] = useStore('drive_item_versions')
 
     const { data: versions } = useOrgLiveQuery(
-        (query) =>
+        query =>
             query
                 .from({ v: versionsCollection })
                 .where(({ v }) => and(eq(v.item, itemId), eq(v.source, 'upload')))

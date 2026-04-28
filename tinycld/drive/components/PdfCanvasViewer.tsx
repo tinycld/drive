@@ -1,7 +1,7 @@
+import { useWebStylesheet } from '@tinycld/core/lib/use-web-styles'
 import { useEffect, useRef, useState } from 'react'
 import { View } from 'react-native'
 import { Document, Page, pdfjs } from 'react-pdf'
-import { useWebStylesheet } from '@tinycld/core/lib/use-web-styles'
 
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
@@ -74,7 +74,10 @@ function LazyPage({ pageNumber, width }: { pageNumber: number; width: number }) 
     const estimatedHeight = width * 1.294
 
     return (
-        <div ref={ref} style={{ ...pageWrapperStyles, minHeight: shouldRender ? undefined : estimatedHeight }}>
+        <div
+            ref={ref}
+            style={{ ...pageWrapperStyles, minHeight: shouldRender ? undefined : estimatedHeight }}
+        >
             {shouldRender && <Page pageNumber={pageNumber} width={width} />}
         </div>
     )
@@ -93,13 +96,19 @@ export function PdfCanvasViewer({ url }: { url: string }) {
     const pageWidth = containerWidth - PADDING * 2
 
     return (
-        <View className="flex-1" onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
+        <View className="flex-1" onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}>
             <div ref={containerRef} style={scrollContainerStyles}>
                 <Document file={url} onLoadSuccess={({ numPages }) => setPageCount(numPages)}>
                     {pageWidth > 0 &&
                         Array.from({ length: pageCount }, (_, i) => {
                             const pageNumber = i + 1
-                            return <LazyPage key={pageNumber} pageNumber={pageNumber} width={pageWidth} />
+                            return (
+                                <LazyPage
+                                    key={pageNumber}
+                                    pageNumber={pageNumber}
+                                    width={pageWidth}
+                                />
+                            )
                         })}
                 </Document>
             </div>
