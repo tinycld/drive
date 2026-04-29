@@ -21,10 +21,18 @@ interface DriveUIState {
     shareTarget: DialogTarget | null
     detailPanelOpen: boolean
     /**
-     * Keyboard-driven focus index into the current file listing. Persisted so
-     * opening a file and returning lands back on the row the user was on.
+     * Keyboard-driven focus index into the current file listing. Only
+     * meaningful when `hasFocus` is true. Persisted across mount/unmount so
+     * opening a file and returning lands back on the row the user was on
+     * (still gated by hasFocus).
      */
     focusedIndex: number
+    /**
+     * Whether the user has affirmatively engaged the keyboard (j/k/arrow) to
+     * focus a row. False on initial mount and after a listKey change so the
+     * list opens with no row pre-selected.
+     */
+    hasFocus: boolean
 }
 
 interface DriveUIActions {
@@ -43,7 +51,10 @@ interface DriveUIActions {
     toggleDetailPanel: () => void
     openDetailPanel: () => void
     closeDetailPanel: () => void
+    /** Sets the focused index AND marks focus as user-engaged. */
     setFocusedIndex: (i: number | ((prev: number) => number)) => void
+    /** Clears focus state without changing index (used on listKey change). */
+    clearFocus: () => void
 }
 
 export type { DialogTarget, PromptDialog }
@@ -59,6 +70,7 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
     shareTarget: null,
     detailPanelOpen: false,
     focusedIndex: 0,
+    hasFocus: false,
 
     selectItem: (itemId: string | null) => set({ selectedItemId: itemId }),
 
@@ -107,5 +119,7 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
     setFocusedIndex: (next) =>
         set((state) => ({
             focusedIndex: typeof next === 'function' ? next(state.focusedIndex) : next,
+            hasFocus: true,
         })),
+    clearFocus: () => set({ focusedIndex: 0, hasFocus: false }),
 }))
