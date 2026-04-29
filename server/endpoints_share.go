@@ -10,6 +10,7 @@ import (
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/core/coreserver"
 	"tinycld.org/core/mailer"
 )
 
@@ -97,9 +98,9 @@ func handleShare(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 		if r.Email != "" {
 			if r.UserOrgID == "" {
 				// External recipient: create a public share link and use /share/<token> URL
-				go sendExternalShareInvite(app, senderName, r, item, org, req.Message, item.GetString("created_by"))
+				go sendExternalShareInvite(app, senderName, r, item, org, req.Message, item.GetString("created_by"), userID)
 			} else {
-				go sendShareInvite(app, senderName, r, item.GetString("name"), org.GetString("slug"), req.ItemID, req.Message)
+				go sendShareInvite(app, senderName, r, item.GetString("name"), org.GetString("slug"), req.ItemID, req.Message, userID)
 			}
 		}
 	}
@@ -111,7 +112,7 @@ func handleShare(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 	})
 }
 
-func sendShareInvite(app *pocketbase.PocketBase, senderName string, r shareRecipient, itemName, orgSlug, itemID, message string) {
+func sendShareInvite(app *pocketbase.PocketBase, senderName string, r shareRecipient, itemName, orgSlug, itemID, message, senderUserID string) {
 	link := fmt.Sprintf("%s/a/%s/drive?file=%s", app.Settings().Meta.AppURL, orgSlug, itemID)
 
 	greeting := "Hi"
@@ -144,13 +145,19 @@ func sendShareInvite(app *pocketbase.PocketBase, senderName string, r shareRecip
 		Text:    text,
 	}
 
+	// Demo accounts: skip the outbound mail. The drive_shares row is already
+	// created by the caller, so the recipient still appears in the share UI.
+	if coreserver.IsDemoUser(app, senderUserID) {
+		return
+	}
+
 	if err := mailer.DefaultSender().Send(context.Background(), msg); err != nil {
 		app.Logger().Error("Failed to send share invite", "to", r.Email, "error", err)
 	}
 }
 
 // sendExternalShareInvite creates a public share link and sends an email with the /share/<token> URL.
-func sendExternalShareInvite(app *pocketbase.PocketBase, senderName string, r shareRecipient, item *core.Record, org *core.Record, message string, createdByUserOrgID string) {
+func sendExternalShareInvite(app *pocketbase.PocketBase, senderName string, r shareRecipient, item *core.Record, org *core.Record, message string, createdByUserOrgID string, senderUserID string) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		app.Logger().Error("Failed to generate share token", "error", err)
@@ -213,6 +220,12 @@ func sendExternalShareInvite(app *pocketbase.PocketBase, senderName string, r sh
 		Subject: fmt.Sprintf("%s shared \"%s\" with you", senderName, itemName),
 		HTML:    html,
 		Text:    text,
+	}
+
+	// Demo accounts: the share-link record was created above so the URL is
+	// visible in the UI; skip the outbound email so nothing leaves the box.
+	if coreserver.IsDemoUser(app, senderUserID) {
+		return
 	}
 
 	if err := mailer.DefaultSender().Send(context.Background(), msg); err != nil {
