@@ -2,6 +2,7 @@ import { DataTableHeader } from '@tinycld/core/components/DataTableHeader'
 import { EmptyState } from '@tinycld/core/components/EmptyState'
 import { rowFocusStyle } from '@tinycld/core/components/focusable-row'
 import { HoverAction } from '@tinycld/core/components/HoverAction'
+import { RowHoverActions } from '@tinycld/core/components/RowHoverActions'
 import { StarIcon } from '@tinycld/core/components/StarIcon'
 import { ConfirmTrash } from '@tinycld/core/components/SuretyGuard'
 import { SwipeableRow, SwipeableRowProvider } from '@tinycld/core/components/SwipeableRow'
@@ -278,64 +279,49 @@ function FilesListRow({
             <Text style={{ fontSize: 12, color: mutedColor, flex: 1 }}>
                 {item.isFolder ? '\u2014' : formatBytes(item.size)}
             </Text>
-            <View
-                className="relative items-end justify-center"
-                style={{
-                    width: 80,
-                    flexShrink: 0,
-                }}
-            >
-                <Pressable
-                    style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: 0,
-                        bottom: 0,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: bgColor,
-                        ...(isHovered ? {} : { opacity: 0, pointerEvents: 'none' as const }),
-                    }}
-                    onPress={(e) => e.stopPropagation()}
-                >
-                    <ConfirmTrash itemName={item.name} onConfirmed={() => moveToTrash(item.id)}>
-                        {(onOpen) => (
-                            <HoverAction
-                                icon={Trash2}
-                                label="Delete"
-                                onPress={onOpen}
-                                tooltipPosition={tooltipPosition}
-                            />
-                        )}
-                    </ConfirmTrash>
-                    <HoverAction
-                        icon={Download}
-                        label="Download"
-                        onPress={() => downloadItem(item.id)}
-                        tooltipPosition={tooltipPosition}
-                    />
-                    <HoverAction
-                        icon={Star}
-                        label={item.starred ? 'Unstar' : 'Star'}
-                        onPress={() => toggleStar(item.id)}
-                        iconColor={item.starred ? mutedColor : yellowColor}
-                        iconFill={item.starred ? 'transparent' : yellowColor}
-                        tooltipPosition={tooltipPosition}
-                    />
-                </Pressable>
-                <Pressable
-                    style={{
-                        padding: 4,
-                        ...(isHovered ? { opacity: 0, pointerEvents: 'none' as const } : {}),
-                    }}
-                    onPress={(e) => {
-                        e.stopPropagation()
-                        toggleStar(item.id)
-                    }}
-                >
-                    <StarIcon isStarred={item.starred} size={16} />
-                </Pressable>
-            </View>
+            <RowHoverActions
+                isHovered={isHovered}
+                width={80}
+                rest={
+                    <Pressable
+                        style={{ padding: 4 }}
+                        onPress={(e) => {
+                            e.stopPropagation()
+                            toggleStar(item.id)
+                        }}
+                    >
+                        <StarIcon isStarred={item.starred} size={16} />
+                    </Pressable>
+                }
+                hover={
+                    <>
+                        <ConfirmTrash itemName={item.name} onConfirmed={() => moveToTrash(item.id)}>
+                            {(onOpen) => (
+                                <HoverAction
+                                    icon={Trash2}
+                                    label="Delete"
+                                    onPress={onOpen}
+                                    tooltipPosition={tooltipPosition}
+                                />
+                            )}
+                        </ConfirmTrash>
+                        <HoverAction
+                            icon={Download}
+                            label="Download"
+                            onPress={() => downloadItem(item.id)}
+                            tooltipPosition={tooltipPosition}
+                        />
+                        <HoverAction
+                            icon={Star}
+                            label={item.starred ? 'Unstar' : 'Star'}
+                            onPress={() => toggleStar(item.id)}
+                            iconColor={item.starred ? mutedColor : yellowColor}
+                            iconFill={item.starred ? 'transparent' : yellowColor}
+                            tooltipPosition={tooltipPosition}
+                        />
+                    </>
+                }
+            />
         </Pressable>
     )
 }
