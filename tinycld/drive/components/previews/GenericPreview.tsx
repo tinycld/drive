@@ -8,8 +8,6 @@ import { getFileIcon } from '../file-icons'
 
 export function GenericPreview({ item }: PreviewProps) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
-    const primaryColor = useThemeColor('primary')
     const primaryFgColor = useThemeColor('primary-foreground')
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const fileUrl = getFileURL(item)
@@ -28,28 +26,26 @@ export function GenericPreview({ item }: PreviewProps) {
         <View className="flex-1 items-center justify-center p-8">
             <FileIcon size={80} color={iconColor} />
             <Text
-                className="mt-4"
+                className="mt-4 text-foreground"
                 style={{
                     fontSize: 20,
                     fontWeight: '600',
-                    color: fgColor,
                 }}
             >
                 {item.name}
             </Text>
-            <Text className="mt-1" style={{ fontSize: 13, color: mutedColor }}>
+            <Text className="mt-1 text-muted-foreground" style={{ fontSize: 13 }}>
                 {item.mimeType} · {formatBytes(item.size)}
             </Text>
             {fileUrl && (
                 <Pressable
                     onPress={handleDownload}
-                    className="flex-row items-center gap-2 mt-5 px-5 py-3 rounded-lg"
-                    style={{
-                        backgroundColor: primaryColor,
-                    }}
+                    className="flex-row items-center gap-2 mt-5 px-5 py-3 rounded-lg bg-primary"
                 >
                     <Download size={16} color={primaryFgColor} />
-                    <Text style={{ fontWeight: '600', color: primaryFgColor }}>Download</Text>
+                    <Text className="text-primary-foreground" style={{ fontWeight: '600' }}>
+                        Download
+                    </Text>
                 </Pressable>
             )}
         </View>

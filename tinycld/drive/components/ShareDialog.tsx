@@ -71,9 +71,6 @@ export function ShareDialog({
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
     const primaryColor = useThemeColor('primary')
-    const primaryFgColor = useThemeColor('primary-foreground')
-    const bgColor = useThemeColor('background')
-    const _surfaceBgColor = useThemeColor('surface-secondary')
     const [search, setSearch] = useState('')
     const [defaultRole, setDefaultRole] = useState<'editor' | 'viewer'>('editor')
     const [pending, setPending] = useState<PendingShare[]>([])
@@ -228,7 +225,9 @@ export function ShareDialog({
             <ModalContent className="w-[540px] p-0 rounded-2xl">
                 <ContactSuggestionsSource onChange={setContacts} />
                 <View className="px-6 pb-4" style={{ paddingTop: 28 }}>
-                    <Text style={{ fontSize: 28, color: fgColor }}>Share &ldquo;{itemName}&rdquo;</Text>
+                    <Text className="text-foreground" style={{ fontSize: 28 }}>
+                        Share &ldquo;{itemName}&rdquo;
+                    </Text>
                 </View>
 
                 <View className="px-6 pb-5 relative overflow-visible" style={{ zIndex: 100 }}>
@@ -246,8 +245,8 @@ export function ShareDialog({
                             onChangeText={setSearch}
                             placeholder="Add people by name or email"
                             placeholderTextColor={primaryColor}
-                            className="flex-1"
-                            style={{ fontSize: 15, color: fgColor }}
+                            className="flex-1 text-foreground"
+                            style={{ fontSize: 15 }}
                             autoFocus
                         />
                         <RolePicker
@@ -261,6 +260,7 @@ export function ShareDialog({
 
                     {suggestions.length > 0 && (
                         <View
+                            className="border border-border bg-background overflow-hidden"
                             style={{
                                 position: 'absolute',
                                 top: '100%',
@@ -268,11 +268,7 @@ export function ShareDialog({
                                 right: 0,
                                 zIndex: 2000,
                                 marginTop: 2,
-                                borderWidth: 1,
                                 borderRadius: 12,
-                                borderColor,
-                                backgroundColor: bgColor,
-                                overflow: 'hidden',
                                 ...(webShadow as object),
                             }}
                         >
@@ -291,20 +287,15 @@ export function ShareDialog({
                                             <NameAvatar firstName={firstName} lastName={lastName} size={40} />
                                             <View className="flex-1 gap-0.5">
                                                 <Text
+                                                    className="text-foreground"
                                                     style={{
                                                         fontSize: 13,
                                                         fontWeight: '500',
-                                                        color: fgColor,
                                                     }}
                                                 >
                                                     {s.name || s.email}
                                                 </Text>
-                                                <Text
-                                                    style={{
-                                                        fontSize: 12,
-                                                        color: mutedColor,
-                                                    }}
-                                                >
+                                                <Text className="text-muted-foreground" style={{ fontSize: 12 }}>
                                                     {s.email}
                                                 </Text>
                                             </View>
@@ -324,15 +315,15 @@ export function ShareDialog({
                                 <View className="flex-1" style={{ gap: 1 }}>
                                     <Text
                                         numberOfLines={1}
+                                        className="text-foreground"
                                         style={{
                                             fontSize: 13,
                                             fontWeight: '500',
-                                            color: fgColor,
                                         }}
                                     >
                                         {p.name || p.email}
                                     </Text>
-                                    <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
+                                    <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 12 }}>
                                         {p.email}
                                     </Text>
                                 </View>
@@ -353,11 +344,10 @@ export function ShareDialog({
 
                 <View className="px-6 pb-4">
                     <Text
-                        className="mb-3"
+                        className="mb-3 text-foreground"
                         style={{
                             fontSize: 16,
                             fontWeight: '600',
-                            color: fgColor,
                         }}
                     >
                         People with access
@@ -368,20 +358,22 @@ export function ShareDialog({
                             <NameAvatar firstName={currentUserShare.name || currentUserShare.email} size={36} />
                             <View className="flex-1" style={{ gap: 1 }}>
                                 <Text
+                                    className="text-foreground"
                                     style={{
                                         fontSize: 13,
                                         fontWeight: '500',
-                                        color: fgColor,
                                     }}
                                 >
                                     {currentUserShare.name || currentUserShare.email} (you)
                                 </Text>
-                                <Text style={{ fontSize: 12, color: mutedColor }}>{currentUserShare.email}</Text>
+                                <Text className="text-muted-foreground" style={{ fontSize: 12 }}>
+                                    {currentUserShare.email}
+                                </Text>
                             </View>
                             <Text
+                                className="text-muted-foreground"
                                 style={{
                                     fontSize: 12,
-                                    color: mutedColor,
                                     textTransform: 'capitalize',
                                 }}
                             >
@@ -396,22 +388,22 @@ export function ShareDialog({
                             <View className="flex-1" style={{ gap: 1 }}>
                                 <Text
                                     numberOfLines={1}
+                                    className="text-foreground"
                                     style={{
                                         fontSize: 13,
                                         fontWeight: '500',
-                                        color: fgColor,
                                     }}
                                 >
                                     {share.name || share.email}
                                 </Text>
-                                <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
+                                <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 12 }}>
                                     {share.email}
                                 </Text>
                             </View>
                             <Text
+                                className="text-muted-foreground"
                                 style={{
                                     fontSize: 12,
-                                    color: mutedColor,
                                     textTransform: 'capitalize',
                                 }}
                             >
@@ -426,11 +418,10 @@ export function ShareDialog({
 
                 <View className="px-6 pb-4">
                     <Text
-                        className="mb-3"
+                        className="mb-3 text-foreground"
                         style={{
                             fontSize: 16,
                             fontWeight: '600',
-                            color: fgColor,
                         }}
                     >
                         General access
@@ -478,27 +469,18 @@ export function ShareDialog({
                     />
                 </View>
 
-                <View
-                    className="flex-row items-center justify-between px-6 py-4"
-                    style={{
-                        borderTopWidth: 1,
-                        borderTopColor: borderColor,
-                    }}
-                >
+                <View className="flex-row items-center justify-between px-6 py-4 border-t border-border">
                     <Pressable
-                        className="flex-row items-center gap-2 px-4 rounded-full border"
-                        style={{
-                            paddingVertical: 10,
-                            borderColor,
-                        }}
+                        className="flex-row items-center gap-2 px-4 rounded-full border border-border"
+                        style={{ paddingVertical: 10 }}
                         onPress={copyLink}
                     >
                         <Link size={16} color={primaryColor} />
                         <Text
+                            className="text-primary"
                             style={{
                                 fontSize: 13,
                                 fontWeight: '600',
-                                color: primaryColor,
                             }}
                         >
                             {linkCopied ? 'Copied!' : 'Copy link'}
@@ -507,14 +489,13 @@ export function ShareDialog({
                     <Pressable
                         onPress={handleDone}
                         disabled={isSaving}
-                        className={`px-6 py-3 rounded-3xl ${isSaving ? 'opacity-60' : 'opacity-100'}`}
-                        style={{ backgroundColor: primaryColor }}
+                        className={`px-6 py-3 rounded-3xl bg-primary ${isSaving ? 'opacity-60' : 'opacity-100'}`}
                     >
                         <Text
+                            className="text-primary-foreground"
                             style={{
                                 fontWeight: '600',
                                 fontSize: 14,
-                                color: primaryFgColor,
                             }}
                         >
                             {isSaving ? 'Saving...' : 'Done'}
@@ -555,11 +536,8 @@ function GeneralAccessSection({
                     onPress={onTogglePublicLink}
                 >
                     <View
-                        className="size-9 items-center justify-center"
-                        style={{
-                            borderRadius: 18,
-                            backgroundColor: `${successColor}20`,
-                        }}
+                        className="size-9 items-center justify-center bg-success/20"
+                        style={{ borderRadius: 18 }}
                     >
                         <Globe size={16} color={successColor} />
                     </View>

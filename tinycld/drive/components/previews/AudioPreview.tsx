@@ -8,7 +8,6 @@ import { GenericPreview } from './GenericPreview'
 export function AudioPreview(props: PreviewProps) {
     const { item } = props
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const fileUrl = getFileURL(item)
 
@@ -19,11 +18,10 @@ export function AudioPreview(props: PreviewProps) {
             <View className="flex-1 items-center justify-center p-8">
                 <FileIcon size={80} color={iconColor} />
                 <Text
-                    className="mt-4"
+                    className="mt-4 text-foreground"
                     style={{
                         fontSize: 20,
                         fontWeight: '600',
-                        color: fgColor,
                     }}
                 >
                     {item.name}

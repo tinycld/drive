@@ -27,10 +27,6 @@ export function ChooseFolderDialog({
     confirmLabel = 'Move here',
 }: ChooseFolderDialogProps) {
     const [selectedId, setSelectedId] = useState('')
-    const fgColor = useThemeColor('foreground')
-    const primaryColor = useThemeColor('primary')
-    const primaryFgColor = useThemeColor('primary-foreground')
-    const borderColor = useThemeColor('border')
 
     const handleMove = () => {
         onMove(selectedId)
@@ -42,7 +38,7 @@ export function ChooseFolderDialog({
             <ModalBackdrop />
             <ModalContent className="w-[400px] max-h-[70vh] p-0">
                 <View className="px-4 pt-4 pb-2">
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: fgColor }}>
+                    <Text className="text-foreground" style={{ fontSize: 16, fontWeight: '600' }}>
                         {title ?? `Move \u201C${itemName}\u201D`}
                     </Text>
                 </View>
@@ -58,22 +54,16 @@ export function ChooseFolderDialog({
                     />
                 </ScrollView>
 
-                <View
-                    className="flex-row gap-3 justify-end p-3"
-                    style={{
-                        borderTopWidth: 1,
-                        borderColor,
-                    }}
-                >
+                <View className="flex-row gap-3 justify-end p-3 border-t border-border">
                     <Pressable onPress={onClose} className="px-3 py-2">
-                        <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
+                        <Text className="text-foreground" style={{ fontSize: 13 }}>
+                            Cancel
+                        </Text>
                     </Pressable>
-                    <Pressable
-                        onPress={handleMove}
-                        className="px-4 py-2 rounded-md"
-                        style={{ backgroundColor: primaryColor }}
-                    >
-                        <Text style={{ fontWeight: '600', color: primaryFgColor }}>{confirmLabel}</Text>
+                    <Pressable onPress={handleMove} className="px-4 py-2 rounded-md bg-primary">
+                        <Text className="text-primary-foreground" style={{ fontWeight: '600' }}>
+                            {confirmLabel}
+                        </Text>
                     </Pressable>
                 </View>
             </ModalContent>
@@ -83,19 +73,16 @@ export function ChooseFolderDialog({
 
 function RootItem({ isSelected, onSelect }: { isSelected: boolean; onSelect: () => void }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
     const accentColor = useThemeColor('primary')
 
     return (
         <Pressable
-            className="flex-row items-center gap-2 py-2 pr-3 rounded-lg mx-2 pl-3"
-            style={isSelected ? { backgroundColor: `${accentColor}18` } : undefined}
+            className={`flex-row items-center gap-2 py-2 pr-3 rounded-lg mx-2 pl-3 ${isSelected ? 'bg-primary/10' : ''}`}
             onPress={onSelect}
         >
             <HardDrive size={16} color={isSelected ? accentColor : mutedColor} />
             <Text
-                className={`flex-1 text-[13px] ${isSelected ? 'font-semibold' : ''}`}
-                style={{ color: isSelected ? accentColor : fgColor }}
+                className={`flex-1 text-[13px] ${isSelected ? 'font-semibold text-primary' : 'text-foreground'}`}
             >
                 My Files
             </Text>
@@ -149,7 +136,6 @@ function PickerTreeItem({
     depth: number
 }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
     const accentColor = useThemeColor('primary')
     const [expanded, setExpanded] = useState(false)
     const isSelected = selectedId === node.item.id
@@ -159,11 +145,8 @@ function PickerTreeItem({
     return (
         <View>
             <Pressable
-                className="flex-row items-center gap-2 py-2 pr-3 rounded-lg mx-2"
-                style={{
-                    paddingLeft: depth * 20 + 12,
-                    ...(isSelected ? { backgroundColor: `${accentColor}18` } : {}),
-                }}
+                className={`flex-row items-center gap-2 py-2 pr-3 rounded-lg mx-2 ${isSelected ? 'bg-primary/10' : ''}`}
+                style={{ paddingLeft: depth * 20 + 12 }}
                 onPress={() => onSelect(node.item.id)}
             >
                 {hasChildren ? (
@@ -183,8 +166,7 @@ function PickerTreeItem({
                 <Folder size={16} color={isSelected ? accentColor : mutedColor} />
                 <Text
                     numberOfLines={1}
-                    className={`flex-1 text-[13px] ${isSelected ? 'font-semibold' : ''}`}
-                    style={{ color: isSelected ? accentColor : fgColor }}
+                    className={`flex-1 text-[13px] ${isSelected ? 'font-semibold text-primary' : 'text-foreground'}`}
                 >
                     {node.item.name}
                 </Text>

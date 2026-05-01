@@ -43,7 +43,6 @@ class ShareLinkError extends Error {
 
 function ErrorDisplay({ error }: { error: ShareLinkError }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
     const isExpired = error.status === 410
     const title = isExpired ? 'Link expired' : 'Link not found'
     const description = isExpired
@@ -53,14 +52,10 @@ function ErrorDisplay({ error }: { error: ShareLinkError }) {
     return (
         <View className="items-center justify-center flex-1 gap-4 p-6">
             <FileIcon size={64} color={mutedColor} />
-            <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>{title}</Text>
-            <Text
-                className="text-center"
-                style={{
-                    color: mutedColor,
-                    maxWidth: 400,
-                }}
-            >
+            <Text className="text-foreground" style={{ fontSize: 20, fontWeight: '600' }}>
+                {title}
+            </Text>
+            <Text className="text-center text-muted-foreground" style={{ maxWidth: 400 }}>
                 {description}
             </Text>
         </View>
@@ -68,12 +63,10 @@ function ErrorDisplay({ error }: { error: ShareLinkError }) {
 }
 
 function LoadingDisplay() {
-    const mutedColor = useThemeColor('muted-foreground')
-
     return (
         <View className="items-center justify-center flex-1 gap-4">
             <ActivityIndicator size="large" />
-            <Text style={{ color: mutedColor }}>Loading shared file...</Text>
+            <Text className="text-muted-foreground">Loading shared file...</Text>
         </View>
     )
 }
@@ -84,7 +77,6 @@ interface PublicSharePageProps {
 
 export function PublicSharePage({ token }: PublicSharePageProps) {
     const { data, isLoading, error } = useShareLinkData(token)
-    const bgColor = useThemeColor('background')
 
     if (isLoading) return <LoadingDisplay />
     if (error) return <ErrorDisplay error={error as ShareLinkError} />
@@ -96,7 +88,7 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
     const downloadUrl = `${fileUrl}?inline=0`
 
     return (
-        <View className="flex-1" style={{ backgroundColor: bgColor }}>
+        <View className="flex-1 bg-background">
             <Modal isOpen onClose={() => {}}>
                 <ModalBackdrop />
                 <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
@@ -119,27 +111,19 @@ export function PublicSharePage({ token }: PublicSharePageProps) {
 
 function PreviewHeader({ name, orgName, downloadUrl }: { name: string; orgName: string; downloadUrl: string }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
-    const borderColor = useThemeColor('border')
 
     const handleDownload = () => {
         if (Platform.OS === 'web') window.open(downloadUrl, '_blank')
     }
 
     return (
-        <View
-            className="flex-row items-center px-4 py-3 gap-3"
-            style={{
-                borderBottomWidth: 1,
-                borderBottomColor: borderColor,
-            }}
-        >
+        <View className="flex-row items-center px-4 py-3 gap-3 border-b border-border">
             <View className="flex-1 gap-1">
-                <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '600', color: fgColor }}>
+                <Text numberOfLines={1} className="text-foreground" style={{ fontSize: 16, fontWeight: '600' }}>
                     {name}
                 </Text>
                 {orgName ? (
-                    <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
+                    <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 12 }}>
                         Shared from {orgName}
                     </Text>
                 ) : null}

@@ -1,4 +1,3 @@
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Platform, ScrollView, Text, View } from 'react-native'
 import { getFileURL } from '../../lib/file-url'
@@ -7,8 +6,6 @@ import type { PreviewProps } from '../../lib/preview-registry'
 export function CodePreview({ item }: PreviewProps) {
     const [content, setContent] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
-    const fgColor = useThemeColor('foreground')
-    const mutedColor = useThemeColor('muted-foreground')
     const fileUrl = getFileURL(item)
 
     const loadContent = useCallback(async () => {
@@ -42,14 +39,16 @@ export function CodePreview({ item }: PreviewProps) {
     if (content === null) {
         return (
             <View className="flex-1 items-center justify-center p-4">
-                <Text style={{ color: mutedColor }}>Cannot preview this file</Text>
+                <Text className="text-muted-foreground">Cannot preview this file</Text>
             </View>
         )
     }
 
     return (
         <ScrollView className="flex-1 p-4">
-            <Text style={{ fontSize: 13, color: fgColor, fontFamily: 'monospace' }}>{content}</Text>
+            <Text className="text-foreground" style={{ fontSize: 13, fontFamily: 'monospace' }}>
+                {content}
+            </Text>
         </ScrollView>
     )
 }

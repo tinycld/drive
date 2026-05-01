@@ -18,14 +18,13 @@ interface PreviewModalProps {
 
 export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
     const isMobile = useBreakpoint() === 'mobile'
-    const background = useThemeColor('background')
 
     if (!item) return null
 
     if (isMobile || Platform.OS !== 'web') {
         return (
             <RNModal visible={isVisible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-                <View className="flex-1" style={{ backgroundColor: background }}>
+                <View className="flex-1 bg-background">
                     <PreviewModalContent item={item} onClose={onClose} />
                 </View>
             </RNModal>
@@ -44,9 +43,6 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
 
 function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
-    const borderColor = useThemeColor('border')
-    const _bgColor = useThemeColor('background')
     const insets = useSafeAreaInsets()
     const { currentItems, openPreview, downloadItem } = useDrive()
 
@@ -74,23 +70,18 @@ function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: 
     return (
         <>
             <View
-                className="flex-row items-center px-4 py-3 gap-3"
-                style={{
-                    paddingTop: Math.max(insets.top, 12),
-                    borderBottomWidth: 1,
-                    borderBottomColor: borderColor,
-                }}
+                className="flex-row items-center px-4 py-3 gap-3 border-b border-border"
+                style={{ paddingTop: Math.max(insets.top, 12) }}
             >
                 <Pressable onPress={onClose} className="p-1.5">
                     <X size={20} color={mutedColor} />
                 </Pressable>
                 <Text
                     numberOfLines={1}
-                    className="flex-1"
+                    className="flex-1 text-foreground"
                     style={{
                         fontSize: 16,
                         fontWeight: '600',
-                        color: fgColor,
                     }}
                 >
                     {item.name}

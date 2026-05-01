@@ -254,28 +254,14 @@ function FolderTreeItem({ node, expandedIds, selectedFolderId, onToggle, onSelec
 }
 
 function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
-    const mutedColor = useThemeColor('muted-foreground')
-    const primaryColor = useThemeColor('primary')
     const percentage = (usedGB / totalGB) * 100
 
     return (
         <View className="px-3 py-2" style={{ gap: 6 }}>
-            <View
-                className="overflow-hidden rounded-sm"
-                style={{
-                    height: 4,
-                    backgroundColor: `${mutedColor}20`,
-                }}
-            >
-                <View
-                    className="h-full rounded-sm"
-                    style={{
-                        width: `${percentage}%`,
-                        backgroundColor: primaryColor,
-                    }}
-                />
+            <View className="overflow-hidden rounded-sm bg-muted-foreground/10" style={{ height: 4 }}>
+                <View className="h-full rounded-sm bg-primary" style={{ width: `${percentage}%` }} />
             </View>
-            <Text style={{ fontSize: 11, color: mutedColor }}>
+            <Text className="text-muted-foreground" style={{ fontSize: 11 }}>
                 {usedGB.toFixed(2)} GB of {totalGB} GB used
             </Text>
         </View>

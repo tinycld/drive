@@ -1,5 +1,4 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Slot } from 'expo-router'
 import { View } from 'react-native'
 import { DetailPanel } from '../components/DetailPanel'
@@ -31,13 +30,12 @@ function DriveLayoutInner() {
         detailPanelOpen,
         closeDetailPanel,
     } = useDrive()
-    const bgColor = useThemeColor('background')
     const isMobile = useBreakpoint() === 'mobile'
     const showDetail = detailPanelOpen && !!selectedItem && !isMobile
     const isMyDrive = activeSection === 'my-drive'
 
     return (
-        <View className="flex-1" style={{ backgroundColor: bgColor }}>
+        <View className="flex-1 bg-background">
             <DriveToolbar />
             <View className="flex-1 flex-row">
                 <View className="flex-1">

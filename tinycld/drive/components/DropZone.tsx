@@ -131,16 +131,17 @@ export function DropZone({ children, onDrop, onDropTree, isEnabled }: DropZonePr
             {children}
             {isDragging && isEnabled && (
                 <View
-                    className="absolute top-0 left-0 right-0 bottom-0 items-center justify-center rounded-xl"
+                    className="absolute top-0 left-0 right-0 bottom-0 items-center justify-center rounded-xl bg-accent/10"
                     style={{
-                        backgroundColor: `${accentColor}15`,
                         borderWidth: 2,
                         borderStyle: 'dashed',
                         borderColor: accentColor,
                         zIndex: 100,
                     }}
                 >
-                    <Text style={{ color: accentColor, fontSize: 20, fontWeight: '600' }}>Drop files to upload</Text>
+                    <Text className="text-accent" style={{ fontSize: 20, fontWeight: '600' }}>
+                        Drop files to upload
+                    </Text>
                 </View>
             )}
         </div>

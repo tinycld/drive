@@ -17,10 +17,12 @@ import {
     ChevronRight,
     Download,
     Eye,
+    FileUp,
     FolderInput,
     FolderPlus,
     FolderUp,
     Grid,
+    Image as ImageIcon,
     Info,
     List,
     Pencil,
@@ -34,16 +36,13 @@ import {
 import { useCallback, useMemo, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
 import { useDrive } from '../hooks/useDrive'
+import { type PromptDialog, useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
 import { ShareDialog } from './ShareDialog'
 
 export function DriveDialogs() {
     const {
-        promptDialog,
-        promptKey,
-        handlePromptSubmit,
-        closePrompt,
         moveTarget,
         moveItem,
         selectItem,
@@ -74,16 +73,8 @@ export function DriveDialogs() {
 
     return (
         <>
-            <NamePromptDialog
-                key={promptKey}
-                open={promptDialog.type !== 'closed'}
-                title={promptDialog.type === 'new-folder' ? 'New folder' : 'Rename'}
-                placeholder={promptDialog.type === 'new-folder' ? 'Untitled folder' : ''}
-                defaultValue={promptDialog.type === 'rename' ? promptDialog.currentName : ''}
-                submitLabel={promptDialog.type === 'new-folder' ? 'Create' : 'Rename'}
-                onSubmit={handlePromptSubmit}
-                onClose={closePrompt}
-            />
+            <NamePromptDialog />
+            <UploadSheet />
             <ChooseFolderDialog
                 open={moveTarget !== null}
                 itemName={moveTarget?.name ?? ''}
@@ -111,6 +102,7 @@ export function DriveToolbar() {
     const fgColor = useThemeColor('foreground')
     const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
+    const openUploadSheet = useDriveUIStore((s) => s.openUploadSheet)
     const {
         selectedItem,
         selectedIds,
@@ -177,18 +169,22 @@ export function DriveToolbar() {
 
     const folderActions = (
         <View className="flex-row items-center gap-0.5">
-            <Menu>
-                <Menu.Trigger>
-                    <ToolbarIconButton icon={Upload} label="Upload" />
-                </Menu.Trigger>
-                <Menu.Portal>
-                    <Menu.Overlay />
-                    <Menu.Content presentation="popover" placement="bottom" align="start">
-                        <MenuActionItem label="Upload file" icon={Upload} onPress={triggerFilePicker} />
-                        <MenuActionItem label="Upload folder" icon={FolderUp} onPress={triggerFolderPicker} />
-                    </Menu.Content>
-                </Menu.Portal>
-            </Menu>
+            {isMobile ? (
+                <ToolbarIconButton icon={Upload} label="Upload" onPress={openUploadSheet} />
+            ) : (
+                <Menu>
+                    <Menu.Trigger>
+                        <ToolbarIconButton icon={Upload} label="Upload" />
+                    </Menu.Trigger>
+                    <Menu.Portal>
+                        <Menu.Overlay />
+                        <Menu.Content presentation="popover" placement="bottom" align="start">
+                            <MenuActionItem label="Upload file" icon={Upload} onPress={triggerFilePicker} />
+                            <MenuActionItem label="Upload folder" icon={FolderUp} onPress={triggerFolderPicker} />
+                        </Menu.Content>
+                    </Menu.Portal>
+                </Menu>
+            )}
             <ToolbarIconButton
                 icon={FolderPlus}
                 label="New folder"
@@ -215,11 +211,10 @@ export function DriveToolbar() {
         if (isSearchActive) {
             return (
                 <Text
-                    className="flex-1"
+                    className="flex-1 text-muted-foreground"
                     style={{
                         fontSize: 13,
                         fontWeight: '500',
-                        color: mutedColor,
                     }}
                 >
                     Search results{isSearching ? '...' : ''}
@@ -229,11 +224,10 @@ export function DriveToolbar() {
         if (activeSection === 'trash') {
             return (
                 <Text
-                    className="flex-1"
+                    className="flex-1 text-foreground"
                     style={{
                         fontSize: 24,
                         fontWeight: '500',
-                        color: fgColor,
                     }}
                 >
                     Trash
@@ -313,7 +307,7 @@ function DesktopBreadcrumbs({
     breadcrumbs,
     currentLabel,
     onNavigate,
-    fgColor,
+    fgColor: _fgColor,
     mutedColor,
 }: {
     breadcrumbs: DriveItemView[]
@@ -329,7 +323,7 @@ function DesktopBreadcrumbs({
             {ancestors.length > 0 && (
                 <>
                     <Pressable onPress={() => onNavigate('')}>
-                        <Text numberOfLines={1} style={{ fontSize: 16, color: mutedColor }}>
+                        <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 16 }}>
                             My Files
                         </Text>
                     </Pressable>
@@ -341,9 +335,9 @@ function DesktopBreadcrumbs({
                     <Pressable onPress={() => onNavigate(crumb.id)}>
                         <Text
                             numberOfLines={1}
+                            className="text-muted-foreground"
                             style={{
                                 fontSize: 16,
-                                color: mutedColor,
                                 flexShrink: 1,
                             }}
                         >
@@ -355,10 +349,10 @@ function DesktopBreadcrumbs({
             ))}
             <Text
                 numberOfLines={1}
+                className="text-foreground"
                 style={{
                     fontSize: 20,
                     fontWeight: '600',
-                    color: fgColor,
                     flexShrink: 1,
                 }}
             >
@@ -396,10 +390,10 @@ function MobileBreadcrumbs({
             )}
             <Text
                 numberOfLines={1}
+                className="text-foreground"
                 style={{
                     fontSize: 20,
                     fontWeight: '600',
-                    color: fgColor,
                     flex: 1,
                 }}
             >
@@ -417,24 +411,21 @@ interface SearchInputProps {
     fullWidth?: boolean
 }
 
-function SearchInput({ value, onChangeText, mutedColor, fgColor, fullWidth }: SearchInputProps) {
-    const borderColor = useThemeColor('border')
-
+function SearchInput({ value, onChangeText, mutedColor, fgColor: _fgColor, fullWidth }: SearchInputProps) {
     return (
         <View
-            className="flex-row items-center border rounded-lg"
+            className="flex-row items-center border border-border rounded-lg"
             style={{
                 gap: 6,
                 paddingHorizontal: 10,
                 paddingVertical: 6,
                 width: fullWidth ? '100%' : 240,
-                borderColor,
             }}
         >
             <Search size={14} color={mutedColor} />
             <PlainInput
-                className="flex-1 p-0"
-                style={{ fontSize: 13, color: fgColor }}
+                className="flex-1 p-0 text-foreground"
+                style={{ fontSize: 13 }}
                 placeholder="Search in Files"
                 placeholderTextColor={mutedColor}
                 value={value}
@@ -475,7 +466,7 @@ function SelectionToolbar({
     onOpenMove,
     onOpenShare,
     mutedColor,
-    fgColor,
+    fgColor: _fgColor,
     activeIndicator,
 }: SelectionToolbarProps) {
     const {
@@ -539,8 +530,8 @@ function SelectionToolbar({
                 element: (
                     <Text
                         numberOfLines={1}
-                        className="flex-1"
-                        style={{ fontSize: 13, fontWeight: '500', color: fgColor }}
+                        className="flex-1 text-foreground"
+                        style={{ fontSize: 13, fontWeight: '500' }}
                     >
                         {displayLabel}
                     </Text>
@@ -642,7 +633,6 @@ function SelectionToolbar({
         displayLabel,
         selectionCount,
         mutedColor,
-        fgColor,
         selectedItem,
         openPreview,
         triggerVersionUpload,
@@ -708,11 +698,10 @@ function SelectionToolbar({
                             </Pressable>
                             <Text
                                 numberOfLines={1}
-                                className="flex-1"
+                                className="flex-1 text-foreground"
                                 style={{
                                     fontSize: 13,
                                     fontWeight: '500',
-                                    color: fgColor,
                                 }}
                             >
                                 {displayLabel}
@@ -818,59 +807,54 @@ function ViewToggle({ viewMode, onSetViewMode, mutedColor, activeIndicator }: Vi
     )
 }
 
-interface NamePromptDialogProps {
-    open: boolean
-    title: string
-    placeholder: string
-    defaultValue: string
-    submitLabel: string
-    onSubmit: (value: string) => void
-    onClose: () => void
+function NamePromptDialog() {
+    const promptDialog = useDriveUIStore((s) => s.promptDialog)
+    const promptKey = useDriveUIStore((s) => s.promptKey)
+
+    if (promptDialog.type === 'closed') return null
+
+    return <NamePromptDialogInner key={promptKey} prompt={promptDialog} />
 }
 
-function NamePromptDialog({
-    open,
-    title,
-    placeholder,
-    defaultValue,
-    submitLabel,
-    onSubmit,
-    onClose,
-}: NamePromptDialogProps) {
-    const [value, setValue] = useState(defaultValue)
-    const fgColor = useThemeColor('foreground')
-    const borderColor = useThemeColor('border')
+function NamePromptDialogInner({ prompt }: { prompt: Exclude<PromptDialog, { type: 'closed' }> }) {
+    const { handlePromptSubmit, closePrompt } = useDrive()
+
+    const isNewFolder = prompt.type === 'new-folder'
+    const title = isNewFolder ? 'New folder' : 'Rename'
+    const placeholder = isNewFolder ? 'Untitled folder' : ''
+    const submitLabel = isNewFolder ? 'Create' : 'Rename'
+    const initialValue = prompt.type === 'rename' ? prompt.currentName : ''
+
+    const [value, setValue] = useState(initialValue)
 
     const handleSubmit = () => {
         const trimmed = value.trim()
-        if (trimmed) onSubmit(trimmed)
+        if (trimmed) handlePromptSubmit(trimmed)
     }
 
     return (
-        <Modal isOpen={open} onClose={onClose}>
+        <Modal isOpen onClose={closePrompt}>
             <ModalBackdrop />
             <ModalContent className="w-[360px] p-4 gap-3">
-                <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>{title}</Text>
-                <View
-                    className="flex-row border rounded-lg px-3"
-                    style={{
-                        borderColor,
-                        paddingVertical: 10,
-                    }}
-                >
+                <Text className="text-foreground" style={{ fontSize: 20, fontWeight: '600' }}>
+                    {title}
+                </Text>
+                <View className="flex-row border border-border rounded-lg px-3" style={{ paddingVertical: 10 }}>
                     <PlainInput
                         value={value}
                         onChangeText={setValue}
                         placeholder={placeholder}
                         autoFocus
                         onSubmitEditing={handleSubmit}
-                        className="flex-1"
-                        style={{ fontSize: 15, color: fgColor }}
+                        className="flex-1 text-foreground"
+                        style={{ fontSize: 15 }}
                     />
                 </View>
                 <View className="flex-row gap-3 justify-end">
-                    <Pressable onPress={onClose} className="px-3 py-2">
-                        <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
+                    <Pressable onPress={closePrompt} className="px-3 py-2">
+                        <Text className="text-foreground" style={{ fontSize: 13 }}>
+                            Cancel
+                        </Text>
                     </Pressable>
                     <Button onPress={handleSubmit} isDisabled={!value.trim()} size="sm">
                         <ButtonText>{submitLabel}</ButtonText>
@@ -878,5 +862,98 @@ function NamePromptDialog({
                 </View>
             </ModalContent>
         </Modal>
+    )
+}
+
+function UploadSheet() {
+    const isOpen = useDriveUIStore((s) => s.uploadSheetOpen)
+    const closeUploadSheet = useDriveUIStore((s) => s.closeUploadSheet)
+    const { triggerFilePicker, triggerPhotoPicker } = useDrive()
+    const fgColor = useThemeColor('foreground')
+
+    if (!isOpen) return null
+
+    const handlePickPhotos = () => {
+        closeUploadSheet()
+        triggerPhotoPicker()
+    }
+    const handlePickFile = () => {
+        closeUploadSheet()
+        triggerFilePicker()
+    }
+
+    return (
+        <View
+            style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 1000,
+                justifyContent: 'flex-end',
+            }}
+        >
+            <Pressable
+                onPress={closeUploadSheet}
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                }}
+            />
+            <View
+                className="bg-background"
+                style={{
+                    borderTopLeftRadius: 20,
+                    borderTopRightRadius: 20,
+                    paddingBottom: 24,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: -4 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 12,
+                    elevation: 16,
+                }}
+            >
+                <View
+                    className="bg-muted-foreground/40"
+                    style={{
+                        alignSelf: 'center',
+                        width: 36,
+                        height: 4,
+                        borderRadius: 2,
+                        marginTop: 8,
+                        marginBottom: 8,
+                    }}
+                />
+                <SheetAction icon={ImageIcon} label="Photos & videos" onPress={handlePickPhotos} fgColor={fgColor} />
+                <View className="bg-border" style={{ height: 1, marginHorizontal: 16 }} />
+                <SheetAction icon={FileUp} label="File" onPress={handlePickFile} fgColor={fgColor} />
+            </View>
+        </View>
+    )
+}
+
+function SheetAction({
+    icon: Icon,
+    label,
+    onPress,
+    fgColor,
+}: {
+    icon: typeof FileUp
+    label: string
+    onPress: () => void
+    fgColor: string
+}) {
+    return (
+        <Pressable onPress={onPress} className="flex-row items-center gap-4 py-4 px-5">
+            <Icon size={22} color={fgColor} />
+            <Text className="text-foreground" style={{ fontSize: 16, fontWeight: '500' }}>
+                {label}
+            </Text>
+        </Pressable>
     )
 }

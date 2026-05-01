@@ -67,7 +67,6 @@ function VideoPreview({ url, mimeType }: { url: string; mimeType: string }) {
 
 function AudioPreview({ url, name, mimeType }: { url: string; name: string; mimeType: string }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
 
     if (Platform.OS !== 'web') {
         return <GenericPreview name={name} mimeType={mimeType} size={0} />
@@ -76,7 +75,9 @@ function AudioPreview({ url, name, mimeType }: { url: string; name: string; mime
     return (
         <View className="items-center justify-center flex-1 gap-4 p-6">
             <FileIcon size={64} color={mutedColor} />
-            <Text style={{ fontWeight: '600', color: fgColor }}>{name}</Text>
+            <Text className="text-foreground" style={{ fontWeight: '600' }}>
+                {name}
+            </Text>
             {/* biome-ignore lint/a11y/useMediaCaption: shared file preview without captions */}
             <audio src={url} controls style={{ width: '100%', maxWidth: 400 }} />
         </View>
@@ -85,15 +86,14 @@ function AudioPreview({ url, name, mimeType }: { url: string; name: string; mime
 
 function GenericPreview({ name, mimeType, size }: { name: string; mimeType: string; size: number }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
 
     return (
         <View className="items-center justify-center flex-1 gap-4 p-6">
             <FileIcon size={64} color={mutedColor} />
-            <Text className="text-center" style={{ fontWeight: '600', color: fgColor }}>
+            <Text className="text-center text-foreground" style={{ fontWeight: '600' }}>
                 {name}
             </Text>
-            <Text style={{ fontSize: 12, color: mutedColor }}>
+            <Text className="text-muted-foreground" style={{ fontSize: 12 }}>
                 {mimeType || 'Unknown type'}
                 {size > 0 ? ` \u2022 ${formatFileSize(size)}` : ''}
             </Text>

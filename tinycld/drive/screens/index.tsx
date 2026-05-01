@@ -2,20 +2,24 @@ import { DataTableHeader } from '@tinycld/core/components/DataTableHeader'
 import { EmptyState } from '@tinycld/core/components/EmptyState'
 import { rowFocusStyle } from '@tinycld/core/components/focusable-row'
 import { HoverAction } from '@tinycld/core/components/HoverAction'
+import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { RowHoverActions } from '@tinycld/core/components/RowHoverActions'
 import { StarIcon } from '@tinycld/core/components/StarIcon'
 import { ConfirmTrash } from '@tinycld/core/components/SuretyGuard'
 import { SwipeableRow, SwipeableRowProvider } from '@tinycld/core/components/SwipeableRow'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
+import { queryClient } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Download, Star, Trash2 } from 'lucide-react-native'
 import { useCallback, useMemo, useState } from 'react'
 import {
     type GestureResponderEvent,
+    Image,
     type LayoutChangeEvent,
     Platform,
     Pressable,
+    RefreshControl,
     ScrollView,
     Text,
     View,
@@ -27,16 +31,31 @@ import { useDoubleClick } from '../hooks/useDoubleClick'
 import { useDrive } from '../hooks/useDrive'
 import { useDriveShortcuts } from '../hooks/useDriveShortcuts'
 import { useFileSelection } from '../hooks/useFileSelection'
+import { getThumbnailURL } from '../lib/file-url'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
 
 export default function DriveScreen() {
-    const { viewMode, activeSection, currentItems, searchQuery, isSearching } = useDrive()
+    const { viewMode, activeSection, currentItems, searchQuery, isSearching, isLoading } = useDrive()
     const isSearchActive = searchQuery.length >= 2
     const isTrash = activeSection === 'trash'
 
+    const [isRefreshing, setIsRefreshing] = useState(false)
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true)
+        try {
+            await queryClient.invalidateQueries()
+        } finally {
+            setIsRefreshing(false)
+        }
+    }, [])
+
     if (isSearching) {
-        return <EmptyState message="Searching..." />
+        return <LoadingState message="Searching…" />
+    }
+
+    if (isLoading && currentItems.length === 0) {
+        return <LoadingState />
     }
 
     if (currentItems.length === 0) {
@@ -47,10 +66,10 @@ export default function DriveScreen() {
     }
 
     if (viewMode === 'grid') {
-        return <GridView items={currentItems} />
+        return <GridView items={currentItems} isRefreshing={isRefreshing} onRefresh={handleRefresh} />
     }
 
-    return <ListView items={currentItems} isTrash={isTrash} />
+    return <ListView items={currentItems} isTrash={isTrash} isRefreshing={isRefreshing} onRefresh={handleRefresh} />
 }
 
 const DRIVE_COLUMNS = [
@@ -67,7 +86,17 @@ const TRASH_COLUMNS = [
     { label: 'File size', flex: 1 },
 ]
 
-function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean }) {
+function ListView({
+    items,
+    isTrash,
+    isRefreshing,
+    onRefresh,
+}: {
+    items: DriveItemView[]
+    isTrash: boolean
+    isRefreshing: boolean
+    onRefresh: () => void
+}) {
     const isMobile = useBreakpoint() === 'mobile'
     const folders = items.filter((i) => i.isFolder)
     const files = items.filter((i) => !i.isFolder)
@@ -90,7 +119,13 @@ function ListView({ items, isTrash }: { items: DriveItemView[]; isTrash: boolean
 
     return (
         <SwipeableRowProvider>
-            <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: isMobile ? 0 : 16 }}>
+            <ScrollView
+                className="flex-1"
+                contentContainerStyle={{ paddingHorizontal: isMobile ? 0 : 16 }}
+                refreshControl={
+                    isMobile ? <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} /> : undefined
+                }
+            >
                 {!isMobile && <DataTableHeader columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS} />}
                 {folders.map((item, i) =>
                     isTrash ? (
@@ -144,13 +179,10 @@ function FilesListRow({
     onSelect,
 }: { item: DriveItemView; index: number; isFocused?: boolean } & SelectableRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
-    const bgColor = useThemeColor('background')
     const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
     const { openPreview, navigateToFolder, toggleStar, downloadItem, moveToTrash } = useDrive()
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const [isHovered, setIsHovered] = useState(false)
 
     const handleSingle = useCallback((event: GestureResponderEvent) => onSelect(item.id, event), [item.id, onSelect])
@@ -202,22 +234,14 @@ function FilesListRow({
         const mobileRow = (
             <Pressable
                 onPress={handleMobilePress}
-                style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: borderColor,
-                    gap: 12,
-                }}
+                className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
-                <FileIcon size={24} color={iconColor} />
+                <ListRowThumbnail item={item} size={40} fallbackIconSize={24} />
                 <View className="flex-1 gap-0.5">
-                    <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '500', color: fgColor }}>
+                    <Text numberOfLines={1} className="text-foreground" style={{ fontSize: 16, fontWeight: '500' }}>
                         {item.name}
                     </Text>
-                    <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
+                    <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 12 }}>
                         {formatDate(item.updated)}
                         {item.isFolder ? '' : ` · ${formatBytes(item.size)}`}
                     </Text>
@@ -244,39 +268,30 @@ function FilesListRow({
             onPress={handlePress}
             accessibilityRole="button"
             accessibilityLabel={`${item.name} ${item.owner} ${formatDate(item.updated)}`}
-            style={[
-                {
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    borderBottomWidth: 1,
-                    borderBottomColor: borderColor,
-                    backgroundColor: isSelected ? `${activeIndicator}12` : bgColor,
-                },
-                effectStyle,
-            ]}
+            className={`flex-row items-center px-3 py-2.5 border-b border-border ${isSelected ? '' : 'bg-background'}`}
+            style={[isSelected ? { backgroundColor: `${activeIndicator}12` } : null, effectStyle]}
             {...hoverWebProps}
         >
             <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
-                <FileIcon size={20} color={iconColor} />
+                <ListRowThumbnail item={item} size={28} fallbackIconSize={20} />
                 <Text
                     numberOfLines={1}
-                    className="flex-1"
+                    className="flex-1 text-foreground"
                     style={{
                         fontSize: 13,
                         fontWeight: '500',
-                        color: fgColor,
                     }}
                 >
                     {item.name}
                 </Text>
             </View>
-            <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor, flex: 2 }}>
+            <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 12, flex: 2 }}>
                 {item.owner}
             </Text>
-            <Text style={{ fontSize: 12, color: mutedColor, flex: 2 }}>{formatDate(item.updated)}</Text>
-            <Text style={{ fontSize: 12, color: mutedColor, flex: 1 }}>
+            <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 2 }}>
+                {formatDate(item.updated)}
+            </Text>
+            <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 1 }}>
                 {item.isFolder ? '\u2014' : formatBytes(item.size)}
             </Text>
             <RowHoverActions
@@ -326,34 +341,52 @@ function FilesListRow({
     )
 }
 
-function TrashListRow({ item, isSelected, onSelect }: { item: DriveItemView } & SelectableRowProps) {
+function ListRowThumbnail({
+    item,
+    size,
+    fallbackIconSize,
+}: {
+    item: DriveItemView
+    size: number
+    fallbackIconSize: number
+}) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
-    const borderColor = useThemeColor('border')
+    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
+    const thumbnailUrl = item.isFolder ? '' : getThumbnailURL(item, `${size * 2}x${size * 2}`)
+
+    if (!thumbnailUrl) {
+        return (
+            <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+                <FileIcon size={fallbackIconSize} color={iconColor} />
+            </View>
+        )
+    }
+
+    return (
+        <Image
+            source={{ uri: thumbnailUrl }}
+            style={{ width: size, height: size, borderRadius: 4 }}
+            resizeMode="cover"
+        />
+    )
+}
+
+function TrashListRow({ item, isSelected, onSelect }: { item: DriveItemView } & SelectableRowProps) {
     const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
     if (isMobile) {
         return (
             <Pressable
                 onPress={(e) => onSelect(item.id, e)}
-                style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: borderColor,
-                    gap: 12,
-                }}
+                className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
-                <FileIcon size={24} color={iconColor} />
+                <ListRowThumbnail item={item} size={40} fallbackIconSize={24} />
                 <View className="flex-1 gap-0.5">
-                    <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '500', color: fgColor }}>
+                    <Text numberOfLines={1} className="text-foreground" style={{ fontSize: 16, fontWeight: '500' }}>
                         {item.name}
                     </Text>
-                    <Text numberOfLines={1} style={{ fontSize: 12, color: mutedColor }}>
+                    <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 12 }}>
                         Deleted {formatDate(item.trashedAt)}
                         {item.isFolder ? '' : ` · ${formatBytes(item.size)}`}
                     </Text>
@@ -365,32 +398,26 @@ function TrashListRow({ item, isSelected, onSelect }: { item: DriveItemView } & 
     return (
         <Pressable
             onPress={(e) => onSelect(item.id, e)}
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                borderBottomWidth: 1,
-                borderBottomColor: borderColor,
-                ...(isSelected ? { backgroundColor: `${activeIndicator}12` } : {}),
-            }}
+            className="flex-row items-center px-3 py-2.5 border-b border-border"
+            style={isSelected ? { backgroundColor: `${activeIndicator}12` } : undefined}
         >
             <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
-                <FileIcon size={20} color={iconColor} />
+                <ListRowThumbnail item={item} size={28} fallbackIconSize={20} />
                 <Text
                     numberOfLines={1}
-                    className="flex-1"
+                    className="flex-1 text-foreground"
                     style={{
                         fontSize: 13,
                         fontWeight: '500',
-                        color: fgColor,
                     }}
                 >
                     {item.name}
                 </Text>
             </View>
-            <Text style={{ fontSize: 12, color: mutedColor, flex: 2 }}>{formatDate(item.trashedAt)}</Text>
-            <Text style={{ fontSize: 12, color: mutedColor, flex: 1 }}>
+            <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 2 }}>
+                {formatDate(item.trashedAt)}
+            </Text>
+            <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 1 }}>
                 {item.isFolder ? '\u2014' : formatBytes(item.size)}
             </Text>
         </Pressable>
@@ -417,7 +444,16 @@ function useGridLayout() {
     return { cardWidth, onLayout }
 }
 
-function GridView({ items }: { items: DriveItemView[] }) {
+function GridView({
+    items,
+    isRefreshing,
+    onRefresh,
+}: {
+    items: DriveItemView[]
+    isRefreshing: boolean
+    onRefresh: () => void
+}) {
+    const isMobile = useBreakpoint() === 'mobile'
     const folders = items.filter((i) => i.isFolder)
     const files = items.filter((i) => !i.isFolder)
     const { cardWidth, onLayout } = useGridLayout()
@@ -425,7 +461,12 @@ function GridView({ items }: { items: DriveItemView[] }) {
     const { handleSelect, isSelected } = useFileSelection(orderedIds)
 
     return (
-        <ScrollView className="flex-1" contentContainerStyle={{ padding: 16 }} onLayout={onLayout}>
+        <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ padding: 16 }}
+            onLayout={onLayout}
+            refreshControl={isMobile ? <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} /> : undefined}
+        >
             {folders.length > 0 && (
                 <View className="mb-5">
                     <GridSectionHeader title="Folders" />
@@ -467,15 +508,12 @@ function GridView({ items }: { items: DriveItemView[] }) {
 }
 
 function GridSectionHeader({ title }: { title: string }) {
-    const mutedColor = useThemeColor('muted-foreground')
-
     return (
         <Text
-            className="uppercase"
+            className="uppercase text-muted-foreground"
             style={{
                 fontSize: 12,
                 fontWeight: '600',
-                color: mutedColor,
                 letterSpacing: 0.5,
                 marginBottom: 10,
             }}
@@ -531,13 +569,7 @@ function FileGridCard({ item, isSelected, onSelect }: { item: DriveItemView } & 
                     {item.name}
                 </Text>
             </View>
-            <View
-                className="items-center justify-center"
-                style={{
-                    height: 120,
-                    backgroundColor: `${mutedColor}08`,
-                }}
-            >
+            <View className="items-center justify-center bg-muted-foreground/5" style={{ height: 120 }}>
                 <Thumbnail item={item} size={120} />
             </View>
         </Pressable>

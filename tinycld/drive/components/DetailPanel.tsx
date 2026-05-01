@@ -26,37 +26,25 @@ type DetailTab = 'details' | 'versions' | 'activity'
 
 function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
-    const borderColor = useThemeColor('border')
     const primaryColor = useThemeColor('primary')
     const [activeTab, setActiveTab] = useState<DetailTab>('details')
     const showVersionsTab = !item.isFolder
 
     return (
         <View
+            className="border-l border-border self-stretch overflow-hidden"
             style={{
                 width: 320,
-                borderLeftWidth: 1,
-                borderLeftColor: borderColor,
-                alignSelf: 'stretch',
                 minHeight: 0,
-                overflow: 'hidden',
             }}
         >
-            <View
-                className="flex-row items-start justify-between px-4 py-3 gap-2"
-                style={{
-                    borderBottomWidth: 1,
-                    borderBottomColor: borderColor,
-                }}
-            >
+            <View className="flex-row items-start justify-between px-4 py-3 gap-2 border-b border-border">
                 <Text
                     numberOfLines={2}
-                    className="flex-1"
+                    className="flex-1 text-foreground"
                     style={{
                         fontSize: 16,
                         fontWeight: '600',
-                        color: fgColor,
                     }}
                 >
                     {item.name}
@@ -81,7 +69,6 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
                     onTabPress={setActiveTab}
                     mutedColor={mutedColor}
                     primaryColor={primaryColor}
-                    borderColor={borderColor}
                 />
 
                 {activeTab === 'details' && <DetailsContent item={item} />}
@@ -94,10 +81,6 @@ function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: (
 
 function DetailsContent({ item }: { item: DriveItemView }) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
-    const borderColor = useThemeColor('border')
-    const accentColor = useThemeColor('accent')
-    const accentFgColor = useThemeColor('accent-foreground')
     const { activeSection, getItemPath } = useDrive()
     const accessText = item.shared ? 'Shared with others' : 'Private to you'
     const isTrash = activeSection === 'trash'
@@ -109,118 +92,83 @@ function DetailsContent({ item }: { item: DriveItemView }) {
                 <>
                     <View className="gap-2">
                         <Text
-                            className="mb-1"
+                            className="mb-1 text-foreground"
                             style={{
                                 fontSize: 13,
                                 fontWeight: '600',
-                                color: fgColor,
                             }}
                         >
                             Original location
                         </Text>
                         <View className="flex-row items-center gap-2">
                             <FolderOpen size={16} color={mutedColor} />
-                            <Text style={{ fontSize: 12, color: mutedColor }}>{originalLocation}</Text>
+                            <Text className="text-muted-foreground" style={{ fontSize: 12 }}>
+                                {originalLocation}
+                            </Text>
                         </View>
-                        <DetailRow
-                            label="Deleted"
-                            value={formatDate(item.trashedAt)}
-                            mutedColor={mutedColor}
-                            fgColor={fgColor}
-                        />
+                        <DetailRow label="Deleted" value={formatDate(item.trashedAt)} />
                     </View>
 
-                    <View
-                        className="my-4"
-                        style={{
-                            height: 1,
-                            backgroundColor: borderColor,
-                        }}
-                    />
+                    <View className="my-4 bg-border" style={{ height: 1 }} />
                 </>
             )}
 
             <View className="gap-2">
                 <Text
-                    className="mb-1"
+                    className="mb-1 text-foreground"
                     style={{
                         fontSize: 13,
                         fontWeight: '600',
-                        color: fgColor,
                     }}
                 >
                     Who has access
                 </Text>
                 <View className="flex-row items-center gap-2">
-                    <View
-                        className="size-7 items-center justify-center"
-                        style={{
-                            borderRadius: 14,
-                            backgroundColor: accentColor,
-                        }}
-                    >
+                    <View className="size-7 items-center justify-center bg-accent" style={{ borderRadius: 14 }}>
                         <Text
+                            className="text-accent-foreground"
                             style={{
                                 fontSize: 11,
                                 fontWeight: '600',
-                                color: accentFgColor,
                             }}
                         >
                             {item.owner === 'me' ? 'Y' : item.owner.charAt(0)}
                         </Text>
                     </View>
-                    <Text style={{ fontSize: 12, color: mutedColor }}>{accessText}</Text>
+                    <Text className="text-muted-foreground" style={{ fontSize: 12 }}>
+                        {accessText}
+                    </Text>
                 </View>
             </View>
 
-            <View
-                className="my-4"
-                style={{
-                    height: 1,
-                    backgroundColor: borderColor,
-                }}
-            />
+            <View className="my-4 bg-border" style={{ height: 1 }} />
 
             <View className="gap-2">
                 <Text
-                    className="mb-1"
+                    className="mb-1 text-foreground"
                     style={{
                         fontSize: 13,
                         fontWeight: '600',
-                        color: fgColor,
                     }}
                 >
                     File details
                 </Text>
-                <DetailRow label="Type" value={item.mimeType} mutedColor={mutedColor} fgColor={fgColor} />
-                <DetailRow label="Size" value={formatBytes(item.size)} mutedColor={mutedColor} fgColor={fgColor} />
-                <DetailRow label="Owner" value={item.owner} mutedColor={mutedColor} fgColor={fgColor} />
-                <DetailRow
-                    label="Modified"
-                    value={formatDate(item.updated)}
-                    mutedColor={mutedColor}
-                    fgColor={fgColor}
-                />
+                <DetailRow label="Type" value={item.mimeType} />
+                <DetailRow label="Size" value={formatBytes(item.size)} />
+                <DetailRow label="Owner" value={item.owner} />
+                <DetailRow label="Modified" value={formatDate(item.updated)} />
             </View>
         </View>
     )
 }
 
-function DetailRow({
-    label,
-    value,
-    mutedColor,
-    fgColor,
-}: {
-    label: string
-    value: string
-    mutedColor: string
-    fgColor: string
-}) {
+function DetailRow({ label, value }: { label: string; value: string; mutedColor?: string; fgColor?: string }) {
     return (
         <View className="flex-row py-1">
-            <Text style={{ fontSize: 12, color: mutedColor, width: 80 }}>{label}</Text>
-            <Text numberOfLines={1} className="flex-1" style={{ fontSize: 12, color: fgColor }}>
+            <Text className="text-muted-foreground" style={{ fontSize: 12, width: 80 }}>
+                {label}
+            </Text>
+            <Text numberOfLines={1} className="flex-1 text-foreground" style={{ fontSize: 12 }}>
                 {value}
             </Text>
         </View>
@@ -233,10 +181,9 @@ interface TabBarProps {
     onTabPress: (tab: DetailTab) => void
     mutedColor: string
     primaryColor: string
-    borderColor: string
 }
 
-function TabBar({ tabs, activeTab, onTabPress, mutedColor, primaryColor, borderColor }: TabBarProps) {
+function TabBar({ tabs, activeTab, onTabPress, mutedColor, primaryColor }: TabBarProps) {
     const labels: Record<DetailTab, string> = {
         details: 'Details',
         versions: 'Versions',
@@ -244,7 +191,7 @@ function TabBar({ tabs, activeTab, onTabPress, mutedColor, primaryColor, borderC
     }
 
     return (
-        <View className="flex-row" style={{ borderBottomWidth: 1, borderBottomColor: borderColor }}>
+        <View className="flex-row border-b border-border">
             {tabs.map((tab) => (
                 <Pressable
                     key={tab}
@@ -343,33 +290,33 @@ interface RestoreConfirmDialogProps {
 }
 
 function RestoreConfirmDialog({ open, onOpenChange, versionNumber, onConfirm }: RestoreConfirmDialogProps) {
-    const fgColor = useThemeColor('foreground')
-    const mutedColor = useThemeColor('muted-foreground')
-    const primaryColor = useThemeColor('primary')
-    const primaryFgColor = useThemeColor('primary-foreground')
-
     return (
         <Modal isOpen={open} onClose={() => onOpenChange(false)}>
             <ModalBackdrop />
             <ModalContent className="w-[340px] p-4 gap-3">
-                <Text style={{ fontSize: 20, fontWeight: '600', color: fgColor }}>Restore version</Text>
-                <Text style={{ fontSize: 13, color: mutedColor }}>
+                <Text className="text-foreground" style={{ fontSize: 20, fontWeight: '600' }}>
+                    Restore version
+                </Text>
+                <Text className="text-muted-foreground" style={{ fontSize: 13 }}>
                     Restore to version {versionNumber}? The current file will be saved as a new version before
                     restoring.
                 </Text>
                 <View className="flex-row gap-3 justify-end">
                     <Pressable onPress={() => onOpenChange(false)} className="px-3 py-2">
-                        <Text style={{ fontSize: 13, color: fgColor }}>Cancel</Text>
+                        <Text className="text-foreground" style={{ fontSize: 13 }}>
+                            Cancel
+                        </Text>
                     </Pressable>
                     <Pressable
                         onPress={() => {
                             onConfirm()
                             onOpenChange(false)
                         }}
-                        className="px-4 py-2 rounded-md"
-                        style={{ backgroundColor: primaryColor }}
+                        className="px-4 py-2 rounded-md bg-primary"
                     >
-                        <Text style={{ fontWeight: '600', color: primaryFgColor }}>Restore</Text>
+                        <Text className="text-primary-foreground" style={{ fontWeight: '600' }}>
+                            Restore
+                        </Text>
                     </Pressable>
                 </View>
             </ModalContent>
@@ -392,23 +339,14 @@ interface VersionRowProps {
 
 function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
-    const fgColor = useThemeColor('foreground')
-    const borderColor = useThemeColor('border')
 
     return (
-        <View
-            className="flex-row items-center justify-between"
-            style={{
-                paddingVertical: 10,
-                borderBottomWidth: 1,
-                borderBottomColor: borderColor,
-            }}
-        >
+        <View className="flex-row items-center justify-between border-b border-border" style={{ paddingVertical: 10 }}>
             <View className="flex-1 gap-0.5">
-                <Text style={{ fontSize: 12, fontWeight: '500', color: fgColor }}>
+                <Text className="text-foreground" style={{ fontSize: 12, fontWeight: '500' }}>
                     Version {version.version_number}
                 </Text>
-                <Text style={{ fontSize: 11, color: mutedColor }}>
+                <Text className="text-muted-foreground" style={{ fontSize: 11 }}>
                     {formatDate(version.created)} · {formatBytes(version.size)}
                 </Text>
             </View>
@@ -425,15 +363,8 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
 }
 
 function NeutralMessage({ children }: { children: string }) {
-    const mutedColor = useThemeColor('muted-foreground')
     return (
-        <Text
-            className="text-center py-6"
-            style={{
-                fontSize: 13,
-                color: mutedColor,
-            }}
-        >
+        <Text className="text-center py-6 text-muted-foreground" style={{ fontSize: 13 }}>
             {children}
         </Text>
     )
