@@ -3,6 +3,7 @@ import { formatBytes } from '@tinycld/core/lib/format-utils'
 import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import * as DocumentPicker from 'expo-document-picker'
+import * as ImagePicker from 'expo-image-picker'
 import { newRecordId } from 'pbtsdb/core'
 import { useCallback, useRef, useState } from 'react'
 import { Platform } from 'react-native'
@@ -150,6 +151,29 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                 uploadFiles(files)
             })
         }
+    }, [uploadFiles])
+
+    const triggerPhotoPicker = useCallback(async () => {
+        if (Platform.OS === 'web') return
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images', 'videos'],
+            allowsMultipleSelection: true,
+            quality: 1,
+            exif: false,
+        })
+        if (result.canceled) return
+        const files = result.assets.map((asset) => {
+            const uriName = asset.uri.split('/').pop() ?? ''
+            const fallbackExt = asset.mimeType?.split('/')[1] ?? (asset.type === 'video' ? 'mp4' : 'jpg')
+            const name = asset.fileName ?? uriName ?? `IMG_${Date.now()}.${fallbackExt}`
+            return {
+                uri: asset.uri,
+                name,
+                type: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+                size: asset.fileSize ?? 0,
+            } as unknown as File
+        })
+        uploadFiles(files)
     }, [uploadFiles])
 
     const uploadTreeMutation = useMutation({
@@ -350,6 +374,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
         uploadingFiles,
         triggerFilePicker,
         triggerFolderPicker,
+        triggerPhotoPicker,
         uploadNewVersion,
     }
 }

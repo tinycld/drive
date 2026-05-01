@@ -225,6 +225,7 @@ export function useDriveMutations({
         uploadingFiles,
         triggerFilePicker,
         triggerFolderPicker,
+        triggerPhotoPicker,
         uploadNewVersion,
     } = useFileUpload({
         orgId,
@@ -253,6 +254,7 @@ export function useDriveMutations({
         uploadingFiles,
         triggerFilePicker,
         triggerFolderPicker,
+        triggerPhotoPicker,
         uploadNewVersion,
     }
 }

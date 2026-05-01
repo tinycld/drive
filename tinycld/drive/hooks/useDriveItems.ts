@@ -31,11 +31,11 @@ export function useDriveItems({
     const [stateCollection] = useStore('drive_item_state')
     const [userOrgCollection] = useStore('user_org')
 
-    const { data: rawItems } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
+    const { data: rawItems, isLoading: itemsLoading } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
         query.from({ item: itemsCollection }).where(({ item }) => eq(item.org, scopedOrgId))
     )
 
-    const { data: rawShares } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
+    const { data: rawShares, isLoading: sharesLoading } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
         query
             .from({ share: sharesCollection })
             .join({ item: itemsCollection }, ({ share, item }) => eq(share.item, item.id))
@@ -43,11 +43,11 @@ export function useDriveItems({
             .select(({ share }) => share)
     )
 
-    const { data: rawStates } = useOrgLiveQuery((query, { userOrgId: scopedUserOrgId }) =>
+    const { data: rawStates, isLoading: statesLoading } = useOrgLiveQuery((query, { userOrgId: scopedUserOrgId }) =>
         query.from({ state: stateCollection }).where(({ state }) => eq(state.user_org, scopedUserOrgId))
     )
 
-    const { data: orgUserOrgs } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
+    const { data: orgUserOrgs, isLoading: userOrgsLoading } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
         query.from({ uo: userOrgCollection }).where(({ uo }) => eq(uo.org, scopedOrgId))
     )
 
@@ -206,7 +206,7 @@ export function useDriveItems({
 
     const totalStorageUsed = useMemo(() => allItems.reduce((sum, i) => sum + i.size, 0), [allItems])
 
-    const isLoading = !rawItems || !rawShares || !rawStates || !orgUserOrgs
+    const isLoading = itemsLoading || sharesLoading || statesLoading || userOrgsLoading
 
     return {
         allItems,

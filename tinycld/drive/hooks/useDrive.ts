@@ -58,6 +58,7 @@ export interface DriveContextValue {
     uploadingFiles: { name: string; status: 'pending' | 'uploading' | 'done' | 'error' }[]
     triggerFilePicker: () => void
     triggerFolderPicker: () => void
+    triggerPhotoPicker: () => void
     uploadNewVersion: (itemId: string, file: File) => Promise<void>
     getItemPath: (itemId: string) => string
     promptDialog: PromptDialog
@@ -214,6 +215,7 @@ export function useDriveState(): DriveContextValue {
         uploadingFiles: mutations.uploadingFiles,
         triggerFilePicker: mutations.triggerFilePicker,
         triggerFolderPicker: mutations.triggerFolderPicker,
+        triggerPhotoPicker: mutations.triggerPhotoPicker,
         uploadNewVersion: mutations.uploadNewVersion,
         getItemPath: mutations.getItemPath,
         promptDialog,

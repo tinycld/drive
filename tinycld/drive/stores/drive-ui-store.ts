@@ -19,6 +19,7 @@ interface DriveUIState {
     promptKey: number
     moveTarget: DialogTarget | null
     shareTarget: DialogTarget | null
+    uploadSheetOpen: boolean
     detailPanelOpen: boolean
     /**
      * Keyboard-driven focus index into the current file listing. Only
@@ -48,6 +49,8 @@ interface DriveUIActions {
     closeMoveDialog: () => void
     openShareDialog: (id: string, name: string) => void
     closeShareDialog: () => void
+    openUploadSheet: () => void
+    closeUploadSheet: () => void
     toggleDetailPanel: () => void
     openDetailPanel: () => void
     closeDetailPanel: () => void
@@ -68,6 +71,7 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
     promptKey: 0,
     moveTarget: null,
     shareTarget: null,
+    uploadSheetOpen: false,
     detailPanelOpen: false,
     focusedIndex: 0,
     hasFocus: false,
@@ -112,6 +116,10 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
     openShareDialog: (id: string, name: string) => set({ shareTarget: { id, name } }),
 
     closeShareDialog: () => set({ shareTarget: null }),
+
+    openUploadSheet: () => set({ uploadSheetOpen: true }),
+
+    closeUploadSheet: () => set({ uploadSheetOpen: false }),
 
     toggleDetailPanel: () => set((prev) => ({ detailPanelOpen: !prev.detailPanelOpen })),
     openDetailPanel: () => set({ detailPanelOpen: true }),

@@ -26,8 +26,12 @@ func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
 
 	mimeType := record.GetString("mime_type")
 	if !thumbnails.CanGenerate(mimeType) {
+		app.Logger().Debug("Thumbnail: skipping unsupported mime type",
+			"id", record.Id, "mime", mimeType)
 		return
 	}
+	app.Logger().Info("Thumbnail: starting generation",
+		"id", record.Id, "mime", mimeType, "file", filename)
 
 	// Skip if thumbnail exists and the file hasn't changed since last generation
 	if record.GetString("thumbnail") != "" && record.Original().GetString("file") == filename {
@@ -84,7 +88,7 @@ func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
 	outputFile.Close()
 	defer os.Remove(outputPath)
 
-	if err := thumbnails.Generate(inputPath, outputPath, thumbnails.DefaultWidth, thumbnails.DefaultHeight); err != nil {
+	if err := thumbnails.Generate(inputPath, outputPath, mimeType, thumbnails.DefaultWidth, thumbnails.DefaultHeight); err != nil {
 		app.Logger().Warn("Thumbnail: generation failed",
 			"id", record.Id, "mime", mimeType, "error", err)
 		return
@@ -117,7 +121,9 @@ func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
 	if err := app.Save(fresh); err != nil {
 		app.Logger().Warn("Thumbnail: failed to save thumbnail",
 			"id", record.Id, "error", err)
+		return
 	}
+	app.Logger().Info("Thumbnail: saved", "id", record.Id, "thumbnail", thumbFilename)
 }
 
 func extensionForMime(mimeType string) string {
@@ -132,6 +138,10 @@ func extensionForMime(mimeType string) string {
 		return ".xlsx"
 	case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
 		return ".pptx"
+	case "image/heic", "image/heic-sequence":
+		return ".heic"
+	case "image/heif", "image/heif-sequence":
+		return ".heif"
 	default:
 		return ".bin"
 	}
