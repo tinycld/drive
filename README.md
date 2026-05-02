@@ -16,7 +16,7 @@ Part of [TinyCld](https://tinycld.org/) — the open-source, self-hosted Google 
 - **Storage limits.** Per-org quota enforcement (`storage_limits.go`).
 - **Drag-and-drop uploads.** Multi-file DropZone with a persistent upload status bar.
 - **Search.** Native search endpoint across item names and descriptions.
-- **WebDAV mount.** Native `/webdav/` endpoint. Mount from macOS Finder, Windows Explorer, or Linux Nautilus — your drive becomes a network folder.
+- **WebDAV mount.** Native `/drive/` endpoint. Mount from macOS Finder, Windows Explorer, or Linux Nautilus — your drive becomes a network folder, with one folder per org you belong to at the root.
 - **Real-time updates.** Uploads, renames, and share changes from any client appear instantly across every other session.
 
 ## Protocol

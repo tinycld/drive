@@ -154,11 +154,11 @@ func Register(app *pocketbase.PocketBase) {
 			return nil
 		}
 
-		e.Router.Any("/webdav/{path...}", serveWebDAV)
-		e.Router.Any("/webdav", serveWebDAV)
+		e.Router.Any("/drive/{path...}", serveWebDAV)
+		e.Router.Any("/drive", serveWebDAV)
 
 		e.Router.Any("/.well-known/webdav", func(re *core.RequestEvent) error {
-			http.Redirect(re.Response, re.Request, "/webdav/", http.StatusMovedPermanently)
+			http.Redirect(re.Response, re.Request, "/drive/", http.StatusMovedPermanently)
 			return nil
 		})
 

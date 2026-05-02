@@ -43,6 +43,8 @@ func (fs *DriveFileSystem) authFromContext(ctx context.Context) (*core.Record, e
 
 // resolveContext authenticates and resolves the org from the path.
 // Returns the user, org record, user_org record, org slug, and remaining path segments.
+// Returns errNotFound when the path is the WebDAV root (no org slug); read-side
+// callers (Stat, ReadDir) handle the root case before invoking this helper.
 func (fs *DriveFileSystem) resolveContext(ctx context.Context, name string) (user *core.Record, org *core.Record, userOrg *core.Record, orgSlug string, segments []string, err error) {
 	user, err = fs.authFromContext(ctx)
 	if err != nil {
@@ -64,7 +66,27 @@ func (fs *DriveFileSystem) resolveContext(ctx context.Context, name string) (use
 	return
 }
 
+// isRootPath reports whether the parsed path is the WebDAV root — i.e.
+// /drive or /drive/, with no org slug. Used by Stat/ReadDir to short-circuit
+// to a synthetic listing of the user's orgs before resolveContext rejects.
+func isRootPath(name string) bool {
+	orgSlug, _ := parsePath(name)
+	return orgSlug == ""
+}
+
 func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (*webdav.FileInfo, error) {
+	if isRootPath(name) {
+		// Authenticate to ensure 401 (not 404) for unauthenticated requests
+		// to the root, but don't require an org slug.
+		if _, err := fs.authFromContext(ctx); err != nil {
+			return nil, err
+		}
+		return &webdav.FileInfo{
+			Path:  "/drive/",
+			IsDir: true,
+		}, nil
+	}
+
 	_, org, _, orgSlug, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
 		return nil, err
@@ -73,7 +95,7 @@ func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (*webdav.FileI
 	// Org root = virtual directory
 	if len(segments) == 0 {
 		return &webdav.FileInfo{
-			Path:  "/webdav/" + orgSlug + "/",
+			Path:  "/drive/" + orgSlug + "/",
 			IsDir: true,
 		}, nil
 	}
@@ -87,6 +109,14 @@ func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (*webdav.FileI
 }
 
 func (fs *DriveFileSystem) ReadDir(ctx context.Context, name string, recursive bool) ([]webdav.FileInfo, error) {
+	if isRootPath(name) {
+		user, err := fs.authFromContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return fs.listUserOrgs(user.Id)
+	}
+
 	_, org, _, orgSlug, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
 		return nil, err
@@ -107,9 +137,69 @@ func (fs *DriveFileSystem) ReadDir(ctx context.Context, name string, recursive b
 	return fs.listChildren(org.Id, parentID, orgSlug, recursive)
 }
 
+// listUserOrgs returns one synthetic directory per org the user belongs to,
+// for PROPFIND on the WebDAV root. Folder names use org.slug (globally unique,
+// URL-safe). Includes the root itself as the first entry, per WebDAV
+// convention that ReadDir emits the directory plus its children.
+func (fs *DriveFileSystem) listUserOrgs(userID string) ([]webdav.FileInfo, error) {
+	// Note: not reusing search.go's getUserOrgIDs here — that helper returns
+	// user_org junction record IDs (used for share filtering), not org IDs.
+	// Query directly for the org relation instead.
+	userOrgs, err := fs.app.FindRecordsByFilter(
+		"user_org",
+		"user = {:user}",
+		"",
+		100,
+		0,
+		map[string]any{"user": userID},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := make([]webdav.FileInfo, 0, len(userOrgs)+1)
+	infos = append(infos, webdav.FileInfo{
+		Path:  "/drive/",
+		IsDir: true,
+	})
+
+	for _, uo := range userOrgs {
+		orgID := uo.GetString("org")
+		if orgID == "" {
+			continue
+		}
+		o, err := fs.app.FindRecordById("orgs", orgID)
+		if err != nil {
+			// Skip orgs that have been deleted out from under user_org rather
+			// than failing the entire listing.
+			continue
+		}
+		slug := o.GetString("slug")
+		if slug == "" {
+			continue
+		}
+		infos = append(infos, webdav.FileInfo{
+			Path:  "/drive/" + slug + "/",
+			IsDir: true,
+		})
+	}
+
+	return infos, nil
+}
+
 func (fs *DriveFileSystem) listChildren(orgID, parentID, orgSlug string, recursive bool) ([]webdav.FileInfo, error) {
-	filter := "org = {:org} && parent = {:parent}"
-	params := map[string]any{"org": orgID, "parent": parentID}
+	// Empty parentID means the org root. PocketBase's filter language needs
+	// the literal `parent = ''` form for empty-string relations; the
+	// `parent = {:parent}` substitution form does not match. Mirrors the
+	// same idiom used in resolveItemByPath (paths.go).
+	filter := "org = {:org}"
+	params := map[string]any{"org": orgID}
+	if parentID == "" {
+		filter += " && parent = ''"
+	} else {
+		filter += " && parent = {:parent}"
+		params["parent"] = parentID
+	}
 
 	records, err := fs.app.FindRecordsByFilter("drive_items", filter, "name", 0, 0, params)
 	if err != nil {
@@ -120,7 +210,7 @@ func (fs *DriveFileSystem) listChildren(orgID, parentID, orgSlug string, recursi
 	var infos []webdav.FileInfo
 	if parentID == "" {
 		infos = append(infos, webdav.FileInfo{
-			Path:  "/webdav/" + orgSlug + "/",
+			Path:  "/drive/" + orgSlug + "/",
 			IsDir: true,
 		})
 	} else {

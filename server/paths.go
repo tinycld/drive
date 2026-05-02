@@ -8,14 +8,14 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-const webdavPrefix = "/webdav/"
-
-// parsePath strips the /webdav/{orgSlug}/ prefix and returns the org slug
-// and the remaining path segments.
-// For example: "/webdav/acme/Documents/report.pdf" → ("acme", ["Documents", "report.pdf"])
+// parsePath strips the /drive/{orgSlug}/ prefix and returns the org slug
+// and the remaining path segments. The empty-string slug indicates the
+// WebDAV root (/drive or /drive/), in which case the handler enumerates
+// the orgs the authenticated user belongs to.
+// For example: "/drive/acme/Documents/report.pdf" → ("acme", ["Documents", "report.pdf"])
 func parsePath(name string) (orgSlug string, segments []string) {
 	name = path.Clean(name)
-	name = strings.TrimPrefix(name, "/webdav")
+	name = strings.TrimPrefix(name, "/drive")
 	name = strings.TrimPrefix(name, "/")
 
 	if name == "" || name == "." {
@@ -130,7 +130,7 @@ func buildItemPath(app *pocketbase.PocketBase, record *core.Record, orgSlug stri
 	}
 
 	itemPath := strings.Join(parts, "/")
-	fullPath := "/webdav/" + orgSlug + "/" + itemPath
+	fullPath := "/drive/" + orgSlug + "/" + itemPath
 
 	if record.GetBool("is_folder") {
 		fullPath += "/"
