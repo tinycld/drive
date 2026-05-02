@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	downloadTokenTTL    = 60 * time.Second
-	maxDownloadFiles    = 10_000
-	maxDownloadBytes    = 5 * 1024 * 1024 * 1024 // 5 GB
-	tokenCleanupPeriod  = 5 * time.Minute
+	downloadTokenTTL   = 60 * time.Second
+	maxDownloadFiles   = 10_000
+	maxDownloadBytes   = 5 * 1024 * 1024 * 1024 // 5 GB
+	tokenCleanupPeriod = 5 * time.Minute
 )
 
 type downloadToken struct {

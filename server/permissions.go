@@ -1,6 +1,8 @@
 package drive
 
 import (
+	"os"
+
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -14,7 +16,7 @@ func getUserOrgForOrg(app *pocketbase.PocketBase, userID, orgID string) (*core.R
 		map[string]any{"user": userID, "org": orgID},
 	)
 	if err != nil || len(records) == 0 {
-		return nil, errForbidden
+		return nil, os.ErrPermission
 	}
 	return records[0], nil
 }
@@ -28,7 +30,7 @@ func checkWritePermission(app *pocketbase.PocketBase, userOrgID, itemID string) 
 		map[string]any{"item": itemID, "userOrg": userOrgID},
 	)
 	if err != nil || len(records) == 0 {
-		return errForbidden
+		return os.ErrPermission
 	}
 	return nil
 }
@@ -42,7 +44,7 @@ func checkDeletePermission(app *pocketbase.PocketBase, userOrgID, itemID string)
 		map[string]any{"item": itemID, "userOrg": userOrgID},
 	)
 	if err != nil || len(records) == 0 {
-		return errForbidden
+		return os.ErrPermission
 	}
 	return nil
 }

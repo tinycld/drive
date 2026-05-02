@@ -7,12 +7,12 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/emersion/go-webdav"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/pocketbase/pocketbase/tools/routine"
+	"golang.org/x/net/webdav"
 	"tinycld.org/core/audit"
 	"tinycld.org/core/notify"
 )
@@ -137,19 +137,31 @@ func Register(app *pocketbase.PocketBase) {
 			return handleStorageUsage(app, re)
 		}).BindFunc(requireAuth)
 
-		// WebDAV handler
-		filesystem := &DriveFileSystem{app: app}
-		handler := &webdav.Handler{FileSystem: filesystem}
+		// WebDAV handler — golang.org/x/net/webdav, with NewMemLS so we
+		// advertise DAV class 2 (LOCK/UNLOCK) and macOS Finder will
+		// mount us read-write. The auth check happens once per request
+		// here in middleware so we don't bcrypt-per-FS-call inside the
+		// handler.
+		driveFS := &DriveFileSystem{app: app}
+		handler := &webdav.Handler{
+			FileSystem: driveFS,
+			LockSystem: webdav.NewMemLS(),
+			Logger: func(r *http.Request, err error) {
+				if err != nil {
+					app.Logger().Debug("WebDAV", "method", r.Method, "path", r.URL.Path, "error", err)
+				}
+			},
+		}
 
 		serveWebDAV := func(re *core.RequestEvent) error {
-			_, _, ok := re.Request.BasicAuth()
-			if !ok {
+			user, err := authenticateRequest(app, re.Request)
+			if err != nil {
 				re.Response.Header().Set("WWW-Authenticate", `Basic realm="TinyCld WebDAV"`)
 				http.Error(re.Response, "Authentication required", http.StatusUnauthorized)
 				return nil
 			}
 
-			ctx := context.WithValue(re.Request.Context(), httpRequestKey, re.Request)
+			ctx := context.WithValue(re.Request.Context(), userKey, user)
 			handler.ServeHTTP(re.Response, re.Request.WithContext(ctx))
 			return nil
 		}

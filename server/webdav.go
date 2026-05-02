@@ -2,58 +2,62 @@ package drive
 
 import (
 	"context"
-	"fmt"
-	"io"
+	"errors"
 	"mime"
-	"net/http"
+	"os"
 	"path"
 	"time"
 
-	"github.com/emersion/go-webdav"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"golang.org/x/net/webdav"
 )
 
 const pbTimeFormat = "2006-01-02 15:04:05.000Z"
 
 type contextKey string
 
-const httpRequestKey contextKey = "httpRequest"
+// userKey is the context key under which the WebDAV middleware in
+// register.go stashes the authenticated *core.Record. FileSystem methods
+// look it up via userFromContext — they never re-authenticate.
+const userKey contextKey = "drive.webdav.user"
 
-// DriveFileSystem implements webdav.FileSystem backed by PocketBase drive_items.
+// DriveFileSystem implements webdav.FileSystem (golang.org/x/net/webdav)
+// backed by PocketBase drive_items records. The set of paths it serves
+// is rooted at "/drive/" and structured as
+// "/drive/<orgSlug>/<segments...>"; the root and each org root are
+// synthetic directories.
 type DriveFileSystem struct {
 	app *pocketbase.PocketBase
 }
 
 var _ webdav.FileSystem = (*DriveFileSystem)(nil)
 
-var (
-	errNotFound  = webdav.NewHTTPError(http.StatusNotFound, fmt.Errorf("not found"))
-	errForbidden = webdav.NewHTTPError(http.StatusForbidden, fmt.Errorf("forbidden"))
-)
-
-// authFromContext extracts the authenticated user from the request context.
-func (fs *DriveFileSystem) authFromContext(ctx context.Context) (*core.Record, error) {
-	r, ok := ctx.Value(httpRequestKey).(*http.Request)
-	if !ok {
-		return nil, errUnauthorized
+// userFromContext returns the user the WebDAV auth middleware attached
+// to the request context. Anything reaching a FileSystem method without
+// a user is a programming error — the middleware always enforces auth
+// before dispatching to the handler.
+func (fs *DriveFileSystem) userFromContext(ctx context.Context) (*core.Record, error) {
+	user, ok := ctx.Value(userKey).(*core.Record)
+	if !ok || user == nil {
+		return nil, errors.New("drive webdav: missing authenticated user in context")
 	}
-	return authenticateRequest(fs.app, r)
+	return user, nil
 }
 
 // resolveContext authenticates and resolves the org from the path.
-// Returns the user, org record, user_org record, org slug, and remaining path segments.
-// Returns errNotFound when the path is the WebDAV root (no org slug); read-side
-// callers (Stat, ReadDir) handle the root case before invoking this helper.
+// Returns os.ErrNotExist when the path is the WebDAV root (no org slug);
+// callers above this layer (Stat, OpenFile read on root, etc.) handle
+// the root case before invoking this helper.
 func (fs *DriveFileSystem) resolveContext(ctx context.Context, name string) (user *core.Record, org *core.Record, userOrg *core.Record, orgSlug string, segments []string, err error) {
-	user, err = fs.authFromContext(ctx)
+	user, err = fs.userFromContext(ctx)
 	if err != nil {
 		return
 	}
 
 	orgSlug, segments = parsePath(name)
 	if orgSlug == "" {
-		err = errNotFound
+		err = os.ErrNotExist
 		return
 	}
 
@@ -66,25 +70,19 @@ func (fs *DriveFileSystem) resolveContext(ctx context.Context, name string) (use
 	return
 }
 
-// isRootPath reports whether the parsed path is the WebDAV root — i.e.
-// /drive or /drive/, with no org slug. Used by Stat/ReadDir to short-circuit
-// to a synthetic listing of the user's orgs before resolveContext rejects.
 func isRootPath(name string) bool {
 	orgSlug, _ := parsePath(name)
 	return orgSlug == ""
 }
 
-func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (*webdav.FileInfo, error) {
+// Stat resolves the path to either the synthetic root, an org-root, or
+// a backing drive_items record.
+func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (os.FileInfo, error) {
 	if isRootPath(name) {
-		// Authenticate to ensure 401 (not 404) for unauthenticated requests
-		// to the root, but don't require an org slug.
-		if _, err := fs.authFromContext(ctx); err != nil {
+		if _, err := fs.userFromContext(ctx); err != nil {
 			return nil, err
 		}
-		return &webdav.FileInfo{
-			Path:  "/drive/",
-			IsDir: true,
-		}, nil
+		return &driveFileInfo{name: "drive", isDir: true}, nil
 	}
 
 	_, org, _, orgSlug, segments, err := fs.resolveContext(ctx, name)
@@ -92,12 +90,8 @@ func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (*webdav.FileI
 		return nil, err
 	}
 
-	// Org root = virtual directory
 	if len(segments) == 0 {
-		return &webdav.FileInfo{
-			Path:  "/drive/" + orgSlug + "/",
-			IsDir: true,
-		}, nil
+		return &driveFileInfo{name: orgSlug, isDir: true}, nil
 	}
 
 	record, err := resolveItemByPath(fs.app, org.Id, segments)
@@ -105,16 +99,40 @@ func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (*webdav.FileI
 		return nil, err
 	}
 
-	return recordToFileInfo(fs.app, record, orgSlug), nil
+	return recordToFileInfo(record), nil
 }
 
-func (fs *DriveFileSystem) ReadDir(ctx context.Context, name string, recursive bool) ([]webdav.FileInfo, error) {
+// OpenFile dispatches to the read or write path based on flag bits.
+// Directories always return a directory driveFile (read-only and never
+// has its Read called by the handler); files return either a seekable
+// reader-backed driveFile (read) or a temp-file-backed driveFile (write).
+func (fs *DriveFileSystem) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
+	wantWrite := flag&(os.O_WRONLY|os.O_RDWR) != 0
+
+	if wantWrite {
+		return fs.openForWrite(ctx, name, flag)
+	}
+	return fs.openForRead(ctx, name)
+}
+
+// openForRead handles GET, HEAD and the read side of COPY. A successful
+// open of a file returns a driveFile with rdSeeker primed; a successful
+// open of any directory (root, org root, or folder) returns a driveFile
+// with children pre-populated for Readdir.
+func (fs *DriveFileSystem) openForRead(ctx context.Context, name string) (webdav.File, error) {
 	if isRootPath(name) {
-		user, err := fs.authFromContext(ctx)
+		user, err := fs.userFromContext(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return fs.listUserOrgs(user.Id)
+		children, err := fs.listUserOrgs(user.Id)
+		if err != nil {
+			return nil, err
+		}
+		return &driveFile{
+			info:     &driveFileInfo{name: "drive", isDir: true},
+			children: children,
+		}, nil
 	}
 
 	_, org, _, orgSlug, segments, err := fs.resolveContext(ctx, name)
@@ -122,130 +140,15 @@ func (fs *DriveFileSystem) ReadDir(ctx context.Context, name string, recursive b
 		return nil, err
 	}
 
-	var parentID string
-	if len(segments) > 0 {
-		record, err := resolveItemByPath(fs.app, org.Id, segments)
+	if len(segments) == 0 {
+		children, err := fs.listOrgChildren(org.Id, "")
 		if err != nil {
 			return nil, err
 		}
-		if !record.GetBool("is_folder") {
-			return nil, errNotFound
-		}
-		parentID = record.Id
-	}
-
-	return fs.listChildren(org.Id, parentID, orgSlug, recursive)
-}
-
-// listUserOrgs returns one synthetic directory per org the user belongs to,
-// for PROPFIND on the WebDAV root. Folder names use org.slug (globally unique,
-// URL-safe). Includes the root itself as the first entry, per WebDAV
-// convention that ReadDir emits the directory plus its children.
-func (fs *DriveFileSystem) listUserOrgs(userID string) ([]webdav.FileInfo, error) {
-	// Note: not reusing search.go's getUserOrgIDs here — that helper returns
-	// user_org junction record IDs (used for share filtering), not org IDs.
-	// Query directly for the org relation instead.
-	userOrgs, err := fs.app.FindRecordsByFilter(
-		"user_org",
-		"user = {:user}",
-		"",
-		100,
-		0,
-		map[string]any{"user": userID},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	infos := make([]webdav.FileInfo, 0, len(userOrgs)+1)
-	infos = append(infos, webdav.FileInfo{
-		Path:  "/drive/",
-		IsDir: true,
-	})
-
-	for _, uo := range userOrgs {
-		orgID := uo.GetString("org")
-		if orgID == "" {
-			continue
-		}
-		o, err := fs.app.FindRecordById("orgs", orgID)
-		if err != nil {
-			// Skip orgs that have been deleted out from under user_org rather
-			// than failing the entire listing.
-			continue
-		}
-		slug := o.GetString("slug")
-		if slug == "" {
-			continue
-		}
-		infos = append(infos, webdav.FileInfo{
-			Path:  "/drive/" + slug + "/",
-			IsDir: true,
-		})
-	}
-
-	return infos, nil
-}
-
-func (fs *DriveFileSystem) listChildren(orgID, parentID, orgSlug string, recursive bool) ([]webdav.FileInfo, error) {
-	// Empty parentID means the org root. PocketBase's filter language needs
-	// the literal `parent = ''` form for empty-string relations; the
-	// `parent = {:parent}` substitution form does not match. Mirrors the
-	// same idiom used in resolveItemByPath (paths.go).
-	filter := "org = {:org}"
-	params := map[string]any{"org": orgID}
-	if parentID == "" {
-		filter += " && parent = ''"
-	} else {
-		filter += " && parent = {:parent}"
-		params["parent"] = parentID
-	}
-
-	records, err := fs.app.FindRecordsByFilter("drive_items", filter, "name", 0, 0, params)
-	if err != nil {
-		return nil, err
-	}
-
-	// Start with the parent itself (WebDAV convention: ReadDir includes the directory itself)
-	var infos []webdav.FileInfo
-	if parentID == "" {
-		infos = append(infos, webdav.FileInfo{
-			Path:  "/drive/" + orgSlug + "/",
-			IsDir: true,
-		})
-	} else {
-		parent, err := fs.app.FindRecordById("drive_items", parentID)
-		if err == nil {
-			infos = append(infos, *recordToFileInfo(fs.app, parent, orgSlug))
-		}
-	}
-
-	for _, record := range records {
-		infos = append(infos, *recordToFileInfo(fs.app, record, orgSlug))
-
-		if recursive && record.GetBool("is_folder") {
-			children, err := fs.listChildren(orgID, record.Id, orgSlug, true)
-			if err != nil {
-				return nil, err
-			}
-			// Skip the first element as it's the folder itself
-			if len(children) > 1 {
-				infos = append(infos, children[1:]...)
-			}
-		}
-	}
-
-	return infos, nil
-}
-
-func (fs *DriveFileSystem) Open(ctx context.Context, name string) (io.ReadCloser, error) {
-	_, org, _, _, segments, err := fs.resolveContext(ctx, name)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(segments) == 0 {
-		return nil, webdav.NewHTTPError(http.StatusMethodNotAllowed, fmt.Errorf("cannot open directory"))
+		return &driveFile{
+			info:     &driveFileInfo{name: orgSlug, isDir: true},
+			children: children,
+		}, nil
 	}
 
 	record, err := resolveItemByPath(fs.app, org.Id, segments)
@@ -254,147 +157,92 @@ func (fs *DriveFileSystem) Open(ctx context.Context, name string) (io.ReadCloser
 	}
 
 	if record.GetBool("is_folder") {
-		return nil, webdav.NewHTTPError(http.StatusMethodNotAllowed, fmt.Errorf("cannot open directory"))
+		children, err := fs.listOrgChildren(org.Id, record.Id)
+		if err != nil {
+			return nil, err
+		}
+		return &driveFile{
+			info:     recordToFileInfo(record),
+			children: children,
+		}, nil
 	}
 
-	return readFileContent(fs.app, record)
+	rdr, tmpPath, err := openSeekableContent(fs.app, record)
+	if err != nil {
+		return nil, err
+	}
+	return &driveFile{
+		info:     recordToFileInfo(record),
+		rdSeeker: rdr,
+		tmpPath:  tmpPath,
+	}, nil
 }
 
-func (fs *DriveFileSystem) Create(ctx context.Context, name string, body io.ReadCloser, opts *webdav.CreateOptions) (*webdav.FileInfo, bool, error) {
-	user, org, userOrg, orgSlug, segments, err := fs.resolveContext(ctx, name)
+// openForWrite handles PUT and the write side of COPY. The temp file is
+// created eagerly so the handler's io.Copy works as soon as it returns;
+// the actual persistence into a drive_items record happens on Close.
+// Quota and write-permission checks are deferred to Close because that
+// is when the final size is known.
+func (fs *DriveFileSystem) openForWrite(ctx context.Context, name string, flag int) (webdav.File, error) {
+	_, org, userOrg, _, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
-
-	_ = user
 
 	if len(segments) == 0 {
-		return nil, false, webdav.NewHTTPError(http.StatusMethodNotAllowed, fmt.Errorf("cannot create at org root"))
+		return nil, os.ErrPermission
 	}
 
-	parent, itemName, err := resolveParentByPath(fs.app, org.Id, segments)
+	parentID, itemName, err := resolveParentByPath(fs.app, org.Id, segments)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	var parentID string
-	if parent != nil {
-		parentID = parent.Id
-	}
-
-	// Read file data upfront for quota checking
-	data, err := io.ReadAll(body)
-	if err != nil {
-		return nil, false, err
-	}
-
-	// Check if the item already exists (update case)
 	existing, _ := resolveItemByPath(fs.app, org.Id, segments)
-	if existing != nil {
-		if err := checkWritePermission(fs.app, userOrg.Id, existing.Id); err != nil {
-			return nil, false, err
-		}
-
-		// Check quota: only the delta (new size - old size) counts
-		sizeDelta := int64(len(data)) - int64(existing.GetInt("size"))
-		if sizeDelta > 0 {
-			if err := checkUserStorageQuotaWebDAV(fs.app, userOrg.Id, org.Id, sizeDelta); err != nil {
-				return nil, false, err
-			}
-		}
-
-		if existing.GetString("file") != "" {
-			if err := snapshotCurrentFile(fs.app, existing, userOrg.Id, "upload", ""); err != nil {
-				fs.app.Logger().Warn("version snapshot failed", "id", existing.Id, "error", err)
-			}
-		}
-
-		if err := writeFileContentFromBytes(fs.app, existing, data, itemName); err != nil {
-			return nil, false, err
-		}
-
-		fi := recordToFileInfo(fs.app, existing, orgSlug)
-		return fi, false, nil
+	if existing != nil && existing.GetBool("is_folder") {
+		return nil, os.ErrPermission
 	}
 
-	// Check quota for new file
-	if err := checkUserStorageQuotaWebDAV(fs.app, userOrg.Id, org.Id, int64(len(data))); err != nil {
-		return nil, false, err
+	if existing == nil && flag&os.O_CREATE == 0 {
+		return nil, os.ErrNotExist
 	}
 
-	// Create new file
-	collection, err := fs.app.FindCollectionByNameOrId("drive_items")
+	tmp, err := os.CreateTemp("", "tinycld-drive-*")
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	record := core.NewRecord(collection)
-	record.Set("org", org.Id)
-	record.Set("name", itemName)
-	record.Set("is_folder", false)
-	record.Set("parent", parentID)
-	record.Set("created_by", userOrg.Id)
-	record.Set("mime_type", mime.TypeByExtension(path.Ext(itemName)))
-
-	if err := writeFileContentFromBytes(fs.app, record, data, itemName); err != nil {
-		return nil, false, err
-	}
-
-	if err := createOwnerShare(fs.app, record.Id, userOrg.Id); err != nil {
-		fs.app.Logger().Warn("WebDAV: failed to create owner share", "id", record.Id, "error", err)
-	}
-
-	fi := recordToFileInfo(fs.app, record, orgSlug)
-	return fi, true, nil
+	return &driveFile{
+		fs:       fs,
+		info:     &driveFileInfo{name: itemName},
+		wrBuf:    tmp,
+		wrName:   itemName,
+		parentID: parentID,
+		orgID:    org.Id,
+		userOrg:  userOrg,
+		existing: existing,
+	}, nil
 }
 
-func (fs *DriveFileSystem) RemoveAll(ctx context.Context, name string, _ *webdav.RemoveAllOptions) error {
+// Mkdir creates a folder drive_items record at the given path. Parent
+// must exist. The handler treats os.ErrExist as 405.
+func (fs *DriveFileSystem) Mkdir(ctx context.Context, name string, _ os.FileMode) error {
 	_, org, userOrg, _, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(segments) == 0 {
-		return webdav.NewHTTPError(http.StatusForbidden, fmt.Errorf("cannot delete org root"))
+		return os.ErrPermission
 	}
 
-	record, err := resolveItemByPath(fs.app, org.Id, segments)
+	parentID, folderName, err := resolveParentByPath(fs.app, org.Id, segments)
 	if err != nil {
 		return err
 	}
 
-	if err := checkDeletePermission(fs.app, userOrg.Id, record.Id); err != nil {
-		return err
-	}
-
-	return fs.app.Delete(record)
-}
-
-func (fs *DriveFileSystem) Mkdir(ctx context.Context, name string) error {
-	_, org, userOrg, _, segments, err := fs.resolveContext(ctx, name)
-	if err != nil {
-		return err
-	}
-
-	if len(segments) == 0 {
-		return webdav.NewHTTPError(http.StatusMethodNotAllowed, fmt.Errorf("cannot create org root"))
-	}
-
-	// Check parent exists
-	parent, folderName, err := resolveParentByPath(fs.app, org.Id, segments)
-	if err != nil {
-		return err
-	}
-
-	var parentID string
-	if parent != nil {
-		parentID = parent.Id
-	}
-
-	// Check if already exists
-	existing, _ := resolveItemByPath(fs.app, org.Id, segments)
-	if existing != nil {
-		return webdav.NewHTTPError(http.StatusMethodNotAllowed, fmt.Errorf("folder already exists"))
+	if existing, _ := resolveItemByPath(fs.app, org.Id, segments); existing != nil {
+		return os.ErrExist
 	}
 
 	collection, err := fs.app.FindCollectionByNameOrId("drive_items")
@@ -420,179 +268,160 @@ func (fs *DriveFileSystem) Mkdir(ctx context.Context, name string) error {
 	return nil
 }
 
-func (fs *DriveFileSystem) Copy(ctx context.Context, src, dest string, options *webdav.CopyOptions) (bool, error) {
-	_, srcOrg, userOrg, _, srcSegments, err := fs.resolveContext(ctx, src)
+// RemoveAll deletes the drive_items record at the given path. PocketBase
+// cascade rules handle recursive deletion of folder children.
+func (fs *DriveFileSystem) RemoveAll(ctx context.Context, name string) error {
+	_, org, userOrg, _, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	_, destOrg, _, destOrgSlug, destSegments, err := fs.resolveContext(ctx, dest)
+	if len(segments) == 0 {
+		return os.ErrPermission
+	}
+
+	record, err := resolveItemByPath(fs.app, org.Id, segments)
 	if err != nil {
-		return false, err
-	}
-	_ = destOrgSlug
-
-	if srcOrg.Id != destOrg.Id {
-		return false, webdav.NewHTTPError(http.StatusForbidden, fmt.Errorf("cross-org copy not supported"))
+		return err
 	}
 
-	if len(srcSegments) == 0 || len(destSegments) == 0 {
-		return false, webdav.NewHTTPError(http.StatusForbidden, fmt.Errorf("cannot copy org root"))
+	if err := checkDeletePermission(fs.app, userOrg.Id, record.Id); err != nil {
+		return err
 	}
 
-	srcRecord, err := resolveItemByPath(fs.app, srcOrg.Id, srcSegments)
-	if err != nil {
-		return false, err
-	}
-
-	// Check if destination already exists
-	existing, _ := resolveItemByPath(fs.app, destOrg.Id, destSegments)
-	created := existing == nil
-	if !created && options.NoOverwrite {
-		return false, webdav.NewHTTPError(http.StatusPreconditionFailed, fmt.Errorf("destination exists"))
-	}
-
-	// If overwriting, delete the existing item
-	if !created {
-		if err := fs.app.Delete(existing); err != nil {
-			return false, err
-		}
-	}
-
-	destParent, destName, err := resolveParentByPath(fs.app, destOrg.Id, destSegments)
-	if err != nil {
-		return false, err
-	}
-
-	var destParentID string
-	if destParent != nil {
-		destParentID = destParent.Id
-	}
-
-	collection, err := fs.app.FindCollectionByNameOrId("drive_items")
-	if err != nil {
-		return false, err
-	}
-
-	// Check quota for the copy (use source file size)
-	if !srcRecord.GetBool("is_folder") {
-		srcSize := int64(srcRecord.GetInt("size"))
-		if srcSize > 0 {
-			if err := checkUserStorageQuotaWebDAV(fs.app, userOrg.Id, srcOrg.Id, srcSize); err != nil {
-				return false, err
-			}
-		}
-	}
-
-	newRecord := core.NewRecord(collection)
-	newRecord.Set("org", srcOrg.Id)
-	newRecord.Set("name", destName)
-	newRecord.Set("is_folder", srcRecord.GetBool("is_folder"))
-	newRecord.Set("parent", destParentID)
-	newRecord.Set("created_by", userOrg.Id)
-	newRecord.Set("mime_type", srcRecord.GetString("mime_type"))
-	newRecord.Set("description", srcRecord.GetString("description"))
-
-	if !srcRecord.GetBool("is_folder") {
-		reader, err := readFileContent(fs.app, srcRecord)
-		if err != nil {
-			return false, err
-		}
-		defer reader.Close()
-
-		if err := writeFileContent(fs.app, newRecord, reader, destName); err != nil {
-			return false, err
-		}
-	} else {
-		newRecord.Set("size", 0)
-		if err := fs.app.Save(newRecord); err != nil {
-			return false, err
-		}
-	}
-
-	if err := createOwnerShare(fs.app, newRecord.Id, userOrg.Id); err != nil {
-		fs.app.Logger().Warn("WebDAV: failed to create owner share for copy", "id", newRecord.Id, "error", err)
-	}
-
-	return created, nil
+	return fs.app.Delete(record)
 }
 
-func (fs *DriveFileSystem) Move(ctx context.Context, src, dest string, options *webdav.MoveOptions) (bool, error) {
-	_, srcOrg, userOrg, _, srcSegments, err := fs.resolveContext(ctx, src)
+// Rename implements MOVE. The handler pre-removes an existing
+// destination only when Overwrite: T is set; otherwise we must report
+// os.ErrExist if the destination is still present.
+func (fs *DriveFileSystem) Rename(ctx context.Context, oldName, newName string) error {
+	_, srcOrg, userOrg, _, srcSegments, err := fs.resolveContext(ctx, oldName)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	_, destOrg, _, _, destSegments, err := fs.resolveContext(ctx, dest)
+	_, destOrg, _, _, destSegments, err := fs.resolveContext(ctx, newName)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if srcOrg.Id != destOrg.Id {
-		return false, webdav.NewHTTPError(http.StatusForbidden, fmt.Errorf("cross-org move not supported"))
+		return os.ErrPermission
 	}
 
 	if len(srcSegments) == 0 || len(destSegments) == 0 {
-		return false, webdav.NewHTTPError(http.StatusForbidden, fmt.Errorf("cannot move org root"))
+		return os.ErrPermission
 	}
 
 	srcRecord, err := resolveItemByPath(fs.app, srcOrg.Id, srcSegments)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if err := checkWritePermission(fs.app, userOrg.Id, srcRecord.Id); err != nil {
-		return false, err
+		return err
 	}
 
-	// Check if destination already exists
-	existing, _ := resolveItemByPath(fs.app, destOrg.Id, destSegments)
-	created := existing == nil
-	if !created && options.NoOverwrite {
-		return false, webdav.NewHTTPError(http.StatusPreconditionFailed, fmt.Errorf("destination exists"))
+	if existing, _ := resolveItemByPath(fs.app, destOrg.Id, destSegments); existing != nil {
+		return os.ErrExist
 	}
 
-	// If overwriting, delete the existing item
-	if !created {
-		if err := fs.app.Delete(existing); err != nil {
-			return false, err
-		}
-	}
-
-	destParent, destName, err := resolveParentByPath(fs.app, destOrg.Id, destSegments)
+	destParentID, destName, err := resolveParentByPath(fs.app, destOrg.Id, destSegments)
 	if err != nil {
-		return false, err
-	}
-
-	var destParentID string
-	if destParent != nil {
-		destParentID = destParent.Id
+		return err
 	}
 
 	srcRecord.Set("name", destName)
 	srcRecord.Set("parent", destParentID)
 
-	if err := fs.app.Save(srcRecord); err != nil {
-		return false, err
-	}
-
-	return created, nil
+	return fs.app.Save(srcRecord)
 }
 
-func recordToFileInfo(app *pocketbase.PocketBase, record *core.Record, orgSlug string) *webdav.FileInfo {
+// listUserOrgs returns one synthetic directory entry per org the user
+// belongs to, for Readdir on the WebDAV root. Folder names use org.slug.
+func (fs *DriveFileSystem) listUserOrgs(userID string) ([]os.FileInfo, error) {
+	userOrgs, err := fs.app.FindRecordsByFilter(
+		"user_org",
+		"user = {:user}",
+		"",
+		100,
+		0,
+		map[string]any{"user": userID},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := make([]os.FileInfo, 0, len(userOrgs))
+	for _, uo := range userOrgs {
+		orgID := uo.GetString("org")
+		if orgID == "" {
+			continue
+		}
+		o, err := fs.app.FindRecordById("orgs", orgID)
+		if err != nil {
+			continue
+		}
+		slug := o.GetString("slug")
+		if slug == "" {
+			continue
+		}
+		infos = append(infos, &driveFileInfo{name: slug, isDir: true})
+	}
+
+	return infos, nil
+}
+
+// listOrgChildren returns the immediate child drive_items of a given
+// parent (or, for empty parentID, of the org root).
+func (fs *DriveFileSystem) listOrgChildren(orgID, parentID string) ([]os.FileInfo, error) {
+	filter := "org = {:org}"
+	params := map[string]any{"org": orgID}
+	if parentID == "" {
+		filter += " && parent = ''"
+	} else {
+		filter += " && parent = {:parent}"
+		params["parent"] = parentID
+	}
+
+	records, err := fs.app.FindRecordsByFilter("drive_items", filter, "name", 0, 0, params)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := make([]os.FileInfo, 0, len(records))
+	for _, r := range records {
+		infos = append(infos, recordToFileInfo(r))
+	}
+	return infos, nil
+}
+
+// recordToFileInfo builds an os.FileInfo from a drive_items record.
+func recordToFileInfo(record *core.Record) *driveFileInfo {
 	modTime := time.Time{}
 	if updated := record.GetString("updated"); updated != "" {
 		if t, err := time.Parse(pbTimeFormat, updated); err == nil {
 			modTime = t
 		}
 	}
-
-	return &webdav.FileInfo{
-		Path:     buildItemPath(app, record, orgSlug),
-		Size:     int64(record.GetInt("size")),
-		ModTime:  modTime,
-		IsDir:    record.GetBool("is_folder"),
-		MIMEType: record.GetString("mime_type"),
-		ETag:     fmt.Sprintf(`"%s"`, record.GetString("updated")),
+	return &driveFileInfo{
+		name:    record.GetString("name"),
+		size:    int64(record.GetInt("size")),
+		modTime: modTime,
+		isDir:   record.GetBool("is_folder"),
+		record:  record,
 	}
+}
+
+// guessMimeType derives a Content-Type from a basename's extension,
+// falling back to application/octet-stream. Used when we don't have a
+// source MIME type to carry over (which is always under x/net/webdav,
+// since the framework reads bytes only — no Content-Type ever reaches
+// us).
+func guessMimeType(filename string) string {
+	if t := mime.TypeByExtension(path.Ext(filename)); t != "" {
+		return t
+	}
+	return "application/octet-stream"
 }

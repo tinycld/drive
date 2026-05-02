@@ -2,9 +2,8 @@ package drive
 
 import (
 	"fmt"
-	"net/http"
+	"os"
 
-	"github.com/emersion/go-webdav"
 	"github.com/pocketbase/pocketbase"
 )
 
@@ -98,10 +97,7 @@ func checkUserStorageQuota(app *pocketbase.PocketBase, userOrgID, orgID string, 
 	}
 
 	if used+additionalBytes > limit {
-		available := limit - used
-		if available < 0 {
-			available = 0
-		}
+		available := max(limit-used, 0)
 		return &errStorageLimitExceeded{
 			message: fmt.Sprintf("storage limit exceeded: %s used of %s limit, %s available but %s requested",
 				formatBytesHuman(used), formatBytesHuman(limit),
@@ -135,10 +131,22 @@ func (e *errStorageLimitExceeded) Error() string {
 	return e.message
 }
 
-// checkUserStorageQuotaWebDAV returns an appropriate WebDAV HTTP error.
+// checkUserStorageQuotaWebDAV wraps checkUserStorageQuota for use inside
+// golang.org/x/net/webdav FileSystem methods.
+//
+// Why the wrapping shape:
+//   - The stdlib handler maps PUT close errors to 405 unconditionally
+//     (golang.org/x/net/webdav/webdav.go:285) — there's no clean way to
+//     surface 507 Insufficient Storage. So Finder will see 405 either
+//     way; the wrap exists to make errors.Is(err, os.ErrPermission) hold
+//     for any other call site that wants to discriminate quota from
+//     transport/IO errors.
+//   - We preserve the inner error with %w so the human-readable "X used
+//     of Y limit" message lands in the WebDAV Logger callback for ops
+//     debugging, instead of being discarded.
 func checkUserStorageQuotaWebDAV(app *pocketbase.PocketBase, userOrgID, orgID string, additionalBytes int64) error {
 	if err := checkUserStorageQuota(app, userOrgID, orgID, additionalBytes); err != nil {
-		return webdav.NewHTTPError(http.StatusInsufficientStorage, err)
+		return &os.PathError{Op: "write", Err: fmt.Errorf("%w: %s", os.ErrPermission, err.Error())}
 	}
 	return nil
 }
