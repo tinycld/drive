@@ -1,14 +1,8 @@
-import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
-import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react-native'
+import { PreviewModal as CorePreviewModal } from '@tinycld/core/file-viewer/PreviewModal'
 import { useCallback, useMemo } from 'react'
-import { Platform, Pressable, Modal as RNModal, Text, View } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useDrive } from '../hooks/useDrive'
-import { getPreviewEntry } from '../lib/preview-registry'
+import { driveItemToSource } from '../lib/file-url'
 import type { DriveItemView } from '../types'
-import { GenericPreview } from './previews/GenericPreview'
 
 interface PreviewModalProps {
     isVisible: boolean
@@ -17,99 +11,33 @@ interface PreviewModalProps {
 }
 
 export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
-    const isMobile = useBreakpoint() === 'mobile'
-
-    if (!item) return null
-
-    if (isMobile || Platform.OS !== 'web') {
-        return (
-            <RNModal visible={isVisible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-                <View className="flex-1 bg-background">
-                    <PreviewModalContent item={item} onClose={onClose} />
-                </View>
-            </RNModal>
-        )
-    }
-
-    return (
-        <Modal isOpen={isVisible} onClose={onClose}>
-            <ModalBackdrop />
-            <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
-                <PreviewModalContent item={item} onClose={onClose} />
-            </ModalContent>
-        </Modal>
-    )
-}
-
-function PreviewModalContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
-    const mutedColor = useThemeColor('muted-foreground')
-    const insets = useSafeAreaInsets()
     const { currentItems, openPreview, downloadItem } = useDrive()
 
     const files = useMemo(() => currentItems.filter((i) => !i.isFolder), [currentItems])
-    const currentIndex = files.findIndex((f) => f.id === item.id)
+    const currentIndex = item ? files.findIndex((f) => f.id === item.id) : -1
+    const hasPrevious = currentIndex > 0
+    const hasNext = currentIndex >= 0 && currentIndex < files.length - 1
 
     const handlePrevious = useCallback(() => {
-        if (currentIndex > 0) openPreview(files[currentIndex - 1])
-    }, [currentIndex, files, openPreview])
+        if (hasPrevious) openPreview(files[currentIndex - 1])
+    }, [hasPrevious, currentIndex, files, openPreview])
 
     const handleNext = useCallback(() => {
-        if (currentIndex < files.length - 1) openPreview(files[currentIndex + 1])
-    }, [currentIndex, files, openPreview])
-
-    const hasPrevious = currentIndex > 0
-    const hasNext = currentIndex < files.length - 1
-
-    const entry = getPreviewEntry(item.mimeType)
-    const PreviewComponent = entry?.preview ?? GenericPreview
+        if (hasNext) openPreview(files[currentIndex + 1])
+    }, [hasNext, currentIndex, files, openPreview])
 
     const handleDownload = useCallback(() => {
-        downloadItem(item.id)
-    }, [downloadItem, item.id])
+        if (item) downloadItem(item.id)
+    }, [downloadItem, item])
 
     return (
-        <>
-            <View
-                className="flex-row items-center px-4 py-3 gap-3 border-b border-border"
-                style={{ paddingTop: Math.max(insets.top, 12) }}
-            >
-                <Pressable onPress={onClose} className="p-1.5">
-                    <X size={20} color={mutedColor} />
-                </Pressable>
-                <Text
-                    numberOfLines={1}
-                    className="flex-1 text-foreground"
-                    style={{
-                        fontSize: 16,
-                        fontWeight: '600',
-                    }}
-                >
-                    {item.name}
-                </Text>
-                <View className="flex-row items-center gap-1">
-                    {hasPrevious && (
-                        <Pressable onPress={handlePrevious} className="p-1.5 rounded-md" hitSlop={8}>
-                            <ChevronLeft size={20} color={mutedColor} />
-                        </Pressable>
-                    )}
-                    {hasNext && (
-                        <Pressable onPress={handleNext} className="p-1.5 rounded-md" hitSlop={8}>
-                            <ChevronRight size={20} color={mutedColor} />
-                        </Pressable>
-                    )}
-                    <Pressable onPress={handleDownload} className="p-1.5 rounded-md" hitSlop={8}>
-                        <Download size={18} color={mutedColor} />
-                    </Pressable>
-                </View>
-            </View>
-            <View className="flex-1 overflow-hidden">
-                <PreviewComponent
-                    item={item}
-                    onClose={onClose}
-                    onNext={hasNext ? handleNext : undefined}
-                    onPrevious={hasPrevious ? handlePrevious : undefined}
-                />
-            </View>
-        </>
+        <CorePreviewModal
+            isVisible={isVisible}
+            source={item ? driveItemToSource(item) : null}
+            onClose={onClose}
+            onPrevious={hasPrevious ? handlePrevious : undefined}
+            onNext={hasNext ? handleNext : undefined}
+            onDownload={handleDownload}
+        />
     )
 }

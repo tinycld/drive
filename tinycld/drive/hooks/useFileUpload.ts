@@ -1,9 +1,8 @@
+import { usePickFiles } from '@tinycld/core/file-viewer/use-pick-files'
 import { captureException } from '@tinycld/core/lib/errors'
 import { formatBytes } from '@tinycld/core/lib/format-utils'
 import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
-import * as DocumentPicker from 'expo-document-picker'
-import * as ImagePicker from 'expo-image-picker'
 import { newRecordId } from 'pbtsdb/core'
 import { useCallback, useRef, useState } from 'react'
 import { Platform } from 'react-native'
@@ -43,6 +42,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
     const folderRef = useRef(currentFolderId)
     folderRef.current = currentFolderId
     const [sharesCollection, itemsCollection] = useStore('drive_shares', 'drive_items')
+    const { pickFiles } = usePickFiles()
 
     const uploadMutation = useMutation({
         mutationFn: async (files: File[]) => {
@@ -125,56 +125,16 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
         [uploadMutation]
     )
 
-    const triggerFilePicker = useCallback(() => {
-        if (Platform.OS === 'web') {
-            const input = document.createElement('input')
-            input.type = 'file'
-            input.multiple = true
-            input.onchange = () => {
-                if (input.files?.length) {
-                    uploadFiles(Array.from(input.files))
-                }
-            }
-            input.click()
-        } else {
-            DocumentPicker.getDocumentAsync({ multiple: true }).then((result) => {
-                if (result.canceled) return
-                const files = result.assets.map(
-                    (asset) =>
-                        ({
-                            uri: asset.uri,
-                            name: asset.name,
-                            type: asset.mimeType || 'application/octet-stream',
-                            size: asset.size ?? 0,
-                        }) as unknown as File
-                )
-                uploadFiles(files)
-            })
-        }
-    }, [uploadFiles])
+    const triggerFilePicker = useCallback(async () => {
+        const picked = await pickFiles({ sources: ['documents'], multiple: true })
+        if (picked.length > 0) uploadFiles(picked.map((p) => p.file))
+    }, [pickFiles, uploadFiles])
 
     const triggerPhotoPicker = useCallback(async () => {
         if (Platform.OS === 'web') return
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images', 'videos'],
-            allowsMultipleSelection: true,
-            quality: 1,
-            exif: false,
-        })
-        if (result.canceled) return
-        const files = result.assets.map((asset) => {
-            const uriName = asset.uri.split('/').pop() ?? ''
-            const fallbackExt = asset.mimeType?.split('/')[1] ?? (asset.type === 'video' ? 'mp4' : 'jpg')
-            const name = asset.fileName ?? uriName ?? `IMG_${Date.now()}.${fallbackExt}`
-            return {
-                uri: asset.uri,
-                name,
-                type: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
-                size: asset.fileSize ?? 0,
-            } as unknown as File
-        })
-        uploadFiles(files)
-    }, [uploadFiles])
+        const picked = await pickFiles({ sources: ['photoLibrary'], multiple: true })
+        if (picked.length > 0) uploadFiles(picked.map((p) => p.file))
+    }, [pickFiles, uploadFiles])
 
     const uploadTreeMutation = useMutation({
         mutationFn: async (entries: DroppedEntry[]) => {

@@ -1,23 +1,28 @@
-import { pb } from '@tinycld/core/lib/pocketbase'
+import {
+    getFileURL as coreGetFileURL,
+    getThumbnailURL as coreGetThumbnailURL,
+} from '@tinycld/core/file-viewer/file-url'
+import type { FilePreviewSource } from '@tinycld/core/file-viewer/types'
 import type { DriveItemView } from '../types'
 
 const DRIVE_ITEMS_COLLECTION = 'drive_items'
 
+export function driveItemToSource(item: DriveItemView): FilePreviewSource {
+    return {
+        collectionId: DRIVE_ITEMS_COLLECTION,
+        recordId: item.id,
+        fileName: item.file,
+        displayName: item.name,
+        mimeType: item.mimeType,
+        size: item.size,
+        thumbnailFileName: item.thumbnail || undefined,
+    }
+}
+
 export function getFileURL(item: DriveItemView) {
-    if (!item.file) return ''
-    return pb.files.getURL({ collectionId: DRIVE_ITEMS_COLLECTION, id: item.id }, item.file)
+    return coreGetFileURL(driveItemToSource(item))
 }
 
 export function getThumbnailURL(item: DriveItemView, size?: string) {
-    if (item.thumbnail) {
-        const url = pb.files.getURL({ collectionId: DRIVE_ITEMS_COLLECTION, id: item.id }, item.thumbnail)
-        return size ? `${url}?thumb=${size}` : url
-    }
-
-    if (item.category === 'image' && item.file) {
-        const url = pb.files.getURL({ collectionId: DRIVE_ITEMS_COLLECTION, id: item.id }, item.file)
-        return `${url}?thumb=${size ?? '480x360'}`
-    }
-
-    return ''
+    return coreGetThumbnailURL(driveItemToSource(item), size)
 }

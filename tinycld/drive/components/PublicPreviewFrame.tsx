@@ -3,7 +3,9 @@ import { FileIcon } from 'lucide-react-native'
 import { lazy, Suspense } from 'react'
 import { ActivityIndicator, Image, Platform, Text, View } from 'react-native'
 
-const PdfCanvasViewer = lazy(() => import('./PdfCanvasViewer').then((m) => ({ default: m.PdfCanvasViewer })))
+const PdfCanvasViewer = lazy(() =>
+    import('@tinycld/core/file-viewer/previews/PdfCanvasViewer').then((m) => ({ default: m.PdfCanvasViewer }))
+)
 
 interface PublicPreviewFrameProps {
     name: string

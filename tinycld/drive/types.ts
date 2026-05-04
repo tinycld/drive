@@ -1,4 +1,7 @@
+import type { FileCategory } from '@tinycld/core/file-viewer/file-icons'
 import type { Orgs, UserOrg } from '@tinycld/core/types/pbSchema'
+
+export type { FileCategory }
 
 export interface DriveItems {
     id: string
@@ -36,20 +39,6 @@ export interface DriveItemState {
     created: string
     updated: string
 }
-
-export type FileCategory =
-    | 'folder'
-    | 'document'
-    | 'spreadsheet'
-    | 'pdf'
-    | 'image'
-    | 'presentation'
-    | 'drawing'
-    | 'video'
-    | 'audio'
-    | 'archive'
-    | 'code'
-    | 'unknown'
 
 export interface DriveItemView {
     id: string

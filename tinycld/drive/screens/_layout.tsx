@@ -7,7 +7,6 @@ import { DropZone } from '../components/DropZone'
 import { PreviewModal } from '../components/PreviewModal'
 import { UploadStatusBar } from '../components/UploadStatusBar'
 import { useDrive } from '../hooks/useDrive'
-import '../lib/register-previews'
 import DriveProvider from '../provider'
 
 export default function DriveLayout() {
