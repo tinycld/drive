@@ -4,8 +4,11 @@ import { formatBytes } from '@tinycld/core/lib/format-utils'
 import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 import { Platform } from 'react-native'
+import { type UploadingFile, useUploadStore } from '../stores/upload-store'
+
+export type { UploadingFile, UploadStatus } from '../stores/upload-store'
 
 export interface DroppedEntry {
     path: string
@@ -24,18 +27,6 @@ function deduplicateName(name: string, existingNames: Set<string>): string {
         if (!existingNames.has(candidate)) return candidate
     }
     return `${base} (${Date.now()})${ext}`
-}
-
-export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error'
-
-export interface UploadingFile {
-    id: string
-    name: string
-    parentId: string
-    size: number
-    loaded: number
-    status: UploadStatus
-    errorMessage?: string
 }
 
 interface UseFileUploadOptions {
@@ -93,23 +84,23 @@ function uploadFormDataWithProgress(params: {
 }
 
 export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUploadOptions) {
-    const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
+    const uploadingFiles = useUploadStore((s) => s.uploadingFiles)
     const folderRef = useRef(currentFolderId)
     folderRef.current = currentFolderId
     const [sharesCollection, itemsCollection] = useStore('drive_shares', 'drive_items')
     const { pickFiles } = usePickFiles()
 
     const updateFile = useCallback((id: string, patch: Partial<UploadingFile>) => {
-        setUploadingFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+        useUploadStore.getState().update(id, patch)
     }, [])
 
     const dismissUpload = useCallback((id: string) => {
-        setUploadingFiles((prev) => prev.filter((f) => f.id !== id))
+        useUploadStore.getState().remove(id)
     }, [])
 
     const scheduleClearDone = useCallback((id: string) => {
         setTimeout(() => {
-            setUploadingFiles((prev) => prev.filter((f) => !(f.id === id && f.status === 'done')))
+            useUploadStore.getState().clearDoneById(id)
         }, DONE_AUTO_CLEAR_MS)
     }, [])
 
@@ -185,7 +176,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                 loaded: 0,
                 status: 'pending',
             }))
-            setUploadingFiles((prev) => [...prev, ...queued])
+            useUploadStore.getState().add(queued)
 
             const storageInfo = await pb.send('/api/drive/storage-usage', {
                 query: { org: orgId },
@@ -197,11 +188,9 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                     const message =
                         `Upload would exceed your storage limit. ` +
                         `${formatBytes(Math.max(0, available))} available, ${formatBytes(totalUploadSize)} needed.`
-                    setUploadingFiles((prev) =>
-                        prev.map((f) =>
-                            queued.some((q) => q.id === f.id) ? { ...f, status: 'error', errorMessage: message } : f
-                        )
-                    )
+                    for (const q of queued) {
+                        useUploadStore.getState().update(q.id, { status: 'error', errorMessage: message })
+                    }
                     throw new Error(message)
                 }
             }
@@ -265,7 +254,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                 loaded: 0,
                 status: 'pending',
             }))
-            setUploadingFiles((prev) => [...prev, ...queued])
+            useUploadStore.getState().add(queued)
             const queuedById = new Map(fileEntries.map((e, i) => [e.path, queued[i]]))
 
             const totalUploadSize = fileEntries.reduce((sum, e) => sum + (e.file?.size ?? 0), 0)
@@ -278,11 +267,9 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                     const message =
                         `Upload would exceed your storage limit. ` +
                         `${formatBytes(Math.max(0, available))} available, ${formatBytes(totalUploadSize)} needed.`
-                    setUploadingFiles((prev) =>
-                        prev.map((f) =>
-                            queued.some((q) => q.id === f.id) ? { ...f, status: 'error', errorMessage: message } : f
-                        )
-                    )
+                    for (const q of queued) {
+                        useUploadStore.getState().update(q.id, { status: 'error', errorMessage: message })
+                    }
                     throw new Error(message)
                 }
             }
