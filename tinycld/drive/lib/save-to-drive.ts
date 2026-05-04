@@ -12,6 +12,8 @@ export interface SaveToDriveInput {
     source: FilePreviewSource
     /** Destination folder ID. Empty string = root ("My Files"). */
     parentId: string
+    /** Display name of the destination folder, used in the success toast. */
+    parentName: string
 }
 
 /**
@@ -30,7 +32,7 @@ export function useSaveToDrive() {
     const [sharesCollection] = useStore('drive_shares')
 
     return useMutation({
-        mutationFn: async ({ source, parentId }: SaveToDriveInput) => {
+        mutationFn: async ({ source, parentId, parentName }: SaveToDriveInput) => {
             if (!orgId || !userOrgId) {
                 throw new Error('Organization context not ready')
             }
@@ -84,15 +86,15 @@ export function useSaveToDrive() {
                 })
             })
 
-            return { itemId, finalName, parentId }
+            return { itemId, finalName, parentId, parentName }
         },
-        onSuccess: ({ finalName }) => {
+        onSuccess: ({ finalName, parentName }) => {
             notify.emit({
                 event: 'drive.save_succeeded',
-                title: 'Saved to Drive',
+                title: `Saved to ${parentName}`,
                 body: finalName,
                 durationMs: 4000,
-                data: { name: finalName },
+                data: { name: finalName, folder: parentName },
             })
         },
         onError: (err) => {
