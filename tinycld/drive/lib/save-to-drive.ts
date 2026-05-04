@@ -8,16 +8,19 @@ import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { newRecordId } from 'pbtsdb/core'
 
-const MAIL_ATTACHMENTS_FOLDER = 'Mail attachments'
+export interface SaveToDriveInput {
+    source: FilePreviewSource
+    /** Destination folder ID. Empty string = root ("My Files"). */
+    parentId: string
+}
 
 /**
  * Hook that saves a previewable file (e.g. a mail attachment) into the
  * current user's Drive. Returns a mutation-style object with `mutate`,
  * `mutateAsync`, and `isPending`.
  *
- * Files land in a top-level "Mail attachments" folder in the user's Drive.
- * The folder is auto-created on first save. Filename collisions get the
- * standard `(1)`, `(2)`, … suffix.
+ * Caller chooses the destination folder. Filename collisions get the
+ * standard `(1)`, `(2)`, … suffix within the destination.
  */
 export function useSaveToDrive() {
     const { orgId } = useOrgInfo()
@@ -27,7 +30,7 @@ export function useSaveToDrive() {
     const [sharesCollection] = useStore('drive_shares')
 
     return useMutation({
-        mutationFn: async (source: FilePreviewSource) => {
+        mutationFn: async ({ source, parentId }: SaveToDriveInput) => {
             if (!orgId || !userOrgId) {
                 throw new Error('Organization context not ready')
             }
@@ -47,46 +50,11 @@ export function useSaveToDrive() {
                 type: source.mimeType || blob.type || 'application/octet-stream',
             })
 
-            // Find or create the "Mail attachments" folder.
-            let folderId: string
-            const existingFolder = await pb.collection('drive_items').getList(1, 1, {
-                filter: pb.filter('org = {:org} && parent = "" && is_folder = true && name = {:name}', {
-                    org: orgId,
-                    name: MAIL_ATTACHMENTS_FOLDER,
-                }),
-                fields: 'id',
-            })
-            if (existingFolder.items.length > 0) {
-                folderId = existingFolder.items[0].id
-            } else {
-                folderId = newRecordId()
-                await pb.collection('drive_items').create({
-                    id: folderId,
-                    org: orgId,
-                    name: MAIL_ATTACHMENTS_FOLDER,
-                    is_folder: true,
-                    mime_type: '',
-                    parent: '',
-                    created_by: userOrgId,
-                    size: 0,
-                    description: '',
-                })
-                await performMutations(function* () {
-                    yield sharesCollection.insert({
-                        id: newRecordId(),
-                        item: folderId,
-                        user_org: userOrgId,
-                        role: 'owner',
-                        created_by: userOrgId,
-                    })
-                })
-            }
-
             // De-duplicate the filename within the destination folder.
             const siblings = await pb.collection('drive_items').getFullList({
                 filter: pb.filter('org = {:org} && parent = {:parent}', {
                     org: orgId,
-                    parent: folderId,
+                    parent: parentId,
                 }),
                 fields: 'name',
             })
@@ -99,7 +67,7 @@ export function useSaveToDrive() {
             formData.append('name', finalName)
             formData.append('is_folder', 'false')
             formData.append('mime_type', file.type)
-            formData.append('parent', folderId)
+            formData.append('parent', parentId)
             formData.append('created_by', userOrgId)
             formData.append('size', String(file.size))
             formData.append('file', file)
@@ -116,13 +84,13 @@ export function useSaveToDrive() {
                 })
             })
 
-            return { itemId, finalName, folderId }
+            return { itemId, finalName, parentId }
         },
         onSuccess: ({ finalName }) => {
             notify.emit({
                 event: 'drive.save_succeeded',
                 title: 'Saved to Drive',
-                body: `${finalName} is in your "Mail attachments" folder.`,
+                body: finalName,
                 durationMs: 4000,
                 data: { name: finalName },
             })
