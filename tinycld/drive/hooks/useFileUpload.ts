@@ -47,54 +47,49 @@ interface UseFileUploadOptions {
 const DONE_AUTO_CLEAR_MS = 3000
 const PROGRESS_THROTTLE_MS = 60
 
-// XHR-backed fetch so PocketBase's create() can surface upload progress.
-// PocketBase calls fetch(url, { body: FormData, ... }); we route that through
-// XMLHttpRequest, forward the upload progress events to onProgress, and shape
-// the XHR response back into a Response.
-function xhrFetchWithProgress(onProgress: (loaded: number, total: number) => void) {
-    return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-        return new Promise((resolve, reject) => {
-            const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
-            const method = (init?.method ?? 'POST').toUpperCase()
-            const xhr = new XMLHttpRequest()
-            xhr.open(method, url, true)
-            const headers = init?.headers
-            if (headers) {
-                if (headers instanceof Headers) {
-                    headers.forEach((v, k) => xhr.setRequestHeader(k, v))
-                } else if (Array.isArray(headers)) {
-                    for (const [k, v] of headers) xhr.setRequestHeader(k, v)
-                } else {
-                    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v as string)
-                }
+// Direct XHR upload — used instead of pb.collection().create() because we need
+// xhr.upload.onprogress events to drive the per-file progress bar. PocketBase's
+// SDK uses fetch() under the hood, which doesn't expose upload progress.
+// React Native's XMLHttpRequest polyfill supports upload progress as well, so
+// the same code path works on web and native.
+function uploadFormDataWithProgress(params: {
+    url: string
+    formData: FormData
+    authToken: string
+    onProgress: (loaded: number, total: number) => void
+}): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', params.url, true)
+        if (params.authToken) {
+            xhr.setRequestHeader('Authorization', params.authToken)
+        }
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) params.onProgress(e.loaded, e.total)
+        }
+        xhr.onload = () => {
+            const text = typeof xhr.response === 'string' ? xhr.response : xhr.responseText
+            let parsed: unknown = null
+            try {
+                parsed = text ? JSON.parse(text) : null
+            } catch {
+                // Non-JSON response — treat as empty success body.
+                parsed = null
             }
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) onProgress(e.loaded, e.total)
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve(parsed)
+            } else {
+                const message =
+                    parsed && typeof parsed === 'object' && 'message' in parsed && typeof parsed.message === 'string'
+                        ? parsed.message
+                        : `Upload failed (${xhr.status})`
+                reject(new Error(message))
             }
-            xhr.onload = () => {
-                const responseHeaders = new Headers()
-                const rawHeaders = xhr.getAllResponseHeaders().trim().split(/[\r\n]+/)
-                for (const line of rawHeaders) {
-                    const idx = line.indexOf(': ')
-                    if (idx > 0) responseHeaders.append(line.slice(0, idx), line.slice(idx + 2))
-                }
-                resolve(
-                    new Response(xhr.response, {
-                        status: xhr.status,
-                        statusText: xhr.statusText,
-                        headers: responseHeaders,
-                    })
-                )
-            }
-            xhr.onerror = () => reject(new TypeError('Network request failed'))
-            xhr.onabort = () => reject(new DOMException('Aborted', 'AbortError'))
-            xhr.responseType = 'blob'
-            if (init?.signal) {
-                init.signal.addEventListener('abort', () => xhr.abort())
-            }
-            xhr.send((init?.body as XMLHttpRequestBodyInit | null) ?? null)
-        })
-    }
+        }
+        xhr.onerror = () => reject(new TypeError('Network request failed'))
+        xhr.onabort = () => reject(new DOMException('Aborted', 'AbortError'))
+        xhr.send(params.formData)
+    })
 }
 
 export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUploadOptions) {
@@ -156,9 +151,11 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             formData.append('file', file)
             formData.append('description', '')
 
-            const progress = makeProgressHandler(id)
-            await pb.collection('drive_items').create(formData, {
-                fetch: xhrFetchWithProgress(progress),
+            await uploadFormDataWithProgress({
+                url: pb.buildURL('/api/collections/drive_items/records'),
+                formData,
+                authToken: pb.authStore.token ?? '',
+                onProgress: makeProgressHandler(id),
             })
 
             await performMutations(function* () {

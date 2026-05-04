@@ -37,6 +37,7 @@ import { type PromptDialog, useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
 import { ShareDialog } from './ShareDialog'
+import { UploadButton } from './UploadButton'
 
 export function DriveDialogs() {
     const {
@@ -114,7 +115,6 @@ export function DriveToolbar() {
         searchQuery,
         setSearchQuery,
         isSearching,
-        triggerFilePicker,
         moveToTrash,
         openPrompt,
         openMoveDialog,
@@ -165,11 +165,7 @@ export function DriveToolbar() {
 
     const folderActions = (
         <View className="flex-row items-center gap-0.5">
-            {isMobile ? (
-                <ToolbarIconButton icon={Upload} label="Upload" onPress={openUploadSheet} />
-            ) : (
-                <ToolbarIconButton icon={Upload} label="Upload" onPress={triggerFilePicker} />
-            )}
+            <UploadButton onMobilePress={openUploadSheet} />
             <ToolbarIconButton
                 icon={FolderPlus}
                 label="New folder"
