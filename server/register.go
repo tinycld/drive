@@ -34,8 +34,13 @@ func Register(app *pocketbase.PocketBase) {
 	audit.RegisterCollection(app, "drive_item_state", driveItemOrgResolver)
 	audit.RegisterCollection(app, "drive_shares", driveItemOrgResolver)
 
-	// Enforce storage quota before drive_items are created and create an
-	// owner drive_shares record alongside it in the same transaction.
+	// drive_items create hook:
+	//   - Enforce per-user storage quota using the size field on the record.
+	//   - Auto-rename on a (org, parent, name) collision so clients can upload
+	//     "report.pdf" without first listing the folder; a colliding name
+	//     becomes "report (1).pdf", etc.
+	//   - Insert the owner drive_shares record in the same transaction so
+	//     drive_items never exists without an owner share.
 	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		size := e.Record.GetInt("size")
 		orgID := e.Record.GetString("org")
@@ -43,6 +48,17 @@ func Register(app *pocketbase.PocketBase) {
 		if size > 0 && orgID != "" && userOrgID != "" {
 			if err := checkUserStorageQuota(app, userOrgID, orgID, int64(size)); err != nil {
 				return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
+			}
+		}
+		if orgID != "" {
+			parentID := e.Record.GetString("parent")
+			requested := e.Record.GetString("name")
+			unique, err := nextUniqueDriveItemName(e.App, orgID, parentID, requested)
+			if err != nil {
+				return fmt.Errorf("dedup drive_item name: %w", err)
+			}
+			if unique != requested {
+				e.Record.Set("name", unique)
 			}
 		}
 		if err := e.Next(); err != nil {

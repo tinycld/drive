@@ -14,20 +14,6 @@ export interface DroppedEntry {
     file: File | null // null = directory
 }
 
-function deduplicateName(name: string, existingNames: Set<string>): string {
-    if (!existingNames.has(name)) return name
-
-    const dotIdx = name.lastIndexOf('.')
-    const base = dotIdx > 0 ? name.slice(0, dotIdx) : name
-    const ext = dotIdx > 0 ? name.slice(dotIdx) : ''
-
-    for (let counter = 1; counter <= 999; counter++) {
-        const candidate = `${base} (${counter})${ext}`
-        if (!existingNames.has(candidate)) return candidate
-    }
-    return `${base} (${Date.now()})${ext}`
-}
-
 interface UseFileUploadOptions {
     orgId: string
     userOrgId: string
@@ -141,14 +127,18 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             formData.append('file', file)
             formData.append('description', '')
 
-            await uploadFormDataWithProgress({
+            const response = await uploadFormDataWithProgress({
                 url: pb.buildURL('/api/collections/drive_items/records'),
                 formData,
                 authToken: pb.authStore.token ?? '',
                 onProgress: makeProgressHandler(id),
             })
 
-            updateFile(id, { status: 'done', loaded: file.size })
+            const finalName =
+                response && typeof response === 'object' && 'name' in response && typeof response.name === 'string'
+                    ? response.name
+                    : name
+            updateFile(id, { status: 'done', loaded: file.size, name: finalName })
             scheduleClearDone(id)
         },
         [orgId, userOrgId, makeProgressHandler, updateFile, scheduleClearDone]
@@ -167,24 +157,11 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             }))
             useUploadStore.getState().add(queued)
 
-            const existing = await pb.collection('drive_items').getFullList({
-                filter: pb.filter('org = {:org} && parent = {:parent}', {
-                    org: orgId,
-                    parent: parentId || '',
-                }),
-                fields: 'name',
-            })
-            const usedNames = new Set(existing.map((r) => r.name))
-
             for (let i = 0; i < files.length; i++) {
                 const file = files[i]
                 const entry = queued[i]
-                const uniqueName = deduplicateName(file.name, usedNames)
-                usedNames.add(uniqueName)
-                if (uniqueName !== entry.name) updateFile(entry.id, { name: uniqueName })
-
                 try {
-                    await uploadOne({ id: entry.id, name: uniqueName, parentId, file })
+                    await uploadOne({ id: entry.id, name: entry.name, parentId, file })
                 } catch (err) {
                     const message = err instanceof Error ? err.message : 'Upload failed'
                     updateFile(entry.id, { status: 'error', errorMessage: message })
@@ -229,16 +206,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             useUploadStore.getState().add(queued)
             const queuedById = new Map(fileEntries.map((e, i) => [e.path, queued[i]]))
 
-            // Collect existing names in root folder for deduplication of top-level entries
-            const existing = await pb.collection('drive_items').getFullList({
-                filter: pb.filter('org = {:org} && parent = {:parent}', {
-                    org: orgId,
-                    parent: parentId || '',
-                }),
-                fields: 'name',
-            })
-            const rootUsedNames = new Set(existing.map((r) => r.name))
-
             // Map directory path -> PocketBase record ID
             const folderIds = new Map<string, string>()
 
@@ -257,10 +224,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                 const localParentId = parentPath ? (folderIds.get(parentPath) ?? '') : parentId
 
                 if (!entry.file) {
-                    // Directory entry — deduplicate top-level names only
-                    const folderName = segments.length === 1 ? deduplicateName(name, rootUsedNames) : name
-                    if (segments.length === 1) rootUsedNames.add(folderName)
-
                     const folderId = newRecordId()
                     folderIds.set(entry.path, folderId)
 
@@ -268,7 +231,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                         yield itemsCollection.insert({
                             id: folderId,
                             org: orgId,
-                            name: folderName,
+                            name,
                             is_folder: true,
                             mime_type: '',
                             parent: localParentId,
