@@ -1,14 +1,25 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { NameAvatar } from '@tinycld/core/components/NameAvatar'
+import { type ContactSuggestion, ContactSuggestionsProvider } from '@tinycld/core/lib/contacts/use-contact-suggestions'
 import { captureException } from '@tinycld/core/lib/errors'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { ChevronDown, Globe, Link, Lock, Trash2 } from 'lucide-react-native'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native'
-import { type ContactSuggestion, ContactSuggestionsSource } from './ContactSuggestionsSource'
+
+// Local bridge: mounts inside ContactSuggestionsProvider's render prop and
+// pushes the contacts list up into ShareDialog's state via useEffect, so the
+// rest of the dialog can keep using `contacts` directly inside its
+// suggestion-building useMemo.
+function ContactsBridge({ contacts, onChange }: { contacts: ContactSuggestion[]; onChange: (next: ContactSuggestion[]) => void }) {
+    useEffect(() => {
+        onChange(contacts)
+    }, [contacts, onChange])
+    return null
+}
 
 interface OrgMember {
     userOrgId: string
@@ -223,7 +234,9 @@ export function ShareDialog({
         <Modal isOpen={open} onClose={onClose}>
             <ModalBackdrop />
             <ModalContent className="w-[540px] p-0 rounded-2xl">
-                <ContactSuggestionsSource onChange={setContacts} />
+                <ContactSuggestionsProvider>
+                    {(list) => <ContactsBridge contacts={list} onChange={setContacts} />}
+                </ContactSuggestionsProvider>
                 <View className="px-6 pb-4" style={{ paddingTop: 28 }}>
                     <Text className="text-foreground" style={{ fontSize: 28 }}>
                         Share &ldquo;{itemName}&rdquo;
