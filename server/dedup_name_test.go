@@ -54,6 +54,17 @@ func TestIsDriveItemNameConflict(t *testing.T) {
 			true,
 		},
 		{
+			"validation errors wrapped in errors.Join (PB hook boundary)",
+			errors.Join(
+				validation.Errors{
+					"name":   validation.NewError("validation_not_unique", "Value must be unique"),
+					"org":    validation.NewError("validation_not_unique", "Value must be unique"),
+					"parent": validation.NewError("validation_not_unique", "Value must be unique"),
+				},
+			),
+			true,
+		},
+		{
 			"validation error on different field",
 			validation.Errors{"slug": validation.NewError("validation_not_unique", "Value must be unique")},
 			false,

@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,19 +24,23 @@ func splitNameExt(name string) (base, ext string) {
 }
 
 // isDriveItemNameConflict reports whether err is the unique-constraint failure
-// raised when (org, parent, name) collides on drive_items. Matches both the
-// raw SQLite error string ("unique constraint failed") and PocketBase's
-// normalized validation.Errors form, which surfaces as
-// {"name": validation_not_unique}.
+// raised when (org, parent, name) collides on drive_items. PocketBase wraps
+// the normalized validation.Errors in errors.Join (via *errors.joinError) by
+// the time it reaches our hook, so we use errors.As to dig it out rather than
+// a direct type assertion. Also matches the raw SQLite error string as a
+// fallback for paths that bypass the normalizer.
 func isDriveItemNameConflict(err error) bool {
 	if err == nil {
 		return false
 	}
-	if verrs, ok := err.(validation.Errors); ok {
-		if e, ok := verrs["name"]; ok {
-			if v, ok := e.(validation.Error); ok && v.Code() == "validation_not_unique" {
-				return true
-			}
+	var verrs validation.Errors
+	if errors.As(err, &verrs) {
+		e, ok := verrs["name"]
+		if !ok {
+			return false
+		}
+		if v, ok := e.(validation.Error); ok && v.Code() == "validation_not_unique" {
+			return true
 		}
 		return false
 	}
