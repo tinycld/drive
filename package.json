@@ -14,6 +14,8 @@
         "./seed": "./tinycld/drive/seed.ts",
         "./hooks/*": "./tinycld/drive/hooks/*.ts",
         "./components/*": "./tinycld/drive/components/*.tsx",
+        "./lib/save-to-drive": "./tinycld/drive/lib/save-to-drive.ts",
+        "./lib/save-to-drive-action": "./tinycld/drive/lib/save-to-drive-action.tsx",
         "./public-screens/*": "./tinycld/drive/public-screens/*.tsx"
     },
     "scripts": {
