@@ -134,8 +134,12 @@ async function fetchForUpload(url: string, name: string, mimeType: string): Prom
     // Native: download to the cache directory; FormData uploads via URI.
     // Lazy-imported so this module stays usable in vitest's node env.
     const { File: FsFile, Paths } = await import('expo-file-system')
-    const target = new FsFile(Paths.cache, name)
-    if (target.exists) target.delete()
+    // Suffix the cache filename with a timestamp so repeated saves of the
+    // same source (or two attachments named "image.png" from different
+    // threads) don't collide. The user-visible filename is still `name` —
+    // the cache name only matters until the FormData upload completes.
+    const cacheName = `${Date.now()}-${name}`
+    const target = new FsFile(Paths.cache, cacheName)
     const downloaded = await FsFile.downloadFileAsync(url, target)
     const size = downloaded.size ?? 0
     return {
