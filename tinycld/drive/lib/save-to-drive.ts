@@ -7,6 +7,10 @@ import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { newRecordId } from 'pbtsdb/core'
+import { Platform } from 'react-native'
+import { deduplicateName } from './deduplicate-name'
+
+export { deduplicateName }
 
 export interface SaveToDriveInput {
     source: FilePreviewSource
@@ -37,20 +41,18 @@ export function useSaveToDrive() {
                 throw new Error('Organization context not ready')
             }
 
-            // Fetch the source file (e.g. a mail attachment served by PocketBase)
-            // into a Blob so we can re-upload as a Drive item.
+            // Fetch the source file (e.g. a mail attachment served by
+            // PocketBase) and shape it for upload. On web we use the standard
+            // File constructor; on native there's no global File class and
+            // RN's FormData polyfill expects a `{ uri, name, type }` literal
+            // instead — so we stream the bytes to a cache URI via
+            // expo-file-system and hand that URI to FormData.
             const sourceUrl = pb.files.getURL(
                 { collectionId: source.collectionId, id: source.recordId },
                 source.fileName
             )
-            const resp = await fetch(sourceUrl)
-            if (!resp.ok) {
-                throw new Error(`Could not download attachment (${resp.status})`)
-            }
-            const blob = await resp.blob()
-            const file = new File([blob], source.displayName, {
-                type: source.mimeType || blob.type || 'application/octet-stream',
-            })
+            const mimeType = source.mimeType || 'application/octet-stream'
+            const upload = await fetchForUpload(sourceUrl, source.displayName, mimeType)
 
             // De-duplicate the filename within the destination folder.
             const siblings = await pb.collection('drive_items').getFullList({
@@ -60,7 +62,7 @@ export function useSaveToDrive() {
                 }),
                 fields: 'name',
             })
-            const finalName = deduplicateName(file.name, new Set(siblings.map((s) => s.name)))
+            const finalName = deduplicateName(upload.name, new Set(siblings.map((s) => s.name)))
 
             const itemId = newRecordId()
             const formData = new FormData()
@@ -68,11 +70,13 @@ export function useSaveToDrive() {
             formData.append('org', orgId)
             formData.append('name', finalName)
             formData.append('is_folder', 'false')
-            formData.append('mime_type', file.type)
+            formData.append('mime_type', upload.type)
             formData.append('parent', parentId)
             formData.append('created_by', userOrgId)
-            formData.append('size', String(file.size))
-            formData.append('file', file)
+            formData.append('size', String(upload.size))
+            // RN's FormData accepts a `{ uri, name, type }` object literal; on
+            // web the `file` field is a real File. We cast to satisfy TS.
+            formData.append('file', upload.file as unknown as Blob)
             formData.append('description', '')
             await pb.collection('drive_items').create(formData)
 
@@ -111,20 +115,34 @@ export function useSaveToDrive() {
     })
 }
 
-/**
- * If `name` is already in `used`, append " (1)", " (2)", … before the extension.
- * Mirrors the behavior in drive's primary upload pipeline. Exported for tests.
- */
-export function deduplicateName(name: string, used: Set<string>): string {
-    if (!used.has(name)) return name
-
-    const dotIdx = name.lastIndexOf('.')
-    const base = dotIdx > 0 ? name.slice(0, dotIdx) : name
-    const ext = dotIdx > 0 ? name.slice(dotIdx) : ''
-
-    for (let counter = 1; counter <= 999; counter++) {
-        const candidate = `${base} (${counter})${ext}`
-        if (!used.has(candidate)) return candidate
-    }
-    return `${base} (${Date.now()})${ext}`
+interface UploadShape {
+    name: string
+    type: string
+    size: number
+    /** A `File` on web, a `{ uri, name, type }` literal on native. */
+    file: unknown
 }
+
+async function fetchForUpload(url: string, name: string, mimeType: string): Promise<UploadShape> {
+    if (Platform.OS === 'web') {
+        const resp = await fetch(url)
+        if (!resp.ok) throw new Error(`Could not download attachment (${resp.status})`)
+        const blob = await resp.blob()
+        const file = new File([blob], name, { type: mimeType || blob.type || 'application/octet-stream' })
+        return { name: file.name, type: file.type, size: file.size, file }
+    }
+    // Native: download to the cache directory; FormData uploads via URI.
+    // Lazy-imported so this module stays usable in vitest's node env.
+    const { File: FsFile, Paths } = await import('expo-file-system')
+    const target = new FsFile(Paths.cache, name)
+    if (target.exists) target.delete()
+    const downloaded = await FsFile.downloadFileAsync(url, target)
+    const size = downloaded.size ?? 0
+    return {
+        name,
+        type: mimeType,
+        size,
+        file: { uri: downloaded.uri, name, type: mimeType },
+    }
+}
+

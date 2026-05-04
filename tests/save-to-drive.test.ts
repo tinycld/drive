@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deduplicateName } from '../tinycld/drive/lib/save-to-drive'
+import { deduplicateName } from '../tinycld/drive/lib/deduplicate-name'
 
 describe('deduplicateName', () => {
     it('returns the original name when not in use', () => {
