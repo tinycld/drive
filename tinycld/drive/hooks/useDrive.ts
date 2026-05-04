@@ -9,6 +9,8 @@ import { useDriveItems } from './useDriveItems'
 import { useDriveMutations } from './useDriveMutations'
 import { parseDrivePath, useDriveNavigation } from './useDriveNavigation'
 import { useDriveSearch } from './useDriveSearch'
+import { useFileUpload } from './useFileUpload'
+import type { UploadingFile } from './useFileUpload'
 
 export interface DriveContextValue {
     currentFolderId: string
@@ -55,7 +57,8 @@ export interface DriveContextValue {
     uploadFiles: (files: File[]) => void
     uploadTree: (entries: import('./useFileUpload').DroppedEntry[]) => void
     isUploading: boolean
-    uploadingFiles: { name: string; status: 'pending' | 'uploading' | 'done' | 'error' }[]
+    uploadingFiles: UploadingFile[]
+    dismissUpload: (id: string) => void
     triggerFilePicker: () => void
     triggerFolderPicker: () => void
     triggerPhotoPicker: () => void
@@ -117,6 +120,12 @@ export function useDriveState(): DriveContextValue {
     const isSearchActive = searchQuery.length >= 2
     const { results: searchResults, isSearching } = useDriveSearch(isSearchActive ? searchQuery : '', orgId)
 
+    const upload = useFileUpload({
+        orgId,
+        userOrgId,
+        currentFolderId,
+    })
+
     const items = useDriveItems({
         userOrgId,
         activeSection,
@@ -126,6 +135,7 @@ export function useDriveState(): DriveContextValue {
         searchQuery,
         searchResults,
         isSearchActive,
+        uploadingFiles: upload.uploadingFiles,
     })
 
     const mutations = useDriveMutations({
@@ -209,14 +219,15 @@ export function useDriveState(): DriveContextValue {
         removeShare: mutations.removeShare,
         getSharesForItem: mutations.getSharesForItem,
         orgMembers: items.orgMembers,
-        uploadFiles: mutations.uploadFiles,
-        uploadTree: mutations.uploadTree,
-        isUploading: mutations.isUploading,
-        uploadingFiles: mutations.uploadingFiles,
-        triggerFilePicker: mutations.triggerFilePicker,
-        triggerFolderPicker: mutations.triggerFolderPicker,
-        triggerPhotoPicker: mutations.triggerPhotoPicker,
-        uploadNewVersion: mutations.uploadNewVersion,
+        uploadFiles: upload.uploadFiles,
+        uploadTree: upload.uploadTree,
+        isUploading: upload.isUploading,
+        uploadingFiles: upload.uploadingFiles,
+        dismissUpload: upload.dismissUpload,
+        triggerFilePicker: upload.triggerFilePicker,
+        triggerFolderPicker: upload.triggerFolderPicker,
+        triggerPhotoPicker: upload.triggerPhotoPicker,
+        uploadNewVersion: upload.uploadNewVersion,
         getItemPath: mutations.getItemPath,
         promptDialog,
         promptKey,

@@ -27,6 +27,8 @@ import {
 import { DriveContextMenu } from '../components/DriveContextMenu'
 import { getFileIcon } from '../components/file-icons'
 import { Thumbnail } from '../components/Thumbnail'
+import { UploadingGridCard } from '../components/UploadingGridCard'
+import { UploadingListRow } from '../components/UploadingListRow'
 import { useDoubleClick } from '../hooks/useDoubleClick'
 import { useDrive } from '../hooks/useDrive'
 import { useDriveShortcuts } from '../hooks/useDriveShortcuts'
@@ -100,13 +102,16 @@ function ListView({
     const isMobile = useBreakpoint() === 'mobile'
     const folders = items.filter((i) => i.isFolder)
     const files = items.filter((i) => !i.isFolder)
-    const orderedItems = useMemo(() => [...folders, ...files], [folders, files])
-    const orderedIds = useMemo(() => orderedItems.map((i) => i.id), [orderedItems])
+    const navigableItems = useMemo(
+        () => [...folders, ...files.filter((i) => !i.uploadStatus)],
+        [folders, files]
+    )
+    const orderedIds = useMemo(() => navigableItems.map((i) => i.id), [navigableItems])
     const { handleSelect, isSelected } = useFileSelection(orderedIds)
-    const { activeSection, currentFolderId, navigateToFolder, openPreview, openPrompt } = useDrive()
+    const { activeSection, currentFolderId, navigateToFolder, openPreview, openPrompt, dismissUpload } = useDrive()
     const selectToggle = useDriveUIStore((s) => s.selectToggle)
     const { focusedId } = useDriveShortcuts({
-        items: orderedItems,
+        items: navigableItems,
         toggleSelect: selectToggle,
         openItem: (item) => {
             if (item.isFolder) navigateToFolder(item.id)
@@ -144,12 +149,18 @@ function ListView({
                         </DriveContextMenu>
                     )
                 )}
-                {files.map((item, i) =>
-                    isTrash ? (
-                        <DriveContextMenu key={item.id} item={item}>
-                            <TrashListRow item={item} isSelected={isSelected(item.id)} onSelect={handleSelect} />
-                        </DriveContextMenu>
-                    ) : (
+                {files.map((item, i) => {
+                    if (item.uploadStatus) {
+                        return <UploadingListRow key={item.id} item={item} onDismiss={dismissUpload} />
+                    }
+                    if (isTrash) {
+                        return (
+                            <DriveContextMenu key={item.id} item={item}>
+                                <TrashListRow item={item} isSelected={isSelected(item.id)} onSelect={handleSelect} />
+                            </DriveContextMenu>
+                        )
+                    }
+                    return (
                         <DriveContextMenu key={item.id} item={item}>
                             <FilesListRow
                                 item={item}
@@ -160,7 +171,7 @@ function ListView({
                             />
                         </DriveContextMenu>
                     )
-                )}
+                })}
             </ScrollView>
         </SwipeableRowProvider>
     )
@@ -457,8 +468,12 @@ function GridView({
     const folders = items.filter((i) => i.isFolder)
     const files = items.filter((i) => !i.isFolder)
     const { cardWidth, onLayout } = useGridLayout()
-    const orderedIds = useMemo(() => [...folders, ...files].map((i) => i.id), [folders, files])
+    const orderedIds = useMemo(
+        () => [...folders, ...files.filter((i) => !i.uploadStatus)].map((i) => i.id),
+        [folders, files]
+    )
     const { handleSelect, isSelected } = useFileSelection(orderedIds)
+    const { dismissUpload } = useDrive()
 
     return (
         <ScrollView
@@ -491,13 +506,17 @@ function GridView({
                     <View className="flex-row flex-wrap gap-3">
                         {files.map((item) => (
                             <View key={item.id} style={{ width: cardWidth }}>
-                                <DriveContextMenu item={item}>
-                                    <FileGridCard
-                                        item={item}
-                                        isSelected={isSelected(item.id)}
-                                        onSelect={handleSelect}
-                                    />
-                                </DriveContextMenu>
+                                {item.uploadStatus ? (
+                                    <UploadingGridCard item={item} onDismiss={dismissUpload} />
+                                ) : (
+                                    <DriveContextMenu item={item}>
+                                        <FileGridCard
+                                            item={item}
+                                            isSelected={isSelected(item.id)}
+                                            onSelect={handleSelect}
+                                        />
+                                    </DriveContextMenu>
+                                )}
                             </View>
                         ))}
                     </View>

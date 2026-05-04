@@ -12,9 +12,14 @@ export function UploadStatusBar({ isVisible }: UploadStatusBarProps) {
 
     if (!isVisible) return null
 
-    const activeCount = uploadingFiles.filter((f) => f.status !== 'done' && f.status !== 'error').length
-    const label =
-        activeCount > 0 ? `Uploading ${activeCount} file${activeCount !== 1 ? 's' : ''}...` : 'Upload complete'
+    const activeCount = uploadingFiles.filter((f) => f.status === 'pending' || f.status === 'uploading').length
+    const errorCount = uploadingFiles.filter((f) => f.status === 'error').length
+    let label = 'Upload complete'
+    if (activeCount > 0) {
+        label = `Uploading ${activeCount} file${activeCount !== 1 ? 's' : ''}...`
+    } else if (errorCount > 0) {
+        label = `${errorCount} upload${errorCount !== 1 ? 's' : ''} failed`
+    }
 
     return (
         <View className="flex-row items-center gap-2 px-4 py-2.5 border-t border-border bg-background">

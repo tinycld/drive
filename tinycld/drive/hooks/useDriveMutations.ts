@@ -3,7 +3,6 @@ import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
 import type { DriveItemView } from '../types'
-import { useFileUpload } from './useFileUpload'
 
 interface UseDriveMutationsParams {
     orgId: string
@@ -218,21 +217,6 @@ export function useDriveMutations({
         }
     }
 
-    const {
-        uploadFiles,
-        uploadTree,
-        isUploading,
-        uploadingFiles,
-        triggerFilePicker,
-        triggerFolderPicker,
-        triggerPhotoPicker,
-        uploadNewVersion,
-    } = useFileUpload({
-        orgId,
-        userOrgId,
-        currentFolderId,
-    })
-
     return {
         toggleStar,
         moveToTrash,
@@ -248,13 +232,5 @@ export function useDriveMutations({
         removeShare,
         getSharesForItem,
         getItemPath,
-        uploadFiles,
-        uploadTree,
-        isUploading,
-        uploadingFiles,
-        triggerFilePicker,
-        triggerFolderPicker,
-        triggerPhotoPicker,
-        uploadNewVersion,
     }
 }

@@ -1,4 +1,3 @@
-import { MenuActionItem } from '@tinycld/core/components/DropdownMenu'
 import { ResponsiveToolbar, type ToolbarItem } from '@tinycld/core/components/ResponsiveToolbar'
 import { ScreenHeader } from '@tinycld/core/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '@tinycld/core/components/SuretyGuard'
@@ -9,7 +8,6 @@ import { captureException } from '@tinycld/core/lib/errors'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { useCurrentRole } from '@tinycld/core/lib/use-current-role'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
-import { Menu } from '@tinycld/core/ui/menu'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import {
@@ -20,7 +18,6 @@ import {
     FileUp,
     FolderInput,
     FolderPlus,
-    FolderUp,
     Grid,
     Image as ImageIcon,
     Info,
@@ -118,7 +115,6 @@ export function DriveToolbar() {
         setSearchQuery,
         isSearching,
         triggerFilePicker,
-        triggerFolderPicker,
         moveToTrash,
         openPrompt,
         openMoveDialog,
@@ -172,18 +168,7 @@ export function DriveToolbar() {
             {isMobile ? (
                 <ToolbarIconButton icon={Upload} label="Upload" onPress={openUploadSheet} />
             ) : (
-                <Menu>
-                    <Menu.Trigger>
-                        <ToolbarIconButton icon={Upload} label="Upload" />
-                    </Menu.Trigger>
-                    <Menu.Portal>
-                        <Menu.Overlay />
-                        <Menu.Content presentation="popover" placement="bottom" align="start">
-                            <MenuActionItem label="Upload file" icon={Upload} onPress={triggerFilePicker} />
-                            <MenuActionItem label="Upload folder" icon={FolderUp} onPress={triggerFolderPicker} />
-                        </Menu.Content>
-                    </Menu.Portal>
-                </Menu>
+                <ToolbarIconButton icon={Upload} label="Upload" onPress={triggerFilePicker} />
             )}
             <ToolbarIconButton
                 icon={FolderPlus}

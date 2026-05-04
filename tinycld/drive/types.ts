@@ -57,6 +57,9 @@ export interface DriveItemView {
     thumbnail: string
     description: string
     category: FileCategory
+    uploadStatus?: 'pending' | 'uploading' | 'done' | 'error'
+    uploadLoaded?: number
+    uploadError?: string
 }
 
 export interface FolderTreeNode {

@@ -26,15 +26,75 @@ function deduplicateName(name: string, existingNames: Set<string>): string {
     return `${base} (${Date.now()})${ext}`
 }
 
-interface UploadingFile {
+export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error'
+
+export interface UploadingFile {
+    id: string
     name: string
-    status: 'pending' | 'uploading' | 'done' | 'error'
+    parentId: string
+    size: number
+    loaded: number
+    status: UploadStatus
+    errorMessage?: string
 }
 
 interface UseFileUploadOptions {
     orgId: string
     userOrgId: string
     currentFolderId: string
+}
+
+const DONE_AUTO_CLEAR_MS = 3000
+const PROGRESS_THROTTLE_MS = 60
+
+// XHR-backed fetch so PocketBase's create() can surface upload progress.
+// PocketBase calls fetch(url, { body: FormData, ... }); we route that through
+// XMLHttpRequest, forward the upload progress events to onProgress, and shape
+// the XHR response back into a Response.
+function xhrFetchWithProgress(onProgress: (loaded: number, total: number) => void) {
+    return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        return new Promise((resolve, reject) => {
+            const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+            const method = (init?.method ?? 'POST').toUpperCase()
+            const xhr = new XMLHttpRequest()
+            xhr.open(method, url, true)
+            const headers = init?.headers
+            if (headers) {
+                if (headers instanceof Headers) {
+                    headers.forEach((v, k) => xhr.setRequestHeader(k, v))
+                } else if (Array.isArray(headers)) {
+                    for (const [k, v] of headers) xhr.setRequestHeader(k, v)
+                } else {
+                    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v as string)
+                }
+            }
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) onProgress(e.loaded, e.total)
+            }
+            xhr.onload = () => {
+                const responseHeaders = new Headers()
+                const rawHeaders = xhr.getAllResponseHeaders().trim().split(/[\r\n]+/)
+                for (const line of rawHeaders) {
+                    const idx = line.indexOf(': ')
+                    if (idx > 0) responseHeaders.append(line.slice(0, idx), line.slice(idx + 2))
+                }
+                resolve(
+                    new Response(xhr.response, {
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        headers: responseHeaders,
+                    })
+                )
+            }
+            xhr.onerror = () => reject(new TypeError('Network request failed'))
+            xhr.onabort = () => reject(new DOMException('Aborted', 'AbortError'))
+            xhr.responseType = 'blob'
+            if (init?.signal) {
+                init.signal.addEventListener('abort', () => xhr.abort())
+            }
+            xhr.send((init?.body as XMLHttpRequestBodyInit | null) ?? null)
+        })
+    }
 }
 
 export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUploadOptions) {
@@ -44,9 +104,91 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
     const [sharesCollection, itemsCollection] = useStore('drive_shares', 'drive_items')
     const { pickFiles } = usePickFiles()
 
+    const updateFile = useCallback((id: string, patch: Partial<UploadingFile>) => {
+        setUploadingFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+    }, [])
+
+    const dismissUpload = useCallback((id: string) => {
+        setUploadingFiles((prev) => prev.filter((f) => f.id !== id))
+    }, [])
+
+    const scheduleClearDone = useCallback((id: string) => {
+        setTimeout(() => {
+            setUploadingFiles((prev) => prev.filter((f) => !(f.id === id && f.status === 'done')))
+        }, DONE_AUTO_CLEAR_MS)
+    }, [])
+
+    // Throttled progress writer: at most one update per ~60ms per file, plus a
+    // final flush when bytes reach total so the bar always lands on 100%.
+    const makeProgressHandler = useCallback(
+        (id: string) => {
+            let lastUpdate = 0
+            return (loaded: number, total: number) => {
+                const now = Date.now()
+                const isFinal = total > 0 && loaded >= total
+                if (!isFinal && now - lastUpdate < PROGRESS_THROTTLE_MS) return
+                lastUpdate = now
+                updateFile(id, total > 0 ? { loaded, size: total } : { loaded })
+            }
+        },
+        [updateFile]
+    )
+
+    const uploadOne = useCallback(
+        async (params: {
+            id: string
+            name: string
+            parentId: string
+            file: File
+        }) => {
+            const { id, name, parentId, file } = params
+            updateFile(id, { status: 'uploading', loaded: 0 })
+
+            const formData = new FormData()
+            formData.append('id', id)
+            formData.append('org', orgId)
+            formData.append('name', name)
+            formData.append('is_folder', 'false')
+            formData.append('mime_type', file.type || 'application/octet-stream')
+            formData.append('parent', parentId)
+            formData.append('created_by', userOrgId)
+            formData.append('size', String(file.size))
+            formData.append('file', file)
+            formData.append('description', '')
+
+            const progress = makeProgressHandler(id)
+            await pb.collection('drive_items').create(formData, {
+                fetch: xhrFetchWithProgress(progress),
+            })
+
+            await performMutations(function* () {
+                yield sharesCollection.insert({
+                    id: newRecordId(),
+                    item: id,
+                    user_org: userOrgId,
+                    role: 'owner',
+                    created_by: userOrgId,
+                })
+            })
+
+            updateFile(id, { status: 'done', loaded: file.size })
+            scheduleClearDone(id)
+        },
+        [orgId, userOrgId, sharesCollection, makeProgressHandler, updateFile, scheduleClearDone]
+    )
+
     const uploadMutation = useMutation({
         mutationFn: async (files: File[]) => {
-            setUploadingFiles(files.map((f) => ({ name: f.name, status: 'pending' })))
+            const parentId = folderRef.current
+            const queued: UploadingFile[] = files.map((f) => ({
+                id: newRecordId(),
+                name: f.name,
+                parentId,
+                size: f.size,
+                loaded: 0,
+                status: 'pending',
+            }))
+            setUploadingFiles((prev) => [...prev, ...queued])
 
             const storageInfo = await pb.send('/api/drive/storage-usage', {
                 query: { org: orgId },
@@ -55,17 +197,22 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                 const totalUploadSize = files.reduce((sum, f) => sum + f.size, 0)
                 const available = storageInfo.limit_bytes - storageInfo.user_used_bytes
                 if (totalUploadSize > available) {
-                    throw new Error(
+                    const message =
                         `Upload would exceed your storage limit. ` +
-                            `${formatBytes(Math.max(0, available))} available, ${formatBytes(totalUploadSize)} needed.`
+                        `${formatBytes(Math.max(0, available))} available, ${formatBytes(totalUploadSize)} needed.`
+                    setUploadingFiles((prev) =>
+                        prev.map((f) =>
+                            queued.some((q) => q.id === f.id) ? { ...f, status: 'error', errorMessage: message } : f
+                        )
                     )
+                    throw new Error(message)
                 }
             }
 
             const existing = await pb.collection('drive_items').getFullList({
                 filter: pb.filter('org = {:org} && parent = {:parent}', {
                     org: orgId,
-                    parent: folderRef.current || '',
+                    parent: parentId || '',
                 }),
                 fields: 'name',
             })
@@ -73,47 +220,20 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i]
-                setUploadingFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: 'uploading' } : f)))
+                const entry = queued[i]
+                const uniqueName = deduplicateName(file.name, usedNames)
+                usedNames.add(uniqueName)
+                if (uniqueName !== entry.name) updateFile(entry.id, { name: uniqueName })
 
                 try {
-                    const itemId = newRecordId()
-                    const uniqueName = deduplicateName(file.name, usedNames)
-                    usedNames.add(uniqueName)
-                    const formData = new FormData()
-                    formData.append('id', itemId)
-                    formData.append('org', orgId)
-                    formData.append('name', uniqueName)
-                    formData.append('is_folder', 'false')
-                    formData.append('mime_type', file.type || 'application/octet-stream')
-                    formData.append('parent', folderRef.current)
-                    formData.append('created_by', userOrgId)
-                    formData.append('size', String(file.size))
-                    formData.append('file', file)
-                    formData.append('description', '')
-
-                    // File upload requires FormData, so pb.collection() is necessary here
-                    await pb.collection('drive_items').create(formData)
-
-                    await performMutations(function* () {
-                        yield sharesCollection.insert({
-                            id: newRecordId(),
-                            item: itemId,
-                            user_org: userOrgId,
-                            role: 'owner',
-                            created_by: userOrgId,
-                        })
-                    })
-
-                    setUploadingFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: 'done' } : f)))
+                    await uploadOne({ id: entry.id, name: uniqueName, parentId, file })
                 } catch (err) {
-                    setUploadingFiles((prev) => prev.map((f, idx) => (idx === i ? { ...f, status: 'error' } : f)))
+                    const message = err instanceof Error ? err.message : 'Upload failed'
+                    updateFile(entry.id, { status: 'error', errorMessage: message })
                     captureException('useFileUpload', err)
                     throw err
                 }
             }
-        },
-        onSettled: () => {
-            setTimeout(() => setUploadingFiles([]), 3000)
         },
     })
 
@@ -138,8 +258,18 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
 
     const uploadTreeMutation = useMutation({
         mutationFn: async (entries: DroppedEntry[]) => {
+            const parentId = folderRef.current
             const fileEntries = entries.filter((e) => e.file)
-            setUploadingFiles(fileEntries.map((e) => ({ name: e.path, status: 'pending' })))
+            const queued: UploadingFile[] = fileEntries.map((e) => ({
+                id: newRecordId(),
+                name: e.path,
+                parentId,
+                size: e.file?.size ?? 0,
+                loaded: 0,
+                status: 'pending',
+            }))
+            setUploadingFiles((prev) => [...prev, ...queued])
+            const queuedById = new Map(fileEntries.map((e, i) => [e.path, queued[i]]))
 
             const totalUploadSize = fileEntries.reduce((sum, e) => sum + (e.file?.size ?? 0), 0)
             const storageInfo = await pb.send('/api/drive/storage-usage', {
@@ -148,10 +278,15 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             if (storageInfo.has_limit) {
                 const available = storageInfo.limit_bytes - storageInfo.user_used_bytes
                 if (totalUploadSize > available) {
-                    throw new Error(
+                    const message =
                         `Upload would exceed your storage limit. ` +
-                            `${formatBytes(Math.max(0, available))} available, ${formatBytes(totalUploadSize)} needed.`
+                        `${formatBytes(Math.max(0, available))} available, ${formatBytes(totalUploadSize)} needed.`
+                    setUploadingFiles((prev) =>
+                        prev.map((f) =>
+                            queued.some((q) => q.id === f.id) ? { ...f, status: 'error', errorMessage: message } : f
+                        )
                     )
+                    throw new Error(message)
                 }
             }
 
@@ -159,7 +294,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             const existing = await pb.collection('drive_items').getFullList({
                 filter: pb.filter('org = {:org} && parent = {:parent}', {
                     org: orgId,
-                    parent: folderRef.current || '',
+                    parent: parentId || '',
                 }),
                 fields: 'name',
             })
@@ -176,12 +311,11 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                 return a.path.localeCompare(b.path)
             })
 
-            let fileIndex = 0
             for (const entry of sorted) {
                 const segments = entry.path.split('/')
                 const name = segments[segments.length - 1]
                 const parentPath = segments.slice(0, -1).join('/')
-                const parentId = parentPath ? (folderIds.get(parentPath) ?? '') : folderRef.current
+                const localParentId = parentPath ? (folderIds.get(parentPath) ?? '') : parentId
 
                 if (!entry.file) {
                     // Directory entry — deduplicate top-level names only
@@ -198,7 +332,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                             name: folderName,
                             is_folder: true,
                             mime_type: '',
-                            parent: parentId,
+                            parent: localParentId,
                             created_by: userOrgId,
                             size: 0,
                             file: '',
@@ -213,54 +347,24 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                         })
                     })
                 } else {
-                    // File entry
-                    const currentFileIndex = fileIndex
-                    fileIndex++
-                    setUploadingFiles((prev) =>
-                        prev.map((f, idx) => (idx === currentFileIndex ? { ...f, status: 'uploading' } : f))
-                    )
+                    const queuedEntry = queuedById.get(entry.path)
+                    if (!queuedEntry) continue
 
                     try {
-                        const itemId = newRecordId()
-                        const formData = new FormData()
-                        formData.append('id', itemId)
-                        formData.append('org', orgId)
-                        formData.append('name', name)
-                        formData.append('is_folder', 'false')
-                        formData.append('mime_type', entry.file.type || 'application/octet-stream')
-                        formData.append('parent', parentId)
-                        formData.append('created_by', userOrgId)
-                        formData.append('size', String(entry.file.size))
-                        formData.append('file', entry.file)
-                        formData.append('description', '')
-
-                        await pb.collection('drive_items').create(formData)
-
-                        await performMutations(function* () {
-                            yield sharesCollection.insert({
-                                id: newRecordId(),
-                                item: itemId,
-                                user_org: userOrgId,
-                                role: 'owner',
-                                created_by: userOrgId,
-                            })
+                        await uploadOne({
+                            id: queuedEntry.id,
+                            name,
+                            parentId: localParentId,
+                            file: entry.file,
                         })
-
-                        setUploadingFiles((prev) =>
-                            prev.map((f, idx) => (idx === currentFileIndex ? { ...f, status: 'done' } : f))
-                        )
                     } catch (err) {
-                        setUploadingFiles((prev) =>
-                            prev.map((f, idx) => (idx === currentFileIndex ? { ...f, status: 'error' } : f))
-                        )
+                        const message = err instanceof Error ? err.message : 'Upload failed'
+                        updateFile(queuedEntry.id, { status: 'error', errorMessage: message })
                         captureException('useFileUpload.uploadTree', err)
                         throw err
                     }
                 }
             }
-        },
-        onSettled: () => {
-            setTimeout(() => setUploadingFiles([]), 3000)
         },
     })
 
@@ -332,6 +436,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
         uploadTree,
         isUploading: uploadMutation.isPending || uploadTreeMutation.isPending,
         uploadingFiles,
+        dismissUpload,
         triggerFilePicker,
         triggerFolderPicker,
         triggerPhotoPicker,

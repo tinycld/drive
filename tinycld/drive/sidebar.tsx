@@ -13,7 +13,6 @@ import {
     Clock,
     Folder,
     FolderPlus,
-    FolderUp,
     HardDrive,
     Plus,
     Star,
@@ -40,7 +39,6 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         folderTree,
         totalStorageUsed,
         triggerFilePicker,
-        triggerFolderPicker,
     } = useDrive()
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
@@ -91,8 +89,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                 <Menu.Portal>
                     <Menu.Overlay />
                     <Menu.Content presentation="popover" placement="bottom" align="start">
-                        <MenuActionItem label="Upload file" icon={Upload} onPress={triggerFilePicker} />
-                        <MenuActionItem label="Upload folder" icon={FolderUp} onPress={triggerFolderPicker} />
+                        <MenuActionItem label="Upload" icon={Upload} onPress={triggerFilePicker} />
                         <MenuActionItem label="New folder" icon={FolderPlus} onPress={() => {}} />
                     </Menu.Content>
                 </Menu.Portal>
