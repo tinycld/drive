@@ -18,11 +18,7 @@ registerPreviewAction('drive.save', () => {
         id: 'drive.save',
         icon: Save,
         label: 'Save to Drive',
-        onPress: (source, closePreview) => {
-            // Dismiss the preview first so the folder chooser is the topmost
-            // surface — RN modals don't reliably stack on native, and the
-            // user has already decided what to do with the previewed file.
-            closePreview()
+        onPress: (source) => {
             open(source)
         },
     }
