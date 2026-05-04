@@ -3,6 +3,7 @@ module tinycld.org/packages/drive
 go 1.25.0
 
 require (
+	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.36.8
 	golang.org/x/net v0.53.0
@@ -29,7 +30,6 @@ require (
 	github.com/ganigeorgiev/fexpr v0.5.0 // indirect
 	github.com/gen2brain/go-fitz v1.24.14 // indirect
 	github.com/getsentry/sentry-go v0.44.1 // indirect
-	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 // indirect

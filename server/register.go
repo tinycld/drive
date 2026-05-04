@@ -36,9 +36,11 @@ func Register(app *pocketbase.PocketBase) {
 
 	// drive_items create hook:
 	//   - Enforce per-user storage quota using the size field on the record.
-	//   - Auto-rename on a (org, parent, name) collision so clients can upload
-	//     "report.pdf" without first listing the folder; a colliding name
-	//     becomes "report (1).pdf", etc.
+	//   - Try the insert as-is; on a (org, parent, name) unique-constraint
+	//     violation, rename to "base (n)ext" and retry. Lets the DB be the
+	//     authority on collisions instead of probing first (which is racy
+	//     under concurrent uploads and costs an extra query in the common
+	//     no-collision case).
 	//   - Insert the owner drive_shares record in the same transaction so
 	//     drive_items never exists without an owner share.
 	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
@@ -50,19 +52,20 @@ func Register(app *pocketbase.PocketBase) {
 				return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
 			}
 		}
-		if orgID != "" {
-			parentID := e.Record.GetString("parent")
-			requested := e.Record.GetString("name")
-			unique, err := nextUniqueDriveItemName(e.App, orgID, parentID, requested)
-			if err != nil {
-				return fmt.Errorf("dedup drive_item name: %w", err)
-			}
-			if unique != requested {
-				e.Record.Set("name", unique)
-			}
-		}
 		if err := e.Next(); err != nil {
-			return err
+			if !isDriveItemNameConflict(err) {
+				return err
+			}
+			// The default e.Next() path failed on the unique (org, parent, name)
+			// index. Try renamed candidates via SaveNoValidate, which goes
+			// straight to the DB layer and skips re-firing this hook.
+			renamed, renameErr := saveWithUniqueDriveItemName(e.App, e.Record)
+			if renameErr != nil {
+				return renameErr
+			}
+			if !renamed {
+				return err
+			}
 		}
 		if userOrgID == "" {
 			return nil

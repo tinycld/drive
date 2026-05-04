@@ -1,12 +1,11 @@
 package drive
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -23,51 +22,53 @@ func splitNameExt(name string) (base, ext string) {
 	return name[:idx], name[idx:]
 }
 
-// nextUniqueDriveItemName returns `requested` if no other drive_items row in
-// (org, parent) has that name, otherwise "base (n)ext" where n is the lowest
-// positive integer that yields an unused name. Probes sequentially via the
-// unique-index lookup; for the common case of no collision this is one query.
+// isDriveItemNameConflict reports whether err is the unique-constraint failure
+// raised when (org, parent, name) collides on drive_items. Matches both the
+// raw SQLite error string ("unique constraint failed") and PocketBase's
+// normalized validation.Errors form, which surfaces as
+// {"name": validation_not_unique}.
+func isDriveItemNameConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	if verrs, ok := err.(validation.Errors); ok {
+		if e, ok := verrs["name"]; ok {
+			if v, ok := e.(validation.Error); ok && v.Code() == "validation_not_unique" {
+				return true
+			}
+		}
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "unique constraint failed")
+}
+
+// saveWithUniqueDriveItemName retries the record save with sequentially
+// numbered names ("base (1)ext", "base (2)ext", …) until the unique
+// (org, parent, name) index accepts one. Uses SaveNoValidate so the retries
+// don't re-fire the create hook — the DB is the authority on collisions.
 //
-// Bounded at 999 retries to defend against pathological input — past that we
-// fall back to a timestamp-tagged name to break the loop without erroring.
-func nextUniqueDriveItemName(app core.App, orgID, parentID, requested string) (string, error) {
-	if requested == "" {
-		return requested, nil
-	}
-	taken, err := nameTaken(app, orgID, parentID, requested)
-	if err != nil {
-		return "", err
-	}
-	if !taken {
-		return requested, nil
-	}
+// Returns (true, nil) if a renamed save succeeded, (false, originalErr) if
+// the attempts exhausted, or (false, err) on any non-conflict error.
+func saveWithUniqueDriveItemName(app core.App, record *core.Record) (bool, error) {
+	requested := record.GetString("name")
 	base, ext := splitNameExt(requested)
 	for i := 1; i <= 999; i++ {
 		candidate := fmt.Sprintf("%s (%d)%s", base, i, ext)
-		taken, err := nameTaken(app, orgID, parentID, candidate)
-		if err != nil {
-			return "", err
+		record.Set("name", candidate)
+		err := app.SaveNoValidate(record)
+		if err == nil {
+			return true, nil
 		}
-		if !taken {
-			return candidate, nil
+		if !isDriveItemNameConflict(err) {
+			return false, err
 		}
 	}
-	return fmt.Sprintf("%s (%d)%s", base, time.Now().UnixNano(), ext), nil
-}
-
-func nameTaken(app core.App, orgID, parentID, name string) (bool, error) {
-	existing, err := app.FindFirstRecordByFilter(
-		"drive_items",
-		"org = {:org} && parent = {:parent} && name = {:name}",
-		map[string]any{"org": orgID, "parent": parentID, "name": name},
-	)
-	if err != nil {
-		// PocketBase returns sql.ErrNoRows when there's no match — that means
-		// the name is free. Any other error bubbles up.
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
+	// Pathological folder — 999 collisions in a row. Use a timestamp suffix to
+	// break the loop instead of erroring; collisions on this are effectively
+	// impossible.
+	record.Set("name", fmt.Sprintf("%s (%d)%s", base, time.Now().UnixNano(), ext))
+	if err := app.SaveNoValidate(record); err != nil {
 		return false, err
 	}
-	return existing != nil, nil
+	return true, nil
 }
