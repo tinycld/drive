@@ -86,7 +86,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
     const uploadingFiles = useUploadStore((s) => s.uploadingFiles)
     const folderRef = useRef(currentFolderId)
     folderRef.current = currentFolderId
-    const [sharesCollection, itemsCollection] = useStore('drive_shares', 'drive_items')
+    const [itemsCollection] = useStore('drive_items')
     const { pickFiles } = usePickFiles()
 
     const updateFile = useCallback((id: string, patch: Partial<UploadingFile>) => {
@@ -148,20 +148,10 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                 onProgress: makeProgressHandler(id),
             })
 
-            await performMutations(function* () {
-                yield sharesCollection.insert({
-                    id: newRecordId(),
-                    item: id,
-                    user_org: userOrgId,
-                    role: 'owner',
-                    created_by: userOrgId,
-                })
-            })
-
             updateFile(id, { status: 'done', loaded: file.size })
             scheduleClearDone(id)
         },
-        [orgId, userOrgId, sharesCollection, makeProgressHandler, updateFile, scheduleClearDone]
+        [orgId, userOrgId, makeProgressHandler, updateFile, scheduleClearDone]
     )
 
     const uploadMutation = useMutation({
@@ -286,13 +276,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                             size: 0,
                             file: '',
                             description: '',
-                        })
-                        yield sharesCollection.insert({
-                            id: newRecordId(),
-                            item: folderId,
-                            user_org: userOrgId,
-                            role: 'owner',
-                            created_by: userOrgId,
                         })
                     })
                 } else {

@@ -34,21 +34,36 @@ func Register(app *pocketbase.PocketBase) {
 	audit.RegisterCollection(app, "drive_item_state", driveItemOrgResolver)
 	audit.RegisterCollection(app, "drive_shares", driveItemOrgResolver)
 
-	// Enforce storage quota before drive_items are created
+	// Enforce storage quota before drive_items are created and create an
+	// owner drive_shares record alongside it in the same transaction.
 	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		size := e.Record.GetInt("size")
-		if size <= 0 {
-			return e.Next()
-		}
 		orgID := e.Record.GetString("org")
 		userOrgID := e.Record.GetString("created_by")
-		if orgID == "" || userOrgID == "" {
-			return e.Next()
+		if size > 0 && orgID != "" && userOrgID != "" {
+			if err := checkUserStorageQuota(app, userOrgID, orgID, int64(size)); err != nil {
+				return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
+			}
 		}
-		if err := checkUserStorageQuota(app, userOrgID, orgID, int64(size)); err != nil {
-			return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
+		if err := e.Next(); err != nil {
+			return err
 		}
-		return e.Next()
+		if userOrgID == "" {
+			return nil
+		}
+		sharesCol, err := e.App.FindCollectionByNameOrId("drive_shares")
+		if err != nil {
+			return fmt.Errorf("find drive_shares collection: %w", err)
+		}
+		share := core.NewRecord(sharesCol)
+		share.Set("item", e.Record.Id)
+		share.Set("user_org", userOrgID)
+		share.Set("role", "owner")
+		share.Set("created_by", userOrgID)
+		if err := e.App.Save(share); err != nil {
+			return fmt.Errorf("create owner share for drive_item %s: %w", e.Record.Id, err)
+		}
+		return nil
 	})
 
 	// FTS sync hooks for drive_items
