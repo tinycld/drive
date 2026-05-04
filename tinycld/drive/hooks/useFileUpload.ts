@@ -1,6 +1,5 @@
 import { usePickFiles } from '@tinycld/core/file-viewer/use-pick-files'
 import { captureException } from '@tinycld/core/lib/errors'
-import { formatBytes } from '@tinycld/core/lib/format-utils'
 import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
@@ -178,23 +177,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             }))
             useUploadStore.getState().add(queued)
 
-            const storageInfo = await pb.send('/api/drive/storage-usage', {
-                query: { org: orgId },
-            })
-            if (storageInfo.has_limit) {
-                const totalUploadSize = files.reduce((sum, f) => sum + f.size, 0)
-                const available = storageInfo.limit_bytes - storageInfo.user_used_bytes
-                if (totalUploadSize > available) {
-                    const message =
-                        `Upload would exceed your storage limit. ` +
-                        `${formatBytes(Math.max(0, available))} available, ${formatBytes(totalUploadSize)} needed.`
-                    for (const q of queued) {
-                        useUploadStore.getState().update(q.id, { status: 'error', errorMessage: message })
-                    }
-                    throw new Error(message)
-                }
-            }
-
             const existing = await pb.collection('drive_items').getFullList({
                 filter: pb.filter('org = {:org} && parent = {:parent}', {
                     org: orgId,
@@ -256,23 +238,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             }))
             useUploadStore.getState().add(queued)
             const queuedById = new Map(fileEntries.map((e, i) => [e.path, queued[i]]))
-
-            const totalUploadSize = fileEntries.reduce((sum, e) => sum + (e.file?.size ?? 0), 0)
-            const storageInfo = await pb.send('/api/drive/storage-usage', {
-                query: { org: orgId },
-            })
-            if (storageInfo.has_limit) {
-                const available = storageInfo.limit_bytes - storageInfo.user_used_bytes
-                if (totalUploadSize > available) {
-                    const message =
-                        `Upload would exceed your storage limit. ` +
-                        `${formatBytes(Math.max(0, available))} available, ${formatBytes(totalUploadSize)} needed.`
-                    for (const q of queued) {
-                        useUploadStore.getState().update(q.id, { status: 'error', errorMessage: message })
-                    }
-                    throw new Error(message)
-                }
-            }
 
             // Collect existing names in root folder for deduplication of top-level entries
             const existing = await pb.collection('drive_items').getFullList({
@@ -389,31 +354,15 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
         input.click()
     }, [uploadTree])
 
-    const uploadNewVersion = useCallback(
-        async (itemId: string, file: File) => {
-            const storageInfo = await pb.send('/api/drive/storage-usage', {
-                query: { org: orgId },
-            })
-            if (storageInfo.has_limit) {
-                const available = storageInfo.limit_bytes - storageInfo.user_used_bytes
-                if (file.size > available) {
-                    throw new Error(
-                        `Upload would exceed your storage limit. ` +
-                            `${formatBytes(Math.max(0, available))} available, ${formatBytes(file.size)} needed.`
-                    )
-                }
-            }
-
-            const formData = new FormData()
-            formData.append('item', itemId)
-            formData.append('file', file)
-            await pb.send('/api/drive/upload-version', {
-                method: 'POST',
-                body: formData,
-            })
-        },
-        [orgId]
-    )
+    const uploadNewVersion = useCallback(async (itemId: string, file: File) => {
+        const formData = new FormData()
+        formData.append('item', itemId)
+        formData.append('file', file)
+        await pb.send('/api/drive/upload-version', {
+            method: 'POST',
+            body: formData,
+        })
+    }, [])
 
     return {
         uploadFiles,
