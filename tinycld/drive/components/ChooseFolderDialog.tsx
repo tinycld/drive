@@ -2,7 +2,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { ChevronDown, ChevronRight, Folder, HardDrive } from 'lucide-react-native'
 import { useState } from 'react'
-import { Platform, Pressable, Modal as RNModal, ScrollView, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { FolderTreeNode } from '../types'
 
 interface ChooseFolderDialogProps {
@@ -33,7 +33,7 @@ export function ChooseFolderDialog({
         onClose()
     }
 
-    const dialog = (
+    return (
         <Modal isOpen={open} onClose={onClose}>
             <ModalBackdrop />
             <ModalContent className="w-[400px] max-h-[70vh] p-0">
@@ -69,20 +69,6 @@ export function ChooseFolderDialog({
             </ModalContent>
         </Modal>
     )
-
-    // The core/Gluestack Modal is just an absolutely-positioned overlay in
-    // the React tree, so on native it sits behind any open native <RNModal>
-    // (e.g. PreviewModal's fullScreen modal). Wrapping in a transparent RN
-    // Modal puts the dialog in its own native layer that stacks above.
-    if (Platform.OS !== 'web') {
-        return (
-            <RNModal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-                {dialog}
-            </RNModal>
-        )
-    }
-
-    return dialog
 }
 
 function RootItem({ isSelected, onSelect }: { isSelected: boolean; onSelect: () => void }) {
