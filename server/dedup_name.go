@@ -1,6 +1,8 @@
 package drive
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -60,9 +62,9 @@ func nameTaken(app core.App, orgID, parentID, name string) (bool, error) {
 		map[string]any{"org": orgID, "parent": parentID, "name": name},
 	)
 	if err != nil {
-		// PocketBase returns a "no rows" error when there's no match — treat
-		// that as "name is free." Any other error bubbles up.
-		if strings.Contains(err.Error(), "no rows") || strings.Contains(err.Error(), "sql: no rows") {
+		// PocketBase returns sql.ErrNoRows when there's no match — that means
+		// the name is free. Any other error bubbles up.
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
 		return false, err
