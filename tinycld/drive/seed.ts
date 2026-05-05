@@ -231,6 +231,9 @@ async function seedFolders(pb: PocketBase, orgId: string, userOrgId: string) {
 
     for (const folder of FOLDERS) {
         log(`Creating folder: ${folder.name}`)
+        // The owner drive_shares row is created server-side by the
+        // OnRecordCreate("drive_items") hook in drive/server/register.go;
+        // no explicit follow-up share insert here.
         const record = await pb.collection('drive_items').create({
             org: orgId,
             name: folder.name,
@@ -242,13 +245,6 @@ async function seedFolders(pb: PocketBase, orgId: string, userOrgId: string) {
             description: '',
         })
         folderIds[folder.key] = record.id
-
-        await pb.collection('drive_shares').create({
-            item: record.id,
-            user_org: userOrgId,
-            role: 'owner',
-            created_by: userOrgId,
-        })
     }
 
     return folderIds
@@ -276,15 +272,10 @@ async function seedFiles(
         formData.append('description', file.description)
         formData.append('file', asset.blob, file.name)
 
+        // The owner drive_shares row is created server-side by the
+        // OnRecordCreate("drive_items") hook; non-owner shares (below)
+        // still need to be created explicitly.
         const record = await pb.collection('drive_items').create(formData)
-
-        // Create owner share
-        await pb.collection('drive_shares').create({
-            item: record.id,
-            user_org: userOrgId,
-            role: 'owner',
-            created_by: userOrgId,
-        })
 
         // Share with a team member if marked as shared
         if (file.shared && otherMembers.length > 0) {
