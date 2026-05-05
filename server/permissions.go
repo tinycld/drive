@@ -50,7 +50,9 @@ func checkDeletePermission(app *pocketbase.PocketBase, userOrgID, itemID string)
 }
 
 // createOwnerShare creates an owner share record for a newly created item.
-func createOwnerShare(app *pocketbase.PocketBase, itemID, userOrgID string) error {
+// Takes core.App so it can be called from inside a hook with e.App (the
+// transactional handle) as well as from regular code with a *pocketbase.PocketBase.
+func createOwnerShare(app core.App, itemID, userOrgID string) error {
 	collection, err := app.FindCollectionByNameOrId("drive_shares")
 	if err != nil {
 		return err

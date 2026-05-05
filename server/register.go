@@ -34,15 +34,17 @@ func Register(app *pocketbase.PocketBase) {
 	audit.RegisterCollection(app, "drive_item_state", driveItemOrgResolver)
 	audit.RegisterCollection(app, "drive_shares", driveItemOrgResolver)
 
-	// drive_items create hook:
-	//   - Enforce per-user storage quota using the size field on the record.
-	//   - Try the insert as-is; on a (org, parent, name) unique-constraint
-	//     violation, rename to "base (n)ext" and retry. Lets the DB be the
-	//     authority on collisions instead of probing first (which is racy
-	//     under concurrent uploads and costs an extra query in the common
-	//     no-collision case).
-	//   - Insert the owner drive_shares record in the same transaction so
-	//     drive_items never exists without an owner share.
+	// drive_items create hook owns three concerns the API path can't do alone:
+	//   - per-user storage quota enforcement using the size field
+	//   - auto-rename on (org, parent, name) unique-index collisions, so
+	//     clients can POST "report.pdf" without first listing the folder
+	//   - owner drive_shares insert, in the same transaction as the item, so
+	//     no drive_item ever exists without an owner share
+	//
+	// Dedup is a pre-flight probe of the unique index. The DB index remains
+	// the ultimate safety net for the narrow race where a concurrent
+	// transaction commits a colliding name between probe and INSERT — that
+	// surfaces as a save error to the client, which is acceptable.
 	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		size := e.Record.GetInt("size")
 		orgID := e.Record.GetString("org")
@@ -52,37 +54,22 @@ func Register(app *pocketbase.PocketBase) {
 				return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
 			}
 		}
+		if orgID != "" {
+			unique, err := chooseUniqueDriveItemName(e.App, orgID, e.Record.GetString("parent"), e.Record.GetString("name"))
+			if err != nil {
+				return fmt.Errorf("dedup drive_item name: %w", err)
+			}
+			if unique != e.Record.GetString("name") {
+				e.Record.Set("name", unique)
+			}
+		}
 		if err := e.Next(); err != nil {
-			if !isDriveItemNameConflict(err) {
-				return err
-			}
-			// The default e.Next() path failed on the unique (org, parent, name)
-			// index. Try renamed candidates via SaveNoValidate, which goes
-			// straight to the DB layer and skips re-firing this hook.
-			renamed, renameErr := saveWithUniqueDriveItemName(e.App, e.Record)
-			if renameErr != nil {
-				return renameErr
-			}
-			if !renamed {
-				return err
-			}
+			return err
 		}
 		if userOrgID == "" {
 			return nil
 		}
-		sharesCol, err := e.App.FindCollectionByNameOrId("drive_shares")
-		if err != nil {
-			return fmt.Errorf("find drive_shares collection: %w", err)
-		}
-		share := core.NewRecord(sharesCol)
-		share.Set("item", e.Record.Id)
-		share.Set("user_org", userOrgID)
-		share.Set("role", "owner")
-		share.Set("created_by", userOrgID)
-		if err := e.App.Save(share); err != nil {
-			return fmt.Errorf("create owner share for drive_item %s: %w", e.Record.Id, err)
-		}
-		return nil
+		return createOwnerShare(e.App, e.Record.Id, userOrgID)
 	})
 
 	// FTS sync hooks for drive_items
@@ -218,6 +205,7 @@ func requireAuth(re *core.RequestEvent) error {
 	}
 	return re.Next()
 }
+
 
 // resolveItemAndUserOrg loads the item, validates the user has an org membership matching
 // the item's org, and returns the item plus the matching user_org ID.

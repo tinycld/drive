@@ -60,7 +60,6 @@ export interface DriveContextValue {
     uploadingFiles: UploadingFile[]
     dismissUpload: (id: string) => void
     triggerFilePicker: () => void
-    triggerFolderPicker: () => void
     triggerPhotoPicker: () => void
     uploadNewVersion: (itemId: string, file: File) => Promise<void>
     getItemPath: (itemId: string) => string
@@ -225,7 +224,6 @@ export function useDriveState(): DriveContextValue {
         uploadingFiles: upload.uploadingFiles,
         dismissUpload: upload.dismissUpload,
         triggerFilePicker: upload.triggerFilePicker,
-        triggerFolderPicker: upload.triggerFolderPicker,
         triggerPhotoPicker: upload.triggerPhotoPicker,
         uploadNewVersion: upload.uploadNewVersion,
         getItemPath: mutations.getItemPath,

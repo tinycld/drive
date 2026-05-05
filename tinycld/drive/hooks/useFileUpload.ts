@@ -271,35 +271,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
         [uploadTreeMutation]
     )
 
-    const triggerFolderPicker = useCallback(() => {
-        if (Platform.OS !== 'web') return
-        const input = document.createElement('input')
-        input.type = 'file'
-        input.setAttribute('webkitdirectory', '')
-        input.onchange = () => {
-            if (!input.files?.length) return
-            const entries: DroppedEntry[] = []
-            const dirNames = new Set<string>()
-            for (const file of Array.from(input.files)) {
-                const relativePath = (file as File & { webkitRelativePath: string }).webkitRelativePath
-                if (!relativePath) continue
-                const segments = relativePath.split('/')
-                for (let depth = 1; depth < segments.length; depth++) {
-                    const dirPath = segments.slice(0, depth).join('/')
-                    if (!dirNames.has(dirPath)) {
-                        dirNames.add(dirPath)
-                        entries.push({ path: dirPath, file: null })
-                    }
-                }
-                entries.push({ path: relativePath, file })
-            }
-            if (entries.length > 0) {
-                uploadTree(entries)
-            }
-        }
-        input.click()
-    }, [uploadTree])
-
     const uploadNewVersion = useCallback(async (itemId: string, file: File) => {
         const formData = new FormData()
         formData.append('item', itemId)
@@ -317,7 +288,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
         uploadingFiles,
         dismissUpload,
         triggerFilePicker,
-        triggerFolderPicker,
         triggerPhotoPicker,
         uploadNewVersion,
     }

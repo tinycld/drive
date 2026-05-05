@@ -202,12 +202,10 @@ func (f *driveFile) persistWrite() error {
 	record.Set("created_by", f.userOrg.Id)
 	record.Set("mime_type", guessMimeType(f.wrName))
 
+	// The OnRecordCreate("drive_items") hook in register.go creates the
+	// owner drive_shares row in the same transaction; no follow-up call needed.
 	if err := writeFileContentFromPath(f.fs.app, record, uploadPath); err != nil {
 		return err
-	}
-
-	if err := createOwnerShare(f.fs.app, record.Id, f.userOrg.Id); err != nil {
-		f.fs.app.Logger().Warn("WebDAV: failed to create owner share", "id", record.Id, "error", err)
 	}
 
 	f.info = recordToFileInfo(record)

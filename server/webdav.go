@@ -257,12 +257,10 @@ func (fs *DriveFileSystem) Mkdir(ctx context.Context, name string, _ os.FileMode
 	record.Set("parent", parentID)
 	record.Set("created_by", userOrg.Id)
 
+	// The OnRecordCreate("drive_items") hook in register.go creates the
+	// owner drive_shares row in the same transaction; no follow-up call needed.
 	if err := fs.app.Save(record); err != nil {
 		return err
-	}
-
-	if err := createOwnerShare(fs.app, record.Id, userOrg.Id); err != nil {
-		fs.app.Logger().Warn("WebDAV: failed to create owner share for folder", "id", record.Id, "error", err)
 	}
 
 	return nil

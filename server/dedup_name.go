@@ -1,14 +1,18 @@
 package drive
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core"
 )
+
+// maxRenameAttempts caps the rename probe loop. 1000 contiguous numbered
+// candidates in the same folder is far past any realistic UI flow; if we hit
+// it we fail loud rather than guess a timestamp suffix.
+const maxRenameAttempts = 1000
 
 // splitNameExt splits a filename into base + extension using the rightmost dot
 // as the separator. A leading dot (".env") or no dot returns the original name
@@ -23,57 +27,51 @@ func splitNameExt(name string) (base, ext string) {
 	return name[:idx], name[idx:]
 }
 
-// isDriveItemNameConflict reports whether err is the unique-constraint failure
-// raised when (org, parent, name) collides on drive_items. PocketBase wraps
-// the normalized validation.Errors in errors.Join (via *errors.joinError) by
-// the time it reaches our hook, so we use errors.As to dig it out rather than
-// a direct type assertion. Also matches the raw SQLite error string as a
-// fallback for paths that bypass the normalizer.
-func isDriveItemNameConflict(err error) bool {
-	if err == nil {
-		return false
+// chooseUniqueDriveItemName returns `requested` if no other drive_items row in
+// (org, parent) has that name, otherwise "base (n)ext" where n is the lowest
+// positive integer that yields an unused name. One indexed lookup per probe
+// against the unique (org, parent, name) index; usually one, occasionally a
+// few more on real collisions.
+//
+// The unique index is still the ultimate safety net for the narrow race where
+// another transaction commits a colliding name between our probe and our
+// INSERT — that case surfaces as a save error to the caller.
+func chooseUniqueDriveItemName(app core.App, orgID, parentID, requested string) (string, error) {
+	if requested == "" {
+		return requested, nil
 	}
-	var verrs validation.Errors
-	if errors.As(err, &verrs) {
-		e, ok := verrs["name"]
-		if !ok {
-			return false
-		}
-		if v, ok := e.(validation.Error); ok && v.Code() == "validation_not_unique" {
-			return true
-		}
-		return false
+	taken, err := driveItemNameTaken(app, orgID, parentID, requested)
+	if err != nil {
+		return "", err
 	}
-	return strings.Contains(strings.ToLower(err.Error()), "unique constraint failed")
+	if !taken {
+		return requested, nil
+	}
+	base, ext := splitNameExt(requested)
+	for i := 1; i <= maxRenameAttempts; i++ {
+		candidate := fmt.Sprintf("%s (%d)%s", base, i, ext)
+		taken, err := driveItemNameTaken(app, orgID, parentID, candidate)
+		if err != nil {
+			return "", err
+		}
+		if !taken {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("could not find a free name for %q in this folder after %d attempts", requested, maxRenameAttempts)
 }
 
-// saveWithUniqueDriveItemName retries the record save with sequentially
-// numbered names ("base (1)ext", "base (2)ext", …) until the unique
-// (org, parent, name) index accepts one. Uses SaveNoValidate so the retries
-// don't re-fire the create hook — the DB is the authority on collisions.
-//
-// Returns (true, nil) if a renamed save succeeded, (false, originalErr) if
-// the attempts exhausted, or (false, err) on any non-conflict error.
-func saveWithUniqueDriveItemName(app core.App, record *core.Record) (bool, error) {
-	requested := record.GetString("name")
-	base, ext := splitNameExt(requested)
-	for i := 1; i <= 999; i++ {
-		candidate := fmt.Sprintf("%s (%d)%s", base, i, ext)
-		record.Set("name", candidate)
-		err := app.SaveNoValidate(record)
-		if err == nil {
-			return true, nil
-		}
-		if !isDriveItemNameConflict(err) {
-			return false, err
-		}
+func driveItemNameTaken(app core.App, orgID, parentID, name string) (bool, error) {
+	_, err := app.FindFirstRecordByFilter(
+		"drive_items",
+		"org = {:org} && parent = {:parent} && name = {:name}",
+		map[string]any{"org": orgID, "parent": parentID, "name": name},
+	)
+	if err == nil {
+		return true, nil
 	}
-	// Pathological folder — 999 collisions in a row. Use a timestamp suffix to
-	// break the loop instead of erroring; collisions on this are effectively
-	// impossible.
-	record.Set("name", fmt.Sprintf("%s (%d)%s", base, time.Now().UnixNano(), ext))
-	if err := app.SaveNoValidate(record); err != nil {
-		return false, err
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
 	}
-	return true, nil
+	return false, err
 }
