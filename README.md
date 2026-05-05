@@ -25,9 +25,9 @@ Part of [TinyCld](https://tinycld.org/) — the open-source, self-hosted Google 
 |----------|-----------|------|------------------------------------------------|
 | WebDAV   | RFC 4918  | 443  | Mount drive as a network folder from any OS    |
 
-## Relationship to core
+## Relationship to the app shell
 
-`@tinycld/drive` is a feature package for `@tinycld/core` — the [TinyCld](https://tinycld.org/) app shell that provides auth, routing, storage, and UI primitives. Core ships with **no** feature packages; install this one to add a Drive app.
+`@tinycld/drive` is a feature package for the [TinyCld app shell](https://github.com/tinycld/tinycld), which bundles `@tinycld/core` (auth, routing, storage, UI primitives). The app shell ships with **no** feature packages; install this one to add a Drive app.
 
 This package contributes:
 
@@ -37,19 +37,19 @@ This package contributes:
 - **Nav entry** — sidebar icon with keyboard shortcut `t d` / `d`.
 - **Collections** — `drive_items`, `drive_shares`, `drive_item_state`, `drive_item_versions`, `drive_share_links`.
 - **Migrations** — schema and indexes under `pb-migrations/`.
-- **Go server module** — WebDAV endpoint, public-share endpoints, download/upload handlers, thumbnail generation, version management, archive extraction, permissions, storage quotas, and search — all wired into core's PocketBase binary.
+- **Go server module** — WebDAV endpoint, public-share endpoints, download/upload handlers, thumbnail generation, version management, archive extraction, permissions, storage quotas, and search — all wired into the app shell's PocketBase binary.
 
-The package depends on core at runtime (React, pbtsdb, `~/lib/*`). Core has no knowledge of this package at compile time — everything is discovered at generator time from `tinycld.packages.ts`.
+The package depends on `@tinycld/core` at runtime (React, pbtsdb, `~/lib/*`). The app shell has no knowledge of this package at compile time — everything is discovered at generator time by scanning `tinycld/packages/`.
 
 ## Installation
 
-From inside your `core/` checkout:
+From inside your app shell checkout (`tinycld/tinycld`):
 
 ```sh
 bun run packages:install <this-repo-git-url>
 ```
 
-That clones the repo next to core, symlinks it into `core/packages/@tinycld/drive`, appends the package name to `tinycld.packages.ts`, and runs the generator to wire up routes, collections, migrations, public routes, and Go server extensions.
+That clones the repo next to the app shell, symlinks it into `tinycld/packages/@tinycld/drive`, and runs the generator to wire up routes, collections, migrations, public routes, and Go server extensions.
 
 To remove:
 
@@ -59,16 +59,16 @@ bun run packages:unlink @tinycld/drive
 
 ## Development
 
-This package is not run standalone — it only makes sense inside a `core/` checkout.
+This package is not run standalone — it only makes sense inside an app shell checkout.
 
 ```sh
-cd ../core
+cd ../tinycld
 bun run dev              # expo + pocketbase (with WebDAV) with drive linked
 bun run test:unit        # includes this package's tests
-bun run checks           # biome + tsc across core + linked packages
+bun run checks           # biome + tsc across the app shell + linked packages
 ```
 
-**Do not** run `bun install` inside this directory. Peer dependencies resolve through core's `node_modules/`; installing here creates duplicate copies of `react`, `react-native`, etc. and breaks TypeScript.
+**Do not** run `bun install` inside this directory. Peer dependencies resolve through the app shell's `node_modules/`; installing here creates duplicate copies of `react`, `react-native`, etc. and breaks TypeScript.
 
 ## License
 
