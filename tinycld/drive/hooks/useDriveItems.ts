@@ -1,4 +1,4 @@
-import { and, eq, inArray, not } from '@tanstack/db'
+import { and, eq, inArray } from '@tanstack/db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
 import { useMemo } from 'react'
@@ -134,17 +134,26 @@ export function useDriveItems({
     const isSharedSection = activeSection === 'shared-with-me'
     const sectionScoped = !isSearchActive && (isStarredSection || isTrashSection || isRecentSection || isSharedSection)
 
-    // For starred/trash, the source of truth is the user's drive_item_state rows.
-    // We collect ids locally, then fetch only those drive_items.
-    const stateBackedItemIds = useMemo(() => {
-        if (!isStarredSection && !isTrashSection) return null
-        const ids: string[] = []
-        for (const state of rawStates ?? []) {
-            if (isStarredSection && state.is_starred && !state.trashed_at) ids.push(state.item)
-            if (isTrashSection && state.trashed_at) ids.push(state.item)
+    // Collect the set of item ids that should appear in the active id-driven
+    // section (starred/trash via drive_item_state, shared-with-me via the user's
+    // non-owner drive_shares rows). Avoids ne/not in the server filter — pbtsdb's
+    // converter emits `!(...)`, which PocketBase's filter parser doesn't accept.
+    const idDrivenSectionIds = useMemo(() => {
+        if (isStarredSection) {
+            return (rawStates ?? [])
+                .filter((s) => s.is_starred && !s.trashed_at)
+                .map((s) => s.item)
         }
-        return ids
-    }, [rawStates, isStarredSection, isTrashSection])
+        if (isTrashSection) {
+            return (rawStates ?? []).filter((s) => !!s.trashed_at).map((s) => s.item)
+        }
+        if (isSharedSection) {
+            return (rawShares ?? [])
+                .filter((s) => s.user_org === userOrgId && s.role !== 'owner')
+                .map((s) => s.item)
+        }
+        return null
+    }, [isStarredSection, isTrashSection, isSharedSection, rawStates, rawShares, userOrgId])
 
     const { data: rawSectionItems, isLoading: sectionLoading } = useOrgLiveQuery(
         (query, { orgId: scopedOrgId }) => {
@@ -156,16 +165,13 @@ export function useDriveItems({
                     .orderBy(({ item }) => item.updated, 'desc')
                     .limit(20)
             }
-            if (isSharedSection) {
-                return base.where(({ item }) => and(eq(item.org, scopedOrgId), not(eq(item.created_by, userOrgId))))
-            }
-            // starred / trash: client side joined against state-row item ids.
-            // If the user has no state rows in this set, skip the fetch entirely.
-            if (!stateBackedItemIds || stateBackedItemIds.length === 0) return null
-            const ids = stateBackedItemIds
-            return base.where(({ item }) => and(eq(item.org, scopedOrgId), inArray(item.id, ids)))
+            // starred / trash / shared-with-me are id-driven via the membership
+            // rows we already have locally. If the user has no rows in this set,
+            // skip the fetch entirely.
+            if (!idDrivenSectionIds || idDrivenSectionIds.length === 0) return null
+            return base.where(({ item }) => and(eq(item.org, scopedOrgId), inArray(item.id, idDrivenSectionIds)))
         },
-        [sectionScoped, isRecentSection, isSharedSection, userOrgId, stateBackedItemIds]
+        [sectionScoped, isRecentSection, idDrivenSectionIds]
     )
 
     // Selected/preview lookup. If the URL-driven id isn't in any of the loaded
