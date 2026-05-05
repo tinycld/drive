@@ -1,4 +1,4 @@
-import { eq } from '@tanstack/db'
+import { and, eq, inArray, not } from '@tanstack/db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
 import { useMemo } from 'react'
@@ -19,6 +19,25 @@ interface UseDriveItemsParams {
     uploadingFiles: UploadingFile[]
 }
 
+/**
+ * Loads the drive_items needed for the current view via on-demand server-side
+ * filters, then assembles them into the shapes the UI consumes (currentItems,
+ * folderTree, breadcrumbs, etc.).
+ *
+ * The drive_items collection runs in syncMode:'on-demand' — each useLiveQuery
+ * here translates its where/orderBy into a PocketBase filter, so we never
+ * load the whole org's items just to show one folder.
+ *
+ *   - `currentFolderQuery`  — the items shown in the main pane.
+ *   - `foldersQuery`        — every folder the user can see; small and stable;
+ *                             drives the sidebar tree, breadcrumbs, and the
+ *                             folder section above the file list.
+ *   - `sectionQuery`        — only fires for non-my-drive sections.
+ *   - `selectedItemQuery`   — fires when a selection / preview id isn't in
+ *                             any of the above subsets (e.g. shared link).
+ *
+ * drive_shares and drive_item_state stay eager: small, used everywhere, cheap.
+ */
 export function useDriveItems({
     userOrgId,
     activeSection,
@@ -34,16 +53,10 @@ export function useDriveItems({
     const [stateCollection] = useStore('drive_item_state')
     const [userOrgCollection] = useStore('user_org')
 
-    const { data: rawItems, isLoading: itemsLoading } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
-        query.from({ item: itemsCollection }).where(({ item }) => eq(item.org, scopedOrgId))
-    )
+    // --- supporting eager collections (small) ---------------------------------
 
-    const { data: rawShares, isLoading: sharesLoading } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
-        query
-            .from({ share: sharesCollection })
-            .join({ item: itemsCollection }, ({ share, item }) => eq(share.item, item.id))
-            .where(({ item }) => eq(item.org, scopedOrgId))
-            .select(({ share }) => share)
+    const { data: rawShares, isLoading: sharesLoading } = useOrgLiveQuery((query) =>
+        query.from({ share: sharesCollection })
     )
 
     const { data: rawStates, isLoading: statesLoading } = useOrgLiveQuery((query, { userOrgId: scopedUserOrgId }) =>
@@ -88,9 +101,113 @@ export function useDriveItems({
 
     const stateByItem = useMemo(() => new Map((rawStates ?? []).map((s) => [s.item, s])), [rawStates])
 
+    // --- on-demand drive_items queries ----------------------------------------
+    // Each useOrgLiveQuery against drive_items is translated to a PocketBase
+    // filter and run server-side. Disabled queries return empty data.
+
+    // Items in the current folder for the current org. Only meaningful when the
+    // user is inside My Drive (or a subfolder); other sections supply their own
+    // listing via sectionQuery below.
+    const showCurrentFolder = !isSearchActive && activeSection === 'my-drive'
+    const { data: rawCurrentFolderItems, isLoading: currentFolderLoading } = useOrgLiveQuery(
+        (query, { orgId: scopedOrgId }) => {
+            if (!showCurrentFolder) return null
+            return query
+                .from({ item: itemsCollection })
+                .where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.parent, currentFolderId)))
+        },
+        [showCurrentFolder, currentFolderId]
+    )
+
+    // Every folder the user can see in this org. Small set (folders are a tiny
+    // fraction of items), drives the sidebar tree, breadcrumb resolution, and
+    // the folder section above the file list.
+    const { data: rawFolders, isLoading: foldersLoading } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
+        query.from({ item: itemsCollection }).where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.is_folder, true)))
+    )
+
+    // Section-specific listings — only fired for sections other than my-drive,
+    // which has its own currentFolderQuery.
+    const isStarredSection = activeSection === 'starred'
+    const isTrashSection = activeSection === 'trash'
+    const isRecentSection = activeSection === 'recent'
+    const isSharedSection = activeSection === 'shared-with-me'
+    const sectionScoped = !isSearchActive && (isStarredSection || isTrashSection || isRecentSection || isSharedSection)
+
+    // For starred/trash, the source of truth is the user's drive_item_state rows.
+    // We collect ids locally, then fetch only those drive_items.
+    const stateBackedItemIds = useMemo(() => {
+        if (!isStarredSection && !isTrashSection) return null
+        const ids: string[] = []
+        for (const state of rawStates ?? []) {
+            if (isStarredSection && state.is_starred && !state.trashed_at) ids.push(state.item)
+            if (isTrashSection && state.trashed_at) ids.push(state.item)
+        }
+        return ids
+    }, [rawStates, isStarredSection, isTrashSection])
+
+    const { data: rawSectionItems, isLoading: sectionLoading } = useOrgLiveQuery(
+        (query, { orgId: scopedOrgId }) => {
+            if (!sectionScoped) return null
+            const base = query.from({ item: itemsCollection })
+            if (isRecentSection) {
+                return base
+                    .where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.is_folder, false)))
+                    .orderBy(({ item }) => item.updated, 'desc')
+                    .limit(20)
+            }
+            if (isSharedSection) {
+                return base.where(({ item }) => and(eq(item.org, scopedOrgId), not(eq(item.created_by, userOrgId))))
+            }
+            // starred / trash: client side joined against state-row item ids.
+            // If the user has no state rows in this set, skip the fetch entirely.
+            if (!stateBackedItemIds || stateBackedItemIds.length === 0) return null
+            const ids = stateBackedItemIds
+            return base.where(({ item }) => and(eq(item.org, scopedOrgId), inArray(item.id, ids)))
+        },
+        [sectionScoped, isRecentSection, isSharedSection, userOrgId, stateBackedItemIds]
+    )
+
+    // Selected/preview lookup. If the URL-driven id isn't in any of the loaded
+    // subsets, fetch it directly so the preview / selection still resolves.
+    const wantedLookupId = previewItemId ?? selectedItemId ?? null
+    const lookupAlreadyLoaded = useMemo(() => {
+        if (!wantedLookupId) return true
+        const matches = (rows: { id: string }[] | undefined) =>
+            !!rows && rows.some((it) => it.id === wantedLookupId)
+        return matches(rawCurrentFolderItems) || matches(rawFolders) || matches(rawSectionItems)
+    }, [wantedLookupId, rawCurrentFolderItems, rawFolders, rawSectionItems])
+
+    const lookupNeeded = !!wantedLookupId && !lookupAlreadyLoaded
+    const { data: rawLookupItems } = useOrgLiveQuery(
+        (query, { orgId: scopedOrgId }) => {
+            if (!lookupNeeded || !wantedLookupId) return null
+            return query
+                .from({ item: itemsCollection })
+                .where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.id, wantedLookupId)))
+        },
+        [lookupNeeded, wantedLookupId]
+    )
+
+    // --- merging + view shapes ------------------------------------------------
+
+    // Union of every drive_item we currently have loaded, deduplicated by id.
+    // Downstream code can keep using one map regardless of which query supplied
+    // each row.
+    const loadedItems = useMemo(() => {
+        type Item = NonNullable<typeof rawFolders>[number]
+        const merged = new Map<string, Item>()
+        const sources = [rawCurrentFolderItems, rawFolders, rawSectionItems, rawLookupItems]
+        for (const src of sources) {
+            if (!src) continue
+            for (const row of src) merged.set(row.id, row)
+        }
+        return [...merged.values()]
+    }, [rawCurrentFolderItems, rawFolders, rawSectionItems, rawLookupItems])
+
     const allItems = useMemo<DriveItemView[]>(
         () =>
-            (rawItems ?? []).map((item) => {
+            loadedItems.map((item) => {
                 const state = stateByItem.get(item.id)
                 const shares = sharesByItem.get(item.id) ?? []
                 const hasNonOwnerShares = shares.some((s) => s.role !== 'owner')
@@ -115,7 +232,7 @@ export function useDriveItems({
                     category: mimeTypeToCategory(item.mime_type, item.is_folder),
                 }
             }),
-        [rawItems, stateByItem, sharesByItem, userOrgId, userOrgNames]
+        [loadedItems, stateByItem, sharesByItem, userOrgId, userOrgNames]
     )
 
     const itemsById = useMemo(() => new Map(allItems.map((i) => [i.id, i])), [allItems])
@@ -175,39 +292,30 @@ export function useDriveItems({
             }))
     }, [uploadingFiles, currentFolderId, activeSection, isSearchActive, itemsById, userOrgId])
 
+    const currentFolderItems = useMemo<DriveItemView[]>(() => {
+        if (!showCurrentFolder) return []
+        const ids = new Set((rawCurrentFolderItems ?? []).map((i) => i.id))
+        return allItems.filter((i) => ids.has(i.id) && !i.trashedAt)
+    }, [showCurrentFolder, rawCurrentFolderItems, allItems])
+
+    const sectionItems = useMemo<DriveItemView[]>(() => {
+        if (!sectionScoped) return []
+        const ids = new Set((rawSectionItems ?? []).map((i) => i.id))
+        const filtered = allItems.filter((i) => ids.has(i.id))
+        // section-level filters that aren't expressible in PB filter syntax,
+        // or that depend on local drive_item_state we already have.
+        if (isStarredSection) return filtered.filter((i) => i.starred && !i.trashedAt)
+        if (isTrashSection) return filtered.filter((i) => !!i.trashedAt)
+        if (isRecentSection) return filtered.filter((i) => !i.trashedAt)
+        if (isSharedSection) return filtered.filter((i) => !i.trashedAt)
+        return filtered
+    }, [sectionScoped, rawSectionItems, allItems, isStarredSection, isTrashSection, isRecentSection, isSharedSection])
+
     const currentItems = useMemo(() => {
         if (isSearchActive) return searchItemViews
-
-        switch (activeSection) {
-            case 'my-drive': {
-                const real = allItems.filter(
-                    (i) => i.ownerUserOrgId === userOrgId && i.parentId === currentFolderId && !i.trashedAt
-                )
-                return [...real, ...uploadPlaceholders]
-            }
-            case 'shared-with-me':
-                return allItems.filter((i) => i.ownerUserOrgId !== userOrgId && !i.trashedAt)
-            case 'recent':
-                return allItems
-                    .filter((i) => !i.isFolder && !i.trashedAt)
-                    .sort((a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime())
-                    .slice(0, 20)
-            case 'starred':
-                return allItems.filter((i) => i.starred && !i.trashedAt)
-            case 'trash':
-                return allItems.filter((i) => !!i.trashedAt)
-            default:
-                return []
-        }
-    }, [
-        isSearchActive,
-        searchItemViews,
-        activeSection,
-        allItems,
-        currentFolderId,
-        userOrgId,
-        uploadPlaceholders,
-    ])
+        if (showCurrentFolder) return [...currentFolderItems, ...uploadPlaceholders]
+        return sectionItems
+    }, [isSearchActive, searchItemViews, showCurrentFolder, currentFolderItems, uploadPlaceholders, sectionItems])
 
     const breadcrumbs = useMemo(() => {
         const crumbs: DriveItemView[] = []
@@ -246,25 +354,22 @@ export function useDriveItems({
         return buildTree('')
     }, [allItems, userOrgId])
 
-    const totalStorageUsed = useMemo(() => allItems.reduce((sum, i) => sum + i.size, 0), [allItems])
-
-    const isLoading = itemsLoading || sharesLoading || statesLoading || userOrgsLoading
+    const isLoading =
+        currentFolderLoading || foldersLoading || sectionLoading || sharesLoading || statesLoading || userOrgsLoading
 
     return {
-        allItems,
         itemsById,
         currentItems,
         breadcrumbs,
         selectedItem,
         previewItem,
         folderTree,
-        totalStorageUsed,
         isLoading,
         orgMembers,
         stateByItem,
         sharesByItem,
         userOrgNames,
         userOrgEmails,
-        rawItems,
     }
 }
+

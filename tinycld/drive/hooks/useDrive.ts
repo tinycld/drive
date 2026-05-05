@@ -11,6 +11,7 @@ import { parseDrivePath, useDriveNavigation } from './useDriveNavigation'
 import { useDriveSearch } from './useDriveSearch'
 import { useFileUpload } from './useFileUpload'
 import type { UploadingFile } from './useFileUpload'
+import { useTotalStorage } from './useTotalStorage'
 
 export interface DriveContextValue {
     currentFolderId: string
@@ -137,6 +138,8 @@ export function useDriveState(): DriveContextValue {
         uploadingFiles: upload.uploadingFiles,
     })
 
+    const totalStorageUsed = useTotalStorage()
+
     const mutations = useDriveMutations({
         orgId,
         userOrgId,
@@ -187,7 +190,7 @@ export function useDriveState(): DriveContextValue {
         breadcrumbs: items.breadcrumbs,
         selectedItem: items.selectedItem,
         folderTree: items.folderTree,
-        totalStorageUsed: items.totalStorageUsed,
+        totalStorageUsed,
         isLoading: items.isLoading,
         searchQuery,
         setSearchQuery,

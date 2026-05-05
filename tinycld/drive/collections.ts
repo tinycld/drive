@@ -13,6 +13,10 @@ export function registerCollections(
     const drive_items = newCollection('drive_items', {
         omitOnInsert: ['created', 'updated', 'thumbnail'] as const,
         expand: { created_by: coreStores.user_org },
+        // On-demand: each useLiveQuery against drive_items issues a server
+        // fetch with the where/orderBy translated into a PocketBase filter.
+        // Avoids loading every item in the org just to render a single folder.
+        syncMode: 'on-demand' as const,
         collectionOptions: {
             autoIndex: 'eager' as const,
             defaultIndexType: BasicIndex,
