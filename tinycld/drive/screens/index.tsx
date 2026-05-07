@@ -12,7 +12,7 @@ import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
 import { queryClient } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Download, Star, Trash2 } from 'lucide-react-native'
-import { useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import {
     type GestureResponderEvent,
     Image,
@@ -53,6 +53,16 @@ export default function DriveScreen() {
         }
     }, [])
 
+    // Track which views the user has visited so we can keep them mounted.
+    // Toggling list↔grid otherwise unmounts ~60 rows and remounts ~60 cards
+    // (or vice versa); on a populated folder that's 500ms+ of pure React
+    // commit work. Once a view has been mounted we hide it via display:none
+    // instead of unmounting, so subsequent toggles are a CSS-level swap.
+    const [visitedList, setVisitedList] = useState(viewMode === 'list')
+    const [visitedGrid, setVisitedGrid] = useState(viewMode === 'grid')
+    if (viewMode === 'list' && !visitedList) setVisitedList(true)
+    if (viewMode === 'grid' && !visitedGrid) setVisitedGrid(true)
+
     if (isSearching) {
         return <LoadingState message="Searching…" />
     }
@@ -68,11 +78,52 @@ export default function DriveScreen() {
         return <EmptyState message={message} />
     }
 
-    if (viewMode === 'grid') {
-        return <GridView items={currentItems} isRefreshing={isRefreshing} onRefresh={handleRefresh} />
-    }
+    return (
+        <>
+            {visitedList && (
+                <HiddenView isHidden={viewMode !== 'list'}>
+                    <ListView
+                        items={currentItems}
+                        isTrash={isTrash}
+                        isRefreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                    />
+                </HiddenView>
+            )}
+            {visitedGrid && (
+                <HiddenView isHidden={viewMode !== 'grid'}>
+                    <GridView items={currentItems} isRefreshing={isRefreshing} onRefresh={handleRefresh} />
+                </HiddenView>
+            )}
+        </>
+    )
+}
 
-    return <ListView items={currentItems} isTrash={isTrash} isRefreshing={isRefreshing} onRefresh={handleRefresh} />
+function HiddenView({ isHidden, children }: { isHidden: boolean; children: React.ReactNode }) {
+    if (Platform.OS !== 'web') {
+        // Native lacks display:none; just don't render the inactive tree.
+        // The toggle cost on native isn't the user's reported bottleneck.
+        return isHidden ? null : <>{children}</>
+    }
+    // Active view fills the parent normally. Hidden view stays in the tree
+    // (so its DOM/fibers persist across toggles) but is moved out of layout
+    // and made non-interactive. We use display:none for the hidden side
+    // because position:absolute + visibility:hidden still pays full layout
+    // cost on the hidden subtree and slows the toggle.
+    return (
+        <View
+            // biome-ignore lint/suspicious/noExplicitAny: web-only style props
+            style={
+                {
+                    display: isHidden ? 'none' : 'flex',
+                    flex: isHidden ? 0 : 1,
+                    pointerEvents: isHidden ? 'none' : 'auto',
+                } as any
+            }
+        >
+            {children}
+        </View>
+    )
 }
 
 const DRIVE_COLUMNS = [
@@ -89,7 +140,11 @@ const TRASH_COLUMNS = [
     { label: 'File size', flex: 1 },
 ]
 
-function ListView({
+// Memoized so the hidden view skips re-render when only viewMode changes.
+// Toggle re-renders DriveScreen, but as long as items / isTrash / isRefreshing
+// / onRefresh are stable, the entire view subtree (and its 50+ rows) is reused.
+const ListView = memo(ListViewImpl)
+function ListViewImpl({
     items,
     isTrash,
     isRefreshing,
@@ -101,6 +156,13 @@ function ListView({
     onRefresh: () => void
 }) {
     const isMobile = useBreakpoint() === 'mobile'
+    // Theme colors are global — read once at the view level so all rows share
+    // the same JS-side cache. Each useThemeColor call hits getComputedStyle on
+    // the document element; doing that 4× per row × 60 rows × multiple renders
+    // costs ~75ms per toggle.
+    const mutedColor = useThemeColor('muted-foreground')
+    const borderColor = useThemeColor('border')
+    const activeIndicator = useThemeColor('active-indicator')
     const { folders, files } = useMemo(
         () => ({
             folders: items.filter((i) => i.isFolder),
@@ -141,7 +203,14 @@ function ListView({
                 {folders.map((item, i) =>
                     isTrash ? (
                         <DriveContextMenu key={item.id} item={item}>
-                            <TrashListRow item={item} isSelected={isSelected(item.id)} onSelect={handleSelect} />
+                            <TrashListRow
+                                item={item}
+                                isSelected={isSelected(item.id)}
+                                onSelect={handleSelect}
+                                isMobile={isMobile}
+                                mutedColor={mutedColor}
+                                activeIndicator={activeIndicator}
+                            />
                         </DriveContextMenu>
                     ) : (
                         <DriveContextMenu key={item.id} item={item}>
@@ -151,6 +220,10 @@ function ListView({
                                 isSelected={isSelected(item.id)}
                                 isFocused={item.id === focusedId}
                                 onSelect={handleSelect}
+                                isMobile={isMobile}
+                                mutedColor={mutedColor}
+                                borderColor={borderColor}
+                                activeIndicator={activeIndicator}
                             />
                         </DriveContextMenu>
                     )
@@ -162,7 +235,14 @@ function ListView({
                     if (isTrash) {
                         return (
                             <DriveContextMenu key={item.id} item={item}>
-                                <TrashListRow item={item} isSelected={isSelected(item.id)} onSelect={handleSelect} />
+                                <TrashListRow
+                                    item={item}
+                                    isSelected={isSelected(item.id)}
+                                    onSelect={handleSelect}
+                                    isMobile={isMobile}
+                                    mutedColor={mutedColor}
+                                    activeIndicator={activeIndicator}
+                                />
                             </DriveContextMenu>
                         )
                     }
@@ -174,6 +254,10 @@ function ListView({
                                 isSelected={isSelected(item.id)}
                                 isFocused={item.id === focusedId}
                                 onSelect={handleSelect}
+                                isMobile={isMobile}
+                                mutedColor={mutedColor}
+                                borderColor={borderColor}
+                                activeIndicator={activeIndicator}
                             />
                         </DriveContextMenu>
                     )
@@ -188,17 +272,25 @@ interface SelectableRowProps {
     onSelect: (itemId: string, event: GestureResponderEvent) => void
 }
 
-function FilesListRow({
+interface RowThemeProps {
+    isMobile: boolean
+    mutedColor: string
+    borderColor: string
+    activeIndicator: string
+}
+
+const FilesListRow = memo(FilesListRowImpl)
+function FilesListRowImpl({
     item,
     index,
     isSelected,
     isFocused,
     onSelect,
-}: { item: DriveItemView; index: number; isFocused?: boolean } & SelectableRowProps) {
-    const mutedColor = useThemeColor('muted-foreground')
-    const borderColor = useThemeColor('border')
-    const activeIndicator = useThemeColor('active-indicator')
-    const isMobile = useBreakpoint() === 'mobile'
+    isMobile,
+    mutedColor,
+    borderColor,
+    activeIndicator,
+}: { item: DriveItemView; index: number; isFocused?: boolean } & SelectableRowProps & RowThemeProps) {
     const { openPreview, navigateToFolder, toggleStar, downloadItem, moveToTrash } = useDrive()
     const [isHovered, setIsHovered] = useState(false)
 
@@ -253,7 +345,7 @@ function FilesListRow({
                 onPress={handleMobilePress}
                 className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
-                <ListRowThumbnail item={item} size={40} fallbackIconSize={24} />
+                <ListRowThumbnail item={item} size={40} fallbackIconSize={24} mutedColor={mutedColor} />
                 <View className="flex-1 gap-0.5">
                     <Text numberOfLines={1} className="text-foreground" style={{ fontSize: 16, fontWeight: '500' }}>
                         {item.name}
@@ -290,7 +382,7 @@ function FilesListRow({
             {...hoverWebProps}
         >
             <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
-                <ListRowThumbnail item={item} size={28} fallbackIconSize={20} />
+                <ListRowThumbnail item={item} size={28} fallbackIconSize={20} mutedColor={mutedColor} />
                 <Text
                     numberOfLines={1}
                     className="flex-1 text-foreground"
@@ -358,16 +450,18 @@ function FilesListRow({
     )
 }
 
-function ListRowThumbnail({
+const ListRowThumbnail = memo(ListRowThumbnailImpl)
+function ListRowThumbnailImpl({
     item,
     size,
     fallbackIconSize,
+    mutedColor,
 }: {
     item: DriveItemView
     size: number
     fallbackIconSize: number
+    mutedColor: string
 }) {
-    const mutedColor = useThemeColor('muted-foreground')
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
     const { url: thumbnailUrl } = useAuthedThumbnailURL(
         item.isFolder ? undefined : driveItemToSource(item),
@@ -391,9 +485,19 @@ function ListRowThumbnail({
     )
 }
 
-function TrashListRow({ item, isSelected, onSelect }: { item: DriveItemView } & SelectableRowProps) {
-    const activeIndicator = useThemeColor('active-indicator')
-    const isMobile = useBreakpoint() === 'mobile'
+const TrashListRow = memo(TrashListRowImpl)
+function TrashListRowImpl({
+    item,
+    isSelected,
+    onSelect,
+    isMobile,
+    mutedColor,
+    activeIndicator,
+}: { item: DriveItemView } & SelectableRowProps & {
+    isMobile: boolean
+    mutedColor: string
+    activeIndicator: string
+}) {
 
     if (isMobile) {
         return (
@@ -401,7 +505,7 @@ function TrashListRow({ item, isSelected, onSelect }: { item: DriveItemView } & 
                 onPress={(e) => onSelect(item.id, e)}
                 className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
-                <ListRowThumbnail item={item} size={40} fallbackIconSize={24} />
+                <ListRowThumbnail item={item} size={40} fallbackIconSize={24} mutedColor={mutedColor} />
                 <View className="flex-1 gap-0.5">
                     <Text numberOfLines={1} className="text-foreground" style={{ fontSize: 16, fontWeight: '500' }}>
                         {item.name}
@@ -422,7 +526,7 @@ function TrashListRow({ item, isSelected, onSelect }: { item: DriveItemView } & 
             style={isSelected ? { backgroundColor: `${activeIndicator}12` } : undefined}
         >
             <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
-                <ListRowThumbnail item={item} size={28} fallbackIconSize={20} />
+                <ListRowThumbnail item={item} size={28} fallbackIconSize={20} mutedColor={mutedColor} />
                 <Text
                     numberOfLines={1}
                     className="flex-1 text-foreground"
@@ -480,7 +584,8 @@ function useGridLayout() {
     return { cardWidth, onLayout }
 }
 
-function GridView({
+const GridView = memo(GridViewImpl)
+function GridViewImpl({
     items,
     isRefreshing,
     onRefresh,
@@ -490,6 +595,7 @@ function GridView({
     onRefresh: () => void
 }) {
     const isMobile = useBreakpoint() === 'mobile'
+    const mutedColor = useThemeColor('muted-foreground')
     const { folders, files } = useMemo(
         () => ({
             folders: items.filter((i) => i.isFolder),
@@ -523,6 +629,8 @@ function GridView({
                                         item={item}
                                         isSelected={isSelected(item.id)}
                                         onSelect={handleSelect}
+                                        isMobile={isMobile}
+                                        mutedColor={mutedColor}
                                     />
                                 </DriveContextMenu>
                             </View>
@@ -544,6 +652,8 @@ function GridView({
                                             item={item}
                                             isSelected={isSelected(item.id)}
                                             onSelect={handleSelect}
+                                            isMobile={isMobile}
+                                            mutedColor={mutedColor}
                                         />
                                     </DriveContextMenu>
                                 )}
@@ -572,9 +682,19 @@ function GridSectionHeader({ title }: { title: string }) {
     )
 }
 
-function FolderGridCard({ item, isSelected, onSelect }: { item: DriveItemView } & SelectableRowProps) {
-    const mutedColor = useThemeColor('muted-foreground')
-    const isMobile = useBreakpoint() === 'mobile'
+interface GridCardThemeProps {
+    isMobile: boolean
+    mutedColor: string
+}
+
+const FolderGridCard = memo(FolderGridCardImpl)
+function FolderGridCardImpl({
+    item,
+    isSelected,
+    onSelect,
+    isMobile,
+    mutedColor,
+}: { item: DriveItemView } & SelectableRowProps & GridCardThemeProps) {
     const { navigateToFolder } = useDrive()
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 
@@ -596,9 +716,14 @@ function FolderGridCard({ item, isSelected, onSelect }: { item: DriveItemView } 
     )
 }
 
-function FileGridCard({ item, isSelected, onSelect }: { item: DriveItemView } & SelectableRowProps) {
-    const mutedColor = useThemeColor('muted-foreground')
-    const isMobile = useBreakpoint() === 'mobile'
+const FileGridCard = memo(FileGridCardImpl)
+function FileGridCardImpl({
+    item,
+    isSelected,
+    onSelect,
+    isMobile,
+    mutedColor,
+}: { item: DriveItemView } & SelectableRowProps & GridCardThemeProps) {
     const { openPreview } = useDrive()
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
 

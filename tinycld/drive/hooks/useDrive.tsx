@@ -2,7 +2,7 @@ import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useUserPreference } from '@tinycld/core/lib/use-user-preference'
 import { useGlobalSearchParams, usePathname } from 'expo-router'
-import { type ReactNode, createContext, useContext } from 'react'
+import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { DialogTarget, PromptDialog } from '../stores/drive-ui-store'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, SidebarSection, ViewMode } from '../types'
@@ -117,7 +117,24 @@ export function useDriveState(): DriveContextValue {
     const clearSelection = useDriveUIStore((s) => s.clearSelection)
     const previewItemId = params.preview === '1' && selectedItemId ? selectedItemId : null
 
-    const [viewMode, setViewMode] = useUserPreference<ViewMode>('drive', 'view_mode', 'list')
+    // viewMode is decoupled from server persistence so the toggle UI updates
+    // synchronously. useUserPreference goes through a TanStack DB optimistic
+    // mutation + live-query notify cycle that costs ~100ms — perceptible on
+    // every click. Local React state flips instantly; the persisted value
+    // hydrates the local state once (on first sync) and writes through on
+    // every change in the background.
+    const [persistedViewMode, persistViewMode] = useUserPreference<ViewMode>('drive', 'view_mode', 'list')
+    const [viewMode, setViewModeLocal] = useState<ViewMode>(persistedViewMode)
+    useEffect(() => {
+        setViewModeLocal(persistedViewMode)
+    }, [persistedViewMode])
+    const setViewMode = useCallback(
+        (mode: ViewMode) => {
+            setViewModeLocal(mode)
+            persistViewMode(mode)
+        },
+        [persistViewMode]
+    )
 
     const {
         searchQuery,

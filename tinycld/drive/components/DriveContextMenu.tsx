@@ -24,7 +24,15 @@ interface DriveContextMenuProps {
     children: ReactNode
 }
 
+// The outer wrapper must stay cheap — a populated list view mounts ~60 of
+// these. The expensive parts (subscribing to `useDrive()` and building the
+// menu items JSX) live inside <DriveMenuContent>, which ContextMenu mounts
+// lazily on first open.
 export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
+    return <ContextMenu content={() => <DriveMenuContent item={item} />}>{children}</ContextMenu>
+}
+
+function DriveMenuContent({ item }: { item: DriveItemView }) {
     const mutedColor = useThemeColor('muted-foreground')
     const {
         activeSection,
@@ -45,15 +53,19 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
 
     const isTrash = activeSection === 'trash'
 
-    const menuContent = isTrash ? (
-        <TrashMenuItems
-            mutedColor={mutedColor}
-            onRestore={() => restoreFromTrash(item.id)}
-            canRestoreToOriginal={canRestoreToOriginalLocation(item.id)}
-            onRequestMove={() => openMoveDialog(item.id, item.name)}
-            onPermanentDelete={() => permanentlyDelete(item.id)}
-        />
-    ) : (
+    if (isTrash) {
+        return (
+            <TrashMenuItems
+                mutedColor={mutedColor}
+                onRestore={() => restoreFromTrash(item.id)}
+                canRestoreToOriginal={canRestoreToOriginalLocation(item.id)}
+                onRequestMove={() => openMoveDialog(item.id, item.name)}
+                onPermanentDelete={() => permanentlyDelete(item.id)}
+            />
+        )
+    }
+
+    return (
         <NormalMenuItems
             item={item}
             mutedColor={mutedColor}
@@ -78,8 +90,6 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
             onTrash={() => moveToTrash(item.id)}
         />
     )
-
-    return <ContextMenu content={menuContent}>{children}</ContextMenu>
 }
 
 function NormalMenuItems({
