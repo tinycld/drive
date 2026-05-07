@@ -58,6 +58,17 @@ const GRID_PADDING = 16
 const CARD_MIN_DESKTOP = 200
 const CARD_MIN_MOBILE = 150
 
+// Explicit row heights stamped on the CellRendererComponent style. Without
+// these, FlashList cached each cell's measured height; recycling a cell
+// across a list↔grid toggle kept the previous tenant's height in the
+// position cache, so list rows landed at ~150px (a grid card's height)
+// with huge blank gaps below.
+const ROW_HEIGHT_LIST_DESKTOP = 49 // px-3 py-2.5 + 28px thumbnail + 1px border-b
+const ROW_HEIGHT_LIST_MOBILE = 65 // px-4 py-3 + 40px thumbnail + 1px border-b
+const ROW_HEIGHT_GRID_CARD = 168 // 120 thumb + ~36 header strip + 12 bottom gap
+const ROW_HEIGHT_SECTION_LABEL = 36 // 12px font + ~24px margins
+const ROW_HEIGHT_LIST_UPLOAD = 56 // matches UploadingListRow's natural height
+
 interface GridLayout {
     cols: number
     cardWidth: number
@@ -191,6 +202,44 @@ export default function DriveScreen() {
 
     const keyExtractor = useCallback((row: RowData, index: number) => keyForRow(row, index), [])
 
+    // Stamp an explicit height on each cell wrapper. FlashList caches each
+    // cell's natural-measured height; recycling a cell across a list↔grid
+    // toggle kept the previous tenant's height in the position cache and
+    // left huge gaps between rows. Pinning height per row kind makes the
+    // wrapper non-measuring, so recycled cells always render at the
+    // correct size for whatever they now contain.
+    const heightForRow = useCallback(
+        (row: RowData): number => {
+            switch (row.kind) {
+                case 'section-label':
+                    return ROW_HEIGHT_SECTION_LABEL
+                case 'list-item':
+                    if (row.item.uploadStatus) return ROW_HEIGHT_LIST_UPLOAD
+                    return isMobile ? ROW_HEIGHT_LIST_MOBILE : ROW_HEIGHT_LIST_DESKTOP
+                case 'grid-item':
+                    return ROW_HEIGHT_GRID_CARD
+            }
+        },
+        [isMobile]
+    )
+
+    const CellRendererComponent = useMemo(() => {
+        // The FlashList docs say the root component should be a CellContainer
+        // — i.e. a View that forwards onLayout/style/index. We just need to
+        // augment style.height. Defining the component inside useMemo ties
+        // it to the latest data array so the row lookup is closed over.
+        return function DriveCell({
+            index,
+            style,
+            ...rest
+        }: { index: number; style?: { height?: number } } & Record<string, unknown>) {
+            const row = data[index]
+            const h = row ? heightForRow(row) : undefined
+            const merged = h != null ? { ...style, height: h } : style
+            return <View {...rest} style={merged} />
+        }
+    }, [data, heightForRow])
+
     const renderItem = useCallback(
         ({ item: row }: { item: RowData }) => {
             switch (row.kind) {
@@ -307,20 +356,13 @@ export default function DriveScreen() {
                     </View>
                 )}
                 <FlashList<RowData>
-                    // Re-key on viewMode so list and grid get fresh FlashList
-                    // instances. Toggling between them reuses the underlying
-                    // cell pool, and FlashList's measurement cache held onto
-                    // grid-card heights when cells recycled into list rows —
-                    // some rows paint at ~150px instead of ~48px even though
-                    // getItemType differentiates the kinds. A fresh key
-                    // sidesteps the cache without manually invalidating.
-                    key={viewMode}
                     ref={flashListRef}
                     data={data}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
                     getItemType={getItemType}
                     overrideItemLayout={overrideItemLayout}
+                    CellRendererComponent={CellRendererComponent}
                     numColumns={numColumns}
                     contentContainerStyle={
                         viewMode === 'list'
