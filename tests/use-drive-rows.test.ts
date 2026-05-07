@@ -30,33 +30,21 @@ describe('buildDriveRows', () => {
     const file1 = item('file1')
     const file2 = item('file2')
 
-    it('list mode desktop emits header, then folders, then files', () => {
+    it('list mode emits folders then files (header lives outside the list)', () => {
         const rows = buildDriveRows({
             folders: [folder1, folder2],
             files: [file1, file2],
             viewMode: 'list',
-            isMobile: false,
         })
         expect(rows.map((r) => r.kind)).toEqual([
-            'list-header',
             'list-item',
             'list-item',
             'list-item',
             'list-item',
         ])
         // index runs across folders + files
-        expect((rows[1] as { index: number }).index).toBe(0)
-        expect((rows[4] as { index: number }).index).toBe(3)
-    })
-
-    it('list mode mobile omits the header', () => {
-        const rows = buildDriveRows({
-            folders: [folder1],
-            files: [file1],
-            viewMode: 'list',
-            isMobile: true,
-        })
-        expect(rows.map((r) => r.kind)).toEqual(['list-item', 'list-item'])
+        expect((rows[0] as { index: number }).index).toBe(0)
+        expect((rows[3] as { index: number }).index).toBe(3)
     })
 
     it('grid mode emits section labels and grid items', () => {
@@ -64,7 +52,6 @@ describe('buildDriveRows', () => {
             folders: [folder1],
             files: [file1, file2],
             viewMode: 'grid',
-            isMobile: false,
         })
         expect(rows.map((r) => r.kind)).toEqual([
             'section-label',
@@ -82,7 +69,6 @@ describe('buildDriveRows', () => {
             folders: [],
             files: [file1],
             viewMode: 'grid',
-            isMobile: false,
         })
         expect(onlyFiles.map((r) => r.kind)).toEqual(['section-label', 'grid-item'])
         expect((onlyFiles[0] as { title: string }).title).toBe('Files')
@@ -91,7 +77,6 @@ describe('buildDriveRows', () => {
             folders: [folder1],
             files: [],
             viewMode: 'grid',
-            isMobile: false,
         })
         expect(onlyFolders.map((r) => r.kind)).toEqual(['section-label', 'grid-item'])
         expect((onlyFolders[0] as { title: string }).title).toBe('Folders')
@@ -103,7 +88,6 @@ describe('buildDriveRows', () => {
             folders: [],
             files: [uploading, file1],
             viewMode: 'grid',
-            isMobile: false,
         })
         expect(grid).toHaveLength(3)
         expect(grid[1]).toMatchObject({ kind: 'grid-item', item: { id: 'upl' } })
@@ -111,7 +95,6 @@ describe('buildDriveRows', () => {
             folders: [],
             files: [uploading, file1],
             viewMode: 'list',
-            isMobile: true,
         })
         expect(list).toHaveLength(2)
         expect(list[0]).toMatchObject({ kind: 'list-item', item: { id: 'upl' } })

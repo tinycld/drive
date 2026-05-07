@@ -1,14 +1,19 @@
 import { useMemo } from 'react'
 import type { DriveItemView, ViewMode } from '../types'
 
-// Each row in the virtualized drive listing is one of these. Headers and
-// section labels span the full row in grid mode (via overrideItemLayout);
+// Each row in the virtualized drive listing is one of these. Section
+// labels span the full row in grid mode (via overrideItemLayout);
 // list-item / grid-item cells take one column. Splitting list-item and
 // grid-item into separate kinds (rather than threading viewMode through a
 // shared kind) lets FlashList recycle them in separate pools — list rows
 // and grid cards have very different DOM shapes.
+//
+// The list-mode column header lives outside the FlashList (rendered as a
+// plain View above it), not as a row. FlashList's stickyHeaderIndices on
+// react-native-web double-rendered the cell, painting "NAMEAME" / "OOWWNNEEER"
+// overlaps. Putting the header above the scroll area sidesteps the issue
+// and pins naturally because the parent doesn't scroll.
 export type RowData =
-    | { kind: 'list-header' }
     | { kind: 'section-label'; title: 'Folders' | 'Files' }
     | { kind: 'list-item'; item: DriveItemView; index: number }
     | { kind: 'grid-item'; item: DriveItemView }
@@ -17,16 +22,11 @@ export interface BuildRowsParams {
     folders: DriveItemView[]
     files: DriveItemView[]
     viewMode: ViewMode
-    isMobile: boolean
 }
 
-export function buildDriveRows({ folders, files, viewMode, isMobile }: BuildRowsParams): RowData[] {
+export function buildDriveRows({ folders, files, viewMode }: BuildRowsParams): RowData[] {
     const rows: RowData[] = []
     if (viewMode === 'list') {
-        // Mobile list view skips the column header (the row layout omits the
-        // column legend, see FilesListRowImpl's mobile branch in
-        // screens/index.tsx).
-        if (!isMobile) rows.push({ kind: 'list-header' })
         let i = 0
         for (const folder of folders) rows.push({ kind: 'list-item', item: folder, index: i++ })
         for (const file of files) rows.push({ kind: 'list-item', item: file, index: i++ })
@@ -49,6 +49,6 @@ export function useDriveRows(params: BuildRowsParams): RowData[] {
         () => buildDriveRows(params),
         // Listing each field individually lets the memo bail when an unrelated
         // re-render happens (e.g. context change).
-        [params.folders, params.files, params.viewMode, params.isMobile]
+        [params.folders, params.files, params.viewMode]
     )
 }

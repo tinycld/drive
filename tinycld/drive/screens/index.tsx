@@ -129,7 +129,7 @@ export default function DriveScreen() {
     )
 
     const { cols, cardWidth, onLayout } = useGridLayout(isMobile)
-    const data = useDriveRows({ folders, files, viewMode, isMobile })
+    const data = useDriveRows({ folders, files, viewMode })
 
     // Navigable items power keyboard nav and shift-range selection. Skips
     // upload placeholders since they aren't actionable.
@@ -179,10 +179,10 @@ export default function DriveScreen() {
     // don't compete for the same recycled DOM nodes.
     const getItemType = useCallback((row: RowData) => row.kind, [])
 
-    // Section labels and the column header span the full row in grid mode.
+    // Section labels span the full row in grid mode.
     const overrideItemLayout = useCallback(
         (layout: { span?: number }, row: RowData) => {
-            if (row.kind === 'section-label' || row.kind === 'list-header') {
+            if (row.kind === 'section-label') {
                 layout.span = numColumns
             }
         },
@@ -194,8 +194,6 @@ export default function DriveScreen() {
     const renderItem = useCallback(
         ({ item: row }: { item: RowData }) => {
             switch (row.kind) {
-                case 'list-header':
-                    return <DataTableHeader columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS} />
                 case 'section-label':
                     return <GridSectionHeader title={row.title} />
                 case 'list-item': {
@@ -293,9 +291,21 @@ export default function DriveScreen() {
         return <EmptyState message={message} />
     }
 
+    const showColumnHeader = viewMode === 'list' && !isMobile
+
     return (
         <SwipeableRowProvider>
             <View className="flex-1" onLayout={onLayout}>
+                {/* Column header lives above the FlashList rather than as
+                    data[0] + stickyHeaderIndices. RN Web's sticky impl
+                    double-rendered the cell, painting the overlay on top
+                    of the unhidden in-flow row ("NAMEAME / OOWWNNEEER").
+                    Sitting above the scroll area pins it naturally. */}
+                {showColumnHeader && (
+                    <View style={{ paddingHorizontal: 16 }}>
+                        <DataTableHeader columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS} />
+                    </View>
+                )}
                 <FlashList<RowData>
                     ref={flashListRef}
                     data={data}
@@ -304,9 +314,6 @@ export default function DriveScreen() {
                     getItemType={getItemType}
                     overrideItemLayout={overrideItemLayout}
                     numColumns={numColumns}
-                    stickyHeaderIndices={
-                        viewMode === 'list' && !isMobile && data.length > 0 ? [0] : undefined
-                    }
                     contentContainerStyle={
                         viewMode === 'list'
                             ? { paddingHorizontal: isMobile ? 0 : 16 }
@@ -317,7 +324,11 @@ export default function DriveScreen() {
                             <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
                         ) : undefined
                     }
-                    extraData={cardWidth}
+                    // Bumping extraData on every viewMode/cardWidth/isMobile
+                    // change tells FlashList to re-render its rows; without it
+                    // recycled cells in list mode kept their grid-mode
+                    // dimensions after a list↔grid toggle.
+                    extraData={`${viewMode}:${cardWidth}:${isMobile ? 'm' : 'd'}`}
                 />
             </View>
         </SwipeableRowProvider>
@@ -326,8 +337,6 @@ export default function DriveScreen() {
 
 function keyForRow(row: RowData, index: number): string {
     switch (row.kind) {
-        case 'list-header':
-            return '__list_header__'
         case 'section-label':
             return `__section_${row.title}__`
         case 'list-item':
