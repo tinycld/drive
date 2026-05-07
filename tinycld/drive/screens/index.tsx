@@ -307,6 +307,14 @@ export default function DriveScreen() {
                     </View>
                 )}
                 <FlashList<RowData>
+                    // Re-key on viewMode so list and grid get fresh FlashList
+                    // instances. Toggling between them reuses the underlying
+                    // cell pool, and FlashList's measurement cache held onto
+                    // grid-card heights when cells recycled into list rows —
+                    // some rows paint at ~150px instead of ~48px even though
+                    // getItemType differentiates the kinds. A fresh key
+                    // sidesteps the cache without manually invalidating.
+                    key={viewMode}
                     ref={flashListRef}
                     data={data}
                     renderItem={renderItem}
@@ -324,11 +332,7 @@ export default function DriveScreen() {
                             <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
                         ) : undefined
                     }
-                    // Bumping extraData on every viewMode/cardWidth/isMobile
-                    // change tells FlashList to re-render its rows; without it
-                    // recycled cells in list mode kept their grid-mode
-                    // dimensions after a list↔grid toggle.
-                    extraData={`${viewMode}:${cardWidth}:${isMobile ? 'm' : 'd'}`}
+                    extraData={cardWidth}
                 />
             </View>
         </SwipeableRowProvider>
