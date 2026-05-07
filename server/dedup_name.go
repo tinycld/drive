@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -61,12 +62,24 @@ func chooseUniqueDriveItemName(app core.App, orgID, parentID, requested string) 
 	return "", fmt.Errorf("could not find a free name for %q in this folder after %d attempts", requested, maxRenameAttempts)
 }
 
+// driveItemNameTaken probes the (org, parent, name) unique index directly via
+// dbx rather than going through FindFirstRecordByFilter. PocketBase's filter
+// expression layer json-marshals empty-string parameters and produces a stored
+// SQL value of `'""'` rather than `''`, so a probe with parentID == "" never
+// matches root-level rows whose parent is the empty string. Issuing the query
+// directly with dbx parameter binding sidesteps that substitution path.
 func driveItemNameTaken(app core.App, orgID, parentID, name string) (bool, error) {
-	_, err := app.FindFirstRecordByFilter(
-		"drive_items",
-		"org = {:org} && parent = {:parent} && name = {:name}",
-		map[string]any{"org": orgID, "parent": parentID, "name": name},
-	)
+	return driveItemNameTakenDB(app.DB(), orgID, parentID, name)
+}
+
+func driveItemNameTakenDB(db dbx.Builder, orgID, parentID, name string) (bool, error) {
+	var id string
+	err := db.
+		Select("id").
+		From("drive_items").
+		Where(dbx.HashExp{"org": orgID, "parent": parentID, "name": name}).
+		Limit(1).
+		Row(&id)
 	if err == nil {
 		return true, nil
 	}
