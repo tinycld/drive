@@ -1,7 +1,3 @@
-import {
-    getFileURL as coreGetFileURL,
-    getThumbnailURL as coreGetThumbnailURL,
-} from '@tinycld/core/file-viewer/file-url'
 import type { FilePreviewSource } from '@tinycld/core/file-viewer/types'
 import type { DriveItemView } from '../types'
 
@@ -17,12 +13,4 @@ export function driveItemToSource(item: DriveItemView): FilePreviewSource {
         size: item.size,
         thumbnailFileName: item.thumbnail || undefined,
     }
-}
-
-export function getFileURL(item: DriveItemView) {
-    return coreGetFileURL(driveItemToSource(item))
-}
-
-export function getThumbnailURL(item: DriveItemView, size?: string) {
-    return coreGetThumbnailURL(driveItemToSource(item), size)
 }
