@@ -28,12 +28,57 @@ const ASSET_FILES = {
         filename: 'sample.pptx',
         mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     },
-    pdf: { filename: 'sample.pdf', mime: 'application/pdf' },
-    png: { filename: 'sample.png', mime: 'image/png' },
-    jpg: { filename: 'sample.jpg', mime: 'image/jpeg' },
+    pdf: { filename: 'funny-jokes.pdf', mime: 'application/pdf' },
+    png: { filename: 'fish.png', mime: 'image/png' },
+    jpg: { filename: 'mountains.jpg', mime: 'image/jpeg' },
+    hippo: { filename: 'hippo.jpg', mime: 'image/jpeg' },
+    fish: { filename: 'fish.png', mime: 'image/png' },
+    mountains: { filename: 'mountains.jpg', mime: 'image/jpeg' },
+    funnyJokes: { filename: 'funny-jokes.pdf', mime: 'application/pdf' },
 } as const
 
 type AssetKey = keyof typeof ASSET_FILES
+
+// Extension → mime mapping for fake (no-blob) files. The drive UI picks an
+// icon from mime_type alone, so a record with size: 0 and no `file` field
+// renders correctly in the listing — only download is a no-op.
+const MIME_BY_EXT: Record<string, string> = {
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    doc: 'application/msword',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls: 'application/vnd.ms-excel',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ppt: 'application/vnd.ms-powerpoint',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    md: 'text/plain',
+    csv: 'text/csv',
+    json: 'application/json',
+    html: 'text/html',
+    css: 'text/css',
+    js: 'text/javascript',
+    ts: 'text/javascript',
+    zip: 'application/zip',
+    gz: 'application/gzip',
+    tar: 'application/x-tar',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    svg: 'image/svg+xml',
+    webp: 'image/webp',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    mkv: 'video/x-matroska',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    flac: 'audio/flac',
+}
+
+function mimeForName(name: string): string {
+    const ext = name.split('.').pop()?.toLowerCase() ?? ''
+    return MIME_BY_EXT[ext] ?? 'application/octet-stream'
+}
 
 function loadAsset(key: AssetKey): { blob: Blob; size: number; mime: string; filename: string } {
     const asset = ASSET_FILES[key]
@@ -61,12 +106,137 @@ const FOLDERS = [
 
 const FILES: {
     name: string
-    asset: AssetKey
-    folder: string
+    asset?: AssetKey
+    folder: string | null
     shared: boolean
     starred: boolean
     description: string
 }[] = [
+    // Root — visible immediately on opening drive. Every file in
+    // drive/tests/assets/ is uploaded here as a real-backed root entry
+    // (used to verify image previews, viewer rendering, and download
+    // paths). The remaining entries below are metadata-only: size 0,
+    // no `file` field, mime_type drives the icon.
+    {
+        name: 'Hippo.jpg',
+        asset: 'hippo',
+        folder: null,
+        shared: true,
+        starred: true,
+        description: 'A friendly hippo',
+    },
+    {
+        name: 'Mountains.jpg',
+        asset: 'mountains',
+        folder: null,
+        shared: true,
+        starred: false,
+        description: 'Scenic mountain photo',
+    },
+    {
+        name: 'Fish.png',
+        asset: 'fish',
+        folder: null,
+        shared: false,
+        starred: false,
+        description: '',
+    },
+    {
+        name: 'Funny Jokes.pdf',
+        asset: 'funnyJokes',
+        folder: null,
+        shared: true,
+        starred: true,
+        description: 'A collection of jokes',
+    },
+    {
+        name: 'Sample Document.docx',
+        asset: 'docx',
+        folder: null,
+        shared: false,
+        starred: false,
+        description: '',
+    },
+    {
+        name: 'Sample Spreadsheet.xlsx',
+        asset: 'xlsx',
+        folder: null,
+        shared: false,
+        starred: false,
+        description: '',
+    },
+    {
+        name: 'Sample Presentation.pptx',
+        asset: 'pptx',
+        folder: null,
+        shared: false,
+        starred: false,
+        description: '',
+    },
+    {
+        name: 'Welcome.pdf',
+        folder: null,
+        shared: false,
+        starred: true,
+        description: 'Getting started guide',
+    },
+    { name: 'Meeting Notes - All Hands.docx', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Vacation Plans 2026.docx', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Recipes.md', folder: null, shared: false, starred: true, description: 'Family recipes' },
+    { name: 'Reading List.md', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Grocery List.txt', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Passwords (DO NOT SHARE).txt', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Annual Report 2025.pdf', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Investor Pitch.pptx', folder: null, shared: true, starred: true, description: '' },
+    { name: 'Sales Forecast.xlsx', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Customer Feedback.xlsx', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Mockup - Landing Page.png', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Mockup - Dashboard v2.png', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Wireframe.svg', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Logo Final.svg', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Conference Talk.pptx', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Speaker Notes.docx', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Demo Recording.mp4', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Office Tour.mov', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Team Photo - Summer Offsite.jpg', folder: null, shared: true, starred: true, description: '' },
+    { name: 'Whiteboard Snapshot.jpg', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Coffee Counter.gif', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Old Backup.zip', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Source Code Snapshot.tar.gz', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Database Dump.sql', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Deployment Notes.md', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Server Configuration.json', folder: null, shared: false, starred: false, description: '' },
+    { name: 'API Tokens (rotate quarterly).json', folder: null, shared: false, starred: false, description: '' },
+    { name: 'index.html', folder: null, shared: false, starred: false, description: '' },
+    { name: 'styles.css', folder: null, shared: false, starred: false, description: '' },
+    { name: 'analytics.js', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Podcast Episode 42.mp3', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Voice Memo - Brainstorm.mp3', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Soundtrack Idea.wav', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Keynote Audio.flac', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Business Cards.pdf', folder: null, shared: true, starred: false, description: '' },
+    { name: 'NDA Template.pdf', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Vendor Quote - Acme.pdf', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Receipt - October.pdf', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Lease Agreement.pdf', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Headshots.zip', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Brand Assets.zip', folder: null, shared: true, starred: false, description: '' },
+    { name: 'OKRs Q2.docx', folder: null, shared: true, starred: true, description: '' },
+    { name: '1:1 Notes - Manager.docx', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Performance Review (Self).docx', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Hiring Plan.xlsx', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Interview Loop - Engineering.docx', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Offer Letter Template.docx', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Expense Report.csv', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Mileage Log.csv', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Inventory Count.csv', folder: null, shared: true, starred: false, description: '' },
+    { name: 'Customer List Export.csv', folder: null, shared: false, starred: false, description: '' },
+    { name: 'Holiday Schedule.txt', folder: null, shared: true, starred: false, description: '' },
+    { name: 'TODO.txt', folder: null, shared: false, starred: false, description: '' },
+    { name: 'README.md', folder: null, shared: false, starred: false, description: '' },
+    { name: 'CHANGELOG.md', folder: null, shared: false, starred: false, description: '' },
+    { name: 'LICENSE.txt', folder: null, shared: false, starred: false, description: '' },
+
     // Q1 Planning
     {
         name: 'Product Roadmap 2026.docx',
@@ -259,23 +429,39 @@ async function seedFiles(
 ) {
     for (const file of FILES) {
         log(`Uploading file: ${file.name}`)
-        const asset = loadAsset(file.asset)
-
-        const formData = new FormData()
-        formData.append('org', orgId)
-        formData.append('name', file.name)
-        formData.append('is_folder', 'false')
-        formData.append('mime_type', asset.mime)
-        formData.append('parent', folderIds[file.folder])
-        formData.append('created_by', userOrgId)
-        formData.append('size', String(asset.size))
-        formData.append('description', file.description)
-        formData.append('file', asset.blob, file.name)
+        const parentId = file.folder ? folderIds[file.folder] : ''
 
         // The owner drive_shares row is created server-side by the
         // OnRecordCreate("drive_items") hook; non-owner shares (below)
         // still need to be created explicitly.
-        const record = await pb.collection('drive_items').create(formData)
+        let record: { id: string }
+        if (file.asset) {
+            const asset = loadAsset(file.asset)
+            const formData = new FormData()
+            formData.append('org', orgId)
+            formData.append('name', file.name)
+            formData.append('is_folder', 'false')
+            formData.append('mime_type', asset.mime)
+            formData.append('parent', parentId)
+            formData.append('created_by', userOrgId)
+            formData.append('size', String(asset.size))
+            formData.append('description', file.description)
+            formData.append('file', asset.blob, file.name)
+            record = await pb.collection('drive_items').create(formData)
+        } else {
+            // Metadata-only seed file: no blob backing. Mime is derived
+            // from the extension so the icon renders correctly.
+            record = await pb.collection('drive_items').create({
+                org: orgId,
+                name: file.name,
+                is_folder: false,
+                mime_type: mimeForName(file.name),
+                parent: parentId,
+                created_by: userOrgId,
+                size: 0,
+                description: file.description,
+            })
+        }
 
         // Share with a team member if marked as shared
         if (file.shared && otherMembers.length > 0) {
