@@ -765,6 +765,7 @@ function ViewToggle({ viewMode, onSetViewMode, mutedColor, activeIndicator }: Vi
     return (
         <View className="flex-row gap-0.5">
             <Pressable
+                testID="drive-view-list"
                 onPress={() => onSetViewMode('list')}
                 style={{
                     padding: 6,
@@ -775,6 +776,7 @@ function ViewToggle({ viewMode, onSetViewMode, mutedColor, activeIndicator }: Vi
                 <List size={18} color={viewMode === 'list' ? activeIndicator : mutedColor} />
             </Pressable>
             <Pressable
+                testID="drive-view-grid"
                 onPress={() => onSetViewMode('grid')}
                 style={{
                     padding: 6,
