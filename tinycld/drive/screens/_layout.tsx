@@ -6,13 +6,15 @@ import { DriveDialogs, DriveToolbar } from '../components/DriveToolbar'
 import { DropZone } from '../components/DropZone'
 import { PreviewModal } from '../components/PreviewModal'
 import { UploadStatusBar } from '../components/UploadStatusBar'
-import { useDrive } from '../hooks/useDrive'
+import { DriveStateProvider, useDrive } from '../hooks/useDrive'
 import DriveProvider from '../provider'
 
 export default function DriveLayout() {
     return (
         <DriveProvider>
-            <DriveLayoutInner />
+            <DriveStateProvider>
+                <DriveLayoutInner />
+            </DriveStateProvider>
         </DriveProvider>
     )
 }

@@ -2,6 +2,7 @@ import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useUserPreference } from '@tinycld/core/lib/use-user-preference'
 import { useGlobalSearchParams, usePathname } from 'expo-router'
+import { type ReactNode, createContext, useContext } from 'react'
 import type { DialogTarget, PromptDialog } from '../stores/drive-ui-store'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, SidebarSection, ViewMode } from '../types'
@@ -77,8 +78,28 @@ export interface DriveContextValue {
     closeShareDialog: () => void
 }
 
+// useDriveState() runs the entire drive data tree (live queries, mutations,
+// upload, navigation, search, total storage). Calling it once per row +
+// per context-menu wrapper meant ~120 redundant copies on a 60-item list,
+// which is most of the cost of switching between list and grid view.
+//
+// DriveStateProvider computes useDriveState() once at the screen layout
+// level; useDrive() reads from the context. The sidebar mounts in the
+// workspace shell above the drive routes — it has no provider, so it
+// calls useDriveState() directly.
+const DriveStateContext = createContext<DriveContextValue | null>(null)
+
+export function DriveStateProvider({ children }: { children: ReactNode }) {
+    const value = useDriveState()
+    return <DriveStateContext.Provider value={value}>{children}</DriveStateContext.Provider>
+}
+
 export function useDrive(): DriveContextValue {
-    return useDriveState()
+    const ctx = useContext(DriveStateContext)
+    if (!ctx) {
+        throw new Error('useDrive() must be called within a <DriveStateProvider>')
+    }
+    return ctx
 }
 
 export function useDriveState(): DriveContextValue {

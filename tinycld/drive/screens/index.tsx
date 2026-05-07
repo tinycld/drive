@@ -33,7 +33,8 @@ import { useDoubleClick } from '../hooks/useDoubleClick'
 import { useDrive } from '../hooks/useDrive'
 import { useDriveShortcuts } from '../hooks/useDriveShortcuts'
 import { useFileSelection } from '../hooks/useFileSelection'
-import { getThumbnailURL } from '../lib/file-url'
+import { driveItemToSource } from '../lib/file-url'
+import { useAuthedThumbnailURL } from '@tinycld/core/file-viewer/use-authed-file-url'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
 
@@ -100,8 +101,13 @@ function ListView({
     onRefresh: () => void
 }) {
     const isMobile = useBreakpoint() === 'mobile'
-    const folders = items.filter((i) => i.isFolder)
-    const files = items.filter((i) => !i.isFolder)
+    const { folders, files } = useMemo(
+        () => ({
+            folders: items.filter((i) => i.isFolder),
+            files: items.filter((i) => !i.isFolder),
+        }),
+        [items]
+    )
     const navigableItems = useMemo(
         () => [...folders, ...files.filter((i) => !i.uploadStatus)],
         [folders, files]
@@ -363,7 +369,10 @@ function ListRowThumbnail({
 }) {
     const mutedColor = useThemeColor('muted-foreground')
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
-    const thumbnailUrl = item.isFolder ? '' : getThumbnailURL(item, `${size * 2}x${size * 2}`)
+    const { url: thumbnailUrl } = useAuthedThumbnailURL(
+        item.isFolder ? undefined : driveItemToSource(item),
+        `${size * 2}x${size * 2}`
+    )
 
     if (!thumbnailUrl) {
         return (
@@ -440,17 +449,33 @@ const GRID_PADDING = 16
 const CARD_MIN_DESKTOP = 200
 const CARD_MIN_MOBILE = 150
 
+// Cache the most recent computed cardWidth per breakpoint. The drive screen
+// container width doesn't change when toggling list↔grid, so reusing the
+// previous value as the initial state lets the new GridView paint with the
+// correct width on the first frame instead of rendering at cardMin and
+// then re-rendering once onLayout fires.
+const cachedCardWidth: { mobile: number | null; desktop: number | null } = {
+    mobile: null,
+    desktop: null,
+}
+
 function useGridLayout() {
     const isMobile = useBreakpoint() === 'mobile'
     const cardMin = isMobile ? CARD_MIN_MOBILE : CARD_MIN_DESKTOP
-    const [cardWidth, setCardWidth] = useState(cardMin)
+    const [cardWidth, setCardWidth] = useState(() => {
+        const cached = isMobile ? cachedCardWidth.mobile : cachedCardWidth.desktop
+        return cached ?? cardMin
+    })
     const onLayout = useCallback(
         (e: LayoutChangeEvent) => {
             const w = e.nativeEvent.layout.width - GRID_PADDING * 2
             const cols = Math.max(2, Math.floor((w + GRID_GAP) / (cardMin + GRID_GAP)))
-            setCardWidth(Math.floor((w - GRID_GAP * (cols - 1)) / cols))
+            const next = Math.floor((w - GRID_GAP * (cols - 1)) / cols)
+            if (isMobile) cachedCardWidth.mobile = next
+            else cachedCardWidth.desktop = next
+            setCardWidth((prev) => (prev === next ? prev : next))
         },
-        [cardMin]
+        [cardMin, isMobile]
     )
     return { cardWidth, onLayout }
 }
@@ -465,8 +490,13 @@ function GridView({
     onRefresh: () => void
 }) {
     const isMobile = useBreakpoint() === 'mobile'
-    const folders = items.filter((i) => i.isFolder)
-    const files = items.filter((i) => !i.isFolder)
+    const { folders, files } = useMemo(
+        () => ({
+            folders: items.filter((i) => i.isFolder),
+            files: items.filter((i) => !i.isFolder),
+        }),
+        [items]
+    )
     const { cardWidth, onLayout } = useGridLayout()
     const orderedIds = useMemo(
         () => [...folders, ...files.filter((i) => !i.uploadStatus)].map((i) => i.id),

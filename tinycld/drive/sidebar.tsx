@@ -22,7 +22,7 @@ import {
 } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { useDrive } from './hooks/useDrive'
+import { useDriveState } from './hooks/useDrive'
 import type { FolderTreeNode } from './types'
 
 interface DriveSidebarProps {
@@ -39,7 +39,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         folderTree,
         totalStorageUsed,
         triggerFilePicker,
-    } = useDrive()
+    } = useDriveState()
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
