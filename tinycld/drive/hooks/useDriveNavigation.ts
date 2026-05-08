@@ -1,5 +1,6 @@
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
+import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, SidebarSection } from '../types'
 
 const SECTION_SLUGS: Record<string, SidebarSection> = {
@@ -43,35 +44,26 @@ export function useDriveNavigation({
     const router = useRouter()
     const driveBase = `/a/${orgSlug}/drive`
 
-    const buildDriveHref = (opts?: { section?: SidebarSection; folderId?: string; fileId?: string }) => {
-        let path = driveBase
-        if (opts?.folderId) path = `${driveBase}/folder/${opts.folderId}`
-        else if (opts?.section && opts.section !== 'my-drive') {
+    const buildDriveHref = (opts?: { section?: SidebarSection; folderId?: string }) => {
+        if (opts?.folderId) return `${driveBase}/folder/${opts.folderId}` as Href
+        if (opts?.section && opts.section !== 'my-drive') {
             const slug = opts.section === 'shared-with-me' ? 'shared' : opts.section
-            path = `${driveBase}/${slug}`
+            return `${driveBase}/${slug}` as Href
         }
-        if (opts?.fileId) path += `?file=${opts.fileId}`
-        return path as Href
+        return driveBase as Href
     }
 
+    // Preview state lives in the Zustand store, not the URL. Earlier this
+    // used router.push to set ?file=X&preview=1, which made Expo Router's
+    // <Slot/> remount the screen, blowing away FlashList scroll position
+    // every time the modal opened or closed.
+    const openPreviewItem = useDriveUIStore((s) => s.openPreviewItem)
+    const closePreviewItem = useDriveUIStore((s) => s.closePreviewItem)
     const openPreview = (item: DriveItemView) => {
-        if (!item.isFolder) {
-            const href = buildDriveHref({
-                section: activeSection,
-                folderId: currentFolderId || undefined,
-                fileId: item.id,
-            })
-            router.push(`${href}&preview=1` as Href)
-        }
+        if (!item.isFolder) openPreviewItem(item.id)
     }
-
     const closePreview = () => {
-        router.replace(
-            buildDriveHref({
-                section: activeSection,
-                folderId: currentFolderId || undefined,
-            })
-        )
+        closePreviewItem()
     }
 
     const navigateToFolder = (folderId: string) => {

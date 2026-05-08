@@ -103,6 +103,14 @@ function describeStatus(
     return `${pct}% · ${formatBytes(loaded)} of ${formatBytes(size)}`
 }
 
+// The fill grows from 12px to 28px tall at the bottom of the thumb. Animating
+// `height` is JS-driven (layout-bound); instead we use a fixed-height clipping
+// wrapper plus a translateY on a full-height inner view. translateY=16 hides
+// 16px above the bottom (12px visible); translateY=0 reveals the full 28px.
+// Both translateY and opacity are native-driver friendly.
+const FILL_MAX_HEIGHT = 28
+const FILL_MIN_HEIGHT = 12
+
 function IndeterminateThumbFill({ color }: { color: string }) {
     const anim = useRef(new Animated.Value(0)).current
     useEffect(() => {
@@ -112,13 +120,13 @@ function IndeterminateThumbFill({ color }: { color: string }) {
                     toValue: 1,
                     duration: 1100,
                     easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: false,
+                    useNativeDriver: true,
                 }),
                 Animated.timing(anim, {
                     toValue: 0,
                     duration: 1100,
                     easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: false,
+                    useNativeDriver: true,
                 }),
             ])
         )
@@ -127,20 +135,35 @@ function IndeterminateThumbFill({ color }: { color: string }) {
     }, [anim])
 
     const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] })
-    const height = anim.interpolate({ inputRange: [0, 1], outputRange: [12, 28] })
+    const translateY = anim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [FILL_MAX_HEIGHT - FILL_MIN_HEIGHT, 0],
+    })
 
     return (
-        <Animated.View
+        <View
             pointerEvents="none"
             style={{
                 position: 'absolute',
                 left: 0,
                 right: 0,
                 bottom: 0,
-                height,
-                backgroundColor: color,
-                opacity,
+                height: FILL_MAX_HEIGHT,
+                overflow: 'hidden',
             }}
-        />
+        >
+            <Animated.View
+                style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: FILL_MAX_HEIGHT,
+                    backgroundColor: color,
+                    opacity,
+                    transform: [{ translateY }],
+                }}
+            />
+        </View>
     )
 }

@@ -12,6 +12,13 @@ interface DialogTarget {
 
 interface DriveUIState {
     selectedItemId: string | null
+    /**
+     * Item being shown in the preview modal. Lives in the store rather than
+     * the URL because Expo Router's <Slot/> remounts on search-param changes
+     * in some configurations, blowing away FlashList scroll position. The
+     * modal mounts/unmounts based on this flag without touching the route.
+     */
+    previewItemId: string | null
     selectedIds: Set<string>
     lastSelectedId: string | null
     searchQuery: string
@@ -38,6 +45,8 @@ interface DriveUIState {
 
 interface DriveUIActions {
     selectItem: (itemId: string | null) => void
+    openPreviewItem: (id: string) => void
+    closePreviewItem: () => void
     selectSingle: (id: string) => void
     selectToggle: (id: string) => void
     selectRange: (id: string, orderedIds: string[]) => void
@@ -64,6 +73,7 @@ export type { DialogTarget, PromptDialog }
 
 export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
     selectedItemId: null,
+    previewItemId: null,
     selectedIds: new Set<string>(),
     lastSelectedId: null,
     searchQuery: '',
@@ -77,6 +87,9 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>((set) => ({
     hasFocus: false,
 
     selectItem: (itemId: string | null) => set({ selectedItemId: itemId }),
+
+    openPreviewItem: (id: string) => set({ previewItemId: id }),
+    closePreviewItem: () => set({ previewItemId: null }),
 
     selectSingle: (id: string) => set({ selectedIds: new Set([id]), lastSelectedId: id }),
 

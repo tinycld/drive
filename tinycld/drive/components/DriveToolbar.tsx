@@ -107,7 +107,6 @@ export function DriveToolbar() {
         clearSelection,
         activeSection,
         breadcrumbs,
-        currentFolderId,
         viewMode,
         setViewMode,
         selectItem,
@@ -122,9 +121,15 @@ export function DriveToolbar() {
     } = useDrive()
 
     const selectionCount = selectedIds.size
-    const hasSelection = selectionCount > 0 || selectedItem
+    // Single-item selection is already conveyed by the row highlight + the
+    // detail panel; the row's hover actions cover Preview/Share/etc. The
+    // selection toolbar only adds value when bulk-acting on 2+ items, or
+    // in Trash where Restore/Delete-permanently aren't on the row. Showing
+    // it for a single click also masks the breadcrumb header, which makes
+    // the X-icon + filename pair look like an unrelated decoration.
+    const showSelectionToolbar = selectionCount > 1 || (activeSection === 'trash' && selectionCount > 0)
 
-    if (hasSelection) {
+    if (showSelectionToolbar) {
         const handleClear = () => {
             selectItem(null)
             clearSelection()
@@ -152,16 +157,27 @@ export function DriveToolbar() {
 
     const currentFolder = breadcrumbs.at(-1)
     const currentLabel = currentFolder?.name ?? 'My Files'
-    const isInsideFolder = currentFolderId !== ''
-    const handleRename =
-        isInsideFolder && currentFolder
-            ? () =>
-                  openPrompt({
-                      type: 'rename',
-                      itemId: currentFolder.id,
-                      currentName: currentFolder.name,
-                  })
-            : undefined
+
+    // Rename / Delete act on the currently-selected item, so they only
+    // appear once exactly one item is selected. Without a selection the
+    // toolbar shows just creation actions; with two or more items selected,
+    // we render the multi-select SelectionToolbar instead (handled above).
+    const hasSingleSelection = selectionCount === 1 && selectedItem !== undefined
+    const handleRenameSelected = hasSingleSelection
+        ? () =>
+              openPrompt({
+                  type: 'rename',
+                  itemId: selectedItem.id,
+                  currentName: selectedItem.name,
+              })
+        : undefined
+    const handleTrashSelected = hasSingleSelection
+        ? () => {
+              moveToTrash(selectedItem.id)
+              selectItem(null)
+              clearSelection()
+          }
+        : undefined
 
     const folderActions = (
         <View className="flex-row items-center gap-0.5">
@@ -171,17 +187,11 @@ export function DriveToolbar() {
                 label="New folder"
                 onPress={() => openPrompt({ type: 'new-folder' })}
             />
-            {isInsideFolder && handleRename && (
-                <ToolbarIconButton icon={Pencil} label="Rename" onPress={handleRename} />
+            {hasSingleSelection && handleRenameSelected && (
+                <ToolbarIconButton icon={Pencil} label="Rename" onPress={handleRenameSelected} />
             )}
-            {isInsideFolder && (
-                <ConfirmTrash
-                    itemName={currentLabel}
-                    onConfirmed={() => {
-                        moveToTrash(currentFolderId)
-                        navigateToFolder('')
-                    }}
-                >
+            {hasSingleSelection && handleTrashSelected && selectedItem && (
+                <ConfirmTrash itemName={selectedItem.name} onConfirmed={handleTrashSelected}>
                     {(onOpen) => <ToolbarIconButton icon={Trash2} label="Delete" onPress={onOpen} />}
                 </ConfirmTrash>
             )}
@@ -354,7 +364,10 @@ function MobileBreadcrumbs({
     onNavigate: (folderId: string) => void
     fgColor: string
 }) {
-    const hasParent = breadcrumbs.length > 1
+    // breadcrumbs.length === 0 → at root ("My Files"), no back. ≥1 means
+    // we're inside a folder; even one level deep needs a back button so
+    // mobile users can leave without opening the side nav.
+    const isInsideFolder = breadcrumbs.length >= 1
     const parent = breadcrumbs.at(-2)
 
     const goUp = () => {
@@ -364,8 +377,8 @@ function MobileBreadcrumbs({
 
     return (
         <View className="flex-row items-center flex-1" style={{ gap: 6, minWidth: 0 }}>
-            {hasParent && (
-                <Pressable onPress={goUp} hitSlop={8}>
+            {isInsideFolder && (
+                <Pressable onPress={goUp} hitSlop={8} accessibilityLabel="Go up">
                     <ArrowLeft size={20} color={fgColor} />
                 </Pressable>
             )}
@@ -763,30 +776,85 @@ interface ViewToggleProps {
 
 function ViewToggle({ viewMode, onSetViewMode, mutedColor, activeIndicator }: ViewToggleProps) {
     return (
-        <View className="flex-row gap-0.5">
-            <Pressable
+        <View
+            accessibilityRole="tablist"
+            accessibilityLabel="View mode"
+            className="flex-row rounded-lg border border-border bg-surface-secondary p-0.5"
+        >
+            <ViewToggleSegment
                 testID="drive-view-list"
+                label="List"
+                icon={List}
+                isActive={viewMode === 'list'}
                 onPress={() => onSetViewMode('list')}
-                style={{
-                    padding: 6,
-                    borderRadius: 6,
-                    ...(viewMode === 'list' ? { backgroundColor: `${activeIndicator}18` } : {}),
-                }}
-            >
-                <List size={18} color={viewMode === 'list' ? activeIndicator : mutedColor} />
-            </Pressable>
-            <Pressable
+                mutedColor={mutedColor}
+                activeIndicator={activeIndicator}
+            />
+            <ViewToggleSegment
                 testID="drive-view-grid"
+                label="Grid"
+                icon={Grid}
+                isActive={viewMode === 'grid'}
                 onPress={() => onSetViewMode('grid')}
-                style={{
-                    padding: 6,
-                    borderRadius: 6,
-                    ...(viewMode === 'grid' ? { backgroundColor: `${activeIndicator}18` } : {}),
-                }}
-            >
-                <Grid size={18} color={viewMode === 'grid' ? activeIndicator : mutedColor} />
-            </Pressable>
+                mutedColor={mutedColor}
+                activeIndicator={activeIndicator}
+            />
         </View>
+    )
+}
+
+interface ViewToggleSegmentProps {
+    testID: string
+    label: string
+    icon: typeof List
+    isActive: boolean
+    onPress: () => void
+    mutedColor: string
+    activeIndicator: string
+}
+
+function ViewToggleSegment({
+    testID,
+    label,
+    icon: Icon,
+    isActive,
+    onPress,
+    mutedColor,
+    activeIndicator,
+}: ViewToggleSegmentProps) {
+    const iconColor = isActive ? activeIndicator : mutedColor
+    return (
+        <Pressable
+            testID={testID}
+            onPress={onPress}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={`${label} view`}
+            className={`flex-row items-center gap-1.5 rounded-md px-3 py-1.5 ${
+                isActive ? 'bg-background shadow-sm' : ''
+            }`}
+            style={
+                isActive
+                    ? {
+                          // Soft elevation so the selected pill clearly sits
+                          // above the track on light + dark themes.
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.08,
+                          shadowRadius: 2,
+                          elevation: 1,
+                      }
+                    : undefined
+            }
+        >
+            <Icon size={16} color={iconColor} />
+            <Text
+                className={isActive ? 'text-foreground' : 'text-muted-foreground'}
+                style={{ fontSize: 13, fontWeight: isActive ? '600' : '500' }}
+            >
+                {label}
+            </Text>
+        </Pressable>
     )
 }
 

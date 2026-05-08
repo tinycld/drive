@@ -13,6 +13,7 @@ interface UseDriveMutationsParams {
     userOrgNames: Map<string, string>
     userOrgEmails: Map<string, string>
     sharesByItem: Map<string, { id: string; item: string; user_org: string; role: string }[]>
+    prepareLayoutAnimation?: () => void
 }
 
 export function useDriveMutations({
@@ -24,6 +25,7 @@ export function useDriveMutations({
     userOrgNames,
     userOrgEmails,
     sharesByItem,
+    prepareLayoutAnimation,
 }: UseDriveMutationsParams) {
     const [itemsCollection] = useStore('drive_items')
     const [sharesCollection] = useStore('drive_shares')
@@ -143,9 +145,18 @@ export function useDriveMutations({
         toggleStarMutation.mutate({ itemId, starred: item?.starred ?? false })
     }
 
-    const moveToTrash = (itemId: string) => trashMutation.mutate({ itemId, restore: false })
-    const restoreFromTrash = (itemId: string) => trashMutation.mutate({ itemId, restore: true })
-    const permanentlyDelete = (itemId: string) => permanentDeleteMutation.mutate(itemId)
+    const moveToTrash = (itemId: string) => {
+        prepareLayoutAnimation?.()
+        trashMutation.mutate({ itemId, restore: false })
+    }
+    const restoreFromTrash = (itemId: string) => {
+        prepareLayoutAnimation?.()
+        trashMutation.mutate({ itemId, restore: true })
+    }
+    const permanentlyDelete = (itemId: string) => {
+        prepareLayoutAnimation?.()
+        permanentDeleteMutation.mutate(itemId)
+    }
 
     const createFolder = (name: string) => createFolderMutation.mutate(name)
     const renameItem = (itemId: string, name: string) => renameMutation.mutate({ itemId, name })
@@ -158,6 +169,7 @@ export function useDriveMutations({
     const moveItem = (itemId: string, newParentId: string) => moveMutation.mutate({ itemId, newParentId })
 
     const restoreToFolder = (itemId: string, newParentId: string) => {
+        prepareLayoutAnimation?.()
         moveMutation.mutate({ itemId, newParentId })
         trashMutation.mutate({ itemId, restore: true })
     }
