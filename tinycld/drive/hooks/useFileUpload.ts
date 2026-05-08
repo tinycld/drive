@@ -69,7 +69,12 @@ function uploadFormDataWithProgress(params: {
 }
 
 export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUploadOptions) {
-    const uploadingFiles = useUploadStore((s) => s.uploadingFiles)
+    // Intentionally NOT subscribing to uploadingFiles here. useFileUpload runs
+    // inside useDriveState, so any reactive read of upload progress would force
+    // every useDrive() consumer (toolbar, dialogs, layout, sidebar) to re-render
+    // on every progress tick (~60ms throttle). Components that need to display
+    // upload state read useUploadStore directly; the mutation pipeline below
+    // writes via getState().
     const folderRef = useRef(currentFolderId)
     folderRef.current = currentFolderId
     const [itemsCollection] = useStore('drive_items')
@@ -284,8 +289,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
     return {
         uploadFiles,
         uploadTree,
-        isUploading: uploadMutation.isPending || uploadTreeMutation.isPending,
-        uploadingFiles,
         dismissUpload,
         triggerFilePicker,
         triggerPhotoPicker,

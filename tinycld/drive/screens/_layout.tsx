@@ -1,5 +1,5 @@
+import { FrozenSlideStack } from '@tinycld/core/components/workspace/FrozenStack'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { Slot } from 'expo-router'
 import { View } from 'react-native'
 import { DetailPanel } from '../components/DetailPanel'
 import { DriveDialogs, DriveToolbar } from '../components/DriveToolbar'
@@ -25,7 +25,6 @@ function DriveLayoutInner() {
         activeSection,
         uploadFiles,
         uploadTree,
-        isUploading,
         previewItem,
         closePreview,
         detailPanelOpen,
@@ -41,9 +40,9 @@ function DriveLayoutInner() {
             <View className="flex-1 flex-row">
                 <View className="flex-1">
                     <DropZone onDrop={uploadFiles} onDropTree={uploadTree} isEnabled={isMyDrive}>
-                        <Slot />
+                        <FrozenSlideStack />
                     </DropZone>
-                    <UploadStatusBar isVisible={isUploading} />
+                    <UploadStatusBar />
                 </View>
                 <DetailPanel isVisible={showDetail} item={selectedItem} onClose={closeDetailPanel} />
             </View>

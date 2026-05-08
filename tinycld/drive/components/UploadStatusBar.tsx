@@ -1,25 +1,27 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { ActivityIndicator, Text, View } from 'react-native'
-import { useDrive } from '../hooks/useDrive'
+import { useUploadStore } from '../stores/upload-store'
 
-interface UploadStatusBarProps {
-    isVisible: boolean
-}
-
-export function UploadStatusBar({ isVisible }: UploadStatusBarProps) {
+// Reads upload state directly from the store rather than via useDrive() so
+// progress ticks (~60ms) only re-render this bar, not the rest of the
+// drive tree.
+export function UploadStatusBar() {
     const accentColor = useThemeColor('primary')
-    const { uploadingFiles } = useDrive()
-
-    if (!isVisible) return null
+    const uploadingFiles = useUploadStore((s) => s.uploadingFiles)
 
     const activeCount = uploadingFiles.filter((f) => f.status === 'pending' || f.status === 'uploading').length
     const errorCount = uploadingFiles.filter((f) => f.status === 'error').length
-    let label = 'Upload complete'
-    if (activeCount > 0) {
-        label = `Uploading ${activeCount} file${activeCount !== 1 ? 's' : ''}...`
-    } else if (errorCount > 0) {
-        label = `${errorCount} upload${errorCount !== 1 ? 's' : ''} failed`
-    }
+
+    // Mirror the previous gate: visible only while uploads are in flight or
+    // have errored. Done entries linger in the store for ~3s for the
+    // optimistic placeholder rows; we don't want a "complete" status sticking
+    // around in the bar during that window.
+    if (activeCount === 0 && errorCount === 0) return null
+
+    const label =
+        activeCount > 0
+            ? `Uploading ${activeCount} file${activeCount !== 1 ? 's' : ''}...`
+            : `${errorCount} upload${errorCount !== 1 ? 's' : ''} failed`
 
     return (
         <View className="flex-row items-center gap-2 px-4 py-2.5 border-t border-border bg-background">

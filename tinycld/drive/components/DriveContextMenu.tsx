@@ -15,8 +15,9 @@ import {
     Trash2,
     UserPlus,
 } from 'lucide-react-native'
-import type { ReactNode } from 'react'
-import { useDrive } from '../hooks/useDrive'
+import { type ReactNode, useCallback } from 'react'
+import { useDriveSnapshot } from '../stores/drive-snapshot-store'
+import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
 
 interface DriveContextMenuProps {
@@ -25,11 +26,54 @@ interface DriveContextMenuProps {
 }
 
 // The outer wrapper must stay cheap — a populated list view mounts ~60 of
-// these. The expensive parts (subscribing to `useDrive()` and building the
-// menu items JSX) live inside <DriveMenuContent>, which ContextMenu mounts
+// these. The expensive parts (reading drive state and building the menu
+// items JSX) live inside <DriveMenuContent>, which ContextMenu mounts
 // lazily on first open.
+//
+// DriveMenuContent renders inside Menu.Portal, which routes through
+// Gluestack's OverlayContainer and severs the React context chain — so
+// useDrive() throws there. We read from useDriveSnapshot() instead, which
+// subscribes to an external box that DriveStateProvider mirrors on every
+// render.
 export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
-    return <ContextMenu content={() => <DriveMenuContent item={item} />}>{children}</ContextMenu>
+    // Right-click should highlight the row it targets. Match Finder /
+    // Explorer convention: if the right-clicked row is already part of a
+    // multi-selection, leave that selection alone (the menu's actions are
+    // single-row, but the user's prior selection survives the gesture);
+    // otherwise switch to single-select on the right-clicked row.
+    // Using getState() rather than a hook subscription keeps the wrapper
+    // free of any per-render selection state.
+    //
+    // The cleanup runs when the menu is dismissed without picking an item
+    // (outside-click, escape) — restore the prior selection so an
+    // unactioned right-click doesn't leave a transient highlight behind.
+    // When a menu item is pressed the cleanup is skipped, so the
+    // highlighted row remains while its action runs.
+    const handleOpen = useCallback(() => {
+        const ui = useDriveUIStore.getState()
+        const wasAlreadySelected = ui.selectedIds.has(item.id)
+        const priorSelectedIds = ui.selectedIds
+        const priorLastSelectedId = ui.lastSelectedId
+        const priorSelectedItemId = ui.selectedItemId
+        if (!wasAlreadySelected) {
+            ui.selectSingle(item.id)
+        }
+        ui.selectItem(item.id)
+        if (wasAlreadySelected) return
+        return () => {
+            useDriveUIStore.setState({
+                selectedIds: priorSelectedIds,
+                lastSelectedId: priorLastSelectedId,
+                selectedItemId: priorSelectedItemId,
+            })
+        }
+    }, [item.id])
+
+    return (
+        <ContextMenu content={() => <DriveMenuContent item={item} />} onOpen={handleOpen}>
+            {children}
+        </ContextMenu>
+    )
 }
 
 function DriveMenuContent({ item }: { item: DriveItemView }) {
@@ -49,7 +93,7 @@ function DriveMenuContent({ item }: { item: DriveItemView }) {
         openShareDialog,
         selectItem,
         openDetailPanel,
-    } = useDrive()
+    } = useDriveSnapshot()
 
     const isTrash = activeSection === 'trash'
 

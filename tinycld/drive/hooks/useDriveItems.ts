@@ -5,7 +5,6 @@ import { useMemo } from 'react'
 import { mimeTypeToCategory } from '../components/file-icons'
 import type { DriveItemView, FolderTreeNode, SidebarSection } from '../types'
 import type { DriveSearchResult } from './useDriveSearch'
-import type { UploadingFile } from './useFileUpload'
 
 interface UseDriveItemsParams {
     userOrgId: string
@@ -16,7 +15,6 @@ interface UseDriveItemsParams {
     searchQuery: string
     searchResults: DriveSearchResult[]
     isSearchActive: boolean
-    uploadingFiles: UploadingFile[]
 }
 
 /**
@@ -46,7 +44,6 @@ export function useDriveItems({
     previewItemId,
     searchResults,
     isSearchActive,
-    uploadingFiles,
 }: UseDriveItemsParams) {
     const [itemsCollection] = useStore('drive_items')
     const [sharesCollection] = useStore('drive_shares')
@@ -269,35 +266,6 @@ export function useDriveItems({
         })
     }, [isSearchActive, searchResults, itemsById])
 
-    const uploadPlaceholders = useMemo<DriveItemView[]>(() => {
-        if (isSearchActive) return []
-        if (activeSection !== 'my-drive') return []
-        return uploadingFiles
-            .filter((u) => u.parentId === currentFolderId)
-            .filter((u) => !itemsById.has(u.id))
-            .map((u) => ({
-                id: u.id,
-                name: u.name,
-                isFolder: false,
-                mimeType: '',
-                parentId: u.parentId,
-                owner: 'me',
-                ownerUserOrgId: userOrgId,
-                updated: '',
-                size: u.size,
-                shared: false,
-                starred: false,
-                trashedAt: '',
-                file: '',
-                thumbnail: '',
-                description: '',
-                category: mimeTypeToCategory('', false),
-                uploadStatus: u.status,
-                uploadLoaded: u.loaded,
-                uploadError: u.errorMessage,
-            }))
-    }, [uploadingFiles, currentFolderId, activeSection, isSearchActive, itemsById, userOrgId])
-
     const currentFolderItems = useMemo<DriveItemView[]>(() => {
         if (!showCurrentFolder) return []
         const ids = new Set((rawCurrentFolderItems ?? []).map((i) => i.id))
@@ -317,11 +285,14 @@ export function useDriveItems({
         return filtered
     }, [sectionScoped, rawSectionItems, allItems, isStarredSection, isTrashSection, isRecentSection, isSharedSection])
 
+    // currentItems intentionally excludes upload placeholders. The screen
+    // composes those in via useUploadPlaceholders so that progress ticks
+    // don't churn DriveContextValue.
     const currentItems = useMemo(() => {
         if (isSearchActive) return searchItemViews
-        if (showCurrentFolder) return [...currentFolderItems, ...uploadPlaceholders]
+        if (showCurrentFolder) return currentFolderItems
         return sectionItems
-    }, [isSearchActive, searchItemViews, showCurrentFolder, currentFolderItems, uploadPlaceholders, sectionItems])
+    }, [isSearchActive, searchItemViews, showCurrentFolder, currentFolderItems, sectionItems])
 
     const breadcrumbs = useMemo(() => {
         const crumbs: DriveItemView[] = []

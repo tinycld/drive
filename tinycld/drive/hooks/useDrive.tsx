@@ -1,8 +1,20 @@
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useUserPreference } from '@tinycld/core/lib/use-user-preference'
-import { useGlobalSearchParams, usePathname } from 'expo-router'
-import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { usePathname } from 'expo-router'
+import {
+    type MutableRefObject,
+    type ReactNode,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react'
+import { notifyDriveSnapshotListeners, writeDriveSnapshot } from '../stores/drive-snapshot-store'
 import type { DialogTarget, PromptDialog } from '../stores/drive-ui-store'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, SidebarSection, ViewMode } from '../types'
@@ -11,8 +23,27 @@ import { useDriveMutations } from './useDriveMutations'
 import { parseDrivePath, useDriveNavigation } from './useDriveNavigation'
 import { useDriveSearch } from './useDriveSearch'
 import { useFileUpload } from './useFileUpload'
-import type { UploadingFile } from './useFileUpload'
 import { useTotalStorage } from './useTotalStorage'
+
+// Subset of drive callbacks that rows + the context menu need. The
+// returned bundle is referentially stable for the lifetime of
+// DriveStateProvider — each function calls through a ref to the latest
+// impl, so consumers can read these once (via cellContext or the snapshot
+// store) and avoid re-rendering on every drive-state tick. New action
+// fields go here when a row needs them; anything not on this surface
+// still goes through useDrive() / useDriveSnapshot() and re-renders on
+// drive-state changes.
+export interface DriveActions {
+    openPreview: (item: DriveItemView) => void
+    openItem: (item: DriveItemView) => void
+    navigateToFolder: (folderId: string) => void
+    toggleStar: (itemId: string) => void
+    downloadItem: (itemId: string) => void
+    moveToTrash: (itemId: string) => void
+    selectItem: (id: string | null) => void
+    openDetailPanel: () => void
+    dismissUpload: (id: string) => void
+}
 
 export interface DriveContextValue {
     currentFolderId: string
@@ -56,11 +87,17 @@ export interface DriveContextValue {
     removeShare: (shareId: string) => void
     getSharesForItem: (itemId: string) => { id: string; userOrgId: string; name: string; email: string; role: string }[]
     orgMembers: { userOrgId: string; name: string; email: string }[]
+    /** itemsById feeds useUploadPlaceholders so completed uploads stop
+     *  rendering as placeholders once the real record arrives. */
+    itemsById: Map<string, DriveItemView>
+    /** Current user_org id; needed by useUploadPlaceholders to stamp the
+     *  owner field on optimistic upload rows. */
+    userOrgId: string
+    // Upload action handles are stable (constructed once and held by ref).
+    // Reactive upload progress is NOT exposed here on purpose — that lives
+    // in useUploadStore so progress ticks don't churn DriveContextValue.
     uploadFiles: (files: File[]) => void
     uploadTree: (entries: import('./useFileUpload').DroppedEntry[]) => void
-    isUploading: boolean
-    uploadingFiles: UploadingFile[]
-    dismissUpload: (id: string) => void
     triggerFilePicker: () => void
     triggerPhotoPicker: () => void
     uploadNewVersion: (itemId: string, file: File) => Promise<void>
@@ -76,6 +113,8 @@ export interface DriveContextValue {
     shareTarget: DialogTarget | null
     openShareDialog: (id: string, name: string) => void
     closeShareDialog: () => void
+    /** Stable callable bundle for hot paths (rows, lazy-mounted menu). */
+    actions: DriveActions
 }
 
 // useDriveState() runs the entire drive data tree (live queries, mutations,
@@ -89,9 +128,33 @@ export interface DriveContextValue {
 // calls useDriveState() directly.
 const DriveStateContext = createContext<DriveContextValue | null>(null)
 
+// The screen owns the FlashList ref; mutations live in useDriveState which
+// runs above the screen. This ref shuttles a "prep layout animation"
+// callback bottom-up: the screen sets it on mount, the trash/restore
+// mutations call it before .mutate() so FlashList can disable recycling
+// for the next frame and run a slide animation.
+const LayoutAnimationContext = createContext<MutableRefObject<(() => void) | undefined> | null>(null)
+
 export function DriveStateProvider({ children }: { children: ReactNode }) {
-    const value = useDriveState()
-    return <DriveStateContext.Provider value={value}>{children}</DriveStateContext.Provider>
+    const layoutAnimationRef = useRef<(() => void) | undefined>(undefined)
+    const value = useDriveState({ layoutAnimationRef })
+    // Mirror the latest value into an external store so portaled subtrees
+    // (Menu.Portal goes through Gluestack's OverlayContainer, which severs
+    // the React context chain) can read drive state via useDriveSnapshot.
+    //
+    // Write during render so subscribers that mount/read after this point
+    // see fresh data via getSnapshot(); flush change notifications in a
+    // layout effect so React doesn't see a setState() coming from this
+    // component during render of any other component.
+    writeDriveSnapshot(value)
+    useLayoutEffect(() => {
+        notifyDriveSnapshotListeners()
+    })
+    return (
+        <LayoutAnimationContext.Provider value={layoutAnimationRef}>
+            <DriveStateContext.Provider value={value}>{children}</DriveStateContext.Provider>
+        </LayoutAnimationContext.Provider>
+    )
 }
 
 export function useDrive(): DriveContextValue {
@@ -102,7 +165,59 @@ export function useDrive(): DriveContextValue {
     return ctx
 }
 
-export function useDriveState(): DriveContextValue {
+// Screens call this on mount to register a callback that gets invoked
+// before reorder-y mutations (trash/restore/delete). The callback should
+// call FlashList.prepareForLayoutAnimationRender() and
+// LayoutAnimation.configureNext(). Returns a cleanup that clears the slot.
+export function useRegisterDriveLayoutAnimation(prepare: (() => void) | undefined): void {
+    const ref = useContext(LayoutAnimationContext)
+    useEffect(() => {
+        if (!ref) return
+        ref.current = prepare
+        return () => {
+            if (ref.current === prepare) ref.current = undefined
+        }
+    }, [ref, prepare])
+}
+
+interface UseDriveStateOptions {
+    layoutAnimationRef?: MutableRefObject<(() => void) | undefined>
+}
+
+// Builds a referentially-stable DriveActions bundle. Each returned
+// function calls through a ref to the latest impl, so it can close over
+// freshly-rendered closures (mutations, navigation, upload) without
+// changing identity. Rows can read from cellContext.actions and skip
+// useDrive() entirely; the menu can read from the snapshot store and not
+// rebuild its handlers per drive-state tick.
+function useStableDriveActions(latest: DriveActions): DriveActions {
+    const ref = useRef(latest)
+    ref.current = latest
+    return useMemo<DriveActions>(
+        () => ({
+            openPreview: (item) => ref.current.openPreview(item),
+            openItem: (item) => ref.current.openItem(item),
+            navigateToFolder: (folderId) => ref.current.navigateToFolder(folderId),
+            toggleStar: (itemId) => ref.current.toggleStar(itemId),
+            downloadItem: (itemId) => ref.current.downloadItem(itemId),
+            moveToTrash: (itemId) => ref.current.moveToTrash(itemId),
+            selectItem: (id) => ref.current.selectItem(id),
+            openDetailPanel: () => ref.current.openDetailPanel(),
+            dismissUpload: (id) => ref.current.dismissUpload(id),
+        }),
+        []
+    )
+}
+
+export function useDriveState(options: UseDriveStateOptions = {}): DriveContextValue {
+    const { layoutAnimationRef } = options
+    const prepareLayoutAnimation = useMemo(
+        () =>
+            layoutAnimationRef
+                ? () => layoutAnimationRef.current?.()
+                : undefined,
+        [layoutAnimationRef]
+    )
     const { orgSlug, orgId } = useOrgInfo()
     const userOrg = useCurrentUserOrg(orgSlug)
     const userOrgId = userOrg?.id ?? ''
@@ -110,12 +225,16 @@ export function useDriveState(): DriveContextValue {
     const pathname = usePathname()
     const { section: activeSection, folderId: currentFolderId } = parseDrivePath(pathname)
 
-    const params = useGlobalSearchParams<{ file?: string; preview?: string }>()
-    const selectedItemId = useDriveUIStore((s) => s.selectedItemId) ?? params.file ?? null
+    // Preview state is store-only — see useDriveNavigation for why. URL
+    // sharing is handled separately: hydrate-on-mount from ?file=X&preview=1
+    // and mirror store -> URL via history.replaceState (no router push, so
+    // <Slot/> never remounts and FlashList scroll is preserved).
+    const selectedItemId = useDriveUIStore((s) => s.selectedItemId)
     const selectItem = useDriveUIStore((s) => s.selectItem)
     const selectedIds = useDriveUIStore((s) => s.selectedIds)
     const clearSelection = useDriveUIStore((s) => s.clearSelection)
-    const previewItemId = params.preview === '1' && selectedItemId ? selectedItemId : null
+    const previewItemId = useDriveUIStore((s) => s.previewItemId)
+    usePreviewUrlSync(previewItemId)
 
     // viewMode is decoupled from server persistence so the toggle UI updates
     // synchronously. useUserPreference goes through a TanStack DB optimistic
@@ -123,13 +242,21 @@ export function useDriveState(): DriveContextValue {
     // every click. Local React state flips instantly; the persisted value
     // hydrates the local state once (on first sync) and writes through on
     // every change in the background.
+    //
+    // Once the user has toggled locally, ignore further server-driven
+    // updates. Otherwise rapid clicks can race the in-flight persistence:
+    // if click N+1 lands before click N's write echoes back through the
+    // live query, the echo would overwrite the newer local state.
     const [persistedViewMode, persistViewMode] = useUserPreference<ViewMode>('drive', 'view_mode', 'list')
     const [viewMode, setViewModeLocal] = useState<ViewMode>(persistedViewMode)
+    const localOverrideRef = useRef(false)
     useEffect(() => {
+        if (localOverrideRef.current) return
         setViewModeLocal(persistedViewMode)
     }, [persistedViewMode])
     const setViewMode = useCallback(
         (mode: ViewMode) => {
+            localOverrideRef.current = true
             setViewModeLocal(mode)
             persistViewMode(mode)
         },
@@ -173,7 +300,6 @@ export function useDriveState(): DriveContextValue {
         searchQuery,
         searchResults,
         isSearchActive,
-        uploadingFiles: upload.uploadingFiles,
     })
 
     const totalStorageUsed = useTotalStorage()
@@ -187,6 +313,7 @@ export function useDriveState(): DriveContextValue {
         userOrgNames: items.userOrgNames,
         userOrgEmails: items.userOrgEmails,
         sharesByItem: items.sharesByItem,
+        prepareLayoutAnimation,
     })
 
     const nav = useDriveNavigation({
@@ -216,6 +343,18 @@ export function useDriveState(): DriveContextValue {
         }
         closePrompt()
     }
+
+    const actions = useStableDriveActions({
+        openPreview: nav.openPreview,
+        openItem: nav.openItem,
+        navigateToFolder: nav.navigateToFolder,
+        toggleStar: mutations.toggleStar,
+        downloadItem: mutations.downloadItem,
+        moveToTrash: mutations.moveToTrash,
+        selectItem,
+        openDetailPanel,
+        dismissUpload: upload.dismissUpload,
+    })
 
     return {
         currentFolderId,
@@ -259,11 +398,10 @@ export function useDriveState(): DriveContextValue {
         removeShare: mutations.removeShare,
         getSharesForItem: mutations.getSharesForItem,
         orgMembers: items.orgMembers,
+        itemsById: items.itemsById,
+        userOrgId,
         uploadFiles: upload.uploadFiles,
         uploadTree: upload.uploadTree,
-        isUploading: upload.isUploading,
-        uploadingFiles: upload.uploadingFiles,
-        dismissUpload: upload.dismissUpload,
         triggerFilePicker: upload.triggerFilePicker,
         triggerPhotoPicker: upload.triggerPhotoPicker,
         uploadNewVersion: upload.uploadNewVersion,
@@ -279,5 +417,50 @@ export function useDriveState(): DriveContextValue {
         shareTarget,
         openShareDialog,
         closeShareDialog,
+        actions,
     }
+}
+
+// Bridge between the preview store flag and the browser URL.
+//
+// Two flows:
+//   1. On mount, if the URL has ?file=X&preview=1, seed the store so a
+//      shared link opens the modal. Runs once.
+//   2. While the user navigates between previews via the modal's prev/next
+//      controls (or opens/closes), mirror the store value back to the URL
+//      via history.replaceState — bypasses Expo Router so <Slot/> never
+//      remounts. Native: no-op.
+function usePreviewUrlSync(previewItemId: string | null): void {
+    const openPreviewItem = useDriveUIStore((s) => s.openPreviewItem)
+
+    // Hydrate once from the initial URL.
+    const hydratedRef = useRef(false)
+    useEffect(() => {
+        if (hydratedRef.current) return
+        hydratedRef.current = true
+        if (typeof window === 'undefined') return
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('preview') === '1') {
+            const file = params.get('file')
+            if (file) openPreviewItem(file)
+        }
+    }, [openPreviewItem])
+
+    // Mirror store -> URL.
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const url = new URL(window.location.href)
+        if (previewItemId) {
+            url.searchParams.set('file', previewItemId)
+            url.searchParams.set('preview', '1')
+        } else {
+            url.searchParams.delete('file')
+            url.searchParams.delete('preview')
+        }
+        const next = `${url.pathname}${url.search}${url.hash}`
+        const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+        if (next !== current) {
+            window.history.replaceState(window.history.state, '', next)
+        }
+    }, [previewItemId])
 }
