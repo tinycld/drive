@@ -16,6 +16,7 @@
         "./components/*": "./tinycld/drive/components/*.tsx",
         "./lib/save-to-drive": "./tinycld/drive/lib/save-to-drive.ts",
         "./lib/save-to-drive-action": "./tinycld/drive/lib/save-to-drive-action.tsx",
+        "./lib/upload-to-drive": "./tinycld/drive/lib/upload-to-drive.ts",
         "./public-screens/*": "./tinycld/drive/public-screens/*.tsx"
     },
     "scripts": {
