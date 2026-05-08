@@ -15,7 +15,9 @@ import {
     rawWebdavRequest,
 } from './webdav-helpers'
 
-const PB_URL = 'http://127.0.0.1:7091'
+// PB sits behind the dev.ts proxy on the test Expo port. /api/* routes
+// through to PB transparently — see scripts/dev.ts::isPbPath.
+const PB_URL = 'http://127.0.0.1:7200'
 
 // Authenticate against PocketBase as the test user and return the auth token.
 // Used to mutate drive_items through the REST API — the same path the web UI

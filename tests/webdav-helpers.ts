@@ -1,6 +1,8 @@
 import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from '../../../../tests/e2e/helpers'
 
-const WEBDAV_BASE = 'http://127.0.0.1:7091/drive'
+// PB owns /drive (WebDAV handler); dev.ts's proxy fans /drive to PB,
+// so we can hit the public proxy port instead of PB directly.
+const WEBDAV_BASE = 'http://127.0.0.1:7200/drive'
 
 export interface WebDAVResponse {
     href: string
