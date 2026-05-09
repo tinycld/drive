@@ -1,4 +1,5 @@
 import { PreviewModal as CorePreviewModal } from '@tinycld/core/file-viewer/PreviewModal'
+import { getPreviewActionFactories } from '@tinycld/core/file-viewer/preview-action-registry'
 import { useCallback, useMemo } from 'react'
 import { useDrive } from '../hooks/useDrive'
 import { driveItemToSource } from '../lib/file-url'
@@ -30,6 +31,13 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
         if (item) downloadItem(item.id)
     }, [downloadItem, item])
 
+    // Extension-point actions registered by other packages (e.g.
+    // sheets's "Open in Sheets"). Factories register at module-load
+    // time, so the list is stable for the lifetime of the app —
+    // calling each factory unconditionally here is safe under the
+    // rules of hooks. CorePreviewModal handles `isApplicable` filtering.
+    const previewActions = getPreviewActionFactories().map((factory) => factory())
+
     return (
         <CorePreviewModal
             isVisible={isVisible}
@@ -38,6 +46,7 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
             onPrevious={hasPrevious ? handlePrevious : undefined}
             onNext={hasNext ? handleNext : undefined}
             onDownload={handleDownload}
+            actions={previewActions}
         />
     )
 }
