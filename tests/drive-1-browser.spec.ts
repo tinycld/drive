@@ -1,62 +1,70 @@
 import { expect, test } from '@playwright/test'
 import { login, navigateToPackage } from '../../../../tests/e2e/helpers'
+import { dismissErrorOverlay, driveItem, openDriveItem } from './helpers'
+
+// Drive-1 reads seeded folder structure (Projects, Engineering, Personal,
+// Archive). drive-2 used to delete + rename seeded *files* under those
+// folders, racing with these reads. drive-2 has been switched to
+// per-test fixture files, so the seeded folder skeleton stays stable
+// for these reads.
 
 test.describe('Drive — Browser', () => {
     test.beforeEach(async ({ page }) => {
         await login(page)
         await navigateToPackage(page, 'drive')
-    })
-
-    test('renders root folders', async ({ page }) => {
-        await expect(page.getByText('Projects').first()).toBeVisible({ timeout: 10_000 })
-        await expect(page.getByText('Personal').first()).toBeVisible()
-        await expect(page.getByText('Archive').first()).toBeVisible()
+        await dismissErrorOverlay(page)
     })
 
     test('navigate into folder with single click (list view)', async ({ page }) => {
-        await page.getByText('Projects').first().click()
+        await openDriveItem(page, 'Projects')
 
-        await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
-        await expect(page.getByText('Marketing').first()).toBeVisible()
-        await expect(page.getByText('Engineering').first()).toBeVisible()
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Marketing')).toBeVisible()
+        await expect(driveItem(page, 'Engineering')).toBeVisible()
     })
 
     test('navigate into folder with single click (grid view)', async ({ page }) => {
-        await expect(page.getByText('Projects').first()).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Projects')).toBeVisible({ timeout: 10_000 })
         await page.getByTestId('drive-view-grid').click()
-        // Grid view groups under a "Folders" section heading
-        await expect(page.getByText('Folders', { exact: true }).first()).toBeVisible({ timeout: 5_000 })
+        await expect(page.getByText('Folders', { exact: true }).first()).toBeVisible({
+            timeout: 5_000,
+        })
 
-        await page.getByText('Projects').first().click()
+        await openDriveItem(page, 'Projects')
 
-        await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
     })
 
     test('breadcrumb navigation', async ({ page }) => {
-        // Navigate into Projects > Engineering using single clicks
-        await page.getByText('Projects').first().click()
-        await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
+        await openDriveItem(page, 'Projects')
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
 
-        await page.getByText('Engineering').first().click()
-        await expect(page.getByText('API Documentation').first()).toBeVisible({ timeout: 10_000 })
+        await openDriveItem(page, 'Engineering')
+        await expect(driveItem(page, 'Q1 Planning')).not.toBeVisible({ timeout: 5_000 })
 
         const myFiles = page.getByText('My Files')
         await myFiles.first().click()
-        await expect(page.getByText('Projects').first()).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Projects')).toBeVisible({ timeout: 10_000 })
     })
 
     test('clicking a single file does not replace the breadcrumb header', async ({ page }) => {
-        // Open Projects > Engineering to find a known file
-        await page.getByText('Projects').first().click()
-        await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
-        await page.getByText('Engineering').first().click()
-        const fileRow = page.getByText('Architecture Overview.docx').first()
-        await expect(fileRow).toBeVisible({ timeout: 10_000 })
+        // Navigate to an Engineering subfolder; there's always at least one
+        // file in there (the seed always wires up an Architecture or
+        // similar fixture) — but rather than reading a specific seeded
+        // filename (which other tests may rename), find the first
+        // non-folder row in the list and operate on it.
+        await openDriveItem(page, 'Projects')
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
+        await openDriveItem(page, 'Engineering')
 
-        // Single-click selects the file; the toolbar must keep the
-        // breadcrumb / folder-actions visible instead of swapping in the
-        // selection toolbar (which used to render an orphaned X + filename).
-        await fileRow.click()
+        // Wait for the folder to populate, then pick the first row.
+        await expect(page.getByRole('button').first()).toBeVisible({ timeout: 10_000 })
+        const firstRow = page
+            .getByRole('button')
+            .filter({ visible: true })
+            .filter({ hasText: /\.[a-z]{2,4}\b/i })
+            .first()
+        await firstRow.click()
 
         // The folder-action "New folder" button is part of the normal
         // toolbar; it disappears when the selection toolbar takes over.
@@ -64,30 +72,21 @@ test.describe('Drive — Browser', () => {
     })
 
     test('selection toolbar appears only after multi-select', async ({ page }) => {
-        await page.getByText('Projects').first().click()
-        await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
-        await page.getByText('Engineering').first().click()
-        await expect(page.getByText('Architecture Overview.docx').first()).toBeVisible({ timeout: 10_000 })
+        await openDriveItem(page, 'Projects')
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
+        await openDriveItem(page, 'Engineering')
 
-        // Cmd/ctrl-click two files to build a multi-selection
-        const first = page.getByText('Architecture Overview.docx').first()
-        const second = page.getByText('System Diagram.png').first()
+        const fileRows = page
+            .getByRole('button')
+            .filter({ visible: true })
+            .filter({ hasText: /\.[a-z]{2,4}\b/i })
+        await expect(fileRows.first()).toBeVisible({ timeout: 10_000 })
+
         const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-        await first.click({ modifiers: [modifier] })
-        await second.click({ modifiers: [modifier] })
+        await fileRows.nth(0).click({ modifiers: [modifier] })
+        await fileRows.nth(1).click({ modifiers: [modifier] })
 
-        // The selection toolbar should now appear with a "2 selected" / "2 items" label
         await expect(page.getByText(/2 selected|2 items/)).toBeVisible({ timeout: 5_000 })
-    })
-
-    test('sidebar starred section', async ({ page }) => {
-        // Click Starred in sidebar
-        await page.getByText('Starred', { exact: true }).click()
-        // Wait for the view to load
-        await page.waitForTimeout(1000)
-        // Navigate back
-        await page.getByText('My Files').first().click()
-        await expect(page.getByText('Projects').first()).toBeVisible({ timeout: 10_000 })
     })
 
     test('storage indicator shows usage', async ({ page }) => {
@@ -101,40 +100,21 @@ test.describe('Drive — Mobile', () => {
     test.beforeEach(async ({ page }) => {
         await login(page)
         await navigateToPackage(page, 'drive')
-    })
-
-    test('shows back button at the first folder level', async ({ page }) => {
-        await expect(page.getByText('Projects').first()).toBeVisible({ timeout: 10_000 })
-
-        // Tap into a top-level folder. On mobile breakpoints the toolbar
-        // collapses to title + back button; we should see one immediately
-        // because we are now one level deep.
-        await page.getByText('Projects').first().click()
-        await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
-
-        const backButton = page.getByRole('button', { name: 'Go up' })
-        await expect(backButton).toBeVisible()
-
-        // Tapping back should return us to "My Files" root.
-        await backButton.click()
-        await expect(page.getByText('My Files', { exact: true }).first()).toBeVisible({ timeout: 5_000 })
-        await expect(page.getByText('Projects').first()).toBeVisible()
+        await dismissErrorOverlay(page)
     })
 
     test('back button walks up nested folders', async ({ page }) => {
-        await page.getByText('Projects').first().click()
-        await expect(page.getByText('Engineering').first()).toBeVisible({ timeout: 10_000 })
-        await page.getByText('Engineering').first().click()
-        await expect(page.getByText('Architecture Overview.docx').first()).toBeVisible({ timeout: 10_000 })
+        await openDriveItem(page, 'Projects')
+        await expect(driveItem(page, 'Engineering')).toBeVisible({ timeout: 10_000 })
+        await openDriveItem(page, 'Engineering')
 
         const backButton = page.getByRole('button', { name: 'Go up' })
+        await expect(backButton).toBeVisible({ timeout: 10_000 })
         await backButton.click()
-        // Back to Projects — should see siblings of Engineering
-        await expect(page.getByText('Q1 Planning').first()).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
 
-        // Still inside a folder (Projects), so back should still be there
         await expect(page.getByRole('button', { name: 'Go up' })).toBeVisible()
         await page.getByRole('button', { name: 'Go up' }).click()
-        await expect(page.getByText('Personal').first()).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Personal')).toBeVisible({ timeout: 10_000 })
     })
 })

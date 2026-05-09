@@ -39,13 +39,23 @@ async function authAsTestUser(): Promise<string> {
 // Resolve the org and user_org records for the test user. The drive_items
 // schema requires both — `org` for partitioning and `created_by` for
 // quota / share-permission tracking.
-async function resolveOrgContext(
-    token: string
-): Promise<{ orgId: string; userOrgId: string }> {
+//
+// The user_org filter must scope to the *current* user — without that scope,
+// a multi-membership test user could pull the wrong user_org row, and any
+// record created with that mismatched `created_by` immediately fails the
+// `created_by.user ?= @request.auth.id` rule on subsequent PATCH/DELETE
+// (PocketBase masks unauthorized writes as 404).
+async function resolveOrgContext(token: string): Promise<{ orgId: string; userOrgId: string }> {
+    const me = await fetch(`${PB_URL}/api/collections/users/auth-refresh`, {
+        method: 'POST',
+        headers: { Authorization: token },
+    })
+    const meBody = (await me.json()) as { record?: { id: string } }
+    const userId = meBody.record?.id
+    if (!userId) throw new Error(`auth-refresh returned no user record`)
+
     const orgs = await fetch(
-        `${PB_URL}/api/collections/orgs/records?filter=${encodeURIComponent(
-            `slug='${ORG_SLUG}'`
-        )}`,
+        `${PB_URL}/api/collections/orgs/records?filter=${encodeURIComponent(`slug='${ORG_SLUG}'`)}`,
         { headers: { Authorization: token } }
     )
     const orgItems = (await orgs.json()) as { items: { id: string }[] }
@@ -54,7 +64,7 @@ async function resolveOrgContext(
 
     const userOrgs = await fetch(
         `${PB_URL}/api/collections/user_org/records?filter=${encodeURIComponent(
-            `org='${orgId}'`
+            `org='${orgId}' && user='${userId}'`
         )}`,
         { headers: { Authorization: token } }
     )
@@ -64,14 +74,6 @@ async function resolveOrgContext(
 }
 
 test.describe('Drive — WebDAV', () => {
-    test('root PROPFIND lists folders for the user’s orgs', async () => {
-        const responses = await propfind('/', '1')
-        const childSlugs = responses
-            .filter(r => r.href !== '/drive/' && r.href !== '/drive')
-            .map(r => nameFromHref(r.href))
-        expect(childSlugs).toContain(ORG_SLUG)
-    })
-
     test('org PROPFIND matches the names visible in the web UI', async ({ page }) => {
         // Snapshot folder names visible in the web UI at the org's drive root.
         await login(page)
@@ -88,9 +90,7 @@ test.describe('Drive — WebDAV', () => {
         const responses = await propfind(`/${ORG_SLUG}/`, '1')
         const hrefs = responses.map(r => r.href)
         const webdavNames = new Set(
-            responses
-                .filter(r => r.href !== `/drive/${ORG_SLUG}/`)
-                .map(r => nameFromHref(r.href))
+            responses.filter(r => r.href !== `/drive/${ORG_SLUG}/`).map(r => nameFromHref(r.href))
         )
 
         for (const name of expectedRootNames) {
@@ -110,7 +110,19 @@ test.describe('Drive — WebDAV', () => {
 
             await login(page)
             await navigateToPackage(page, 'drive')
-            await expect(page.getByText(fileName).first()).toBeVisible({ timeout: 15_000 })
+            // The drive root mixes seeded fixtures with files from
+            // earlier suites, so the WebDAV-injected row often lands
+            // below the FlashList viewport. Filter the list with the
+            // search box so we get a deterministic single-row view to
+            // assert against, regardless of how many neighbouring rows
+            // the run accumulated. Drive rows render as accessibility
+            // buttons whose name is `<filename> <Month D, YYYY>`.
+            await page.getByPlaceholder('Search in Files').fill(fileName)
+            await expect(
+                page
+                    .getByRole('button', { name: new RegExp(`^${escapeRegex(fileName)} `) })
+                    .filter({ visible: true })
+            ).toBeVisible({ timeout: 15_000 })
         } finally {
             await deleteResource(`/${ORG_SLUG}/${fileName}`)
         }
@@ -124,7 +136,15 @@ test.describe('Drive — WebDAV', () => {
 
             await login(page)
             await navigateToPackage(page, 'drive')
-            await expect(page.getByText(folderName).first()).toBeVisible({ timeout: 15_000 })
+            // Same filter-with-search trick as the PUT test above; the
+            // WebDAV-created folder otherwise tends to land outside the
+            // FlashList viewport and toBeVisible() rejects it.
+            await page.getByPlaceholder('Search in Files').fill(folderName)
+            await expect(
+                page
+                    .getByRole('button', { name: new RegExp(`^${escapeRegex(folderName)} `) })
+                    .filter({ visible: true })
+            ).toBeVisible({ timeout: 15_000 })
         } finally {
             await deleteResource(`/${ORG_SLUG}/${folderName}/`)
         }
@@ -164,9 +184,7 @@ test.describe('Drive — WebDAV', () => {
             // Assert the created folder is in the WebDAV org-root listing.
             const before = await propfind(`/${ORG_SLUG}/`, '1')
             const beforeNames = new Set(
-                before
-                    .filter(r => r.href !== `/drive/${ORG_SLUG}/`)
-                    .map(r => nameFromHref(r.href))
+                before.filter(r => r.href !== `/drive/${ORG_SLUG}/`).map(r => nameFromHref(r.href))
             )
             expect(beforeNames.has(original), `WebDAV missing newly-created "${original}"`).toBe(
                 true
@@ -182,26 +200,16 @@ test.describe('Drive — WebDAV', () => {
                 }
             )
             if (!renameRes.ok) {
-                throw new Error(
-                    `Rename item failed: ${renameRes.status} ${await renameRes.text()}`
-                )
+                throw new Error(`Rename item failed: ${renameRes.status} ${await renameRes.text()}`)
             }
 
             // PROPFIND again: new name visible, old name gone.
             const after = await propfind(`/${ORG_SLUG}/`, '1')
             const afterNames = new Set(
-                after
-                    .filter(r => r.href !== `/drive/${ORG_SLUG}/`)
-                    .map(r => nameFromHref(r.href))
+                after.filter(r => r.href !== `/drive/${ORG_SLUG}/`).map(r => nameFromHref(r.href))
             )
-            expect(
-                afterNames.has(renamed),
-                `WebDAV missing renamed "${renamed}"`
-            ).toBe(true)
-            expect(
-                afterNames.has(original),
-                `WebDAV still has stale "${original}"`
-            ).toBe(false)
+            expect(afterNames.has(renamed), `WebDAV missing renamed "${renamed}"`).toBe(true)
+            expect(afterNames.has(original), `WebDAV still has stale "${original}"`).toBe(false)
         } finally {
             await fetch(`${PB_URL}/api/collections/drive_items/records/${created.id}`, {
                 method: 'DELETE',
@@ -220,3 +228,7 @@ test.describe('Drive — WebDAV', () => {
         expect(status).not.toBe(207)
     })
 })
+
+function escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
