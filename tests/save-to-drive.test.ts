@@ -24,6 +24,8 @@ describe('deduplicateName', () => {
     })
 
     it('uses the rightmost dot as the extension separator', () => {
-        expect(deduplicateName('archive.tar.gz', new Set(['archive.tar.gz']))).toBe('archive.tar (1).gz')
+        expect(deduplicateName('archive.tar.gz', new Set(['archive.tar.gz']))).toBe(
+            'archive.tar (1).gz'
+        )
     })
 })

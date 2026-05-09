@@ -35,7 +35,7 @@ describe('buildListRows', () => {
             folders: [folder1, folder2],
             files: [file1, file2],
         })
-        expect(rows.map((r) => r.kind)).toEqual(['item', 'item', 'item', 'item'])
+        expect(rows.map(r => r.kind)).toEqual(['item', 'item', 'item', 'item'])
         expect(rows[0].item.id).toBe('f1')
         expect(rows[3].item.id).toBe('file2')
     })
@@ -72,7 +72,7 @@ describe('buildGridRows', () => {
             folders: [folder1],
             files: [file1, file2],
         })
-        expect(rows.map((r) => r.kind)).toEqual(['section', 'card', 'section', 'card', 'card'])
+        expect(rows.map(r => r.kind)).toEqual(['section', 'card', 'section', 'card', 'card'])
         expect((rows[0] as { title: string }).title).toBe('Folders')
         expect((rows[2] as { title: string }).title).toBe('Files')
     })
@@ -82,14 +82,14 @@ describe('buildGridRows', () => {
             folders: [],
             files: [file1],
         })
-        expect(onlyFiles.map((r) => r.kind)).toEqual(['section', 'card'])
+        expect(onlyFiles.map(r => r.kind)).toEqual(['section', 'card'])
         expect((onlyFiles[0] as { title: string }).title).toBe('Files')
 
         const onlyFolders = buildGridRows({
             folders: [folder1],
             files: [],
         })
-        expect(onlyFolders.map((r) => r.kind)).toEqual(['section', 'card'])
+        expect(onlyFolders.map(r => r.kind)).toEqual(['section', 'card'])
         expect((onlyFolders[0] as { title: string }).title).toBe('Folders')
     })
 
