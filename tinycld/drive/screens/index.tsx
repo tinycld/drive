@@ -765,6 +765,8 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
     return (
         <Pressable
             onPress={handlePress}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
             style={{ height: GRID_CARD_HEIGHT }}
             className={`rounded-lg border ${isSelectedRow ? 'border-2 border-active-indicator' : 'border-border'}`}
         >
@@ -795,6 +797,8 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
     return (
         <Pressable
             onPress={handlePress}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
             style={{ height: GRID_CARD_HEIGHT }}
             className={`rounded-lg overflow-hidden border ${isSelectedRow ? 'border-2 border-active-indicator' : 'border-border'}`}
         >

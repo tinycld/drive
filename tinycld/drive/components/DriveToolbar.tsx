@@ -378,7 +378,12 @@ function MobileBreadcrumbs({
     return (
         <View className="flex-row items-center flex-1" style={{ gap: 6, minWidth: 0 }}>
             {isInsideFolder && (
-                <Pressable onPress={goUp} hitSlop={8} accessibilityLabel="Go up">
+                <Pressable
+                    onPress={goUp}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go up"
+                >
                     <ArrowLeft size={20} color={fgColor} />
                 </Pressable>
             )}
