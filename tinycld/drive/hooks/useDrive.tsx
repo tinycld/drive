@@ -1,7 +1,7 @@
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useUserPreference } from '@tinycld/core/lib/use-user-preference'
-import { usePathname } from 'expo-router'
+import { router, useLocalSearchParams, usePathname } from 'expo-router'
 import {
     type MutableRefObject,
     type ReactNode,
@@ -428,39 +428,29 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
 //      shared link opens the modal. Runs once.
 //   2. While the user navigates between previews via the modal's prev/next
 //      controls (or opens/closes), mirror the store value back to the URL
-//      via history.replaceState — bypasses Expo Router so <Slot/> never
-//      remounts. Native: no-op.
+//      via router.setParams — a shallow params update that doesn't remount
+//      the route (so <Slot/> stays put) and works on native (where the
+//      URL bar is invisible but the navigation state still tracks).
 function usePreviewUrlSync(previewItemId: string | null): void {
     const openPreviewItem = useDriveUIStore((s) => s.openPreviewItem)
+    const params = useLocalSearchParams<{ file?: string; preview?: string }>()
 
-    // Hydrate once from the initial URL.
+    // Hydrate once from the initial URL params.
     const hydratedRef = useRef(false)
     useEffect(() => {
         if (hydratedRef.current) return
         hydratedRef.current = true
-        if (typeof window === 'undefined') return
-        const params = new URLSearchParams(window.location.search)
-        if (params.get('preview') === '1') {
-            const file = params.get('file')
-            if (file) openPreviewItem(file)
+        if (params.preview === '1' && params.file) {
+            openPreviewItem(params.file)
         }
-    }, [openPreviewItem])
+    }, [openPreviewItem, params.file, params.preview])
 
-    // Mirror store -> URL.
+    // Mirror store -> URL params. Only writes when the value actually
+    // differs to avoid a setParams loop with the hydrator above.
     useEffect(() => {
-        if (typeof window === 'undefined') return
-        const url = new URL(window.location.href)
-        if (previewItemId) {
-            url.searchParams.set('file', previewItemId)
-            url.searchParams.set('preview', '1')
-        } else {
-            url.searchParams.delete('file')
-            url.searchParams.delete('preview')
-        }
-        const next = `${url.pathname}${url.search}${url.hash}`
-        const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
-        if (next !== current) {
-            window.history.replaceState(window.history.state, '', next)
-        }
-    }, [previewItemId])
+        const desiredFile = previewItemId ?? undefined
+        const desiredPreview = previewItemId ? '1' : undefined
+        if (params.file === desiredFile && params.preview === desiredPreview) return
+        router.setParams({ file: desiredFile, preview: desiredPreview })
+    }, [previewItemId, params.file, params.preview])
 }
