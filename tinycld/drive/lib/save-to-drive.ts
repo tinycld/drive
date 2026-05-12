@@ -1,8 +1,8 @@
 import { captureException } from '@tinycld/core/lib/errors'
 import type { FilePreviewSource } from '@tinycld/core/file-viewer/types'
-import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
+import { useMutation } from '@tinycld/core/lib/mutations'
 import { notify } from '@tinycld/core/lib/notify'
-import { pb, useStore } from '@tinycld/core/lib/pocketbase'
+import { pb } from '@tinycld/core/lib/pocketbase'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
@@ -33,7 +33,6 @@ export function useSaveToDrive() {
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
     const userOrgId = userOrg?.id ?? ''
-    const [sharesCollection] = useStore('drive_shares')
 
     return useMutation({
         mutationFn: async ({ source, parentId, parentName }: SaveToDriveInput) => {
@@ -78,17 +77,11 @@ export function useSaveToDrive() {
             // web the `file` field is a real File. We cast to satisfy TS.
             formData.append('file', upload.file as unknown as Blob)
             formData.append('description', '')
+            // The drive_items create hook (server/register.go) inserts the
+            // owner drive_shares row in the same transaction, so the client
+            // must not also insert one — the unique (item, user_org) index
+            // would reject it.
             await pb.collection('drive_items').create(formData)
-
-            await performMutations(function* () {
-                yield sharesCollection.insert({
-                    id: newRecordId(),
-                    item: itemId,
-                    user_org: userOrgId,
-                    role: 'owner',
-                    created_by: userOrgId,
-                })
-            })
 
             return { itemId, finalName, parentId, parentName }
         },

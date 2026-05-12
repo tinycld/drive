@@ -18,6 +18,7 @@ registerPreviewAction('drive.save', () => {
         id: 'drive.save',
         icon: Save,
         label: 'Save to Drive',
+        isApplicable: (source) => source.collectionId !== 'drive_items',
         onPress: (source) => {
             open(source)
         },

@@ -163,22 +163,32 @@ function NormalMenuItems({
     onTrash: () => void
 }) {
     // Extension-point actions registered by other packages (e.g.
-    // sheets's "Open in Sheets" for xlsx files). Factories register at
+    // calc's "Open in Calc" for xlsx files). Factories register at
     // module-load time, so the list is stable for the lifetime of the
     // app — calling each factory unconditionally here is safe under
     // the rules of hooks. Folders never get extension actions
     // (they're not files).
     const extensionActions = getDriveItemActionFactories()
-        .map((factory) => factory())
-        .filter((action) => !item.isFolder && (action.isApplicable?.(item) ?? true))
+        .map(factory => factory())
+        .filter(action => !item.isFolder && (action.isApplicable?.(item) ?? true))
 
     return (
         <>
             {!item.isFolder && (
-                <ContextMenuItem label="Preview" icon={Eye} onPress={onPreview} mutedColor={mutedColor} />
+                <ContextMenuItem
+                    label="Preview"
+                    icon={Eye}
+                    onPress={onPreview}
+                    mutedColor={mutedColor}
+                />
             )}
-            <ContextMenuItem label="Open" icon={FolderOpen} onPress={onOpen} mutedColor={mutedColor} />
-            {extensionActions.map((action) => (
+            <ContextMenuItem
+                label="Open"
+                icon={FolderOpen}
+                onPress={onOpen}
+                mutedColor={mutedColor}
+            />
+            {extensionActions.map(action => (
                 <ContextMenuItem
                     key={action.id}
                     label={action.label}
@@ -188,7 +198,12 @@ function NormalMenuItems({
                 />
             ))}
             <ContextMenuItem label="Info" icon={Info} onPress={onInfo} mutedColor={mutedColor} />
-            <ContextMenuItem label="Download" icon={Download} onPress={onDownload} mutedColor={mutedColor} />
+            <ContextMenuItem
+                label="Download"
+                icon={Download}
+                onPress={onDownload}
+                mutedColor={mutedColor}
+            />
             <Separator className="my-1 mx-2" />
             <ContextMenuItem
                 label={item.starred ? 'Remove star' : 'Add star'}
@@ -196,11 +211,31 @@ function NormalMenuItems({
                 onPress={onToggleStar}
                 mutedColor={mutedColor}
             />
-            <ContextMenuItem label="Share" icon={UserPlus} onPress={onShare} mutedColor={mutedColor} />
-            <ContextMenuItem label="Rename" icon={Pencil} onPress={onRename} mutedColor={mutedColor} />
-            <ContextMenuItem label="Move" icon={FolderInput} onPress={onMove} mutedColor={mutedColor} />
+            <ContextMenuItem
+                label="Share"
+                icon={UserPlus}
+                onPress={onShare}
+                mutedColor={mutedColor}
+            />
+            <ContextMenuItem
+                label="Rename"
+                icon={Pencil}
+                onPress={onRename}
+                mutedColor={mutedColor}
+            />
+            <ContextMenuItem
+                label="Move"
+                icon={FolderInput}
+                onPress={onMove}
+                mutedColor={mutedColor}
+            />
             <Separator className="my-1 mx-2" />
-            <ContextMenuItem label="Move to trash" icon={Trash2} onPress={onTrash} mutedColor={mutedColor} />
+            <ContextMenuItem
+                label="Move to trash"
+                icon={Trash2}
+                onPress={onTrash}
+                mutedColor={mutedColor}
+            />
         </>
     )
 }

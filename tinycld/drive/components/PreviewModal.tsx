@@ -14,8 +14,8 @@ interface PreviewModalProps {
 export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
     const { currentItems, openPreview, downloadItem } = useDrive()
 
-    const files = useMemo(() => currentItems.filter((i) => !i.isFolder), [currentItems])
-    const currentIndex = item ? files.findIndex((f) => f.id === item.id) : -1
+    const files = useMemo(() => currentItems.filter(i => !i.isFolder), [currentItems])
+    const currentIndex = item ? files.findIndex(f => f.id === item.id) : -1
     const hasPrevious = currentIndex > 0
     const hasNext = currentIndex >= 0 && currentIndex < files.length - 1
 
@@ -32,11 +32,11 @@ export function PreviewModal({ isVisible, item, onClose }: PreviewModalProps) {
     }, [downloadItem, item])
 
     // Extension-point actions registered by other packages (e.g.
-    // sheets's "Open in Sheets"). Factories register at module-load
+    // calc's "Open in Calc"). Factories register at module-load
     // time, so the list is stable for the lifetime of the app —
     // calling each factory unconditionally here is safe under the
     // rules of hooks. CorePreviewModal handles `isApplicable` filtering.
-    const previewActions = getPreviewActionFactories().map((factory) => factory())
+    const previewActions = getPreviewActionFactories().map(factory => factory())
 
     return (
         <CorePreviewModal
