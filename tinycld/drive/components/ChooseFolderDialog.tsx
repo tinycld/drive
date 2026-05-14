@@ -3,30 +3,53 @@ import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { ChevronDown, ChevronRight, Folder, HardDrive } from 'lucide-react-native'
 import { useState } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
+import { useFolderTreeQuery } from '../hooks/use-folder-tree-query'
 import type { FolderTreeNode } from '../types'
 
 interface ChooseFolderDialogProps {
     open: boolean
     itemName: string
     excludeId: string
-    folderTree: FolderTreeNode[]
+    /**
+     * Folder tree to render. When omitted the dialog runs its own live
+     * query for folders owned by the current user_org — use that path
+     * from packages that don't already have the drive state tree in
+     * hand (e.g. @tinycld/calc's File menu).
+     */
+    folderTree?: FolderTreeNode[]
+    /**
+     * Folder pre-selected when the dialog opens. Defaults to `''` (the
+     * root "My Files"). Calc passes the source workbook's current
+     * parent so the user lands on the same folder by default.
+     */
+    initialSelectedId?: string
     onMove: (targetFolderId: string) => void
     onClose: () => void
     title?: string
     confirmLabel?: string
 }
 
-export function ChooseFolderDialog({
-    open,
+export function ChooseFolderDialog(props: ChooseFolderDialogProps) {
+    // Unmount the body when closed so the next open re-derives
+    // `selectedId` from `initialSelectedId` and the internal folder-tree
+    // query stops fetching.
+    if (!props.open) return null
+    return <ChooseFolderDialogBody {...props} />
+}
+
+function ChooseFolderDialogBody({
     itemName,
     excludeId,
-    folderTree,
+    folderTree: externalFolderTree,
+    initialSelectedId = '',
     onMove,
     onClose,
     title,
     confirmLabel = 'Move here',
 }: ChooseFolderDialogProps) {
-    const [selectedId, setSelectedId] = useState('')
+    const internalFolderTree = useFolderTreeQuery({ enabled: externalFolderTree == null })
+    const folderTree = externalFolderTree ?? internalFolderTree
+    const [selectedId, setSelectedId] = useState(initialSelectedId)
 
     const handleMove = () => {
         onMove(selectedId)
@@ -34,7 +57,7 @@ export function ChooseFolderDialog({
     }
 
     return (
-        <Modal isOpen={open} onClose={onClose}>
+        <Modal isOpen onClose={onClose}>
             <ModalBackdrop />
             <ModalContent className="w-[400px] max-h-[70vh] p-0">
                 <View className="px-4 pt-4 pb-2">

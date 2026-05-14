@@ -1,7 +1,7 @@
-import type { FolderTreeNode } from '../types'
-import { useFolderTree } from '../hooks/useFolderTree'
+import { useFolderTreeQuery } from '../hooks/use-folder-tree-query'
 import { useSaveToDrive } from '../lib/save-to-drive'
 import { useSaveToDriveStore } from '../stores/save-to-drive-store'
+import type { FolderTreeNode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
 
 const ROOT_FOLDER_LABEL = 'My Files'
@@ -21,21 +21,21 @@ function findFolderName(tree: FolderTreeNode[], id: string): string | null {
  * the save mutation against the chosen folder.
  */
 export function SaveToDriveDialog() {
-    const pendingSource = useSaveToDriveStore((s) => s.pendingSource)
-    const close = useSaveToDriveStore((s) => s.close)
-    const folderTree = useFolderTree()
+    const pendingSource = useSaveToDriveStore(s => s.pendingSource)
+    const close = useSaveToDriveStore(s => s.close)
     const saveMutation = useSaveToDrive()
+    // Keep the tree on hand so the success toast can name the picked
+    // folder. The dialog itself will share this query via the
+    // `folderTree` prop, skipping the dialog's internal lookup.
+    const folderTree = useFolderTreeQuery({ enabled: pendingSource !== null })
 
     const handleSave = (parentId: string) => {
         if (!pendingSource) return
-        // Root folder ("My Files") is represented as an empty parentId; the
-        // tree only contains real folder nodes, so look up by id and fall
-        // back to the root label for the empty case.
         const parentName =
-            parentId === '' ? ROOT_FOLDER_LABEL : findFolderName(folderTree, parentId) ?? ROOT_FOLDER_LABEL
+            parentId === ''
+                ? ROOT_FOLDER_LABEL
+                : (findFolderName(folderTree, parentId) ?? ROOT_FOLDER_LABEL)
         saveMutation.mutate({ source: pendingSource, parentId, parentName })
-        // Close eagerly so the toast lands over the original surface; the
-        // mutation runs in the background and emits its own toast on completion.
     }
 
     return (
