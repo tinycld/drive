@@ -1,10 +1,18 @@
 import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import {
+    Drawer,
+    DrawerBackdrop,
+    DrawerBody,
+    DrawerCloseButton,
+    DrawerContent,
+    DrawerHeader,
+} from '@tinycld/core/ui/drawer'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { Download, FolderOpen, RotateCcw, X } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { useDrive } from '../hooks/useDrive'
 import { useVersionHistory } from '../hooks/useVersionHistory'
 import type { DriveItemView } from '../types'
@@ -16,72 +24,114 @@ interface DetailPanelProps {
     onClose: () => void
 }
 
+// The detail panel is a right-anchored Drawer overlay (with a
+// backdrop that dismisses on tap-away) rather than an inline flex
+// sibling of the file list. The Drawer itself manages mount/unmount
+// animation when isOpen flips, so we keep it mounted as long as we
+// have an item to show — guarding on isVisible only at the isOpen
+// prop keeps the slide-out animation playing during close.
+//
+// `useDrive()` is read HERE — inside the DriveStateProvider — and the
+// pieces the inner panel needs are threaded down as props. Gluestack's
+// overlay renders the drawer through a top-level PortalProvider that
+// re-roots the subtree as a sibling of the entire app, so any context
+// installed *inside* the drive tree (DriveStateProvider) is invisible
+// to components rendered inside <Drawer>. Lifting the read avoids the
+// "useDrive must be called within a <DriveStateProvider>" crash that
+// follows from a naive useDrive() call inside the drawer subtree.
 export function DetailPanel({ isVisible, item, onClose }: DetailPanelProps) {
-    if (!isVisible || !item) return null
+    const { activeSection, getItemPath } = useDrive()
+    if (!item) return null
+    return (
+        <DetailPanelContent
+            item={item}
+            isOpen={isVisible}
+            onClose={onClose}
+            activeSection={activeSection}
+            getItemPath={getItemPath}
+        />
+    )
+}
 
-    return <DetailPanelContent item={item} onClose={onClose} />
+type DriveContextSlice = {
+    activeSection: ReturnType<typeof useDrive>['activeSection']
+    getItemPath: ReturnType<typeof useDrive>['getItemPath']
 }
 
 type DetailTab = 'details' | 'versions' | 'activity'
 
-function DetailPanelContent({ item, onClose }: { item: DriveItemView; onClose: () => void }) {
+function DetailPanelContent({
+    item,
+    isOpen,
+    onClose,
+    activeSection,
+    getItemPath,
+}: {
+    item: DriveItemView
+    isOpen: boolean
+    onClose: () => void
+} & DriveContextSlice) {
     const mutedColor = useThemeColor('muted-foreground')
     const primaryColor = useThemeColor('primary')
     const [activeTab, setActiveTab] = useState<DetailTab>('details')
     const showVersionsTab = !item.isFolder
 
     return (
-        <View
-            className="border-l border-border self-stretch overflow-hidden"
-            style={{
-                width: 320,
-                minHeight: 0,
-            }}
-        >
-            <View className="flex-row items-start justify-between px-4 py-3 gap-2 border-b border-border">
-                <Text
-                    numberOfLines={2}
-                    className="flex-1 text-foreground"
-                    style={{
-                        fontSize: 16,
-                        fontWeight: '600',
-                    }}
-                >
-                    {item.name}
-                </Text>
-                <Pressable onPress={onClose} className="p-1">
-                    <X size={18} color={mutedColor} />
-                </Pressable>
-            </View>
+        <Drawer isOpen={isOpen} onClose={onClose} anchor="right" size="md">
+            <DrawerBackdrop />
+            <DrawerContent>
+                <DrawerHeader>
+                    <Text
+                        numberOfLines={2}
+                        className="flex-1 text-foreground"
+                        style={{ fontSize: 16, fontWeight: '600' }}
+                    >
+                        {item.name}
+                    </Text>
+                    <DrawerCloseButton accessibilityLabel="Close details panel">
+                        <X size={18} color={mutedColor} />
+                    </DrawerCloseButton>
+                </DrawerHeader>
+                <DrawerBody>
+                    <View className="items-center py-6">
+                        <Thumbnail item={item} size={120} />
+                    </View>
 
-            <ScrollView className="flex-1">
-                <View className="items-center py-6">
-                    <Thumbnail item={item} size={120} />
-                </View>
+                    <TabBar
+                        tabs={
+                            showVersionsTab
+                                ? (['details', 'versions', 'activity'] as const)
+                                : (['details', 'activity'] as const)
+                        }
+                        activeTab={activeTab}
+                        onTabPress={setActiveTab}
+                        mutedColor={mutedColor}
+                        primaryColor={primaryColor}
+                    />
 
-                <TabBar
-                    tabs={
-                        showVersionsTab
-                            ? (['details', 'versions', 'activity'] as const)
-                            : (['details', 'activity'] as const)
-                    }
-                    activeTab={activeTab}
-                    onTabPress={setActiveTab}
-                    mutedColor={mutedColor}
-                    primaryColor={primaryColor}
-                />
-
-                {activeTab === 'details' && <DetailsContent item={item} />}
-                {activeTab === 'versions' && showVersionsTab && <VersionsContent itemId={item.id} />}
-                {activeTab === 'activity' && <ActivityContent />}
-            </ScrollView>
-        </View>
+                    {activeTab === 'details' && (
+                        <DetailsContent
+                            item={item}
+                            activeSection={activeSection}
+                            getItemPath={getItemPath}
+                        />
+                    )}
+                    {activeTab === 'versions' && showVersionsTab && (
+                        <VersionsContent itemId={item.id} />
+                    )}
+                    {activeTab === 'activity' && <ActivityContent />}
+                </DrawerBody>
+            </DrawerContent>
+        </Drawer>
     )
 }
 
-function DetailsContent({ item }: { item: DriveItemView }) {
+function DetailsContent({
+    item,
+    activeSection,
+    getItemPath,
+}: { item: DriveItemView } & DriveContextSlice) {
     const mutedColor = useThemeColor('muted-foreground')
-    const { activeSection, getItemPath } = useDrive()
     const accessText = item.shared ? 'Shared with others' : 'Private to you'
     const isTrash = activeSection === 'trash'
     const originalLocation = isTrash ? getItemPath(item.parentId) : null

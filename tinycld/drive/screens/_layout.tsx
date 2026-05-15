@@ -37,15 +37,13 @@ function DriveLayoutInner() {
     return (
         <View className="flex-1 bg-background">
             <DriveToolbar />
-            <View className="flex-1 flex-row">
-                <View className="flex-1">
-                    <DropZone onDrop={uploadFiles} onDropTree={uploadTree} isEnabled={isMyDrive}>
-                        <FrozenSlideStack />
-                    </DropZone>
-                    <UploadStatusBar />
-                </View>
-                <DetailPanel isVisible={showDetail} item={selectedItem} onClose={closeDetailPanel} />
+            <View className="flex-1">
+                <DropZone onDrop={uploadFiles} onDropTree={uploadTree} isEnabled={isMyDrive}>
+                    <FrozenSlideStack />
+                </DropZone>
+                <UploadStatusBar />
             </View>
+            <DetailPanel isVisible={showDetail} item={selectedItem} onClose={closeDetailPanel} />
             <PreviewModal isVisible={!!previewItem} item={previewItem} onClose={closePreview} />
             <DriveDialogs />
         </View>
