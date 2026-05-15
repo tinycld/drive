@@ -182,4 +182,44 @@ test.describe('Drive — Actions', () => {
             timeout: 5_000,
         })
     })
+
+    test('detail panel opens via Info toolbar and closes via X and backdrop', async ({ page }) => {
+        // Regression: detail panel was rebuilt on top of the core Drawer
+        // component. The first iteration wired an explicit `onPress` on
+        // <DrawerCloseButton>, which Gluestack's ModalCloseButton spreads
+        // AFTER its built-in `onPress={handleClose}` — so our onPress
+        // overrode the close path entirely and neither the X button nor
+        // the backdrop dismissed the drawer. Cover both dismiss paths
+        // here so we notice if the wiring drifts again.
+        const { folderName, fileName } = await setupFixtureFile('Detail')
+        await page.reload()
+
+        await openDriveItem(page, folderName)
+        const file = driveItem(page, fileName)
+        await expect(file).toBeVisible({ timeout: 10_000 })
+
+        await file.click()
+        // ToolbarIconButton renders as a real <button> on web; the
+        // row's hover-actions render the same Info icon as a
+        // <Pressable> (div role=button). Scope by getByRole('button')
+        // so the locator only matches the toolbar's real button.
+        const infoToolbar = page.getByRole('button', { name: 'Info', exact: true })
+        await infoToolbar.click({ timeout: 10_000 })
+
+        const closeBtn = page.getByLabel('Close details panel', { exact: true })
+        await expect(closeBtn).toBeVisible({ timeout: 5_000 })
+
+        // Dismiss via the X.
+        await closeBtn.click()
+        await expect(closeBtn).not.toBeVisible({ timeout: 5_000 })
+
+        // Re-open, then dismiss via backdrop click. The backdrop fills
+        // the viewport behind the right-anchored drawer; clicking near
+        // the left edge lands on it, not the drawer content.
+        await infoToolbar.click({ timeout: 10_000 })
+        await expect(closeBtn).toBeVisible({ timeout: 5_000 })
+
+        await page.locator('body').click({ position: { x: 10, y: 200 } })
+        await expect(closeBtn).not.toBeVisible({ timeout: 5_000 })
+    })
 })
