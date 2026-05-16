@@ -46,7 +46,7 @@ The package depends on `@tinycld/core` at runtime (React, pbtsdb, `~/lib/*`). Th
 From inside your app shell checkout (`tinycld/tinycld`):
 
 ```sh
-pnpm run packages:install <this-repo-git-url>
+npm run packages:install <this-repo-git-url>
 ```
 
 That clones the repo next to the app shell, symlinks it into `tinycld/packages/@tinycld/drive`, and runs the generator to wire up routes, collections, migrations, public routes, and Go server extensions.
@@ -54,7 +54,7 @@ That clones the repo next to the app shell, symlinks it into `tinycld/packages/@
 To remove:
 
 ```sh
-pnpm run packages:unlink @tinycld/drive
+npm run packages:unlink @tinycld/drive
 ```
 
 ## Development
@@ -63,12 +63,12 @@ This package is not run standalone — it only makes sense inside an app shell c
 
 ```sh
 cd ../tinycld
-pnpm run dev              # expo + pocketbase (with WebDAV) with drive linked
-pnpm run test:unit        # includes this package's tests
-pnpm run checks           # biome + tsc across the app shell + linked packages
+npm run dev              # expo + pocketbase (with WebDAV) with drive linked
+npm run test:unit        # includes this package's tests
+npm run checks           # biome + tsc across the app shell + linked packages
 ```
 
-**Do not** run `pnpm install` (or any other package manager's install) inside this directory. Peer dependencies resolve through the app shell's `node_modules/`; installing here creates duplicate copies of `react`, `react-native`, etc. and breaks TypeScript.
+**Do not** run `npm install` (or any other package manager's install) inside this directory. Peer dependencies resolve through the app shell's `node_modules/`; installing here creates duplicate copies of `react`, `react-native`, etc. and breaks TypeScript.
 
 ## License
 
