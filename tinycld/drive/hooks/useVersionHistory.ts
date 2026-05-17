@@ -1,4 +1,4 @@
-import { and, eq } from '@tanstack/db'
+import { and, eq, not } from '@tanstack/db'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
@@ -10,7 +10,7 @@ export function useVersionHistory(itemId: string) {
         (query) =>
             query
                 .from({ v: versionsCollection })
-                .where(({ v }) => and(eq(v.item, itemId), eq(v.source, 'upload')))
+                .where(({ v }) => and(eq(v.item, itemId), not(eq(v.source, 'system'))))
                 .orderBy(({ v }) => v.version_number, 'desc'),
         [itemId]
     )

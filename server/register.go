@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -116,6 +117,10 @@ func Register(app *pocketbase.PocketBase) {
 
 		e.Router.POST("/api/drive/versions/restore", func(re *core.RequestEvent) error {
 			return handleRestoreVersion(app, re)
+		}).BindFunc(requireAuth)
+
+		e.Router.POST("/api/drive/versions/snapshot", func(re *core.RequestEvent) error {
+			return handleSnapshotVersion(app, re)
 		}).BindFunc(requireAuth)
 
 		// Public share link endpoints (no auth required)
@@ -310,6 +315,42 @@ func handleUploadVersion(app *pocketbase.PocketBase, re *core.RequestEvent) erro
 		"size":      item.GetInt("size"),
 		"mime_type": item.GetString("mime_type"),
 	})
+}
+
+// handleSnapshotVersion snapshots the current file on a drive_item as a labeled
+// version without uploading any new bytes. Used by calc/text "Save version".
+func handleSnapshotVersion(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+	var body struct {
+		Item  string `json:"item"`
+		Label string `json:"label"`
+	}
+	if err := json.NewDecoder(re.Request.Body).Decode(&body); err != nil {
+		return re.BadRequestError("invalid request body", nil)
+	}
+	if body.Item == "" {
+		return re.BadRequestError("missing item", nil)
+	}
+
+	label := strings.TrimSpace(body.Label)
+	if len(label) > 500 {
+		label = label[:500]
+	}
+
+	item, userOrgID, err := resolveItemAndUserOrg(app, re, body.Item, true)
+	if err != nil {
+		return err
+	}
+
+	if item.GetString("file") == "" {
+		return router.NewApiError(http.StatusUnprocessableEntity, "nothing to snapshot — file is empty", nil)
+	}
+
+	if err := snapshotCurrentFile(app, item, userOrgID, "user", label); err != nil {
+		app.Logger().Warn("version snapshot failed", "id", item.Id, "error", err)
+		return re.InternalServerError("failed to save version", nil)
+	}
+
+	return re.JSON(http.StatusOK, map[string]any{"item": item.Id})
 }
 
 // handleRestoreVersion restores a previous version as the current file.
