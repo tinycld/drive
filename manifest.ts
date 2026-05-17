@@ -8,6 +8,7 @@ const manifest = {
     nav: { label: 'Drive', icon: 'hard-drive', order: 12, shortcut: 'd' },
     sidebar: { component: 'sidebar' },
     provider: { component: 'provider' },
+    help: { directory: 'help' },
     migrations: { directory: 'pb-migrations' },
     collections: { register: 'collections', types: 'types' },
     seed: { script: 'seed' },
