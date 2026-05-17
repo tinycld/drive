@@ -11,7 +11,7 @@ Stores files for an organization, with per-user folders, sharing, versioning, pu
 User-facing features:
 
 - **Folders and files** — nested hierarchy, org-scoped. Create, rename, move, copy, trash.
-- **Versioning** — every replacement of a file's bytes creates a `drive_item_versions` row with `version_number` (monotonic per-item), size, mime type, source (`upload` | `system`), and an optional label. Restore or download any prior version.
+- **Versioning** — every replacement of a file's bytes creates a `drive_item_versions` row with `version_number` (monotonic per-item), size, mime type, source (`upload` | `user` | `system`), and an optional label. Other packages (calc, text) call `POST /api/drive/versions/snapshot` to tag the current bytes as a labeled checkpoint without re-uploading. Restore or download any prior version.
 - **Role-based sharing** — per-item shares with `owner` / `editor` / `viewer` roles. "Shared with me" lists everything other people have given you access to.
 - **Public share links** — 64-hex-character tokenized URLs at `/share/<token>` with viewer or editor role, optional expiry, download counters, last-accessed timestamps, and an enable / disable toggle that reuses the same token. Served by a public route so recipients don't need an account.
 - **Server-side thumbnails** — generated asynchronously on upload. PDFs, EPUBs, and Office documents render through MuPDF (`go-fitz`); HEIC/HEIF photos through `goheif`. Plain image types use PocketBase's built-in `?thumb=` query parameter.
@@ -83,6 +83,7 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 │     POST   /api/drive/share                                          │
 │     POST   /api/drive/upload-version                                 │
 │     POST   /api/drive/versions/restore                               │
+│     POST   /api/drive/versions/snapshot                              │
 │     POST   /api/drive/share-link                                     │
 │     DELETE /api/drive/share-link/{id}                                │
 │     GET    /api/drive/share-links                                    │
@@ -172,13 +173,21 @@ WebDAV deletes go through `MoveToTrash` semantics: removing a file via Finder mo
 
 ### Versioning
 
-`snapshotCurrentFile` is the single entry point for creating a version row, called from both `handleUploadVersion` and `handleRestoreVersion`. It:
+`snapshotCurrentFile` is the single entry point for creating a version row, called from `handleUploadVersion`, `handleRestoreVersion`, and `handleSnapshotVersion`. It:
 
 1. Reads the *current* file's bytes off the `drive_items` record's attached file.
 2. Inside an `app.RunInTransaction`, queries `MAX(version_number) FROM drive_item_versions WHERE item = ?` and assigns `result.Max + 1`.
-3. Inserts the `drive_item_versions` row with the current bytes, size, mime type, the calling user_org as `created_by`, and a `source` of either `upload` (manual replacement) or `system` (automatic snapshot during restore).
+3. Inserts the `drive_item_versions` row with the current bytes, size, mime type, the calling user_org as `created_by`, a caller-supplied `label`, and a `source` of `upload`, `user`, or `system`.
+
+The three `source` values let the UI distinguish how a version came into being:
+
+- **`upload`** — user replaced the file via "Upload new version" in the right-click menu. Label is empty.
+- **`user`** — user explicitly snapshotted the current bytes with a description, typically from a host package's "Save version" menu item. Label is whatever the user typed (trimmed and capped at 500 chars).
+- **`system`** — automatic safety snapshot taken before a destructive operation (currently just `handleRestoreVersion`). Hidden from the Detail panel's version list — `useVersionHistory` filters with `source != 'system'`.
 
 Version-number assignment in a transaction guarantees monotonicity even under concurrent uploads; the upper layer doesn't need to retry.
+
+`handleSnapshotVersion` is the cheap path used by packages whose content already lives in the `drive_items` file (calc spreadsheets, text documents). It takes JSON `{item, label}`, validates write access via `resolveItemAndUserOrg`, refuses items with no attached file (`422`, "nothing to snapshot — file is empty"), and snapshots in place. No file payload crosses the wire and no edit racing with autosave is possible because no bytes are written to `drive_items.file`.
 
 `handleRestoreVersion` first snapshots the current file (with `source = "system"`) so restore is itself reversible, then copies the chosen version's bytes back onto `drive_items.file` and updates the item's size and mime type accordingly. Storage quota is re-checked on the size delta before the restore proceeds.
 
