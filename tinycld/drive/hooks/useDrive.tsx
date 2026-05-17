@@ -56,7 +56,7 @@ export interface DriveContextValue {
     breadcrumbs: DriveItemView[]
     selectedItem: DriveItemView | undefined
     folderTree: import('../types').FolderTreeNode[]
-    totalStorageUsed: number
+    storageUsage: import('./useTotalStorage').StorageUsage
     isLoading: boolean
     searchQuery: string
     setSearchQuery: (query: string) => void
@@ -302,7 +302,7 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         isSearchActive,
     })
 
-    const totalStorageUsed = useTotalStorage()
+    const storageUsage = useTotalStorage()
 
     const mutations = useDriveMutations({
         orgId,
@@ -367,7 +367,7 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         breadcrumbs: items.breadcrumbs,
         selectedItem: items.selectedItem,
         folderTree: items.folderTree,
-        totalStorageUsed,
+        storageUsage,
         isLoading: items.isLoading,
         searchQuery,
         setSearchQuery,

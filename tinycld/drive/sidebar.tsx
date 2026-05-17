@@ -5,6 +5,7 @@ import {
     SidebarItem,
     SidebarNav,
 } from '@tinycld/core/components/sidebar-primitives'
+import { openHelpPackage } from '@tinycld/core/lib/help/open-help'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import {
@@ -14,6 +15,7 @@ import {
     Folder,
     FolderPlus,
     HardDrive,
+    HelpCircle,
     Plus,
     Star,
     Trash2,
@@ -23,6 +25,7 @@ import {
 import { useEffect, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useDriveState } from './hooks/useDrive'
+import type { StorageUsage } from './hooks/useTotalStorage'
 import type { FolderTreeNode } from './types'
 
 interface DriveSidebarProps {
@@ -37,7 +40,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         navigateToFolder,
         navigateToSection,
         folderTree,
-        totalStorageUsed,
+        storageUsage,
         triggerFilePicker,
     } = useDriveState()
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -148,7 +151,14 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
 
             <SidebarDivider />
 
-            <StorageBar usedGB={totalStorageUsed / 1024 ** 3} totalGB={15} />
+            <SidebarItem
+                label="Help"
+                icon={HelpCircle}
+                closesDrawer
+                onPress={() => openHelpPackage('drive')}
+            />
+
+            <StorageBar storageUsage={storageUsage} />
         </SidebarNav>
     )
 }
@@ -250,8 +260,22 @@ function FolderTreeItem({ node, expandedIds, selectedFolderId, onToggle, onSelec
     )
 }
 
-function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
-    const percentage = (usedGB / totalGB) * 100
+function StorageBar({ storageUsage }: { storageUsage: StorageUsage }) {
+    const { usedBytes, limitBytes, hasLimit } = storageUsage
+    const usedGB = usedBytes / 1024 ** 3
+
+    if (!hasLimit || limitBytes <= 0) {
+        return (
+            <View className="px-3 py-2" style={{ gap: 6 }}>
+                <Text className="text-muted-foreground" style={{ fontSize: 11 }}>
+                    {usedGB.toFixed(2)} GB used
+                </Text>
+            </View>
+        )
+    }
+
+    const totalGB = limitBytes / 1024 ** 3
+    const percentage = Math.min(100, (usedBytes / limitBytes) * 100)
 
     return (
         <View className="px-3 py-2" style={{ gap: 6 }}>
@@ -259,7 +283,7 @@ function StorageBar({ usedGB, totalGB }: { usedGB: number; totalGB: number }) {
                 <View className="h-full rounded-sm bg-primary" style={{ width: `${percentage}%` }} />
             </View>
             <Text className="text-muted-foreground" style={{ fontSize: 11 }}>
-                {usedGB.toFixed(2)} GB of {totalGB} GB used
+                {usedGB.toFixed(2)} GB of {totalGB.toFixed(0)} GB used
             </Text>
         </View>
     )

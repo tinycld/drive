@@ -1,9 +1,11 @@
+import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
 import { ResponsiveToolbar, type ToolbarItem } from '@tinycld/core/components/ResponsiveToolbar'
 import { ScreenHeader } from '@tinycld/core/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '@tinycld/core/components/SuretyGuard'
 import { ToolbarIconButton } from '@tinycld/core/components/ToolbarIconButton'
 import { ToolbarSeparator } from '@tinycld/core/components/ToolbarSeparator'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import type { HelpTopicId } from '@tinycld/core/lib/help/types'
 import { captureException } from '@tinycld/core/lib/errors'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { useCurrentRole } from '@tinycld/core/lib/use-current-role'
@@ -95,6 +97,13 @@ export function DriveDialogs() {
     )
 }
 
+function helpTopicForSection(activeSection: string, isSearchActive: boolean): HelpTopicId {
+    if (isSearchActive) return 'drive:search'
+    if (activeSection === 'trash') return 'drive:trash'
+    if (activeSection === 'shared-with-me') return 'drive:sharing'
+    return 'drive:files'
+}
+
 export function DriveToolbar() {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
@@ -154,6 +163,7 @@ export function DriveToolbar() {
     }
 
     const isSearchActive = searchQuery.length >= 2
+    const helpTopic = helpTopicForSection(activeSection, isSearchActive)
 
     const currentFolder = breadcrumbs.at(-1)
     const currentLabel = currentFolder?.name ?? 'My Files'
@@ -259,6 +269,7 @@ export function DriveToolbar() {
                             mutedColor={mutedColor}
                             activeIndicator={activeIndicator}
                         />
+                        <HelpIcon topic={helpTopic} size={18} />
                     </View>
                     <SearchInput
                         value={searchQuery}
@@ -287,6 +298,7 @@ export function DriveToolbar() {
                             mutedColor={mutedColor}
                             activeIndicator={activeIndicator}
                         />
+                        <HelpIcon topic={helpTopic} size={18} />
                     </View>
                 </View>
             )}

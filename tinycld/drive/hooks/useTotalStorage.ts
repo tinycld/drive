@@ -10,18 +10,28 @@ interface StorageUsageResponse {
     has_limit?: boolean
 }
 
+export interface StorageUsage {
+    usedBytes: number
+    limitBytes: number
+    hasLimit: boolean
+}
+
 /**
- * Bytes the current user has stored in this org. Backed by /api/drive/storage-usage,
- * which sums drive_items + drive_item_versions server-side. Replaces an older
- * approach that summed every loaded drive_item locally — that doesn't work
- * once we stop fetching the whole org.
+ * Bytes the current user has stored in this org, plus the org's configured per-user
+ * limit. Backed by /api/drive/storage-usage, which sums drive_items + drive_item_versions
+ * server-side. Replaces an older approach that summed every loaded drive_item locally —
+ * that doesn't work once we stop fetching the whole org.
  */
-export function useTotalStorage() {
+export function useTotalStorage(): StorageUsage {
     const { orgId } = useOrgInfo()
     const { data } = useQuery<StorageUsageResponse>({
         queryKey: ['storage-usage', orgId],
         queryFn: () => pb.send('/api/drive/storage-usage', { query: { org: orgId } }),
         enabled: !!orgId,
     })
-    return data?.user_used_bytes ?? 0
+    return {
+        usedBytes: data?.user_used_bytes ?? 0,
+        limitBytes: data?.limit_bytes ?? 0,
+        hasLimit: data?.has_limit ?? false,
+    }
 }

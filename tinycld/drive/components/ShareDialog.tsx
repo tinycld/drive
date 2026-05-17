@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
 import { NameAvatar } from '@tinycld/core/components/NameAvatar'
 import { type ContactSuggestion, ContactSuggestionsProvider } from '@tinycld/core/lib/contacts/use-contact-suggestions'
 import { captureException } from '@tinycld/core/lib/errors'
@@ -237,10 +238,11 @@ export function ShareDialog({
                 <ContactSuggestionsProvider>
                     {(list) => <ContactsBridge contacts={list} onChange={setContacts} />}
                 </ContactSuggestionsProvider>
-                <View className="px-6 pb-4" style={{ paddingTop: 28 }}>
-                    <Text className="text-foreground" style={{ fontSize: 28 }}>
+                <View className="px-6 pb-4 flex-row items-center gap-2" style={{ paddingTop: 28 }}>
+                    <Text className="text-foreground flex-1" style={{ fontSize: 28 }} numberOfLines={1}>
                         Share &ldquo;{itemName}&rdquo;
                     </Text>
+                    <HelpIcon topic="drive:sharing" size={20} />
                 </View>
 
                 <View className="px-6 pb-5 relative overflow-visible" style={{ zIndex: 100 }}>
