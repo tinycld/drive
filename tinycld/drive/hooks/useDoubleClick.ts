@@ -1,8 +1,14 @@
 import { useCallback, useRef } from 'react'
-import { type GestureResponderEvent, Platform } from 'react-native'
+import type { GestureResponderEvent } from 'react-native'
 
 const DOUBLE_CLICK_MS = 300
 
+// Disambiguates single-tap from double-tap by deferring the single-tap
+// handler for 300ms. A second tap inside that window cancels the timer
+// and fires the double-tap handler instead. Works the same on web and
+// native — iPad/iPhone double-tap-to-preview was previously broken
+// because the web-only branch never tested the time-since-last-tap on
+// native; every tap just scheduled another onSingleClick.
 export function useDoubleClick(onSingleClick: (event: GestureResponderEvent) => void, onDoubleClick: () => void) {
     const lastTapRef = useRef(0)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -11,7 +17,7 @@ export function useDoubleClick(onSingleClick: (event: GestureResponderEvent) => 
     return useCallback(
         (event: GestureResponderEvent) => {
             const now = Date.now()
-            if (Platform.OS === 'web' && now - lastTapRef.current < DOUBLE_CLICK_MS) {
+            if (now - lastTapRef.current < DOUBLE_CLICK_MS) {
                 if (timerRef.current) {
                     clearTimeout(timerRef.current)
                     timerRef.current = null
