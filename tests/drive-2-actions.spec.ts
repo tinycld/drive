@@ -199,6 +199,15 @@ test.describe('Drive — Actions', () => {
         await expect(file).toBeVisible({ timeout: 10_000 })
 
         await file.click()
+        // File-row clicks go through useDoubleClick on web, which delays
+        // the single-click handler by 300ms to disambiguate from a
+        // double-click. The toolbar stays in no-selection mode until
+        // that timer fires. Wait past it before targeting the Info
+        // button — Playwright's auto-wait keeps re-resolving the
+        // locator but, because the click flow's two phases (selectSingle
+        // then selectItem) trigger separate re-renders, the locator can
+        // briefly miss the button mid-update and Playwright gives up.
+        await page.waitForTimeout(400)
         // ToolbarIconButton renders as a real <button> on web; the
         // row's hover-actions render the same Info icon as a
         // <Pressable> (div role=button). Scope by getByRole('button')
