@@ -90,7 +90,15 @@ test.describe('Drive — Browser', () => {
     })
 
     test('storage indicator shows usage', async ({ page }) => {
-        await expect(page.getByText(/GB of 15 GB used/)).toBeVisible()
+        // The sidebar StorageBar has two render modes depending on whether a
+        // per-user limit is configured (core settings.storage_limit_bytes):
+        //   - with limit:    "X.XX GB of N GB used"
+        //   - without limit: "X.XX GB used"
+        // CI doesn't seed a limit, so the dev DB and CI hit different
+        // branches. Match the substring common to both — the test's intent
+        // is "the indicator renders," not "the indicator shows a specific
+        // quota."
+        await expect(page.getByText(/\d+(\.\d+)? GB used/)).toBeVisible()
     })
 })
 

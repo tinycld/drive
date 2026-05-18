@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { login, navigateToPackage } from '../../../../tests/e2e/helpers'
+import { clickSidebarItem, login, navigateToPackage } from '../../../../tests/e2e/helpers'
 import { createDriveItem, driveItem, escapeRegex, openDriveItem } from './helpers'
 
 // Each destructive test creates its own per-test folder + fixture file via
@@ -107,7 +107,7 @@ test.describe('Drive — Actions', () => {
 
         await expect(driveItem(page, fileName)).toHaveCount(0, { timeout: 10_000 })
 
-        await page.getByText('Trash').click()
+        await clickSidebarItem(page, 'Trash')
         const trashedRow = driveItem(page, fileName)
         await expect(trashedRow).toBeVisible({ timeout: 10_000 })
 
@@ -129,7 +129,7 @@ test.describe('Drive — Actions', () => {
         await page.getByLabel('Delete', { exact: true }).click({ timeout: 10_000 })
         await page.getByRole('button', { name: /move to trash/i }).click()
 
-        await page.getByText('Trash').click()
+        await clickSidebarItem(page, 'Trash')
         const trashed = driveItem(page, fileName)
         await expect(trashed).toBeVisible({ timeout: 10_000 })
 
