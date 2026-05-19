@@ -23,10 +23,11 @@ import {
     UserPlus,
 } from 'lucide-react-native'
 import { useEffect, useState } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Platform, Pressable, Text, View } from 'react-native'
 import { useDriveState } from './hooks/useDrive'
 import type { StorageUsage } from './hooks/useTotalStorage'
 import type { FolderTreeNode } from './types'
+import { useDriveUIStore } from './stores/drive-ui-store'
 
 interface DriveSidebarProps {
     isCollapsed: boolean
@@ -42,7 +43,11 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         folderTree,
         storageUsage,
         triggerFilePicker,
+        openPrompt,
     } = useDriveState()
+    const openUploadSheet = useDriveUIStore((s) => s.openUploadSheet)
+    const handleUploadPress = Platform.OS === 'web' ? triggerFilePicker : openUploadSheet
+    const handleNewFolderPress = () => openPrompt({ type: 'new-folder' })
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
@@ -92,8 +97,8 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                 <Menu.Portal>
                     <Menu.Overlay />
                     <Menu.Content presentation="popover" placement="bottom" align="start">
-                        <MenuActionItem label="Upload" icon={Upload} onPress={triggerFilePicker} />
-                        <MenuActionItem label="New folder" icon={FolderPlus} onPress={() => {}} />
+                        <MenuActionItem label="Upload" icon={Upload} onPress={handleUploadPress} />
+                        <MenuActionItem label="New folder" icon={FolderPlus} onPress={handleNewFolderPress} />
                     </Menu.Content>
                 </Menu.Portal>
             </Menu>
