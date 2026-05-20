@@ -35,6 +35,13 @@ export interface CreateDriveItemResult {
     itemId: string
     finalName: string
     parentId: string
+    /**
+     * The stored PocketBase file name — PB sanitizes the upload name and
+     * appends a random suffix, so this differs from `finalName` (the
+     * user-visible `name` column). Build file URLs from THIS, not
+     * `finalName`, or the `/api/files/...` request 404s.
+     */
+    file: string
 }
 
 /**
@@ -102,8 +109,10 @@ export function useCreateDriveItem() {
                     // owner drive_shares row in the same transaction, so the client
                     // must not also insert one — the unique (item, user_org) index
                     // would reject it.
-                    await pb.collection('drive_items').create(formData)
-                    return { itemId, finalName, parentId }
+                    const record = await pb.collection('drive_items').create<{ file: string }>(
+                        formData
+                    )
+                    return { itemId, finalName, parentId, file: record.file }
                 } catch (err) {
                     lastError = err
                     used.add(finalName)
