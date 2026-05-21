@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-import { clickSidebarItem, login, navigateToPackage } from '../../../../tests/e2e/helpers'
+import { clickSidebarItem, login, navigateToPackage } from '../../app/tests/e2e/helpers'
 import { createDriveItem, driveItem, escapeRegex, openDriveItem } from './helpers'
 
 // Opens a file row's detail panel via its Info hover-action. The Info

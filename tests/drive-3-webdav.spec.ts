@@ -5,7 +5,7 @@ import {
     ORG_SLUG,
     TEST_USER_EMAIL,
     TEST_USER_PASSWORD,
-} from '../../../../tests/e2e/helpers'
+} from '../../app/tests/e2e/helpers'
 import {
     deleteResource,
     mkcol,
