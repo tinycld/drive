@@ -5,8 +5,8 @@ import { ConfirmTrash, SuretyGuard } from '@tinycld/core/components/SuretyGuard'
 import { ToolbarIconButton } from '@tinycld/core/components/ToolbarIconButton'
 import { ToolbarSeparator } from '@tinycld/core/components/ToolbarSeparator'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import type { HelpTopicId } from '@tinycld/core/lib/help/types'
 import { captureException } from '@tinycld/core/lib/errors'
+import type { HelpTopicId } from '@tinycld/core/lib/help/types'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { useCurrentRole } from '@tinycld/core/lib/use-current-role'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
@@ -109,7 +109,7 @@ export function DriveToolbar() {
     const fgColor = useThemeColor('foreground')
     const activeIndicator = useThemeColor('active-indicator')
     const isMobile = useBreakpoint() === 'mobile'
-    const openUploadSheet = useDriveUIStore((s) => s.openUploadSheet)
+    const openUploadSheet = useDriveUIStore(s => s.openUploadSheet)
     const {
         selectedItem,
         selectedIds,
@@ -136,7 +136,8 @@ export function DriveToolbar() {
     // in Trash where Restore/Delete-permanently aren't on the row. Showing
     // it for a single click also masks the breadcrumb header, which makes
     // the X-icon + filename pair look like an unrelated decoration.
-    const showSelectionToolbar = selectionCount > 1 || (activeSection === 'trash' && selectionCount > 0)
+    const showSelectionToolbar =
+        selectionCount > 1 || (activeSection === 'trash' && selectionCount > 0)
 
     if (showSelectionToolbar) {
         const handleClear = () => {
@@ -152,7 +153,9 @@ export function DriveToolbar() {
                 viewMode={viewMode}
                 onSetViewMode={setViewMode}
                 onClearSelection={handleClear}
-                onOpenRename={(itemId, name) => openPrompt({ type: 'rename', itemId, currentName: name })}
+                onOpenRename={(itemId, name) =>
+                    openPrompt({ type: 'rename', itemId, currentName: name })
+                }
                 onOpenMove={(itemId, name) => openMoveDialog(itemId, name)}
                 onOpenShare={(itemId, name) => openShareDialog(itemId, name)}
                 mutedColor={mutedColor}
@@ -202,7 +205,7 @@ export function DriveToolbar() {
             )}
             {hasSingleSelection && handleTrashSelected && selectedItem && (
                 <ConfirmTrash itemName={selectedItem.name} onConfirmed={handleTrashSelected}>
-                    {(onOpen) => <ToolbarIconButton icon={Trash2} label="Delete" onPress={onOpen} />}
+                    {onOpen => <ToolbarIconButton icon={Trash2} label="Delete" onPress={onOpen} />}
                 </ConfirmTrash>
             )}
         </View>
@@ -280,7 +283,10 @@ export function DriveToolbar() {
                     />
                 </View>
             ) : (
-                <View className="flex-row items-center justify-between px-4 gap-3" style={{ paddingVertical: 10 }}>
+                <View
+                    className="flex-row items-center justify-between px-4 gap-3"
+                    style={{ paddingVertical: 10 }}
+                >
                     {titleContent}
                     <ToolbarSeparator />
                     {folderActions}
@@ -322,19 +328,30 @@ function DesktopBreadcrumbs({
     const ancestors = breadcrumbs.slice(0, -1)
 
     return (
-        <View className="flex-row items-center flex-1 gap-1 overflow-hidden" style={{ minWidth: 0 }}>
+        <View
+            className="flex-row items-center flex-1 gap-1 overflow-hidden"
+            style={{ minWidth: 0 }}
+        >
             {ancestors.length > 0 && (
                 <>
                     <Pressable onPress={() => onNavigate('')}>
-                        <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 16 }}>
+                        <Text
+                            numberOfLines={1}
+                            className="text-muted-foreground"
+                            style={{ fontSize: 16 }}
+                        >
                             My Files
                         </Text>
                     </Pressable>
                     <ChevronRight size={14} color={mutedColor} />
                 </>
             )}
-            {ancestors.map((crumb) => (
-                <View key={crumb.id} className="flex-row items-center gap-1 shrink" style={{ minWidth: 0 }}>
+            {ancestors.map(crumb => (
+                <View
+                    key={crumb.id}
+                    className="flex-row items-center gap-1 shrink"
+                    style={{ minWidth: 0 }}
+                >
                     <Pressable onPress={() => onNavigate(crumb.id)}>
                         <Text
                             numberOfLines={1}
@@ -422,7 +439,13 @@ interface SearchInputProps {
     fullWidth?: boolean
 }
 
-function SearchInput({ value, onChangeText, mutedColor, fgColor: _fgColor, fullWidth }: SearchInputProps) {
+function SearchInput({
+    value,
+    onChangeText,
+    mutedColor,
+    fgColor: _fgColor,
+    fullWidth,
+}: SearchInputProps) {
     return (
         <View
             className="flex-row items-center border border-border rounded-lg"
@@ -508,7 +531,9 @@ function SelectionToolbar({
             input.type = 'file'
             input.onchange = () => {
                 if (input.files?.[0]) {
-                    uploadNewVersion(item.id, input.files[0]).catch((err) => captureException('uploadNewVersion', err))
+                    uploadNewVersion(item.id, input.files[0]).catch(err =>
+                        captureException('uploadNewVersion', err)
+                    )
                 }
             }
             input.click()
@@ -631,7 +656,9 @@ function SelectionToolbar({
                                 : handleTrashAll
                         }
                     >
-                        {(onOpen) => <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />}
+                        {onOpen => (
+                            <ToolbarIconButton icon={Trash2} label="Trash" onPress={onOpen} />
+                        )}
                     </ConfirmTrash>
                 ),
             }
@@ -702,7 +729,10 @@ function SelectionToolbar({
         return (
             <>
                 <ScreenHeader>
-                    <View className="flex-row items-center justify-between px-4" style={{ paddingVertical: 10 }}>
+                    <View
+                        className="flex-row items-center justify-between px-4"
+                        style={{ paddingVertical: 10 }}
+                    >
                         <View className="flex-row items-center gap-2 flex-1">
                             <Pressable onPress={onClearSelection} className="p-1">
                                 <X size={16} color={mutedColor} />
@@ -740,8 +770,12 @@ function SelectionToolbar({
                                         : handleDeleteAll
                                 }
                             >
-                                {(onOpen) => (
-                                    <ToolbarIconButton icon={Trash2} label="Delete permanently" onPress={onOpen} />
+                                {onOpen => (
+                                    <ToolbarIconButton
+                                        icon={Trash2}
+                                        label="Delete permanently"
+                                        onPress={onOpen}
+                                    />
                                 )}
                             </SuretyGuard>
                             <ToolbarSeparator />
@@ -762,7 +796,7 @@ function SelectionToolbar({
                         folderTree={folderTree}
                         title="Original location has been removed, select alternative location"
                         confirmLabel="Restore here"
-                        onMove={(targetId) => {
+                        onMove={targetId => {
                             if (restoreMoveTarget) {
                                 restoreToFolder(restoreMoveTarget, targetId)
                                 onClearSelection()
@@ -876,8 +910,8 @@ function ViewToggleSegment({
 }
 
 function NamePromptDialog() {
-    const promptDialog = useDriveUIStore((s) => s.promptDialog)
-    const promptKey = useDriveUIStore((s) => s.promptKey)
+    const promptDialog = useDriveUIStore(s => s.promptDialog)
+    const promptKey = useDriveUIStore(s => s.promptKey)
 
     if (promptDialog.type === 'closed') return null
 
@@ -907,7 +941,10 @@ function NamePromptDialogInner({ prompt }: { prompt: Exclude<PromptDialog, { typ
                 <Text className="text-foreground" style={{ fontSize: 20, fontWeight: '600' }}>
                     {title}
                 </Text>
-                <View className="flex-row border border-border rounded-lg px-3" style={{ paddingVertical: 10 }}>
+                <View
+                    className="flex-row border border-border rounded-lg px-3"
+                    style={{ paddingVertical: 10 }}
+                >
                     <PlainInput
                         value={value}
                         onChangeText={setValue}
@@ -934,8 +971,8 @@ function NamePromptDialogInner({ prompt }: { prompt: Exclude<PromptDialog, { typ
 }
 
 function UploadSheet() {
-    const isOpen = useDriveUIStore((s) => s.uploadSheetOpen)
-    const closeUploadSheet = useDriveUIStore((s) => s.closeUploadSheet)
+    const isOpen = useDriveUIStore(s => s.uploadSheetOpen)
+    const closeUploadSheet = useDriveUIStore(s => s.closeUploadSheet)
     const { triggerFilePicker, triggerPhotoPicker } = useDrive()
     const fgColor = useThemeColor('foreground')
 
@@ -997,9 +1034,19 @@ function UploadSheet() {
                         marginBottom: 8,
                     }}
                 />
-                <SheetAction icon={ImageIcon} label="Photos & videos" onPress={handlePickPhotos} fgColor={fgColor} />
+                <SheetAction
+                    icon={ImageIcon}
+                    label="Photos & videos"
+                    onPress={handlePickPhotos}
+                    fgColor={fgColor}
+                />
                 <View className="bg-border" style={{ height: 1, marginHorizontal: 16 }} />
-                <SheetAction icon={FileUp} label="File" onPress={handlePickFile} fgColor={fgColor} />
+                <SheetAction
+                    icon={FileUp}
+                    label="File"
+                    onPress={handlePickFile}
+                    fgColor={fgColor}
+                />
             </View>
         </View>
     )

@@ -1,5 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { PublicShareError, PublicShareLayout, type PublicShareMetadata } from '@tinycld/core/components/public-share'
+import {
+    PublicShareError,
+    PublicShareLayout,
+    type PublicShareMetadata,
+} from '@tinycld/core/components/public-share'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
 import { Redirect, useLocalSearchParams } from 'expo-router'

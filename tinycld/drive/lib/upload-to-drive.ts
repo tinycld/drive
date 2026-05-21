@@ -109,9 +109,9 @@ export function useCreateDriveItem() {
                     // owner drive_shares row in the same transaction, so the client
                     // must not also insert one — the unique (item, user_org) index
                     // would reject it.
-                    const record = await pb.collection('drive_items').create<{ file: string }>(
-                        formData
-                    )
+                    const record = await pb
+                        .collection('drive_items')
+                        .create<{ file: string }>(formData)
                     return { itemId, finalName, parentId, file: record.file }
                 } catch (err) {
                     lastError = err

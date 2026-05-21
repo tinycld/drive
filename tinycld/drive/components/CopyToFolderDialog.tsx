@@ -1,6 +1,6 @@
-import { ChooseFolderDialog } from './ChooseFolderDialog'
 import { useCopyDriveItem } from '../lib/copy-drive-item'
 import { useCopyDialogStore } from '../stores/copy-dialog-store'
+import { ChooseFolderDialog } from './ChooseFolderDialog'
 
 interface CopyToFolderDialogProps {
     // Source item id. The dialog only inspects the copy-dialog store

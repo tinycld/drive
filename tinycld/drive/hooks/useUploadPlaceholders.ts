@@ -22,15 +22,15 @@ export function useUploadPlaceholders({
     isSearchActive,
     itemsById,
 }: UseUploadPlaceholdersParams): DriveItemView[] {
-    const uploadingFiles = useUploadStore((s) => s.uploadingFiles)
+    const uploadingFiles = useUploadStore(s => s.uploadingFiles)
 
     return useMemo<DriveItemView[]>(() => {
         if (isSearchActive) return []
         if (activeSection !== 'my-drive') return []
         return uploadingFiles
-            .filter((u) => u.parentId === currentFolderId)
-            .filter((u) => !itemsById.has(u.id))
-            .map((u) => ({
+            .filter(u => u.parentId === currentFolderId)
+            .filter(u => !itemsById.has(u.id))
+            .map(u => ({
                 id: u.id,
                 name: u.name,
                 isFolder: false,

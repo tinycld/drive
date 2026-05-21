@@ -19,7 +19,8 @@ export function UploadingGridCard({ item, onDismiss }: UploadingGridCardProps) {
 
     const status = item.uploadStatus ?? 'pending'
     const isError = status === 'error'
-    const isIndeterminate = (status === 'pending' || status === 'uploading') && (item.uploadLoaded ?? 0) === 0
+    const isIndeterminate =
+        (status === 'pending' || status === 'uploading') && (item.uploadLoaded ?? 0) === 0
     const progress = item.size > 0 ? Math.min(1, (item.uploadLoaded ?? 0) / item.size) : 0
 
     const fillColor = isError ? `${dangerColor}26` : `${indicatorColor}26`
@@ -81,7 +82,12 @@ export function UploadingGridCard({ item, onDismiss }: UploadingGridCardProps) {
                         className={isError ? 'text-danger' : 'text-foreground'}
                         style={{ fontSize: 11, fontWeight: '500' }}
                     >
-                        {describeStatus(status, item.uploadLoaded ?? 0, item.size, item.uploadError)}
+                        {describeStatus(
+                            status,
+                            item.uploadLoaded ?? 0,
+                            item.size,
+                            item.uploadError
+                        )}
                     </Text>
                 </View>
             </View>

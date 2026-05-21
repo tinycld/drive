@@ -13,13 +13,13 @@ import { useSaveToDriveStore } from '../stores/save-to-drive-store'
  * save mutation against the user-chosen folder.
  */
 registerPreviewAction('drive.save', () => {
-    const open = useSaveToDriveStore((s) => s.open)
+    const open = useSaveToDriveStore(s => s.open)
     return {
         id: 'drive.save',
         icon: Save,
         label: 'Save to Drive',
-        isApplicable: (source) => source.collectionId !== 'drive_items',
-        onPress: (source) => {
+        isApplicable: source => source.collectionId !== 'drive_items',
+        onPress: source => {
             open(source)
         },
     }

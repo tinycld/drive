@@ -3,9 +3,9 @@ import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useUserPreference } from '@tinycld/core/lib/use-user-preference'
 import { router, useLocalSearchParams, usePathname } from 'expo-router'
 import {
+    createContext,
     type MutableRefObject,
     type ReactNode,
-    createContext,
     useCallback,
     useContext,
     useEffect,
@@ -85,7 +85,9 @@ export interface DriveContextValue {
     moveItem: (itemId: string, newParentId: string) => void
     shareItem: (itemId: string, userOrgId: string, role: 'editor' | 'viewer') => void
     removeShare: (shareId: string) => void
-    getSharesForItem: (itemId: string) => { id: string; userOrgId: string; name: string; email: string; role: string }[]
+    getSharesForItem: (
+        itemId: string
+    ) => { id: string; userOrgId: string; name: string; email: string; role: string }[]
     orgMembers: { userOrgId: string; name: string; email: string }[]
     /** itemsById feeds useUploadPlaceholders so completed uploads stop
      *  rendering as placeholders once the real record arrives. */
@@ -133,7 +135,9 @@ const DriveStateContext = createContext<DriveContextValue | null>(null)
 // callback bottom-up: the screen sets it on mount, the trash/restore
 // mutations call it before .mutate() so FlashList can disable recycling
 // for the next frame and run a slide animation.
-const LayoutAnimationContext = createContext<MutableRefObject<(() => void) | undefined> | null>(null)
+const LayoutAnimationContext = createContext<MutableRefObject<(() => void) | undefined> | null>(
+    null
+)
 
 export function DriveStateProvider({ children }: { children: ReactNode }) {
     const layoutAnimationRef = useRef<(() => void) | undefined>(undefined)
@@ -195,15 +199,15 @@ function useStableDriveActions(latest: DriveActions): DriveActions {
     ref.current = latest
     return useMemo<DriveActions>(
         () => ({
-            openPreview: (item) => ref.current.openPreview(item),
-            openItem: (item) => ref.current.openItem(item),
-            navigateToFolder: (folderId) => ref.current.navigateToFolder(folderId),
-            toggleStar: (itemId) => ref.current.toggleStar(itemId),
-            downloadItem: (itemId) => ref.current.downloadItem(itemId),
-            moveToTrash: (itemId) => ref.current.moveToTrash(itemId),
-            selectItem: (id) => ref.current.selectItem(id),
+            openPreview: item => ref.current.openPreview(item),
+            openItem: item => ref.current.openItem(item),
+            navigateToFolder: folderId => ref.current.navigateToFolder(folderId),
+            toggleStar: itemId => ref.current.toggleStar(itemId),
+            downloadItem: itemId => ref.current.downloadItem(itemId),
+            moveToTrash: itemId => ref.current.moveToTrash(itemId),
+            selectItem: id => ref.current.selectItem(id),
             openDetailPanel: () => ref.current.openDetailPanel(),
-            dismissUpload: (id) => ref.current.dismissUpload(id),
+            dismissUpload: id => ref.current.dismissUpload(id),
         }),
         []
     )
@@ -212,10 +216,7 @@ function useStableDriveActions(latest: DriveActions): DriveActions {
 export function useDriveState(options: UseDriveStateOptions = {}): DriveContextValue {
     const { layoutAnimationRef } = options
     const prepareLayoutAnimation = useMemo(
-        () =>
-            layoutAnimationRef
-                ? () => layoutAnimationRef.current?.()
-                : undefined,
+        () => (layoutAnimationRef ? () => layoutAnimationRef.current?.() : undefined),
         [layoutAnimationRef]
     )
     const { orgSlug, orgId } = useOrgInfo()
@@ -229,11 +230,11 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
     // sharing is handled separately: hydrate-on-mount from ?file=X&preview=1
     // and mirror store -> URL via history.replaceState (no router push, so
     // <Slot/> never remounts and FlashList scroll is preserved).
-    const selectedItemId = useDriveUIStore((s) => s.selectedItemId)
-    const selectItem = useDriveUIStore((s) => s.selectItem)
-    const selectedIds = useDriveUIStore((s) => s.selectedIds)
-    const clearSelection = useDriveUIStore((s) => s.clearSelection)
-    const previewItemId = useDriveUIStore((s) => s.previewItemId)
+    const selectedItemId = useDriveUIStore(s => s.selectedItemId)
+    const selectItem = useDriveUIStore(s => s.selectItem)
+    const selectedIds = useDriveUIStore(s => s.selectedIds)
+    const clearSelection = useDriveUIStore(s => s.clearSelection)
+    const previewItemId = useDriveUIStore(s => s.previewItemId)
     usePreviewUrlSync(previewItemId)
 
     // viewMode is decoupled from server persistence so the toggle UI updates
@@ -247,7 +248,11 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
     // updates. Otherwise rapid clicks can race the in-flight persistence:
     // if click N+1 lands before click N's write echoes back through the
     // live query, the echo would overwrite the newer local state.
-    const [persistedViewMode, persistViewMode] = useUserPreference<ViewMode>('drive', 'view_mode', 'list')
+    const [persistedViewMode, persistViewMode] = useUserPreference<ViewMode>(
+        'drive',
+        'view_mode',
+        'list'
+    )
     const [viewMode, setViewModeLocal] = useState<ViewMode>(persistedViewMode)
     const localOverrideRef = useRef(false)
     useEffect(() => {
@@ -283,7 +288,10 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
     } = useDriveUIStore()
 
     const isSearchActive = searchQuery.length >= 2
-    const { results: searchResults, isSearching } = useDriveSearch(isSearchActive ? searchQuery : '', orgId)
+    const { results: searchResults, isSearching } = useDriveSearch(
+        isSearchActive ? searchQuery : '',
+        orgId
+    )
 
     const upload = useFileUpload({
         orgId,
@@ -318,8 +326,6 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
 
     const nav = useDriveNavigation({
         orgSlug,
-        activeSection,
-        currentFolderId,
         selectItem,
         clearSearch: () => setSearchQuery(''),
         clearSelection,
@@ -432,7 +438,7 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
 //      the route (so <Slot/> stays put) and works on native (where the
 //      URL bar is invisible but the navigation state still tracks).
 function usePreviewUrlSync(previewItemId: string | null): void {
-    const openPreviewItem = useDriveUIStore((s) => s.openPreviewItem)
+    const openPreviewItem = useDriveUIStore(s => s.openPreviewItem)
     const params = useLocalSearchParams<{ file?: string; preview?: string }>()
 
     // Hydrate once from the initial URL params.

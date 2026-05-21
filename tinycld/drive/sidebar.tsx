@@ -26,8 +26,8 @@ import { useEffect, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
 import { useDriveState } from './hooks/useDrive'
 import type { StorageUsage } from './hooks/useTotalStorage'
-import type { FolderTreeNode } from './types'
 import { useDriveUIStore } from './stores/drive-ui-store'
+import type { FolderTreeNode } from './types'
 
 interface DriveSidebarProps {
     isCollapsed: boolean
@@ -45,21 +45,21 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         triggerFilePicker,
         openPrompt,
     } = useDriveState()
-    const openUploadSheet = useDriveUIStore((s) => s.openUploadSheet)
+    const openUploadSheet = useDriveUIStore(s => s.openUploadSheet)
     const handleUploadPress = Platform.OS === 'web' ? triggerFilePicker : openUploadSheet
     const handleNewFolderPress = () => openPrompt({ type: 'new-folder' })
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
     useEffect(() => {
         if (breadcrumbs.length === 0 && folderTree.length > 0) {
-            setExpandedIds((prev) => {
+            setExpandedIds(prev => {
                 if (prev.size > 0) return prev
-                return new Set(folderTree.map((n) => n.item.id))
+                return new Set(folderTree.map(n => n.item.id))
             })
         }
         if (breadcrumbs.length > 0) {
-            const ancestorIds = breadcrumbs.map((b) => b.id)
-            setExpandedIds((prev) => {
+            const ancestorIds = breadcrumbs.map(b => b.id)
+            setExpandedIds(prev => {
                 const next = new Set(prev)
                 for (const id of ancestorIds) next.add(id)
                 return next
@@ -68,7 +68,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
     }, [breadcrumbs, folderTree])
 
     const toggleExpand = (id: string) => {
-        setExpandedIds((prev) => {
+        setExpandedIds(prev => {
             const next = new Set(prev)
             if (next.has(id)) {
                 next.delete(id)
@@ -81,7 +81,7 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
 
     const handleFolderPress = (id: string) => {
         navigateToFolder(id)
-        setExpandedIds((prev) => {
+        setExpandedIds(prev => {
             const next = new Set(prev)
             next.add(id)
             return next
@@ -98,7 +98,11 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                     <Menu.Overlay />
                     <Menu.Content presentation="popover" placement="bottom" align="start">
                         <MenuActionItem label="Upload" icon={Upload} onPress={handleUploadPress} />
-                        <MenuActionItem label="New folder" icon={FolderPlus} onPress={handleNewFolderPress} />
+                        <MenuActionItem
+                            label="New folder"
+                            icon={FolderPlus}
+                            onPress={handleNewFolderPress}
+                        />
                     </Menu.Content>
                 </Menu.Portal>
             </Menu>
@@ -177,12 +181,19 @@ interface FolderTreeProps {
     depth: number
 }
 
-function FolderTree({ nodes, expandedIds, selectedFolderId, onToggle, onSelect, depth }: FolderTreeProps) {
+function FolderTree({
+    nodes,
+    expandedIds,
+    selectedFolderId,
+    onToggle,
+    onSelect,
+    depth,
+}: FolderTreeProps) {
     if (nodes.length === 0) return null
 
     return (
         <View>
-            {nodes.map((node) => (
+            {nodes.map(node => (
                 <FolderTreeItem
                     key={node.item.id}
                     node={node}
@@ -206,7 +217,14 @@ interface FolderTreeItemProps {
     depth: number
 }
 
-function FolderTreeItem({ node, expandedIds, selectedFolderId, onToggle, onSelect, depth }: FolderTreeItemProps) {
+function FolderTreeItem({
+    node,
+    expandedIds,
+    selectedFolderId,
+    onToggle,
+    onSelect,
+    depth,
+}: FolderTreeItemProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const activeIndicator = useThemeColor('active-indicator')
@@ -284,8 +302,14 @@ function StorageBar({ storageUsage }: { storageUsage: StorageUsage }) {
 
     return (
         <View className="px-3 py-2" style={{ gap: 6 }}>
-            <View className="overflow-hidden rounded-sm bg-muted-foreground/10" style={{ height: 4 }}>
-                <View className="h-full rounded-sm bg-primary" style={{ width: `${percentage}%` }} />
+            <View
+                className="overflow-hidden rounded-sm bg-muted-foreground/10"
+                style={{ height: 4 }}
+            >
+                <View
+                    className="h-full rounded-sm bg-primary"
+                    style={{ width: `${percentage}%` }}
+                />
             </View>
             <Text className="text-muted-foreground" style={{ fontSize: 11 }}>
                 {usedGB.toFixed(2)} GB of {totalGB.toFixed(0)} GB used

@@ -40,7 +40,7 @@ function uploadFormDataWithProgress(params: {
         if (params.authToken) {
             xhr.setRequestHeader('Authorization', params.authToken)
         }
-        xhr.upload.onprogress = (e) => {
+        xhr.upload.onprogress = e => {
             if (e.lengthComputable) params.onProgress(e.loaded, e.total)
         }
         xhr.onload = () => {
@@ -56,7 +56,10 @@ function uploadFormDataWithProgress(params: {
                 resolve(parsed)
             } else {
                 const message =
-                    parsed && typeof parsed === 'object' && 'message' in parsed && typeof parsed.message === 'string'
+                    parsed &&
+                    typeof parsed === 'object' &&
+                    'message' in parsed &&
+                    typeof parsed.message === 'string'
                         ? parsed.message
                         : `Upload failed (${xhr.status})`
                 reject(new Error(message))
@@ -111,12 +114,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
     )
 
     const uploadOne = useCallback(
-        async (params: {
-            id: string
-            name: string
-            parentId: string
-            file: File
-        }) => {
+        async (params: { id: string; name: string; parentId: string; file: File }) => {
             const { id, name, parentId, file } = params
             updateFile(id, { status: 'uploading', loaded: 0 })
 
@@ -140,7 +138,10 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             })
 
             const finalName =
-                response && typeof response === 'object' && 'name' in response && typeof response.name === 'string'
+                response &&
+                typeof response === 'object' &&
+                'name' in response &&
+                typeof response.name === 'string'
                     ? response.name
                     : name
             updateFile(id, { status: 'done', loaded: file.size, name: finalName })
@@ -152,7 +153,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
     const uploadMutation = useMutation({
         mutationFn: async (files: File[]) => {
             const parentId = folderRef.current
-            const queued: UploadingFile[] = files.map((f) => ({
+            const queued: UploadingFile[] = files.map(f => ({
                 id: newRecordId(),
                 name: f.name,
                 parentId,
@@ -187,20 +188,20 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
 
     const triggerFilePicker = useCallback(async () => {
         const picked = await pickFiles({ sources: ['documents'], multiple: true })
-        if (picked.length > 0) uploadFiles(picked.map((p) => p.file))
+        if (picked.length > 0) uploadFiles(picked.map(p => p.file))
     }, [pickFiles, uploadFiles])
 
     const triggerPhotoPicker = useCallback(async () => {
         if (Platform.OS === 'web') return
         const picked = await pickFiles({ sources: ['photoLibrary'], multiple: true })
-        if (picked.length > 0) uploadFiles(picked.map((p) => p.file))
+        if (picked.length > 0) uploadFiles(picked.map(p => p.file))
     }, [pickFiles, uploadFiles])
 
     const uploadTreeMutation = useMutation({
         mutationFn: async (entries: DroppedEntry[]) => {
             const parentId = folderRef.current
-            const fileEntries = entries.filter((e) => e.file)
-            const queued: UploadingFile[] = fileEntries.map((e) => ({
+            const fileEntries = entries.filter(e => e.file)
+            const queued: UploadingFile[] = fileEntries.map(e => ({
                 id: newRecordId(),
                 name: e.path,
                 parentId,

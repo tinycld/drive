@@ -26,8 +26,6 @@ export function parseDrivePath(pathname: string): { section: SidebarSection; fol
 
 interface UseDriveNavigationParams {
     orgSlug: string
-    activeSection: SidebarSection
-    currentFolderId: string
     selectItem: (itemId: string | null) => void
     clearSearch: () => void
     clearSelection: () => void
@@ -35,8 +33,6 @@ interface UseDriveNavigationParams {
 
 export function useDriveNavigation({
     orgSlug,
-    activeSection,
-    currentFolderId,
     selectItem,
     clearSearch,
     clearSelection,
@@ -57,8 +53,8 @@ export function useDriveNavigation({
     // used router.push to set ?file=X&preview=1, which made Expo Router's
     // <Slot/> remount the screen, blowing away FlashList scroll position
     // every time the modal opened or closed.
-    const openPreviewItem = useDriveUIStore((s) => s.openPreviewItem)
-    const closePreviewItem = useDriveUIStore((s) => s.closePreviewItem)
+    const openPreviewItem = useDriveUIStore(s => s.openPreviewItem)
+    const closePreviewItem = useDriveUIStore(s => s.closePreviewItem)
     const openPreview = (item: DriveItemView) => {
         if (!item.isFolder) openPreviewItem(item.id)
     }

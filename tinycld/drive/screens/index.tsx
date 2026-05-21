@@ -73,7 +73,7 @@ function useGridColumns(isMobile: boolean): GridLayoutInfo {
     const cardMin = isMobile ? CARD_MIN_MOBILE : CARD_MIN_DESKTOP
     const [width, setWidth] = useState(0)
     const onLayout = useCallback((e: LayoutChangeEvent) => {
-        setWidth((prev) => {
+        setWidth(prev => {
             const next = e.nativeEvent.layout.width
             return prev === next ? prev : next
         })
@@ -156,8 +156,8 @@ export default function DriveScreen() {
     // screen, not every useDrive() consumer.
     const { folders, files } = useMemo(
         () => ({
-            folders: currentItems.filter((i) => i.isFolder),
-            files: [...currentItems.filter((i) => !i.isFolder), ...uploadPlaceholders],
+            folders: currentItems.filter(i => i.isFolder),
+            files: [...currentItems.filter(i => !i.isFolder), ...uploadPlaceholders],
         }),
         [currentItems, uploadPlaceholders]
     )
@@ -168,14 +168,17 @@ export default function DriveScreen() {
 
     // Navigable items power keyboard nav and shift-range selection. Skips
     // upload placeholders since they aren't actionable.
-    const navigableItems = useMemo(() => [...folders, ...files.filter((i) => !i.uploadStatus)], [folders, files])
-    const orderedIds = useMemo(() => navigableItems.map((i) => i.id), [navigableItems])
+    const navigableItems = useMemo(
+        () => [...folders, ...files.filter(i => !i.uploadStatus)],
+        [folders, files]
+    )
+    const orderedIds = useMemo(() => navigableItems.map(i => i.id), [navigableItems])
     const { handleSelect, isSelected } = useFileSelection(orderedIds)
-    const selectToggle = useDriveUIStore((s) => s.selectToggle)
+    const selectToggle = useDriveUIStore(s => s.selectToggle)
     const { focusedId } = useDriveShortcuts({
         items: navigableItems,
         toggleSelect: selectToggle,
-        openItem: (item) => {
+        openItem: item => {
             if (item.isFolder) actions.navigateToFolder(item.id)
             else actions.openPreview(item)
         },
@@ -198,11 +201,13 @@ export default function DriveScreen() {
     useEffect(() => {
         if (!focusedId) return
         if (viewMode === 'list') {
-            const idx = listRowsRef.current.findIndex((r) => r.item.id === focusedId)
+            const idx = listRowsRef.current.findIndex(r => r.item.id === focusedId)
             if (idx < 0) return
             listFlashRef.current?.scrollToIndex({ index: idx, viewPosition: 0.5, animated: true })
         } else {
-            const idx = gridRowsRef.current.findIndex((r) => r.kind === 'card' && r.item.id === focusedId)
+            const idx = gridRowsRef.current.findIndex(
+                r => r.kind === 'card' && r.item.id === focusedId
+            )
             if (idx < 0) return
             gridFlashRef.current?.scrollToIndex({ index: idx, viewPosition: 0.5, animated: true })
         }
@@ -343,7 +348,10 @@ function DriveListMode({
     )
 
     const keyExtractor = useCallback((row: ListRow) => row.item.id, [])
-    const getItemType = useCallback((row: ListRow) => (row.item.uploadStatus ? 'upload' : 'file'), [])
+    const getItemType = useCallback(
+        (row: ListRow) => (row.item.uploadStatus ? 'upload' : 'file'),
+        []
+    )
 
     const ListHeader = useMemo(
         () => (showColumnHeader ? <DataTableHeader columns={columns} /> : null),
@@ -360,7 +368,11 @@ function DriveListMode({
             extraData={cellContext}
             contentContainerStyle={{ paddingHorizontal: isMobile ? 0 : 16 }}
             ListHeaderComponent={ListHeader}
-            refreshControl={isMobile ? <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} /> : undefined}
+            refreshControl={
+                isMobile ? (
+                    <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+                ) : undefined
+            }
         />
     )
 }
@@ -375,7 +387,15 @@ interface GridModeProps {
     onRefresh: () => void
 }
 
-function DriveGridMode({ rows, cols, flashRef, cellContext, isMobile, isRefreshing, onRefresh }: GridModeProps) {
+function DriveGridMode({
+    rows,
+    cols,
+    flashRef,
+    cellContext,
+    isMobile,
+    isRefreshing,
+    onRefresh,
+}: GridModeProps) {
     const renderItem = useCallback(
         ({ item, extraData }: { item: GridRow; extraData?: CellContext }) => {
             const ctx = extraData ?? cellContext
@@ -402,7 +422,7 @@ function DriveGridMode({ rows, cols, flashRef, cellContext, isMobile, isRefreshi
         [cellContext]
     )
 
-    const keyExtractor = useCallback((row: GridRow, index: number) => {
+    const keyExtractor = useCallback((row: GridRow, _index: number) => {
         if (row.kind === 'section') return `__section_${row.title}__`
         return row.item.id
     }, [])
@@ -435,13 +455,25 @@ function DriveGridMode({ rows, cols, flashRef, cellContext, isMobile, isRefreshi
             overrideItemLayout={overrideItemLayout}
             extraData={cellContext}
             contentContainerStyle={{ paddingHorizontal: GRID_PADDING - GRID_GAP / 2 }}
-            refreshControl={isMobile ? <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} /> : undefined}
+            refreshControl={
+                isMobile ? (
+                    <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+                ) : undefined
+            }
         />
     )
 }
 
 const FilesListRow = memo(FilesListRowImpl)
-function FilesListRowImpl({ item, index, ctx }: { item: DriveItemView; index: number; ctx: CellContext }) {
+function FilesListRowImpl({
+    item,
+    index,
+    ctx,
+}: {
+    item: DriveItemView
+    index: number
+    ctx: CellContext
+}) {
     const { actions } = ctx
     const handleInfo = useCallback(() => {
         actions.selectItem(item.id)
@@ -452,7 +484,10 @@ function FilesListRowImpl({ item, index, ctx }: { item: DriveItemView; index: nu
     // a fast scroll.
     const [isHovered, setIsHovered] = useRecyclingState(false, [item.id])
 
-    const handleSingle = useCallback((event: GestureResponderEvent) => ctx.handleSelect(item.id, event), [item.id, ctx])
+    const handleSingle = useCallback(
+        (event: GestureResponderEvent) => ctx.handleSelect(item.id, event),
+        [item.id, ctx]
+    )
     const handleDouble = useCallback(() => {
         if (item.isFolder) actions.navigateToFolder(item.id)
         else actions.openPreview(item)
@@ -509,19 +544,32 @@ function FilesListRowImpl({ item, index, ctx }: { item: DriveItemView; index: nu
                 onPress={handleMobilePress}
                 className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
-                <ListRowThumbnail item={item} size={40} fallbackIconSize={24} mutedColor={ctx.mutedColor} />
+                <ListRowThumbnail
+                    item={item}
+                    size={40}
+                    fallbackIconSize={24}
+                    mutedColor={ctx.mutedColor}
+                />
                 <View className="flex-1 gap-0.5">
-                    <Text numberOfLines={1} className="text-foreground" style={{ fontSize: 16, fontWeight: '500' }}>
+                    <Text
+                        numberOfLines={1}
+                        className="text-foreground"
+                        style={{ fontSize: 16, fontWeight: '500' }}
+                    >
                         {item.name}
                     </Text>
-                    <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 12 }}>
+                    <Text
+                        numberOfLines={1}
+                        className="text-muted-foreground"
+                        style={{ fontSize: 12 }}
+                    >
                         {formatDate(item.updated)}
                         {item.isFolder ? '' : ` · ${formatBytes(item.size)}`}
                     </Text>
                 </View>
                 <Pressable
                     className="p-1"
-                    onPress={(e) => {
+                    onPress={e => {
                         e.stopPropagation()
                         actions.toggleStar(item.id)
                     }}
@@ -558,11 +606,19 @@ function FilesListRowImpl({ item, index, ctx }: { item: DriveItemView; index: nu
             accessibilityRole="button"
             accessibilityLabel={`${item.name} ${item.owner} ${formatDate(item.updated)}`}
             className={`flex-row items-center px-3 py-2.5 border-b border-border ${isSelectedRow ? '' : 'bg-background'}`}
-            style={[isSelectedRow ? { backgroundColor: `${ctx.activeIndicator}12` } : null, effectStyle]}
+            style={[
+                isSelectedRow ? { backgroundColor: `${ctx.activeIndicator}12` } : null,
+                effectStyle,
+            ]}
             {...hoverWebProps}
         >
             <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
-                <ListRowThumbnail item={item} size={28} fallbackIconSize={20} mutedColor={ctx.mutedColor} />
+                <ListRowThumbnail
+                    item={item}
+                    size={28}
+                    fallbackIconSize={20}
+                    mutedColor={ctx.mutedColor}
+                />
                 <Text
                     numberOfLines={1}
                     className="flex-1 text-foreground"
@@ -574,7 +630,11 @@ function FilesListRowImpl({ item, index, ctx }: { item: DriveItemView; index: nu
                     {item.name}
                 </Text>
             </View>
-            <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 12, flex: 2 }}>
+            <Text
+                numberOfLines={1}
+                className="text-muted-foreground"
+                style={{ fontSize: 12, flex: 2 }}
+            >
                 {item.owner}
             </Text>
             <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 2 }}>
@@ -589,7 +649,7 @@ function FilesListRowImpl({ item, index, ctx }: { item: DriveItemView; index: nu
                 rest={
                     <Pressable
                         style={{ padding: 4 }}
-                        onPress={(e) => {
+                        onPress={e => {
                             e.stopPropagation()
                             actions.toggleStar(item.id)
                         }}
@@ -599,9 +659,17 @@ function FilesListRowImpl({ item, index, ctx }: { item: DriveItemView; index: nu
                 }
                 hover={
                     <>
-                        <HoverAction icon={Info} label="Info" onPress={handleInfo} tooltipPosition={tooltipPosition} />
-                        <ConfirmTrash itemName={item.name} onConfirmed={() => actions.moveToTrash(item.id)}>
-                            {(onOpen) => (
+                        <HoverAction
+                            icon={Info}
+                            label="Info"
+                            onPress={handleInfo}
+                            tooltipPosition={tooltipPosition}
+                        />
+                        <ConfirmTrash
+                            itemName={item.name}
+                            onConfirmed={() => actions.moveToTrash(item.id)}
+                        >
+                            {onOpen => (
                                 <HoverAction
                                     icon={Trash2}
                                     label="Delete"
@@ -651,7 +719,14 @@ function ListRowThumbnailImpl({
 
     if (!thumbnailUrl) {
         return (
-            <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+            <View
+                style={{
+                    width: size,
+                    height: size,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}
+            >
                 <FileIcon size={fallbackIconSize} color={iconColor} />
             </View>
         )
@@ -673,15 +748,28 @@ function TrashListRowImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
     if (ctx.isMobile) {
         return (
             <Pressable
-                onPress={(e) => ctx.handleSelect(item.id, e)}
+                onPress={e => ctx.handleSelect(item.id, e)}
                 className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
-                <ListRowThumbnail item={item} size={40} fallbackIconSize={24} mutedColor={ctx.mutedColor} />
+                <ListRowThumbnail
+                    item={item}
+                    size={40}
+                    fallbackIconSize={24}
+                    mutedColor={ctx.mutedColor}
+                />
                 <View className="flex-1 gap-0.5">
-                    <Text numberOfLines={1} className="text-foreground" style={{ fontSize: 16, fontWeight: '500' }}>
+                    <Text
+                        numberOfLines={1}
+                        className="text-foreground"
+                        style={{ fontSize: 16, fontWeight: '500' }}
+                    >
                         {item.name}
                     </Text>
-                    <Text numberOfLines={1} className="text-muted-foreground" style={{ fontSize: 12 }}>
+                    <Text
+                        numberOfLines={1}
+                        className="text-muted-foreground"
+                        style={{ fontSize: 12 }}
+                    >
                         Deleted {formatDate(item.trashedAt)}
                         {item.isFolder ? '' : ` · ${formatBytes(item.size)}`}
                     </Text>
@@ -692,12 +780,17 @@ function TrashListRowImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
 
     return (
         <Pressable
-            onPress={(e) => ctx.handleSelect(item.id, e)}
+            onPress={e => ctx.handleSelect(item.id, e)}
             className="flex-row items-center px-3 py-2.5 border-b border-border"
             style={isSelectedRow ? { backgroundColor: `${ctx.activeIndicator}12` } : undefined}
         >
             <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
-                <ListRowThumbnail item={item} size={28} fallbackIconSize={20} mutedColor={ctx.mutedColor} />
+                <ListRowThumbnail
+                    item={item}
+                    size={28}
+                    fallbackIconSize={20}
+                    mutedColor={ctx.mutedColor}
+                />
                 <Text
                     numberOfLines={1}
                     className="flex-1 text-foreground"
@@ -789,7 +882,10 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, ctx.mutedColor)
     const isSelectedRow = ctx.isSelected(item.id)
 
-    const handleSingle = useCallback((event: GestureResponderEvent) => ctx.handleSelect(item.id, event), [item.id, ctx])
+    const handleSingle = useCallback(
+        (event: GestureResponderEvent) => ctx.handleSelect(item.id, event),
+        [item.id, ctx]
+    )
     const handleDouble = useCallback(() => actions.openPreview(item), [item, actions])
     const handleDesktopPress = useDoubleClick(handleSingle, handleDouble)
     const handlePress = ctx.isMobile ? handleDouble : handleDesktopPress

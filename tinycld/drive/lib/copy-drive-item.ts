@@ -62,7 +62,7 @@ export function useCopyDriveItem() {
                 throw new Error('Source drive item has no file blob to copy')
             }
 
-            const parentId = input.parentId ?? (source.parent ?? '')
+            const parentId = input.parentId ?? source.parent ?? ''
             const mimeType = source.mime_type || 'application/octet-stream'
 
             const sourceUrl = pb.files.getURL(

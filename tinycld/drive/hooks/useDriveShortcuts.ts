@@ -21,10 +21,10 @@ export function useDriveShortcuts({
     isEnabled,
     listKey,
 }: UseDriveShortcutsArgs) {
-    const storedIndex = useDriveUIStore((s) => s.focusedIndex)
-    const hasFocus = useDriveUIStore((s) => s.hasFocus)
-    const setFocusedIndex = useDriveUIStore((s) => s.setFocusedIndex)
-    const clearFocus = useDriveUIStore((s) => s.clearFocus)
+    const storedIndex = useDriveUIStore(s => s.focusedIndex)
+    const hasFocus = useDriveUIStore(s => s.hasFocus)
+    const setFocusedIndex = useDriveUIStore(s => s.setFocusedIndex)
+    const clearFocus = useDriveUIStore(s => s.clearFocus)
 
     useShortcutScope('list')
 
@@ -47,8 +47,10 @@ export function useDriveShortcuts({
         if (!isEnabled) return []
         const lastIndex = Math.max(items.length - 1, 0)
         // First j/k from no-focus lands on row 0 instead of advancing past it.
-        const next = () => (hasFocus ? setFocusedIndex((i) => Math.min(i + 1, lastIndex)) : setFocusedIndex(0))
-        const prev = () => (hasFocus ? setFocusedIndex((i) => Math.max(i - 1, 0)) : setFocusedIndex(0))
+        const next = () =>
+            hasFocus ? setFocusedIndex(i => Math.min(i + 1, lastIndex)) : setFocusedIndex(0)
+        const prev = () =>
+            hasFocus ? setFocusedIndex(i => Math.max(i - 1, 0)) : setFocusedIndex(0)
         return [
             {
                 id: 'drive.list.next',
@@ -97,7 +99,16 @@ export function useDriveShortcuts({
                 run: () => onNewFolder(),
             },
         ]
-    }, [isEnabled, items.length, hasFocus, focused, openItem, toggleSelect, onNewFolder, setFocusedIndex])
+    }, [
+        isEnabled,
+        items.length,
+        hasFocus,
+        focused,
+        openItem,
+        toggleSelect,
+        onNewFolder,
+        setFocusedIndex,
+    ])
 
     useRegisterShortcuts(shortcuts)
 

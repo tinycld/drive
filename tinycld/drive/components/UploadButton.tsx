@@ -52,10 +52,10 @@ export function UploadButton({ label = 'Upload', onMobilePress }: UploadButtonPr
                 cursor: 'pointer',
                 color: mutedColor,
             }}
-            onMouseEnter={(e) => {
+            onMouseEnter={e => {
                 e.currentTarget.style.backgroundColor = hoverBg
             }}
-            onMouseLeave={(e) => {
+            onMouseLeave={e => {
                 e.currentTarget.style.backgroundColor = 'transparent'
             }}
         >

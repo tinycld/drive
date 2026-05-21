@@ -47,9 +47,9 @@ export function buildGridRows({ folders, files }: BuildGridRowsParams): GridRow[
 }
 
 export function useListRows(params: BuildListRowsParams): ListRow[] {
-    return useMemo(() => buildListRows(params), [params.folders, params.files])
+    return useMemo(() => buildListRows(params), [params.folders, params.files, params])
 }
 
 export function useGridRows(params: BuildGridRowsParams): GridRow[] {
-    return useMemo(() => buildGridRows(params), [params.folders, params.files])
+    return useMemo(() => buildGridRows(params), [params.folders, params.files, params])
 }

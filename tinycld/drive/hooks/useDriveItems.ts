@@ -52,28 +52,38 @@ export function useDriveItems({
 
     // --- supporting eager collections (small) ---------------------------------
 
-    const { data: rawShares, isLoading: sharesLoading } = useOrgLiveQuery((query) =>
+    const { data: rawShares, isLoading: sharesLoading } = useOrgLiveQuery(query =>
         query.from({ share: sharesCollection })
     )
 
-    const { data: rawStates, isLoading: statesLoading } = useOrgLiveQuery((query, { userOrgId: scopedUserOrgId }) =>
-        query.from({ state: stateCollection }).where(({ state }) => eq(state.user_org, scopedUserOrgId))
+    const { data: rawStates, isLoading: statesLoading } = useOrgLiveQuery(
+        (query, { userOrgId: scopedUserOrgId }) =>
+            query
+                .from({ state: stateCollection })
+                .where(({ state }) => eq(state.user_org, scopedUserOrgId))
     )
 
-    const { data: orgUserOrgs, isLoading: userOrgsLoading } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
-        query.from({ uo: userOrgCollection }).where(({ uo }) => eq(uo.org, scopedOrgId))
+    const { data: orgUserOrgs, isLoading: userOrgsLoading } = useOrgLiveQuery(
+        (query, { orgId: scopedOrgId }) =>
+            query.from({ uo: userOrgCollection }).where(({ uo }) => eq(uo.org, scopedOrgId))
     )
 
     const userOrgNames = useMemo(
-        () => new Map((orgUserOrgs ?? []).map((uo) => [uo.id, uo.expand?.user?.name || uo.expand?.user?.email || ''])),
+        () =>
+            new Map(
+                (orgUserOrgs ?? []).map(uo => [
+                    uo.id,
+                    uo.expand?.user?.name || uo.expand?.user?.email || '',
+                ])
+            ),
         [orgUserOrgs]
     )
 
     const orgMembers = useMemo(
         () =>
             (orgUserOrgs ?? [])
-                .filter((uo) => uo.id !== userOrgId)
-                .map((uo) => ({
+                .filter(uo => uo.id !== userOrgId)
+                .map(uo => ({
                     userOrgId: uo.id,
                     name: uo.expand?.user?.name || '',
                     email: uo.expand?.user?.email || '',
@@ -82,7 +92,7 @@ export function useDriveItems({
     )
 
     const userOrgEmails = useMemo(
-        () => new Map((orgUserOrgs ?? []).map((uo) => [uo.id, uo.expand?.user?.email || ''])),
+        () => new Map((orgUserOrgs ?? []).map(uo => [uo.id, uo.expand?.user?.email || ''])),
         [orgUserOrgs]
     )
 
@@ -96,7 +106,7 @@ export function useDriveItems({
         return map
     }, [rawShares])
 
-    const stateByItem = useMemo(() => new Map((rawStates ?? []).map((s) => [s.item, s])), [rawStates])
+    const stateByItem = useMemo(() => new Map((rawStates ?? []).map(s => [s.item, s])), [rawStates])
 
     // --- on-demand drive_items queries ----------------------------------------
     // Each useOrgLiveQuery against drive_items is translated to a PocketBase
@@ -111,7 +121,9 @@ export function useDriveItems({
             if (!showCurrentFolder) return null
             return query
                 .from({ item: itemsCollection })
-                .where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.parent, currentFolderId)))
+                .where(({ item }) =>
+                    and(eq(item.org, scopedOrgId), eq(item.parent, currentFolderId))
+                )
         },
         [showCurrentFolder, currentFolderId]
     )
@@ -119,8 +131,11 @@ export function useDriveItems({
     // Every folder the user can see in this org. Small set (folders are a tiny
     // fraction of items), drives the sidebar tree, breadcrumb resolution, and
     // the folder section above the file list.
-    const { data: rawFolders, isLoading: foldersLoading } = useOrgLiveQuery((query, { orgId: scopedOrgId }) =>
-        query.from({ item: itemsCollection }).where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.is_folder, true)))
+    const { data: rawFolders, isLoading: foldersLoading } = useOrgLiveQuery(
+        (query, { orgId: scopedOrgId }) =>
+            query
+                .from({ item: itemsCollection })
+                .where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.is_folder, true)))
     )
 
     // Section-specific listings — only fired for sections other than my-drive,
@@ -129,7 +144,9 @@ export function useDriveItems({
     const isTrashSection = activeSection === 'trash'
     const isRecentSection = activeSection === 'recent'
     const isSharedSection = activeSection === 'shared-with-me'
-    const sectionScoped = !isSearchActive && (isStarredSection || isTrashSection || isRecentSection || isSharedSection)
+    const sectionScoped =
+        !isSearchActive &&
+        (isStarredSection || isTrashSection || isRecentSection || isSharedSection)
 
     // Collect the set of item ids that should appear in the active id-driven
     // section (starred/trash via drive_item_state, shared-with-me via the user's
@@ -137,17 +154,15 @@ export function useDriveItems({
     // converter emits `!(...)`, which PocketBase's filter parser doesn't accept.
     const idDrivenSectionIds = useMemo(() => {
         if (isStarredSection) {
-            return (rawStates ?? [])
-                .filter((s) => s.is_starred && !s.trashed_at)
-                .map((s) => s.item)
+            return (rawStates ?? []).filter(s => s.is_starred && !s.trashed_at).map(s => s.item)
         }
         if (isTrashSection) {
-            return (rawStates ?? []).filter((s) => !!s.trashed_at).map((s) => s.item)
+            return (rawStates ?? []).filter(s => !!s.trashed_at).map(s => s.item)
         }
         if (isSharedSection) {
             return (rawShares ?? [])
-                .filter((s) => s.user_org === userOrgId && s.role !== 'owner')
-                .map((s) => s.item)
+                .filter(s => s.user_org === userOrgId && s.role !== 'owner')
+                .map(s => s.item)
         }
         return null
     }, [isStarredSection, isTrashSection, isSharedSection, rawStates, rawShares, userOrgId])
@@ -166,7 +181,9 @@ export function useDriveItems({
             // rows we already have locally. If the user has no rows in this set,
             // skip the fetch entirely.
             if (!idDrivenSectionIds || idDrivenSectionIds.length === 0) return null
-            return base.where(({ item }) => and(eq(item.org, scopedOrgId), inArray(item.id, idDrivenSectionIds)))
+            return base.where(({ item }) =>
+                and(eq(item.org, scopedOrgId), inArray(item.id, idDrivenSectionIds))
+            )
         },
         [sectionScoped, isRecentSection, idDrivenSectionIds]
     )
@@ -177,7 +194,7 @@ export function useDriveItems({
     const lookupAlreadyLoaded = useMemo(() => {
         if (!wantedLookupId) return true
         const matches = (rows: { id: string }[] | undefined) =>
-            !!rows && rows.some((it) => it.id === wantedLookupId)
+            !!rows && rows.some(it => it.id === wantedLookupId)
         return matches(rawCurrentFolderItems) || matches(rawFolders) || matches(rawSectionItems)
     }, [wantedLookupId, rawCurrentFolderItems, rawFolders, rawSectionItems])
 
@@ -210,10 +227,10 @@ export function useDriveItems({
 
     const allItems = useMemo<DriveItemView[]>(
         () =>
-            loadedItems.map((item) => {
+            loadedItems.map(item => {
                 const state = stateByItem.get(item.id)
                 const shares = sharesByItem.get(item.id) ?? []
-                const hasNonOwnerShares = shares.some((s) => s.role !== 'owner')
+                const hasNonOwnerShares = shares.some(s => s.role !== 'owner')
                 const ownerName = userOrgNames.get(item.created_by) ?? ''
 
                 return {
@@ -238,11 +255,11 @@ export function useDriveItems({
         [loadedItems, stateByItem, sharesByItem, userOrgId, userOrgNames]
     )
 
-    const itemsById = useMemo(() => new Map(allItems.map((i) => [i.id, i])), [allItems])
+    const itemsById = useMemo(() => new Map(allItems.map(i => [i.id, i])), [allItems])
 
     const searchItemViews = useMemo<DriveItemView[]>(() => {
         if (!isSearchActive) return []
-        return searchResults.map((sr) => {
+        return searchResults.map(sr => {
             const existing = itemsById.get(sr.id)
             if (existing) return existing
             return {
@@ -268,22 +285,30 @@ export function useDriveItems({
 
     const currentFolderItems = useMemo<DriveItemView[]>(() => {
         if (!showCurrentFolder) return []
-        const ids = new Set((rawCurrentFolderItems ?? []).map((i) => i.id))
-        return allItems.filter((i) => ids.has(i.id) && !i.trashedAt)
+        const ids = new Set((rawCurrentFolderItems ?? []).map(i => i.id))
+        return allItems.filter(i => ids.has(i.id) && !i.trashedAt)
     }, [showCurrentFolder, rawCurrentFolderItems, allItems])
 
     const sectionItems = useMemo<DriveItemView[]>(() => {
         if (!sectionScoped) return []
-        const ids = new Set((rawSectionItems ?? []).map((i) => i.id))
-        const filtered = allItems.filter((i) => ids.has(i.id))
+        const ids = new Set((rawSectionItems ?? []).map(i => i.id))
+        const filtered = allItems.filter(i => ids.has(i.id))
         // section-level filters that aren't expressible in PB filter syntax,
         // or that depend on local drive_item_state we already have.
-        if (isStarredSection) return filtered.filter((i) => i.starred && !i.trashedAt)
-        if (isTrashSection) return filtered.filter((i) => !!i.trashedAt)
-        if (isRecentSection) return filtered.filter((i) => !i.trashedAt)
-        if (isSharedSection) return filtered.filter((i) => !i.trashedAt)
+        if (isStarredSection) return filtered.filter(i => i.starred && !i.trashedAt)
+        if (isTrashSection) return filtered.filter(i => !!i.trashedAt)
+        if (isRecentSection) return filtered.filter(i => !i.trashedAt)
+        if (isSharedSection) return filtered.filter(i => !i.trashedAt)
         return filtered
-    }, [sectionScoped, rawSectionItems, allItems, isStarredSection, isTrashSection, isRecentSection, isSharedSection])
+    }, [
+        sectionScoped,
+        rawSectionItems,
+        allItems,
+        isStarredSection,
+        isTrashSection,
+        isRecentSection,
+        isSharedSection,
+    ])
 
     // currentItems intentionally excludes upload placeholders. The screen
     // composes those in via useUploadPlaceholders so that progress ticks
@@ -317,12 +342,14 @@ export function useDriveItems({
     )
 
     const folderTree = useMemo(() => {
-        const folders = allItems.filter((i) => i.isFolder && i.ownerUserOrgId === userOrgId && !i.trashedAt)
+        const folders = allItems.filter(
+            i => i.isFolder && i.ownerUserOrgId === userOrgId && !i.trashedAt
+        )
 
         function buildTree(parentId: string): FolderTreeNode[] {
             return folders
-                .filter((f) => f.parentId === parentId)
-                .map((folder) => ({
+                .filter(f => f.parentId === parentId)
+                .map(folder => ({
                     item: folder,
                     children: buildTree(folder.id),
                 }))
@@ -332,7 +359,12 @@ export function useDriveItems({
     }, [allItems, userOrgId])
 
     const isLoading =
-        currentFolderLoading || foldersLoading || sectionLoading || sharesLoading || statesLoading || userOrgsLoading
+        currentFolderLoading ||
+        foldersLoading ||
+        sectionLoading ||
+        sharesLoading ||
+        statesLoading ||
+        userOrgsLoading
 
     return {
         itemsById,
@@ -349,4 +381,3 @@ export function useDriveItems({
         userOrgEmails,
     }
 }
-

@@ -1,6 +1,6 @@
+import { useQuery } from '@tanstack/react-query'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
-import { useQuery } from '@tanstack/react-query'
 
 interface StorageUsageResponse {
     user_used_bytes?: number

@@ -174,7 +174,10 @@ function DetailsContent({
                     Who has access
                 </Text>
                 <View className="flex-row items-center gap-2">
-                    <View className="size-7 items-center justify-center bg-accent" style={{ borderRadius: 14 }}>
+                    <View
+                        className="size-7 items-center justify-center bg-accent"
+                        style={{ borderRadius: 14 }}
+                    >
                         <Text
                             className="text-accent-foreground"
                             style={{
@@ -212,7 +215,15 @@ function DetailsContent({
     )
 }
 
-function DetailRow({ label, value }: { label: string; value: string; mutedColor?: string; fgColor?: string }) {
+function DetailRow({
+    label,
+    value,
+}: {
+    label: string
+    value: string
+    mutedColor?: string
+    fgColor?: string
+}) {
     return (
         <View className="flex-row py-1">
             <Text className="text-muted-foreground" style={{ fontSize: 12, width: 80 }}>
@@ -242,7 +253,7 @@ function TabBar({ tabs, activeTab, onTabPress, mutedColor, primaryColor }: TabBa
 
     return (
         <View className="flex-row border-b border-border">
-            {tabs.map((tab) => (
+            {tabs.map(tab => (
                 <Pressable
                     key={tab}
                     className="flex-1 items-center"
@@ -276,7 +287,9 @@ function VersionsContent({ itemId }: { itemId: string }) {
     const { versions, restoreVersion, isRestoring } = useVersionHistory(itemId)
     const [confirmVersionId, setConfirmVersionId] = useState<string | null>(null)
 
-    const confirmingVersion = confirmVersionId ? versions.find((v) => v.id === confirmVersionId) : null
+    const confirmingVersion = confirmVersionId
+        ? versions.find(v => v.id === confirmVersionId)
+        : null
 
     const handleConfirmRestore = useCallback(() => {
         if (!confirmVersionId) return
@@ -309,7 +322,7 @@ function VersionsContent({ itemId }: { itemId: string }) {
     return (
         <>
             <View className="p-4">
-                {versions.map((version) => (
+                {versions.map(version => (
                     <VersionRow
                         key={version.id}
                         version={version}
@@ -322,7 +335,7 @@ function VersionsContent({ itemId }: { itemId: string }) {
 
             <RestoreConfirmDialog
                 open={!!confirmingVersion}
-                onOpenChange={(open) => {
+                onOpenChange={open => {
                     if (!open) setConfirmVersionId(null)
                 }}
                 versionNumber={confirmingVersion?.version_number ?? 0}
@@ -339,7 +352,12 @@ interface RestoreConfirmDialogProps {
     onConfirm: () => void
 }
 
-function RestoreConfirmDialog({ open, onOpenChange, versionNumber, onConfirm }: RestoreConfirmDialogProps) {
+function RestoreConfirmDialog({
+    open,
+    onOpenChange,
+    versionNumber,
+    onConfirm,
+}: RestoreConfirmDialogProps) {
     return (
         <Modal isOpen={open} onClose={() => onOpenChange(false)}>
             <ModalBackdrop />
@@ -348,8 +366,8 @@ function RestoreConfirmDialog({ open, onOpenChange, versionNumber, onConfirm }: 
                     Restore version
                 </Text>
                 <Text className="text-muted-foreground" style={{ fontSize: 13 }}>
-                    Restore to version {versionNumber}? The current file will be saved as a new version before
-                    restoring.
+                    Restore to version {versionNumber}? The current file will be saved as a new
+                    version before restoring.
                 </Text>
                 <View className="flex-row gap-3 justify-end">
                     <Pressable onPress={() => onOpenChange(false)} className="px-3 py-2">
@@ -391,7 +409,10 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
     const mutedColor = useThemeColor('muted-foreground')
 
     return (
-        <View className="flex-row items-center justify-between border-b border-border" style={{ paddingVertical: 10 }}>
+        <View
+            className="flex-row items-center justify-between border-b border-border"
+            style={{ paddingVertical: 10 }}
+        >
             <View className="flex-1 gap-0.5">
                 <Text className="text-foreground" style={{ fontSize: 12, fontWeight: '500' }}>
                     Version {version.version_number}
@@ -405,7 +426,11 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
                     <Download size={14} color={mutedColor} />
                 </Pressable>
                 <Pressable onPress={onRestore} hitSlop={8} disabled={isRestoring} className="p-1">
-                    {isRestoring ? <ActivityIndicator size="small" /> : <RotateCcw size={14} color={mutedColor} />}
+                    {isRestoring ? (
+                        <ActivityIndicator size="small" />
+                    ) : (
+                        <RotateCcw size={14} color={mutedColor} />
+                    )}
                 </Pressable>
             </View>
         </View>

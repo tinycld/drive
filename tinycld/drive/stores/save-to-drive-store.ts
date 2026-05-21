@@ -8,8 +8,8 @@ interface SaveToDriveState {
     close: () => void
 }
 
-export const useSaveToDriveStore = create<SaveToDriveState>((set) => ({
+export const useSaveToDriveStore = create<SaveToDriveState>(set => ({
     pendingSource: null,
-    open: (source) => set({ pendingSource: source }),
+    open: source => set({ pendingSource: source }),
     close: () => set({ pendingSource: null }),
 }))

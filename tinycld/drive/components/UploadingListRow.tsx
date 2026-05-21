@@ -19,7 +19,8 @@ export function UploadingListRow({ item, onDismiss }: UploadingListRowProps) {
 
     const status = item.uploadStatus ?? 'pending'
     const isError = status === 'error'
-    const isIndeterminate = (status === 'pending' || status === 'uploading') && (item.uploadLoaded ?? 0) === 0
+    const isIndeterminate =
+        (status === 'pending' || status === 'uploading') && (item.uploadLoaded ?? 0) === 0
     const progress = item.size > 0 ? Math.min(1, (item.uploadLoaded ?? 0) / item.size) : 0
 
     const fillColor = isError ? `${dangerColor}1F` : `${indicatorColor}1F`
@@ -50,7 +51,12 @@ export function UploadingListRow({ item, onDismiss }: UploadingListRowProps) {
             {isMobile ? (
                 <View className="flex-row items-center px-4 py-3 gap-3">
                     <View
-                        style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+                        style={{
+                            width: 40,
+                            height: 40,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
                     >
                         <File size={24} color={mutedColor} />
                     </View>
@@ -75,7 +81,14 @@ export function UploadingListRow({ item, onDismiss }: UploadingListRowProps) {
             ) : (
                 <View className="flex-row items-center px-3 py-2.5">
                     <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
-                        <View style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+                        <View
+                            style={{
+                                width: 28,
+                                height: 28,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
                             <File size={20} color={mutedColor} />
                         </View>
                         <Text

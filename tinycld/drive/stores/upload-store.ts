@@ -26,22 +26,22 @@ interface UploadStoreState {
  * list of in-flight uploads. The mutation logic in useFileUpload writes here;
  * useDriveItems and the placeholder rows read from here.
  */
-export const useUploadStore = create<UploadStoreState>((set) => ({
+export const useUploadStore = create<UploadStoreState>(set => ({
     uploadingFiles: [],
-    add: (entries) =>
-        set((s) => ({
+    add: entries =>
+        set(s => ({
             uploadingFiles: [...s.uploadingFiles, ...entries],
         })),
     update: (id, patch) =>
-        set((s) => ({
-            uploadingFiles: s.uploadingFiles.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+        set(s => ({
+            uploadingFiles: s.uploadingFiles.map(f => (f.id === id ? { ...f, ...patch } : f)),
         })),
-    remove: (id) =>
-        set((s) => ({
-            uploadingFiles: s.uploadingFiles.filter((f) => f.id !== id),
+    remove: id =>
+        set(s => ({
+            uploadingFiles: s.uploadingFiles.filter(f => f.id !== id),
         })),
-    clearDoneById: (id) =>
-        set((s) => ({
-            uploadingFiles: s.uploadingFiles.filter((f) => !(f.id === id && f.status === 'done')),
+    clearDoneById: id =>
+        set(s => ({
+            uploadingFiles: s.uploadingFiles.filter(f => !(f.id === id && f.status === 'done')),
         })),
 }))

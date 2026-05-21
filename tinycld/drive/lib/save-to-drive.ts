@@ -1,11 +1,11 @@
-import { captureException } from '@tinycld/core/lib/errors'
 import type { FilePreviewSource } from '@tinycld/core/file-viewer/types'
+import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { notify } from '@tinycld/core/lib/notify'
 import { pb } from '@tinycld/core/lib/pocketbase'
+import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
-import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
 import { deduplicateName } from './deduplicate-name'
@@ -61,7 +61,7 @@ export function useSaveToDrive() {
                 }),
                 fields: 'name',
             })
-            const finalName = deduplicateName(upload.name, new Set(siblings.map((s) => s.name)))
+            const finalName = deduplicateName(upload.name, new Set(siblings.map(s => s.name)))
 
             const itemId = newRecordId()
             const formData = new FormData()
@@ -94,7 +94,7 @@ export function useSaveToDrive() {
                 data: { name: finalName, folder: parentName },
             })
         },
-        onError: (err) => {
+        onError: err => {
             const reason = err instanceof Error ? err.message : 'Unknown error'
             captureException('useSaveToDrive', err)
             notify.emit({
@@ -121,7 +121,9 @@ async function fetchForUpload(url: string, name: string, mimeType: string): Prom
         const resp = await fetch(url)
         if (!resp.ok) throw new Error(`Could not download attachment (${resp.status})`)
         const blob = await resp.blob()
-        const file = new File([blob], name, { type: mimeType || blob.type || 'application/octet-stream' })
+        const file = new File([blob], name, {
+            type: mimeType || blob.type || 'application/octet-stream',
+        })
         return { name: file.name, type: file.type, size: file.size, file }
     }
     // Native: download to the cache directory; FormData uploads via URI.
@@ -142,4 +144,3 @@ async function fetchForUpload(url: string, name: string, mimeType: string): Prom
         file: { uri: downloaded.uri, name, type: mimeType },
     }
 }
-

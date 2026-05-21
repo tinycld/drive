@@ -10,7 +10,7 @@ import { createDriveItem, driveItem, escapeRegex, openDriveItem } from './helper
 // folder holds a single file, so the page-level Info button is
 // unambiguous; .hover() satisfies the pointer-events gate.
 async function openDetailPanelViaInfo(
-    page: Page,
+    _page: Page,
     row: import('@playwright/test').Locator
 ): Promise<void> {
     await row.hover()
@@ -251,32 +251,29 @@ test.describe('Drive — Actions', () => {
     // works. Re-enable this once the press/animation interaction is
     // understood — e.g. by waiting for the drawer transition to settle, or
     // dispatching the press via a more robust route.
-    test.fixme(
-        'detail panel closes via X and backdrop',
-        async ({ page }) => {
-            const { folderName, fileName } = await setupFixtureFile('DetailClose')
-            await page.reload()
+    test.fixme('detail panel closes via X and backdrop', async ({ page }) => {
+        const { folderName, fileName } = await setupFixtureFile('DetailClose')
+        await page.reload()
 
-            await openDriveItem(page, folderName)
-            const file = driveItem(page, fileName)
-            await expect(file).toBeVisible({ timeout: 10_000 })
+        await openDriveItem(page, folderName)
+        const file = driveItem(page, fileName)
+        await expect(file).toBeVisible({ timeout: 10_000 })
 
-            await openDetailPanelViaInfo(page, file)
-            const closeBtn = page.getByLabel('Close details panel', { exact: true })
-            await expect(closeBtn).toBeVisible({ timeout: 5_000 })
+        await openDetailPanelViaInfo(page, file)
+        const closeBtn = page.getByLabel('Close details panel', { exact: true })
+        await expect(closeBtn).toBeVisible({ timeout: 5_000 })
 
-            // Dismiss via the X.
-            await closeBtn.click()
-            await expect(closeBtn).not.toBeVisible({ timeout: 5_000 })
+        // Dismiss via the X.
+        await closeBtn.click()
+        await expect(closeBtn).not.toBeVisible({ timeout: 5_000 })
 
-            // Re-open, then dismiss via backdrop click. The backdrop fills
-            // the viewport behind the right-anchored drawer; clicking near
-            // the left edge lands on it, not the drawer content.
-            await openDetailPanelViaInfo(page, file)
-            await expect(closeBtn).toBeVisible({ timeout: 5_000 })
+        // Re-open, then dismiss via backdrop click. The backdrop fills
+        // the viewport behind the right-anchored drawer; clicking near
+        // the left edge lands on it, not the drawer content.
+        await openDetailPanelViaInfo(page, file)
+        await expect(closeBtn).toBeVisible({ timeout: 5_000 })
 
-            await page.locator('body').click({ position: { x: 10, y: 200 } })
-            await expect(closeBtn).not.toBeVisible({ timeout: 5_000 })
-        }
-    )
+        await page.locator('body').click({ position: { x: 10, y: 200 } })
+        await expect(closeBtn).not.toBeVisible({ timeout: 5_000 })
+    })
 })

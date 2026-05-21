@@ -9,7 +9,10 @@ const DOUBLE_CLICK_MS = 300
 // native — iPad/iPhone double-tap-to-preview was previously broken
 // because the web-only branch never tested the time-since-last-tap on
 // native; every tap just scheduled another onSingleClick.
-export function useDoubleClick(onSingleClick: (event: GestureResponderEvent) => void, onDoubleClick: () => void) {
+export function useDoubleClick(
+    onSingleClick: (event: GestureResponderEvent) => void,
+    onDoubleClick: () => void
+) {
     const lastTapRef = useRef(0)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const pendingEventRef = useRef<GestureResponderEvent | null>(null)
