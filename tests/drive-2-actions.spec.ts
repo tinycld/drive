@@ -3,12 +3,12 @@ import { clickSidebarItem, login, navigateToPackage } from '../../app/tests/e2e/
 import { createDriveItem, driveItem, escapeRegex, openDriveItem } from './helpers'
 
 // Opens a file row's detail panel via its Info hover-action. The Info
-// affordance lives in the row's RowHoverActions layer, which is mounted
-// but kept at opacity:0 / pointerEvents:none until the row is hovered —
-// so a bare click never lands (it was timing out in CI). Hover the row
-// first to make the action interactive, then click it. The caller's
-// folder holds a single file, so the page-level Info button is
-// unambiguous; .hover() satisfies the pointer-events gate.
+// affordance lives in the row's RowHoverActions layer (list view only),
+// mounted but kept at opacity:0 / pointerEvents:none until the row is
+// hovered — so a bare click never lands. Hover the row first to make the
+// action interactive, then click it. The caller must be in *list* view
+// (grid cards have no hover actions) and the folder should hold a single
+// file so the page-level Info action is unambiguous.
 async function openDetailPanelViaInfo(
     _page: Page,
     row: import('@playwright/test').Locator
@@ -16,11 +16,19 @@ async function openDetailPanelViaInfo(
     await row.hover()
     // RowHoverActions' HoverAction renders as a labeled Pressable that RN
     // Web emits as a div (role=generic, not button) — so target it by its
-    // accessible label, not by role. Scope to the visible hovered row (the
-    // frozen-route duplicate rows each carry their own opacity:0 Info, so
-    // a page-level label match is ambiguous); hovering flips the layer's
-    // pointerEvents to auto, making the click land.
+    // accessible label, not by role. Scope to the hovered row; hovering
+    // flips the layer's pointerEvents to auto, making the click land.
     await row.getByLabel('Info', { exact: true }).first().click({ timeout: 10_000 })
+}
+
+// Force list view. The view mode is a persisted user preference, so a
+// prior test (drive-1-browser switches to grid) leaks its choice into
+// later specs in the same serial session. Tests that depend on list-only
+// affordances (the row Info hover-action) must assert the precondition
+// rather than inherit ambient state. Idempotent: clicking when already in
+// list view is a no-op.
+async function ensureListView(page: Page): Promise<void> {
+    await page.getByTestId('drive-view-list').click()
 }
 
 // Each destructive test creates its own per-test folder + fixture file via
@@ -215,6 +223,9 @@ test.describe('Drive — Actions', () => {
         const { folderName, fileName } = await setupFixtureFile('Detail')
         await page.reload()
 
+        // The Info hover-action only exists in list view; a prior spec may
+        // have left grid view persisted.
+        await ensureListView(page)
         await openDriveItem(page, folderName)
         const file = driveItem(page, fileName)
         await expect(file).toBeVisible({ timeout: 10_000 })
@@ -229,32 +240,18 @@ test.describe('Drive — Actions', () => {
         })
     })
 
-    // KNOWN BUG — close paths can't be driven from Playwright yet.
-    //
-    // The detail panel's dismiss wiring is correct in code: DetailPanel
-    // renders Gluestack's <DrawerCloseButton> with no overriding onPress,
-    // so Gluestack's ModalCloseButton binds onPress={handleClose}; the
-    // Drawer's onClose is closeDetailPanel, a plain Zustand setter
-    // (set({ detailPanelOpen: false })). Manually the X and the backdrop
-    // both dismiss the drawer.
-    //
-    // But under Playwright the X click never dismisses it: the button
-    // receives data-hover/data-focus yet data-active stays false, i.e.
-    // Gluestack's usePress() (from @gluestack-ui/utils/aria) doesn't
-    // register the press. The most likely cause is the drawer's slide-in
-    // animation moving the button mid-press (usePress cancels a press if
-    // the target moves) combined with the row still being hovered when the
-    // panel opens. A fixed wait for the animation didn't reliably help.
-    //
-    // The open path (the previous test) is the part the original WIP commit
-    // ("detail-panel close paths — failing locator") couldn't land; it now
-    // works. Re-enable this once the press/animation interaction is
-    // understood — e.g. by waiting for the drawer transition to settle, or
-    // dispatching the press via a more robust route.
-    test.fixme('detail panel closes via X and backdrop', async ({ page }) => {
+    // The detail panel dismisses via the X button and via a backdrop
+    // click. Both close paths now work under Playwright: the shared Drawer
+    // unmounts the gluestack overlay synchronously on close (it no longer
+    // relies on the broken RN-Web Animated exit handshake), so onClose
+    // takes effect immediately and no lingering overlay swallows the press.
+    test('detail panel closes via X and backdrop', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('DetailClose')
         await page.reload()
 
+        // The Info hover-action only exists in list view; a prior spec may
+        // have left grid view persisted.
+        await ensureListView(page)
         await openDriveItem(page, folderName)
         const file = driveItem(page, fileName)
         await expect(file).toBeVisible({ timeout: 10_000 })
