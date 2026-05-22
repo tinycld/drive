@@ -749,6 +749,8 @@ function TrashListRowImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
         return (
             <Pressable
                 onPress={e => ctx.handleSelect(item.id, e)}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name} ${formatDate(item.trashedAt)}`}
                 className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
                 <ListRowThumbnail
@@ -781,6 +783,8 @@ function TrashListRowImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
     return (
         <Pressable
             onPress={e => ctx.handleSelect(item.id, e)}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.name} ${formatDate(item.trashedAt)}`}
             className="flex-row items-center px-3 py-2.5 border-b border-border"
             style={isSelectedRow ? { backgroundColor: `${ctx.activeIndicator}12` } : undefined}
         >
