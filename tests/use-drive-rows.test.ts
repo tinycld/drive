@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-    buildGridRows,
-    buildListRows,
-    sortDriveItems,
-} from '../tinycld/drive/hooks/useDriveRows'
+import { buildGridRows, buildListRows, sortDriveItems } from '../tinycld/drive/hooks/useDriveRows'
 import type { DriveItemView } from '../tinycld/drive/types'
 
 function item(id: string, opts: Partial<DriveItemView> = {}): DriveItemView {
@@ -84,11 +80,7 @@ describe('sortDriveItems', () => {
     })
 
     it('sorts by size numerically', () => {
-        const items = [
-            item('a', { size: 1000 }),
-            item('b', { size: 9 }),
-            item('c', { size: 200 }),
-        ]
+        const items = [item('a', { size: 1000 }), item('b', { size: 9 }), item('c', { size: 200 })]
         expect(sortDriveItems(items, 'size', 'asc').map(i => i.id)).toEqual(['b', 'c', 'a'])
         expect(sortDriveItems(items, 'size', 'desc').map(i => i.id)).toEqual(['a', 'c', 'b'])
     })

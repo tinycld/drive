@@ -17,13 +17,7 @@ import {
 import { notifyDriveSnapshotListeners, writeDriveSnapshot } from '../stores/drive-snapshot-store'
 import type { DialogTarget, PromptDialog } from '../stores/drive-ui-store'
 import { useDriveUIStore } from '../stores/drive-ui-store'
-import type {
-    DriveItemView,
-    SidebarSection,
-    SortDirection,
-    SortField,
-    ViewMode,
-} from '../types'
+import type { DriveItemView, SidebarSection, SortDirection, SortField, ViewMode } from '../types'
 import { useDriveItems } from './useDriveItems'
 import { useDriveMutations } from './useDriveMutations'
 import { parseDrivePath, useDriveNavigation } from './useDriveNavigation'
