@@ -69,6 +69,9 @@ export interface FolderTreeNode {
 
 export type ViewMode = 'list' | 'grid'
 
+export type SortField = 'name' | 'owner' | 'updated' | 'size' | 'trashedAt'
+export type SortDirection = 'asc' | 'desc'
+
 export type SidebarSection = 'my-drive' | 'shared-with-me' | 'recent' | 'starred' | 'trash'
 
 export interface DriveItemVersions {

@@ -39,6 +39,31 @@ export function escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+// The clickable column heading rendered by core's DataTableHeader. The
+// sortable header cell is a Pressable exposed with accessibilityRole=button
+// and label `Sort by <Column>` (e.g. "Sort by Name").
+export function sortableHeader(page: Page, label: string): Locator {
+    return page.getByRole('button', { name: `Sort by ${label}`, exact: true })
+}
+
+// Returns, in DOM order, which of the given fixture names appear as visible
+// drive rows. Rows are role=button with accessibilityLabel
+// `<name> <owner?> <date>`; we keep a row when its label starts with one of
+// the `among` names. Used to assert sort order while ignoring unrelated
+// seeded rows in the same folder.
+export async function orderedRowNames(page: Page, among: string[]): Promise<string[]> {
+    const labels = await page
+        .getByRole('button')
+        .filter({ visible: true })
+        .evaluateAll(els => els.map(el => el.getAttribute('aria-label') ?? '').filter(Boolean))
+    const result: string[] = []
+    for (const label of labels) {
+        const match = among.find(name => label.startsWith(`${name} `))
+        if (match) result.push(match)
+    }
+    return result
+}
+
 // PB sits behind the dev.ts proxy on the test Expo port. /api/* routes
 // through to PB transparently — see scripts/dev.ts::isPbPath.
 const PB_URL = 'http://127.0.0.1:7200'

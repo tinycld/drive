@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildGridRows, buildListRows } from '../tinycld/drive/hooks/useDriveRows'
+import {
+    buildGridRows,
+    buildListRows,
+    sortDriveItems,
+} from '../tinycld/drive/hooks/useDriveRows'
 import type { DriveItemView } from '../tinycld/drive/types'
 
 function item(id: string, opts: Partial<DriveItemView> = {}): DriveItemView {
@@ -34,6 +38,8 @@ describe('buildListRows', () => {
         const rows = buildListRows({
             folders: [folder1, folder2],
             files: [file1, file2],
+            sortField: 'name',
+            sortDirection: 'asc',
         })
         expect(rows.map(r => r.kind)).toEqual(['item', 'item', 'item', 'item'])
         expect(rows[0].item.id).toBe('f1')
@@ -44,6 +50,8 @@ describe('buildListRows', () => {
         const rows = buildListRows({
             folders: [folder1, folder2],
             files: [file1, file2],
+            sortField: 'name',
+            sortDirection: 'asc',
         })
         expect(rows[0].index).toBe(0)
         expect(rows[1].index).toBe(1)
@@ -56,9 +64,106 @@ describe('buildListRows', () => {
         const rows = buildListRows({
             folders: [],
             files: [uploading, file1],
+            sortField: 'name',
+            sortDirection: 'asc',
         })
         expect(rows).toHaveLength(2)
-        expect(rows[0].item.id).toBe('upl')
+        // Uploading placeholders are pinned to the end of the file group.
+        expect(rows[0].item.id).toBe('file1')
+        expect(rows[1].item.id).toBe('upl')
+    })
+})
+
+describe('sortDriveItems', () => {
+    it('sorts by name case-insensitively in natural order', () => {
+        const items = [item('File10'), item('file2'), item('apple'), item('Banana')]
+        const asc = sortDriveItems(items, 'name', 'asc').map(i => i.id)
+        expect(asc).toEqual(['apple', 'Banana', 'file2', 'File10'])
+        const desc = sortDriveItems(items, 'name', 'desc').map(i => i.id)
+        expect(desc).toEqual(['File10', 'file2', 'Banana', 'apple'])
+    })
+
+    it('sorts by size numerically', () => {
+        const items = [
+            item('a', { size: 1000 }),
+            item('b', { size: 9 }),
+            item('c', { size: 200 }),
+        ]
+        expect(sortDriveItems(items, 'size', 'asc').map(i => i.id)).toEqual(['b', 'c', 'a'])
+        expect(sortDriveItems(items, 'size', 'desc').map(i => i.id)).toEqual(['a', 'c', 'b'])
+    })
+
+    it('sorts by updated timestamp chronologically', () => {
+        const items = [
+            item('new', { updated: '2026-05-22T10:00:00Z' }),
+            item('old', { updated: '2020-01-01T00:00:00Z' }),
+            item('mid', { updated: '2024-06-15T12:00:00Z' }),
+        ]
+        expect(sortDriveItems(items, 'updated', 'asc').map(i => i.id)).toEqual([
+            'old',
+            'mid',
+            'new',
+        ])
+    })
+
+    it('sorts items with empty timestamps last when ascending', () => {
+        const items = [
+            item('blank', { updated: '' }),
+            item('dated', { updated: '2024-01-01T00:00:00Z' }),
+        ]
+        expect(sortDriveItems(items, 'updated', 'asc').map(i => i.id)).toEqual(['dated', 'blank'])
+    })
+
+    it('sorts by owner name', () => {
+        const items = [
+            item('a', { owner: 'Zoe' }),
+            item('b', { owner: 'amir' }),
+            item('c', { owner: 'Mona' }),
+        ]
+        expect(sortDriveItems(items, 'owner', 'asc').map(i => i.id)).toEqual(['b', 'c', 'a'])
+    })
+
+    it('does not mutate the input array', () => {
+        const items = [item('b'), item('a')]
+        const original = items.map(i => i.id)
+        sortDriveItems(items, 'name', 'asc')
+        expect(items.map(i => i.id)).toEqual(original)
+    })
+})
+
+describe('buildListRows sorting', () => {
+    it('sorts folders and files independently, folders always first', () => {
+        const rows = buildListRows({
+            folders: [item('zeta', { isFolder: true }), item('alpha', { isFolder: true })],
+            files: [item('yankee'), item('bravo')],
+            sortField: 'name',
+            sortDirection: 'asc',
+        })
+        expect(rows.map(r => r.item.id)).toEqual(['alpha', 'zeta', 'bravo', 'yankee'])
+    })
+
+    it('reverses order when direction is desc, keeping folders first', () => {
+        const rows = buildListRows({
+            folders: [item('alpha', { isFolder: true }), item('zeta', { isFolder: true })],
+            files: [item('bravo'), item('yankee')],
+            sortField: 'name',
+            sortDirection: 'desc',
+        })
+        expect(rows.map(r => r.item.id)).toEqual(['zeta', 'alpha', 'yankee', 'bravo'])
+    })
+
+    it('keeps uploading placeholders at the end regardless of sort', () => {
+        const rows = buildListRows({
+            folders: [],
+            files: [
+                item('zeta'),
+                item('upl', { name: 'aaa', uploadStatus: 'uploading' }),
+                item('bravo'),
+            ],
+            sortField: 'name',
+            sortDirection: 'asc',
+        })
+        expect(rows.map(r => r.item.id)).toEqual(['bravo', 'zeta', 'upl'])
     })
 })
 

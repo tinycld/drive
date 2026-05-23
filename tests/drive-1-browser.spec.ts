@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test'
 import { login, navigateToPackage } from '../../app/tests/e2e/helpers'
-import { dismissErrorOverlay, driveItem, openDriveItem } from './helpers'
+import {
+    createDriveItem,
+    dismissErrorOverlay,
+    driveItem,
+    openDriveItem,
+    orderedRowNames,
+    sortableHeader,
+} from './helpers'
 
 // Drive-1 reads seeded folder structure (Projects, Engineering, Personal,
 // Archive). drive-2 used to delete + rename seeded *files* under those
@@ -87,6 +94,47 @@ test.describe('Drive — Browser', () => {
         await fileRows.nth(1).click({ modifiers: [modifier] })
 
         await expect(page.getByText(/2 selected|2 items/)).toBeVisible({ timeout: 5_000 })
+    })
+
+    test('clicking a column heading sorts the list and toggles direction', async ({ page }) => {
+        // Three fixture files in their own folder so unrelated seeded rows
+        // don't interfere. Created out of alphabetical order so the list is
+        // not already name-sorted by arrival order.
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const folder = await createDriveItem({ name: `Sort-${stamp}`, isFolder: true })
+        const alpha = `Alpha-${stamp}.txt`
+        const mike = `Mike-${stamp}.txt`
+        const zulu = `Zulu-${stamp}.txt`
+        await createDriveItem({ name: zulu, parent: folder.id })
+        await createDriveItem({ name: mike, parent: folder.id })
+        await createDriveItem({ name: alpha, parent: folder.id })
+        await page.reload()
+
+        // Column headings only render in list view; a prior test switches to
+        // grid and the choice persists across the serial session.
+        await page.getByTestId('drive-view-list').click()
+        await openDriveItem(page, `Sort-${stamp}`)
+        await expect(driveItem(page, alpha)).toBeVisible({ timeout: 10_000 })
+
+        const fixtures = [alpha, mike, zulu]
+
+        // Move the active sort off Name first (sort state can leak in from a
+        // prior test in the serial session). Clicking Owner switches the
+        // field, so the next Name click is a fresh field-switch — which always
+        // starts ascending — rather than an ambiguous toggle.
+        await sortableHeader(page, 'Owner').click()
+
+        // Click Name → ascending (field switch resets direction to asc).
+        await sortableHeader(page, 'Name').click()
+        await expect
+            .poll(() => orderedRowNames(page, fixtures), { timeout: 10_000 })
+            .toEqual([alpha, mike, zulu])
+
+        // Click Name again → descending toggle.
+        await sortableHeader(page, 'Name').click()
+        await expect
+            .poll(() => orderedRowNames(page, fixtures), { timeout: 10_000 })
+            .toEqual([zulu, mike, alpha])
     })
 
     test('storage indicator shows usage', async ({ page }) => {

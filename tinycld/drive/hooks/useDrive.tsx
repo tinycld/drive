@@ -17,7 +17,13 @@ import {
 import { notifyDriveSnapshotListeners, writeDriveSnapshot } from '../stores/drive-snapshot-store'
 import type { DialogTarget, PromptDialog } from '../stores/drive-ui-store'
 import { useDriveUIStore } from '../stores/drive-ui-store'
-import type { DriveItemView, SidebarSection, ViewMode } from '../types'
+import type {
+    DriveItemView,
+    SidebarSection,
+    SortDirection,
+    SortField,
+    ViewMode,
+} from '../types'
 import { useDriveItems } from './useDriveItems'
 import { useDriveMutations } from './useDriveMutations'
 import { parseDrivePath, useDriveNavigation } from './useDriveNavigation'
@@ -72,6 +78,11 @@ export interface DriveContextValue {
     navigateToSection: (section: SidebarSection) => void
     selectItem: (itemId: string | null) => void
     setViewMode: (mode: ViewMode) => void
+    sortField: SortField
+    sortDirection: SortDirection
+    /** Sort by `field`. Clicking the active field toggles asc/desc; clicking a
+     *  new field switches to it ascending. */
+    setSort: (field: SortField) => void
     openItem: (item: DriveItemView) => void
     toggleStar: (itemId: string) => void
     moveToTrash: (itemId: string) => void
@@ -268,6 +279,43 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         [persistViewMode]
     )
 
+    // Sort state mirrors viewMode: local React state for instant header
+    // feedback, persisted per-user in the background. A separate override ref
+    // ignores the persistence echo after a local change for the same reason
+    // documented above the viewMode block.
+    const [persistedSortField, persistSortField] = useUserPreference<SortField>(
+        'drive',
+        'sort_field',
+        'name'
+    )
+    const [persistedSortDirection, persistSortDirection] = useUserPreference<SortDirection>(
+        'drive',
+        'sort_direction',
+        'asc'
+    )
+    const [sortField, setSortFieldLocal] = useState<SortField>(persistedSortField)
+    const [sortDirection, setSortDirectionLocal] = useState<SortDirection>(persistedSortDirection)
+    const sortOverrideRef = useRef(false)
+    useEffect(() => {
+        if (sortOverrideRef.current) return
+        setSortFieldLocal(persistedSortField)
+        setSortDirectionLocal(persistedSortDirection)
+    }, [persistedSortField, persistedSortDirection])
+    const setSort = useCallback(
+        (field: SortField) => {
+            sortOverrideRef.current = true
+            // Toggle direction when re-clicking the active field; otherwise
+            // switch field and start ascending.
+            const nextDirection: SortDirection =
+                field === sortField ? (sortDirection === 'asc' ? 'desc' : 'asc') : 'asc'
+            setSortFieldLocal(field)
+            setSortDirectionLocal(nextDirection)
+            persistSortField(field)
+            persistSortDirection(nextDirection)
+        },
+        [sortField, sortDirection, persistSortField, persistSortDirection]
+    )
+
     const {
         searchQuery,
         setSearchQuery,
@@ -389,6 +437,9 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         navigateToSection: nav.navigateToSection,
         selectItem,
         setViewMode,
+        sortField,
+        sortDirection,
+        setSort,
         openItem: nav.openItem,
         toggleStar: mutations.toggleStar,
         moveToTrash: mutations.moveToTrash,

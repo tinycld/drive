@@ -39,20 +39,27 @@ import { useFileSelection } from '../hooks/useFileSelection'
 import { useUploadPlaceholders } from '../hooks/useUploadPlaceholders'
 import { driveItemToSource } from '../lib/file-url'
 import { useDriveUIStore } from '../stores/drive-ui-store'
-import type { DriveItemView } from '../types'
+import type { DriveItemView, SortDirection, SortField } from '../types'
 
-const DRIVE_COLUMNS = [
-    { label: 'Name', flex: 3 },
-    { label: 'Owner', flex: 2 },
-    { label: 'Date modified', flex: 2 },
-    { label: 'File size', flex: 1 },
+interface DriveColumn {
+    label: string
+    flex?: number
+    width?: number
+    sortField?: SortField
+}
+
+const DRIVE_COLUMNS: DriveColumn[] = [
+    { label: 'Name', flex: 3, sortField: 'name' },
+    { label: 'Owner', flex: 2, sortField: 'owner' },
+    { label: 'Date modified', flex: 2, sortField: 'updated' },
+    { label: 'File size', flex: 1, sortField: 'size' },
     { label: '', width: 108 },
 ]
 
-const TRASH_COLUMNS = [
-    { label: 'Name', flex: 3 },
-    { label: 'Date deleted', flex: 2 },
-    { label: 'File size', flex: 1 },
+const TRASH_COLUMNS: DriveColumn[] = [
+    { label: 'Name', flex: 3, sortField: 'name' },
+    { label: 'Date deleted', flex: 2, sortField: 'trashedAt' },
+    { label: 'File size', flex: 1, sortField: 'size' },
 ]
 
 const GRID_GAP = 12
@@ -115,6 +122,9 @@ export default function DriveScreen() {
         actions,
         itemsById,
         userOrgId,
+        sortField,
+        sortDirection,
+        setSort,
     } = drive
     const isSearchActive = searchQuery.length >= 2
     const isTrash = activeSection === 'trash'
@@ -163,7 +173,7 @@ export default function DriveScreen() {
     )
 
     const { cols, onLayout } = useGridColumns(isMobile)
-    const listRows = useListRows({ folders, files })
+    const listRows = useListRows({ folders, files, sortField, sortDirection })
     const gridRows = useGridRows({ folders, files })
 
     // Navigable items power keyboard nav and shift-range selection. Skips
@@ -283,6 +293,9 @@ export default function DriveScreen() {
                         cellContext={cellContext}
                         columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS}
                         showColumnHeader={!isMobile}
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                        onSort={setSort}
                         isMobile={isMobile}
                         isRefreshing={isRefreshing}
                         onRefresh={handleRefresh}
@@ -307,8 +320,11 @@ interface ListModeProps {
     rows: ListRow[]
     flashRef: React.RefObject<FlashListRef<ListRow> | null>
     cellContext: CellContext
-    columns: typeof DRIVE_COLUMNS
+    columns: DriveColumn[]
     showColumnHeader: boolean
+    sortField: SortField
+    sortDirection: SortDirection
+    onSort: (field: SortField) => void
     isMobile: boolean
     isRefreshing: boolean
     onRefresh: () => void
@@ -320,6 +336,9 @@ function DriveListMode({
     cellContext,
     columns,
     showColumnHeader,
+    sortField,
+    sortDirection,
+    onSort,
     isMobile,
     isRefreshing,
     onRefresh,
@@ -354,12 +373,27 @@ function DriveListMode({
     )
 
     const ListHeader = useMemo(
-        () => (showColumnHeader ? <DataTableHeader columns={columns} /> : null),
-        [showColumnHeader, columns]
+        () =>
+            showColumnHeader ? (
+                <DataTableHeader
+                    columns={columns}
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={onSort}
+                />
+            ) : null,
+        [showColumnHeader, columns, sortField, sortDirection, onSort]
     )
 
     return (
         <FlashList<ListRow>
+            // Remount on sort change. A pure reorder of `data` (same item ids,
+            // same item type) doesn't reliably reflow FlashList's recycled row
+            // positions — the cells keep their old visual slots. Keying on the
+            // sort signal forces a fresh layout when the order changes; sorting
+            // is a deliberate, infrequent action where resetting scroll to the
+            // top is the expected behaviour anyway.
+            key={`${sortField}:${sortDirection}`}
             ref={flashRef}
             data={rows}
             renderItem={renderItem}
@@ -542,6 +576,8 @@ function FilesListRowImpl({
         const mobileRow = (
             <Pressable
                 onPress={handleMobilePress}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
                 className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
                 <ListRowThumbnail
