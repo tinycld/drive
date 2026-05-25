@@ -12,9 +12,23 @@ import (
 	"tinycld.org/core/thumbnails"
 )
 
+// appIsLive reports whether the app still has an open database connection.
+// generateThumbnail runs in a FireAndForget goroutine that can outlive the app
+// instance — e.g. the test harness resets the dev DB while a thumbnail job is
+// in flight. Once the app is torn down, ConcurrentDB() is nil and any record
+// query (PocketBase v0.38 RecordQuery) panics on the nil DB instead of
+// returning an error. Bail out instead of touching the DB in that window.
+func appIsLive(app *pocketbase.PocketBase) bool {
+	return app != nil && app.ConcurrentDB() != nil
+}
+
 // generateThumbnail generates a thumbnail for a drive item's file and stores it
 // on the record's thumbnail field. Designed to run in a goroutine.
 func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
+	if !appIsLive(app) {
+		return
+	}
+
 	if record.GetBool("is_folder") {
 		return
 	}
@@ -106,6 +120,12 @@ func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
 	if err != nil {
 		app.Logger().Warn("Thumbnail: failed to create file object",
 			"id", record.Id, "error", err)
+		return
+	}
+
+	// Re-check liveness: thumbnail generation above is slow, and the app/DB
+	// can be reset out from under this goroutine in that window.
+	if !appIsLive(app) {
 		return
 	}
 

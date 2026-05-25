@@ -10,6 +10,10 @@ import (
 // extractAndIndexDriveItem extracts text from the file attached to a drive item
 // and updates its FTS content. Designed to run in a goroutine.
 func extractAndIndexDriveItem(app *pocketbase.PocketBase, record *core.Record) {
+	if !appIsLive(app) {
+		return
+	}
+
 	if record.GetBool("is_folder") {
 		return
 	}
@@ -49,6 +53,12 @@ func extractAndIndexDriveItem(app *pocketbase.PocketBase, record *core.Record) {
 	}
 
 	if text == "" {
+		return
+	}
+
+	// Extraction above is slow; re-check the app/DB is still live before the
+	// write, as the goroutine can outlive an app/DB reset.
+	if !appIsLive(app) {
 		return
 	}
 
