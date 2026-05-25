@@ -136,6 +136,29 @@ func Register(app *pocketbase.PocketBase) {
 			return handleGetShareLinkThumbnail(app, re)
 		})
 
+		// Mint/resume an anonymous share session for a public link. The
+		// returned session token is the bearer credential for anon
+		// render/comment/edit actions.
+		e.Router.POST("/api/drive/share-link/{token}/session", func(re *core.RequestEvent) error {
+			return handleCreateShareSession(app, re)
+		})
+
+		// Preview comments. No requireAuth middleware: the handlers
+		// authorize either via PB auth (org member) or a share-session
+		// token (anonymous visitor), so both must be admitted here.
+		e.Router.GET("/api/drive/preview-comments", func(re *core.RequestEvent) error {
+			return handleListPreviewComments(app, re)
+		})
+		e.Router.POST("/api/drive/preview-comments", func(re *core.RequestEvent) error {
+			return handleCreatePreviewComment(app, re)
+		})
+		e.Router.PATCH("/api/drive/preview-comments/{id}", func(re *core.RequestEvent) error {
+			return handleUpdatePreviewComment(app, re)
+		})
+		e.Router.DELETE("/api/drive/preview-comments/{id}", func(re *core.RequestEvent) error {
+			return handleDeletePreviewComment(app, re)
+		})
+
 		// Share link management (auth required)
 		e.Router.POST("/api/drive/share-link", func(re *core.RequestEvent) error {
 			return handleCreateShareLink(app, re)

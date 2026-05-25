@@ -270,7 +270,7 @@ func handleCreateShareLink(app *pocketbase.PocketBase, re *core.RequestEvent) er
 	token := hex.EncodeToString(tokenBytes)
 
 	role := body.Role
-	if role != "editor" && role != "viewer" {
+	if role != "editor" && role != "viewer" && role != "commentor" {
 		role = "viewer"
 	}
 

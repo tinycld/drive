@@ -19,11 +19,19 @@ export interface DriveItems {
     updated: string
 }
 
+// Roles a public share link can grant. `commentor` = read + comment, no
+// edit. `viewer` links are also commentable (the read default).
+export type ShareLinkRole = 'viewer' | 'commentor' | 'editor'
+
+// Roles a direct drive_shares grant can carry. Adds `owner` (full
+// control) on top of the link roles.
+export type DriveShareRole = 'owner' | ShareLinkRole
+
 export interface DriveShares {
     id: string
     item: string
     user_org: string
-    role: 'owner' | 'editor' | 'viewer'
+    role: DriveShareRole
     created_by: string
     created: string
     updated: string
@@ -93,7 +101,7 @@ export interface DriveShareLinks {
     item: string
     token: string
     created_by: string
-    role: 'viewer' | 'editor'
+    role: ShareLinkRole
     expires_at: string
     is_active: boolean
     download_count: number
