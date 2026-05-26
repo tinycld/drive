@@ -4,9 +4,9 @@ import {
     PublicShareLayout,
     type PublicShareMetadata,
 } from '@tinycld/core/components/public-share'
+import { getPublicPreviewConfig } from '@tinycld/core/file-viewer/registry'
 import { useShareSession } from '@tinycld/core/lib/anon-identity'
 import { useAuth } from '@tinycld/core/lib/auth'
-import { getPublicPreviewConfig } from '@tinycld/core/file-viewer/registry'
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { Redirect, useLocalSearchParams } from 'expo-router'

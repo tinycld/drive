@@ -1,21 +1,14 @@
-import {
-    type CommentAnchor,
-    HtmlSurface,
-} from '@tinycld/core/file-viewer/HtmlSurface'
-import { getPublicPreviewConfig } from '@tinycld/core/file-viewer/registry'
 import { usePublicRenderedHtml } from '@tinycld/core/file-viewer/fetch-rendered-html'
+import { type CommentAnchor, HtmlSurface } from '@tinycld/core/file-viewer/HtmlSurface'
+import { getPublicPreviewConfig } from '@tinycld/core/file-viewer/registry'
 import type { ShareSession } from '@tinycld/core/lib/anon-identity'
-import { buildThreads, groupCommentsByKey, type BaseCommentRow } from '@tinycld/core/lib/comments'
+import { type BaseCommentRow, buildThreads, groupCommentsByKey } from '@tinycld/core/lib/comments'
 import {
     type PreviewCommentAnchor,
     type PreviewCommentRow,
     usePreviewComments,
 } from '@tinycld/core/lib/comments/preview-comments'
-import {
-    CommentComposer,
-    CommentDrawer,
-    type CommentDrawerGroup,
-} from '@tinycld/core/ui/comments'
+import { CommentComposer, CommentDrawer, type CommentDrawerGroup } from '@tinycld/core/ui/comments'
 import { useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 
