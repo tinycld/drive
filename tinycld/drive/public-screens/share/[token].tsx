@@ -4,8 +4,9 @@ import {
     PublicShareLayout,
     type PublicShareMetadata,
 } from '@tinycld/core/components/public-share'
-import { getPublicPreviewConfig } from '@tinycld/core/file-viewer/registry'
-import { useShareSession } from '@tinycld/core/lib/anon-identity'
+import { getPublicPreviewConfig, getShareEditor } from '@tinycld/core/file-viewer/registry'
+import { type ShareSession, useShareSession } from '@tinycld/core/lib/anon-identity'
+import { useShareEditorMount } from '@tinycld/core/lib/editor/use-share-editor-mount'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
@@ -83,48 +84,10 @@ function AnonymousShareView({ token }: { token: string }) {
         )
     }
 
-    // Calc/text documents get the rich read-only HTML preview with
-    // comments. Editor-role links also land here for now: anonymous
-    // editing is wired on the server but the standalone editor screen is
-    // a follow-up, so we surface a "sign in to edit" hint and let anon
-    // visitors view + comment in the meantime.
-    if (getPublicPreviewConfig(session.mimeType)) {
-        const subtitle =
-            session.role === 'editor'
-                ? `Shared from ${session.orgName || 'an organization'} · sign in to edit · viewing as ${session.displayName}`
-                : session.orgName
-                  ? `Shared from ${session.orgName} · viewing as ${session.displayName}`
-                  : `Viewing as ${session.displayName}`
-        return (
-            <View className="flex-1 bg-background">
-                <Modal isOpen onClose={() => {}}>
-                    <ModalBackdrop />
-                    <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
-                        <View className="flex-row items-center px-4 py-3 gap-3 border-b border-border">
-                            <View className="flex-1 gap-1">
-                                <Text
-                                    numberOfLines={1}
-                                    className="text-foreground"
-                                    style={{ fontSize: 16, fontWeight: '600' }}
-                                >
-                                    {session.name}
-                                </Text>
-                                <Text
-                                    numberOfLines={1}
-                                    className="text-muted-foreground"
-                                    style={{ fontSize: 12 }}
-                                >
-                                    {subtitle}
-                                </Text>
-                            </View>
-                        </View>
-                        <View className="flex-1 overflow-hidden">
-                            <PreviewCommentRail session={session} />
-                        </View>
-                    </ModalContent>
-                </Modal>
-            </View>
-        )
+    // Calc/text (and any doc type with a registered share editor or public
+    // preview) → mount the real editor read-only for the anon visitor.
+    if (getShareEditor(session.mimeType) || getPublicPreviewConfig(session.mimeType)) {
+        return <AnonymousEditorView token={token} session={session} />
     }
 
     // Non-document files (images/pdf/etc): generic download layout.
@@ -133,6 +96,59 @@ function AnonymousShareView({ token }: { token: string }) {
             queryKey={['drive-share-link', token]}
             fetchMetadata={() => fetchShareMetadata(token)}
         />
+    )
+}
+
+// Mounts the real calc/text editor read-only for an anonymous share-link
+// visitor (View 3). The editor is registered per-mime in core's share-
+// editor registry by the calc/text packages; we look it up and feed it
+// the anonymous, read-only EditorMount. The server admits the anon to the
+// realtime room read-only and the broker write-gate blocks any writes, so
+// this is genuinely view-only even though it's the full editor.
+function AnonymousEditorView({ token, session }: { token: string; session: ShareSession }) {
+    const { mount, isLoading } = useShareEditorMount(token)
+    const entry = getShareEditor(session.mimeType)
+    const ShareEditor = entry?.component
+
+    const subtitle = session.orgName
+        ? `Shared from ${session.orgName} · viewing as ${session.displayName}`
+        : `Viewing as ${session.displayName}`
+
+    return (
+        <View className="flex-1 bg-background">
+            <Modal isOpen onClose={() => {}}>
+                <ModalBackdrop />
+                <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
+                    <View className="flex-row items-center px-4 py-3 gap-3 border-b border-border">
+                        <View className="flex-1 gap-1">
+                            <Text
+                                numberOfLines={1}
+                                className="text-foreground"
+                                style={{ fontSize: 16, fontWeight: '600' }}
+                            >
+                                {session.name}
+                            </Text>
+                            <Text
+                                numberOfLines={1}
+                                className="text-muted-foreground"
+                                style={{ fontSize: 12 }}
+                            >
+                                {subtitle}
+                            </Text>
+                        </View>
+                    </View>
+                    <View className="flex-1 overflow-hidden">
+                        {mount != null && ShareEditor != null ? (
+                            <ShareEditor mount={mount} />
+                        ) : isLoading ? (
+                            <FullScreenSpinner />
+                        ) : (
+                            <PreviewCommentRail session={session} />
+                        )}
+                    </View>
+                </ModalContent>
+            </Modal>
+        </View>
     )
 }
 
