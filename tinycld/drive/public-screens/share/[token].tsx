@@ -77,17 +77,16 @@ export default function ShareTokenPage() {
 
     // Anonymous OR guest visitor: mint a share session and render the
     // document preview (calc/text) or fall back to the generic file
-    // layout. Despite the component name, AnonymousShareView is the entry
-    // point for both anon AND authed-guest visitors after this change —
-    // the mount hook (Part A) decides which kind of EditorMount to build.
-    return <AnonymousShareView token={token} />
+    // layout. The mount hook (Part A) decides which kind of EditorMount
+    // to build based on the visitor's role.
+    return <ShareView token={token} />
 }
 
-// AnonymousShareView mints the share session for the visitor (anon or
-// guest) and chooses the preview surface. Calc/text links render the real
-// editor (read-only for anon, role-capable for guest); everything else
-// uses the generic download/preview layout.
-function AnonymousShareView({ token }: { token: string }) {
+// ShareView mints the share session for the visitor (anon or guest) and
+// chooses the preview surface. Calc/text links render the real editor
+// (read-only for anon, role-capable for guest); everything else uses the
+// generic download/preview layout.
+function ShareView({ token }: { token: string }) {
     const { data: session, isLoading, error } = useShareSession(token)
 
     if (isLoading) return <FullScreenSpinner />
@@ -116,7 +115,7 @@ function AnonymousShareView({ token }: { token: string }) {
     if (getShareEditor(session.mimeType)) {
         return (
             <OrgSlugProvider slug={session.orgSlug}>
-                <AnonymousEditorView token={token} session={session} />
+                <ShareEditorView token={token} session={session} />
             </OrgSlugProvider>
         )
     }
@@ -137,7 +136,7 @@ function AnonymousShareView({ token }: { token: string }) {
 // verify the auth store updates, useShareEditorMount re-runs, and the
 // next render produces a guest EditorMount with role-derived capabilities
 // (no manual reload needed).
-function AnonymousEditorView({ token, session }: { token: string; session: ShareSession }) {
+function ShareEditorView({ token, session }: { token: string; session: ShareSession }) {
     const { mount, isLoading } = useShareEditorMount(token)
     const auth = useAuth({ throwIfAnon: false })
     const entry = getShareEditor(session.mimeType)
@@ -150,10 +149,15 @@ function AnonymousEditorView({ token, session }: { token: string; session: Share
     const showSignInBanner = isAnon && needsAuthForRole && !signInOpen
     const showSignInPanel = isAnon && needsAuthForRole && signInOpen
     const verb = session.role === 'editor' ? 'edit' : 'comment on'
+    const showEditorAnonHint = isAnon && session.role === 'editor'
 
     const subtitle = session.orgName
-        ? `Shared from ${session.orgName} · viewing as ${session.displayName}`
-        : `Viewing as ${session.displayName}`
+        ? showEditorAnonHint
+            ? `Shared from ${session.orgName} · sign in to edit · viewing as ${session.displayName}`
+            : `Shared from ${session.orgName} · viewing as ${session.displayName}`
+        : showEditorAnonHint
+          ? `Sign in to edit · viewing as ${session.displayName}`
+          : `Viewing as ${session.displayName}`
 
     // Full-screen layout: anon/guest share pages live at /share/[token],
     // outside the org-scoped app shell — there's no PackagesRail or workspace
