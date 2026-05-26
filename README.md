@@ -281,21 +281,27 @@ tinycld/drive/
         UploadButton, UploadStatusBar, UploadingGridCard, UploadingListRow
         PreviewModal           file viewer (consumes core's file-viewer registry)
         Thumbnail              renders drive_items.thumbnail or category icon fallback
-        ShareDialog            per-user shares + public link controls
+        ShareDialog            per-user shares + public link controls (presentational)
+        ShareDialogConnected   self-contained share dialog (loads its own data)
+                               — usable from outside the Drive screen tree
+                               (text and calc File menus)
         DetailPanel            details / versions / activity tabs
         ChooseFolderDialog     "Move to..." / "Copy to..." picker
         SaveToDriveDialog      cross-package "save this file to Drive"
         file-icons.ts          re-exports from @tinycld/core/file-viewer/file-icons
     hooks/
-        useDrive.tsx           top-level state (active section, current folder, breadcrumbs)
+        useDrive.tsx           top-level state (active section, current folder,
+                               breadcrumbs); also exports useDriveState (the
+                               provider-bound variant that wires to URL params)
         useDriveMutations.ts   create folder, rename, move, copy, trash, restore,
                                download, public-link CRUD, share CRUD
-        useDriveState.ts       wires useDrive to URL params
         useFileUpload.ts       upload pipeline + folder-tree handling
         useUploadPlaceholders.ts  optimistic upload rows in the current view
         useVersionHistory.ts   list + restore versions
         useDriveSearch.ts      /api/drive/search hook
-        useFolderTree.ts       sidebar folder tree
+        use-folder-tree-query.ts  sidebar folder tree (export: useFolderTreeQuery)
+        use-share-data.ts      collection-agnostic share data hook used by
+                               ShareDialogConnected
     lib/
         copy-drive-item.ts     POST-then-recursive copy
         item-actions-registry.ts  registry for cross-package "Open in X" actions
