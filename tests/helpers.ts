@@ -169,3 +169,81 @@ export async function findDriveItemByName(opts: {
     const body = (await res.json()) as { items: { id: string }[] }
     return body.items[0] ?? null
 }
+
+// Uploads a binary fixture (xlsx / docx / image / etc) as a fresh
+// drive_items row owned by the seeded test user. Returns the new
+// row id. Use this when a test needs a real file the server-side
+// bootstrap (xlsx → Y.Doc, docx → ProseMirror) can chew on — going
+// via this REST upload bypasses the blank-doc UI path which can
+// race with realtime room mounts under worker contention.
+export async function uploadFileAsDriveItem(opts: {
+    fixturePath: string
+    name: string
+    mimeType: string
+}): Promise<{ id: string }> {
+    const fs = await import('node:fs')
+    const token = await authAsTestUser()
+    const { orgId, userOrgId } = await resolveOrgContext(token)
+    const bytes = fs.readFileSync(opts.fixturePath)
+    const form = new FormData()
+    form.append('org', orgId)
+    form.append('name', opts.name)
+    form.append('is_folder', 'false')
+    form.append('mime_type', opts.mimeType)
+    form.append('parent', '')
+    form.append('created_by', userOrgId)
+    form.append('size', String(bytes.length))
+    form.append('file', new Blob([new Uint8Array(bytes)], { type: opts.mimeType }), opts.name)
+    const res = await fetch(`${PB_URL}/api/collections/drive_items/records`, {
+        method: 'POST',
+        headers: { Authorization: token },
+        body: form,
+    })
+    if (!res.ok) {
+        throw new Error(`Upload drive_item failed: ${res.status} ${await res.text()}`)
+    }
+    return (await res.json()) as { id: string }
+}
+
+// Mints a public share link via the production endpoint
+// (/api/drive/share-link, POST). Returns the link record's id and token.
+// The share-route public URL is `${origin}/share/<token>`.
+//
+// The endpoint requires PB auth (the owner). Use the test user's token
+// (authAsTestUser) — the test user owns every item they create, so the
+// owner check inside handleCreateShareLink passes.
+export async function createShareLink(opts: {
+    itemId: string
+    role: 'viewer' | 'commentor' | 'editor'
+    expiresAt?: string
+}): Promise<{ id: string; token: string; url: string }> {
+    const authToken = await authAsTestUser()
+    const res = await fetch(`${PB_URL}/api/drive/share-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: authToken },
+        body: JSON.stringify({
+            item_id: opts.itemId,
+            role: opts.role,
+            expires_at: opts.expiresAt ?? '',
+        }),
+    })
+    if (!res.ok) {
+        throw new Error(`Create share link failed: ${res.status} ${await res.text()}`)
+    }
+    return res.json() as Promise<{ id: string; token: string; url: string }>
+}
+
+// Revokes a share link via DELETE /api/drive/share-link/<id>. The endpoint
+// flips is_active to false; subsequent visits to /share/<token> resolve
+// to a PublicShareError(410), which the share screen renders as the
+// "Link expired" view.
+export async function revokeShareLink(linkId: string): Promise<void> {
+    const authToken = await authAsTestUser()
+    const res = await fetch(`${PB_URL}/api/drive/share-link/${linkId}`, {
+        method: 'DELETE',
+        headers: { Authorization: authToken },
+    })
+    if (!res.ok) {
+        throw new Error(`Revoke share link failed: ${res.status} ${await res.text()}`)
+    }
+}
