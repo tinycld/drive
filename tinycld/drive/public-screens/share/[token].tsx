@@ -10,6 +10,7 @@ import { type ShareSession, useShareSession } from '@tinycld/core/lib/anon-ident
 import { useAuth } from '@tinycld/core/lib/auth'
 import { useShareEditorMount } from '@tinycld/core/lib/editor/use-share-editor-mount'
 import { useShareLinkVisitorRole } from '@tinycld/core/lib/editor/use-share-visitor-role'
+import { OrgSlugProvider } from '@tinycld/core/lib/use-org-slug'
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { Redirect, useLocalSearchParams } from 'expo-router'
@@ -106,8 +107,20 @@ function AnonymousShareView({ token }: { token: string }) {
 
     // Calc/text (and any doc type with a registered share editor or public
     // preview) → mount the real editor for the visitor.
+    //
+    // Wrap in OrgSlugProvider so a signed-in GUEST's downstream hooks
+    // (useOrgInfo → useCurrentRole → useOrgLiveQuery) resolve the share
+    // link's org and find the guest's own user_org — making in-editor
+    // comments queryable for them. For anon visitors the org-scoped
+    // queries safely return empty (useAuth's anon stub has user.id='', so
+    // useCurrentRole's user_org query matches nothing → useOrgLiveQuery's
+    // !userOrgId guard short-circuits).
     if (getShareEditor(session.mimeType) || getPublicPreviewConfig(session.mimeType)) {
-        return <AnonymousEditorView token={token} session={session} />
+        return (
+            <OrgSlugProvider slug={session.orgSlug}>
+                <AnonymousEditorView token={token} session={session} />
+            </OrgSlugProvider>
+        )
     }
 
     // Non-document files (images/pdf/etc): generic download layout.

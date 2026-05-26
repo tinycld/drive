@@ -59,8 +59,10 @@ func handleCreateShareSession(app *pocketbase.PocketBase, re *core.RequestEvent)
 	}
 
 	orgName := ""
+	orgSlug := ""
 	if org, err := app.FindRecordById("orgs", item.GetString("org")); err == nil {
 		orgName = org.GetString("name")
+		orgSlug = org.GetString("slug")
 	}
 
 	return re.JSON(http.StatusOK, map[string]any{
@@ -72,5 +74,6 @@ func handleCreateShareSession(app *pocketbase.PocketBase, re *core.RequestEvent)
 		"name":          item.GetString("name"),
 		"mime_type":     item.GetString("mime_type"),
 		"org_name":      orgName,
+		"org_slug":      orgSlug,
 	})
 }
