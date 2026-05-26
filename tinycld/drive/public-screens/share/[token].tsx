@@ -5,7 +5,7 @@ import {
     type PublicShareMetadata,
 } from '@tinycld/core/components/public-share'
 import { ShareLinkSignIn } from '@tinycld/core/components/share/ShareLinkSignIn'
-import { getPublicPreviewConfig, getShareEditor } from '@tinycld/core/file-viewer/registry'
+import { getShareEditor } from '@tinycld/core/file-viewer/registry'
 import { type ShareSession, useShareSession } from '@tinycld/core/lib/anon-identity'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { useShareEditorMount } from '@tinycld/core/lib/editor/use-share-editor-mount'
@@ -16,7 +16,6 @@ import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
-import { PreviewCommentRail } from '../../components/PreviewCommentRail'
 
 const shareLinkUrl = (token: string) => `${PB_SERVER_ADDR}/api/drive/share-link/${token}`
 
@@ -115,7 +114,7 @@ function AnonymousShareView({ token }: { token: string }) {
     // queries safely return empty (useAuth's anon stub has user.id='', so
     // useCurrentRole's user_org query matches nothing → useOrgLiveQuery's
     // !userOrgId guard short-circuits).
-    if (getShareEditor(session.mimeType) || getPublicPreviewConfig(session.mimeType)) {
+    if (getShareEditor(session.mimeType)) {
         return (
             <OrgSlugProvider slug={session.orgSlug}>
                 <AnonymousEditorView token={token} session={session} />
@@ -210,7 +209,11 @@ function AnonymousEditorView({ token, session }: { token: string; session: Share
                         ) : isLoading ? (
                             <FullScreenSpinner />
                         ) : (
-                            <PreviewCommentRail session={session} />
+                            <View className="flex-1 items-center justify-center px-6">
+                                <Text className="text-muted-foreground text-center" style={{ fontSize: 14 }}>
+                                    Preview unavailable for this file.
+                                </Text>
+                            </View>
                         )}
                     </View>
                 </ModalContent>
