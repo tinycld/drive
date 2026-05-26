@@ -11,7 +11,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
-import { Check, ChevronDown, Globe, Link, Lock, Trash2 } from 'lucide-react-native'
+import { Check, ChevronDown, Globe, Link, Lock, Trash2, X } from 'lucide-react-native'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native'
 
@@ -263,6 +263,15 @@ export function ShareDialog({
                         Share &ldquo;{itemName}&rdquo;
                     </Text>
                     <HelpIcon topic="drive:sharing" size={20} />
+                    <Pressable
+                        onPress={onClose}
+                        accessibilityLabel="Close share dialog"
+                        accessibilityRole="button"
+                        hitSlop={8}
+                        className="rounded-full p-1"
+                    >
+                        <X size={20} color={mutedColor} />
+                    </Pressable>
                 </View>
 
                 {/* Search row stays pinned above the scrollable body so the suggestions
