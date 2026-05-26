@@ -305,13 +305,12 @@ func findOrCreateGuestUser(app core.App, email string) (*core.Record, error) {
 	if err == nil && existing != nil {
 		return existing, nil
 	}
-	// Any error other than "not found" is fatal — we don't want to
-	// silently double-create on a transient DB error.
+	// FindAuthRecordByEmail returns sql.ErrNoRows when missing; tolerate
+	// that and fall through to create. Any OTHER error (transient DB
+	// failure, etc.) is fatal — without this guard we'd silently
+	// double-create on a flaky connection.
 	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "no rows") {
-		// FindAuthRecordByEmail returns sql.ErrNoRows when missing;
-		// be permissive about the exact wrapped string. If it's
-		// something else, fall through to create as PB does the same in
-		// auth-related flows (request-otp tolerates not-found).
+		return nil, fmt.Errorf("lookup user by email: %w", err)
 	}
 
 	displayName := email
