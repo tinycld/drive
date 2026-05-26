@@ -2,16 +2,19 @@ package drive
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/mail"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/security"
+	"tinycld.org/core/coreserver"
 	"tinycld.org/core/mailer"
 	"tinycld.org/core/sharelink"
 )
@@ -43,8 +46,9 @@ type otpVerifyBody struct {
 // anonymous visitor of a commentor/editor share link can later present
 // at otp-verify to obtain a real (limited) PocketBase auth token.
 //
-// Public. Rate-limited (publicShareLimiter — same one the session and
-// other public-share endpoints use).
+// Public. Rate-limited with the stricter otpLimiter (10/min/IP) rather
+// than the share-wide publicShareLimiter — see endpoints_public_share.go
+// for the brute-force rationale.
 //
 // Security:
 //
@@ -60,7 +64,7 @@ type otpVerifyBody struct {
 //     request-but-never-verify is harmless.
 func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.allow(ip) {
+	if !otpLimiter.allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 	}
 
@@ -96,8 +100,8 @@ func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 	}
 
 	// Generate the one-time code. Even a 6-digit numeric code is rate-
-	// limited at verify (publicShareLimiter, plus single-use deletion on
-	// success), so brute force from a single IP is bounded.
+	// limited at verify (otpLimiter at 10/min/IP, plus single-use
+	// deletion on success), so brute force from a single IP is bounded.
 	code := security.RandomStringWithAlphabet(otpCodeLength, "1234567890")
 
 	otp := core.NewOTP(app)
@@ -131,7 +135,8 @@ func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 // user_org membership + drive_shares row scoped to the link's
 // org+item+role.
 //
-// Public. Rate-limited.
+// Public. Rate-limited with the stricter otpLimiter (10/min/IP) to bound
+// brute-force guessing of the 6-digit code from any one IP.
 //
 // Security:
 //
@@ -149,7 +154,7 @@ func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 //     client can drop {token, record} directly into pb.authStore.
 func handleShareOTPVerify(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.allow(ip) {
+	if !otpLimiter.allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 	}
 
@@ -322,12 +327,24 @@ func findOrCreateGuestUser(app core.App, email string) (*core.Record, error) {
 		displayName = email[:idx]
 	}
 
+	// The users collection's `username` field is required+unique (migration
+	// 1820000000_users_username_required.js). PB validation rejects a save
+	// without it, so derive a candidate from the email and disambiguate
+	// against existing rows on collision. Mirrors coreserver.BackfillUsernames
+	// suffix scheme ("foo", "foo2", "foo3") so a future re-backfill won't
+	// thrash the guest's name.
+	username, err := pickAvailableUsername(app, coreserver.DeriveUsername(email))
+	if err != nil {
+		return nil, fmt.Errorf("derive username: %w", err)
+	}
+
 	password := security.RandomString(32)
 
 	rec := core.NewRecord(usersCol)
 	rec.SetEmail(email)
 	rec.Set("emailVisibility", true)
 	rec.Set("name", displayName)
+	rec.Set("username", username)
 	rec.SetVerified(false)
 	rec.SetPassword(password)
 	if err := app.Save(rec); err != nil {
@@ -339,6 +356,33 @@ func findOrCreateGuestUser(app core.App, email string) (*core.Record, error) {
 		return nil, fmt.Errorf("create guest user: %w", err)
 	}
 	return rec, nil
+}
+
+// pickAvailableUsername returns `base` if no users row currently owns it,
+// otherwise probes base+"2", base+"3", … until a free slot is found. The
+// unique index on users.username gives us a DB-level safety net if a race
+// slips through this read-then-write check (the app.Save in
+// findOrCreateGuestUser will surface the constraint violation).
+//
+// PB's FindFirstRecordByFilter returns sql.ErrNoRows when nothing
+// matches; we treat that as "username is free." Any other error is a
+// real lookup failure (collection missing, DB hiccup, malformed filter)
+// and must surface — without this, a transient DB error would be
+// silently swallowed and the caller's app.Save would collide on the
+// unique index, producing an opaque 500.
+func pickAvailableUsername(app core.App, base string) (string, error) {
+	candidate := base
+	for i := 2; i < 1000; i++ {
+		existing, err := app.FindFirstRecordByFilter("users", "username = {:u}", map[string]any{"u": candidate})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("lookup username %q: %w", candidate, err)
+		}
+		if existing == nil {
+			return candidate, nil
+		}
+		candidate = base + strconv.Itoa(i)
+	}
+	return "", fmt.Errorf("could not find free username for %q", base)
 }
 
 // findOrCreateGuestUserOrg returns the user_org row for (user, org),

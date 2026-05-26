@@ -68,6 +68,14 @@ type otpTestEnv struct {
 // capture hook.
 func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 	t.Helper()
+	// Reset the package-level limiters so the previous test's IP budget
+	// can't leak into this one. httptest.NewRequest uses a fixed default
+	// RemoteAddr (192.0.2.1:1234), so every test that doesn't override
+	// X-Forwarded-For shares a single budget; without this reset, the
+	// 10/min/IP otpLimiter eventually starves later tests in a run.
+	otpLimiter.reset()
+	publicShareLimiter.reset()
+
 	app, err := tests.NewTestApp()
 	if err != nil {
 		t.Fatalf("NewTestApp: %v", err)
@@ -286,6 +294,25 @@ func (env *otpTestEnv) doRequest(t *testing.T, method, url, body string) (*http.
 
 	req := httptest.NewRequest(method, url, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	raw, _ := io.ReadAll(rec.Body)
+	return rec.Result(), raw
+}
+
+// doRequestWithIP is like doRequest but pins X-Forwarded-For so the
+// per-IP rate limiter sees the supplied IP. Tests that need to span
+// multiple IPs (or to avoid colliding with other tests' default
+// RemoteAddr) use this.
+func (env *otpTestEnv) doRequestWithIP(t *testing.T, method, url, body, ip string) (*http.Response, []byte) {
+	t.Helper()
+
+	mux := env.handler(t)
+
+	req := httptest.NewRequest(method, url, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", ip)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -889,4 +916,93 @@ func TestShareOTP_CodeNeverInResponse(t *testing.T) {
 			`{"email":"v@example.com","code":"123456","otp_id":"x"}`)
 		mustNotLeak(t, "verify-viewer", body, "123456")
 	})
+}
+
+// ----- otp rate limiter tests --------------------------------------------
+//
+// The otpLimiter is a package-level singleton shared with the rest of the
+// process, so these tests use unique synthetic IPs (carried via
+// X-Forwarded-For) to avoid colliding with each other or with any other
+// test that happens to hit the OTP endpoints in the same go test run.
+
+func TestShareOTPRequest_RateLimit_ElevenRequestsTrigger429(t *testing.T) {
+	env := setupOTPApp(t, "commentor")
+	url := fmt.Sprintf("/api/drive/share-link/%s/otp-request", env.shareLink.GetString("token"))
+	ip := "203.0.113.10" // RFC 5737 TEST-NET-3 — collision-proof per test
+
+	// otpLimiter allows 10 req/min/IP. The first ten must pass the
+	// limiter (status != 429); the eleventh must be throttled.
+	for i := 0; i < 10; i++ {
+		resp, body := env.doRequestWithIP(t, http.MethodPost, url,
+			fmt.Sprintf(`{"email":"guest%d@example.com"}`, i), ip)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			t.Fatalf("request %d hit limiter early: %s", i+1, body)
+		}
+	}
+
+	resp, body := env.doRequestWithIP(t, http.MethodPost, url,
+		`{"email":"guest11@example.com"}`, ip)
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 on 11th request, got %d: %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), "rate limit exceeded") {
+		t.Fatalf("expected rate-limit error body, got: %s", body)
+	}
+}
+
+func TestShareOTPVerify_RateLimit_ElevenRequestsTrigger429(t *testing.T) {
+	env := setupOTPApp(t, "commentor")
+	url := fmt.Sprintf("/api/drive/share-link/%s/otp-verify", env.shareLink.GetString("token"))
+	ip := "203.0.113.11"
+
+	// Use a deliberately-bogus payload so verify fails early on the
+	// invalid-code branch (after the limiter check). We're testing the
+	// limiter, not the verify success path.
+	payload := `{"email":"guest@example.com","code":"000000","otp_id":"nope"}`
+
+	for i := 0; i < 10; i++ {
+		resp, body := env.doRequestWithIP(t, http.MethodPost, url, payload, ip)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			t.Fatalf("verify request %d hit limiter early: %s", i+1, body)
+		}
+	}
+
+	resp, body := env.doRequestWithIP(t, http.MethodPost, url, payload, ip)
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 on 11th verify request, got %d: %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), "rate limit exceeded") {
+		t.Fatalf("expected rate-limit error body, got: %s", body)
+	}
+}
+
+func TestShareOTPRequest_RateLimit_DifferentIPsNotThrottled(t *testing.T) {
+	env := setupOTPApp(t, "commentor")
+	url := fmt.Sprintf("/api/drive/share-link/%s/otp-request", env.shareLink.GetString("token"))
+	ipA := "203.0.113.20"
+	ipB := "203.0.113.21"
+
+	// Exhaust ipA's budget so any leakage across IPs would surface as a
+	// 429 for ipB.
+	for i := 0; i < 10; i++ {
+		resp, body := env.doRequestWithIP(t, http.MethodPost, url,
+			fmt.Sprintf(`{"email":"a%d@example.com"}`, i), ipA)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			t.Fatalf("ipA request %d unexpectedly throttled: %s", i+1, body)
+		}
+	}
+	resp, body := env.doRequestWithIP(t, http.MethodPost, url,
+		`{"email":"a11@example.com"}`, ipA)
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("ipA 11th request expected 429, got %d: %s", resp.StatusCode, body)
+	}
+
+	// ipB is a fresh IP — its budget is untouched. The very next request
+	// must NOT be a 429 (regardless of whether the body is otherwise
+	// accepted; we're asserting the limiter doesn't bleed across IPs).
+	resp, body = env.doRequestWithIP(t, http.MethodPost, url,
+		`{"email":"b@example.com"}`, ipB)
+	if resp.StatusCode == http.StatusTooManyRequests {
+		t.Fatalf("ipB throttled despite untouched per-IP budget: %s", body)
+	}
 }

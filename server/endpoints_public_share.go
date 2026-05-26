@@ -30,6 +30,16 @@ func newRateLimiter(limit int, window time.Duration) *rateLimiter {
 	}
 }
 
+// reset clears the per-IP request log. Intended for test isolation —
+// the package-level limiters are singletons whose in-memory state
+// otherwise leaks across test cases that share the httptest default
+// RemoteAddr.
+func (rl *rateLimiter) reset() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	rl.requests = make(map[string][]time.Time)
+}
+
 func (rl *rateLimiter) allow(ip string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -56,6 +66,15 @@ func (rl *rateLimiter) allow(ip string) bool {
 }
 
 var publicShareLimiter = newRateLimiter(60, time.Minute)
+
+// otpLimiter is a stricter per-IP limiter used by the share-link OTP
+// request and verify endpoints. The OTP code is 6 digits (~10^6 keyspace);
+// at the share-wide 60/min this leaves ~900 brute-force guesses per
+// 15-min OTP TTL from a single IP, which is uncomfortably high. 10/min/IP
+// gives ~150 guesses per TTL — still generous for legitimate humans
+// (request + a handful of code attempts) but materially tightens the
+// brute-force surface.
+var otpLimiter = newRateLimiter(10, time.Minute)
 
 func getClientIP(r *http.Request) string {
 	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
