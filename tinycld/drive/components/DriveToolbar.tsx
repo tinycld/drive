@@ -8,7 +8,6 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { captureException } from '@tinycld/core/lib/errors'
 import type { HelpTopicId } from '@tinycld/core/lib/help/types'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { useCurrentRole } from '@tinycld/core/lib/use-current-role'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
@@ -38,7 +37,7 @@ import { useDrive } from '../hooks/useDrive'
 import { type PromptDialog, useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
-import { ShareDialog } from './ShareDialog'
+import { ShareDialogConnected } from './ShareDialogConnected'
 import { UploadButton } from './UploadButton'
 
 export function DriveDialogs() {
@@ -50,13 +49,9 @@ export function DriveDialogs() {
         clearSelection,
         closeMoveDialog,
         shareTarget,
-        getSharesForItem,
-        orgMembers,
-        removeShare,
         closeShareDialog,
         folderTree,
     } = useDrive()
-    const { userOrgId } = useCurrentRole()
 
     const isMultiMove = moveTarget?.id === '__multi__'
 
@@ -83,14 +78,10 @@ export function DriveDialogs() {
                 onMove={handleMove}
                 onClose={closeMoveDialog}
             />
-            <ShareDialog
+            <ShareDialogConnected
                 open={shareTarget !== null}
                 itemId={shareTarget?.id ?? ''}
                 itemName={shareTarget?.name ?? ''}
-                shares={shareTarget ? getSharesForItem(shareTarget.id) : []}
-                orgMembers={orgMembers}
-                currentUserOrgId={userOrgId}
-                onRemoveShare={removeShare}
                 onClose={closeShareDialog}
             />
         </>
