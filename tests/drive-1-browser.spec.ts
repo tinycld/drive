@@ -146,6 +146,16 @@ test.describe('Drive — Browser', () => {
         // branches. Match the substring common to both — the test's intent
         // is "the indicator renders," not "the indicator shows a specific
         // quota."
+        //
+        // navigateToPackage resolves on `domcontentloaded` (HTML shell), not
+        // on SPA hydration, so the sidebar may not be in the DOM the instant
+        // this test starts. Wait on a sibling sidebar element first — that's
+        // a deterministic "sidebar is rendered" signal, not a longer timeout
+        // dressed up as a wait. Once the sidebar nav is up, StorageBar is in
+        // the same subtree and its `0.00 GB used` text is already mounted.
+        await expect(page.getByText('Trash', { exact: true })).toBeVisible({
+            timeout: 15_000,
+        })
         await expect(page.getByText(/\d+(\.\d+)? GB used/)).toBeVisible()
     })
 })
