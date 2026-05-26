@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -714,4 +715,178 @@ func TestShareOTPVerify_RevokedBetweenRequestAndVerify_410(t *testing.T) {
 	if resp.StatusCode != http.StatusGone {
 		t.Fatalf("expected 410 after revocation, got %d: %s", resp.StatusCode, body)
 	}
+}
+
+// TestShareOTPVerify_WrongEmail_DeletesOTP confirms that the SentTo-mismatch
+// branch consumes the OTP (parity with the expired-code branch). Without this,
+// an attacker with a leaked/guessed otp_id could keep retrying with different
+// emails — the rate limiter bounds it, but symmetric deletion is the tighter
+// posture.
+func TestShareOTPVerify_WrongEmail_DeletesOTP(t *testing.T) {
+	env := setupOTPApp(t, "commentor")
+	tok := env.shareLink.GetString("token")
+
+	resp, body := env.doRequest(t, http.MethodPost,
+		"/api/drive/share-link/"+tok+"/otp-request",
+		`{"email":"alice@example.com"}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("otp-request: %d %s", resp.StatusCode, body)
+	}
+	var out struct {
+		OTPID string `json:"otp_id"`
+	}
+	_ = json.Unmarshal(body, &out)
+	code := env.captureCode()
+
+	// Verify with the right code but the wrong email.
+	resp, body = env.doRequest(t, http.MethodPost,
+		"/api/drive/share-link/"+tok+"/otp-verify",
+		fmt.Sprintf(`{"email":"mallory@example.com","code":%q,"otp_id":%q}`, code, out.OTPID))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for SentTo mismatch, got %d: %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), "invalid or expired code") {
+		t.Fatalf("expected uniform 'invalid or expired code' message, got: %s", body)
+	}
+
+	// OTP must be deleted: a second attempt with the CORRECT email +
+	// CORRECT code must now also fail (the OTP no longer exists).
+	resp, body = env.doRequest(t, http.MethodPost,
+		"/api/drive/share-link/"+tok+"/otp-verify",
+		fmt.Sprintf(`{"email":"alice@example.com","code":%q,"otp_id":%q}`, code, out.OTPID))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 after OTP consumed by mismatch, got %d: %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), "invalid or expired code") {
+		t.Fatalf("expected uniform error after consumed OTP, got: %s", body)
+	}
+}
+
+// TestShareOTP_CodeNeverInResponse exhaustively asserts the plain-text OTP
+// code is NOT present in any response body across both endpoints and every
+// branch. Regression guard for the load-bearing security property that the
+// code is delivered ONLY via email.
+func TestShareOTP_CodeNeverInResponse(t *testing.T) {
+	// Helper: assert the code (if known) doesn't appear in a response body.
+	mustNotLeak := func(t *testing.T, label string, body []byte, code string) {
+		t.Helper()
+		if code != "" && bytes.Contains(body, []byte(code)) {
+			t.Fatalf("[%s] response body leaks the OTP code (%q): %s", label, code, body)
+		}
+	}
+
+	// --- otp-request branches ---
+
+	t.Run("request happy path", func(t *testing.T) {
+		env := setupOTPApp(t, "commentor")
+		tok := env.shareLink.GetString("token")
+		_, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-request",
+			`{"email":"happy@example.com"}`)
+		mustNotLeak(t, "request-happy", body, env.captureCode())
+	})
+
+	t.Run("request viewer link rejected", func(t *testing.T) {
+		env := setupOTPApp(t, "viewer")
+		tok := env.shareLink.GetString("token")
+		_, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-request",
+			`{"email":"viewer@example.com"}`)
+		mustNotLeak(t, "request-viewer", body, env.captureCode())
+	})
+
+	t.Run("request invalid email", func(t *testing.T) {
+		env := setupOTPApp(t, "commentor")
+		tok := env.shareLink.GetString("token")
+		_, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-request",
+			`{"email":"not-an-email"}`)
+		// No code minted on this branch (validation fails before OTP create), but
+		// asserting absence with an empty code is a no-op — that's fine.
+		mustNotLeak(t, "request-bad-email", body, env.captureCode())
+	})
+
+	t.Run("request revoked link", func(t *testing.T) {
+		env := setupOTPApp(t, "commentor")
+		env.shareLink.Set("is_active", false)
+		if err := env.app.Save(env.shareLink); err != nil {
+			t.Fatalf("revoke: %v", err)
+		}
+		tok := env.shareLink.GetString("token")
+		_, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-request",
+			`{"email":"revoked@example.com"}`)
+		mustNotLeak(t, "request-revoked", body, env.captureCode())
+	})
+
+	// --- otp-verify branches ---
+	// For each verify branch we first do a real request so a code exists
+	// in env.captureCode() (then we drive the verify path under test).
+
+	mintCode := func(t *testing.T, env *otpTestEnv, email string) (otpID, code string) {
+		t.Helper()
+		tok := env.shareLink.GetString("token")
+		resp, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-request",
+			fmt.Sprintf(`{"email":%q}`, email))
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("otp-request precondition failed: %d %s", resp.StatusCode, body)
+		}
+		var out struct {
+			OTPID string `json:"otp_id"`
+		}
+		_ = json.Unmarshal(body, &out)
+		return out.OTPID, env.captureCode()
+	}
+
+	t.Run("verify happy path", func(t *testing.T) {
+		env := setupOTPApp(t, "commentor")
+		tok := env.shareLink.GetString("token")
+		otpID, code := mintCode(t, env, "ok@example.com")
+		_, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-verify",
+			fmt.Sprintf(`{"email":"ok@example.com","code":%q,"otp_id":%q}`, code, otpID))
+		mustNotLeak(t, "verify-happy", body, code)
+	})
+
+	t.Run("verify wrong code", func(t *testing.T) {
+		env := setupOTPApp(t, "commentor")
+		tok := env.shareLink.GetString("token")
+		otpID, code := mintCode(t, env, "wrong@example.com")
+		_, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-verify",
+			fmt.Sprintf(`{"email":"wrong@example.com","code":"000000","otp_id":%q}`, otpID))
+		mustNotLeak(t, "verify-wrong-code", body, code)
+	})
+
+	t.Run("verify wrong email (SentTo mismatch)", func(t *testing.T) {
+		env := setupOTPApp(t, "commentor")
+		tok := env.shareLink.GetString("token")
+		otpID, code := mintCode(t, env, "sentto@example.com")
+		_, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-verify",
+			fmt.Sprintf(`{"email":"other@example.com","code":%q,"otp_id":%q}`, code, otpID))
+		mustNotLeak(t, "verify-wrong-email", body, code)
+	})
+
+	t.Run("verify unknown otp_id", func(t *testing.T) {
+		env := setupOTPApp(t, "commentor")
+		tok := env.shareLink.GetString("token")
+		_, code := mintCode(t, env, "unknown@example.com")
+		_, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-verify",
+			fmt.Sprintf(`{"email":"unknown@example.com","code":%q,"otp_id":"nonexistent"}`, code))
+		mustNotLeak(t, "verify-unknown-otp-id", body, code)
+	})
+
+	t.Run("verify viewer link rejected", func(t *testing.T) {
+		env := setupOTPApp(t, "viewer")
+		tok := env.shareLink.GetString("token")
+		// Viewer link rejects at the role check before any OTP lookup, so we
+		// don't need a real OTP — just check the rejection body has no code.
+		_, body := env.doRequest(t, http.MethodPost,
+			"/api/drive/share-link/"+tok+"/otp-verify",
+			`{"email":"v@example.com","code":"123456","otp_id":"x"}`)
+		mustNotLeak(t, "verify-viewer", body, "123456")
+	})
 }

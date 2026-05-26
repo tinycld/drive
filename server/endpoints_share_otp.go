@@ -192,7 +192,11 @@ func handleShareOTPVerify(app core.App, re *core.RequestEvent) error {
 		_ = app.Delete(otp)
 		return re.JSON(http.StatusBadRequest, map[string]string{"error": "invalid or expired code"})
 	}
+	// Wrong email for this otp_id: delete so an attacker who guessed/leaked
+	// the opaque otp_id can't keep retrying with different emails. Symmetric
+	// with the expired-code branch above.
 	if !strings.EqualFold(otp.SentTo(), emailAddr) {
+		_ = app.Delete(otp)
 		return re.JSON(http.StatusBadRequest, map[string]string{"error": "invalid or expired code"})
 	}
 	if !otp.ValidatePassword(body.Code) {
