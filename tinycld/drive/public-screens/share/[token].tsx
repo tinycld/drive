@@ -10,9 +10,8 @@ import { type ShareSession, useShareSession } from '@tinycld/core/lib/anon-ident
 import { useAuth } from '@tinycld/core/lib/auth'
 import { useShareEditorMount } from '@tinycld/core/lib/editor/use-share-editor-mount'
 import { useShareLinkVisitorRole } from '@tinycld/core/lib/editor/use-share-visitor-role'
-import { OrgSlugProvider } from '@tinycld/core/lib/use-org-slug'
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
-import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
+import { OrgSlugProvider } from '@tinycld/core/lib/use-org-slug'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
@@ -156,68 +155,70 @@ function AnonymousEditorView({ token, session }: { token: string; session: Share
         ? `Shared from ${session.orgName} · viewing as ${session.displayName}`
         : `Viewing as ${session.displayName}`
 
+    // Full-screen layout: anon/guest share pages live at /share/[token],
+    // outside the org-scoped app shell — there's no PackagesRail or workspace
+    // nav to overlay, so the editor should fill the viewport directly rather
+    // than sit inside a Modal that would only add a backdrop + boxed frame.
     return (
         <View className="flex-1 bg-background">
-            <Modal isOpen onClose={() => {}}>
-                <ModalBackdrop />
-                <ModalContent className="w-[95vw] h-[90vh] max-w-[1400px] p-0 rounded-xl overflow-hidden">
-                    <View className="flex-row items-center px-4 py-3 gap-3 border-b border-border">
-                        <View className="flex-1 gap-1">
-                            <Text
-                                numberOfLines={1}
-                                className="text-foreground"
-                                style={{ fontSize: 16, fontWeight: '600' }}
-                            >
-                                {session.name}
-                            </Text>
-                            <Text
-                                numberOfLines={1}
-                                className="text-muted-foreground"
-                                style={{ fontSize: 12 }}
-                            >
-                                {subtitle}
-                            </Text>
-                        </View>
+            <View className="flex-row items-center px-4 py-3 gap-3 border-b border-border">
+                <View className="flex-1 gap-1">
+                    <Text
+                        numberOfLines={1}
+                        className="text-foreground"
+                        style={{ fontSize: 16, fontWeight: '600' }}
+                    >
+                        {session.name}
+                    </Text>
+                    <Text
+                        numberOfLines={1}
+                        className="text-muted-foreground"
+                        style={{ fontSize: 12 }}
+                    >
+                        {subtitle}
+                    </Text>
+                </View>
+            </View>
+            {showSignInBanner && (
+                <View className="flex-row items-center px-4 py-2 gap-3 border-b border-border bg-muted">
+                    <Text className="text-foreground flex-1" style={{ fontSize: 13 }}>
+                        {`Sign in to ${verb} this document`}
+                    </Text>
+                    <Pressable
+                        onPress={() => setSignInOpen(true)}
+                        className="bg-primary px-3 py-1.5 rounded-md"
+                    >
+                        <Text
+                            className="text-primary-foreground"
+                            style={{ fontSize: 13, fontWeight: '600' }}
+                        >
+                            Sign in
+                        </Text>
+                    </Pressable>
+                </View>
+            )}
+            <View className="flex-1 overflow-hidden">
+                {showSignInPanel ? (
+                    <ShareLinkSignIn
+                        token={token}
+                        role={session.role === 'editor' ? 'editor' : 'commentor'}
+                        onSuccess={() => setSignInOpen(false)}
+                    />
+                ) : mount != null && ShareEditor != null ? (
+                    <ShareEditor mount={mount} />
+                ) : isLoading ? (
+                    <FullScreenSpinner />
+                ) : (
+                    <View className="flex-1 items-center justify-center px-6">
+                        <Text
+                            className="text-muted-foreground text-center"
+                            style={{ fontSize: 14 }}
+                        >
+                            Preview unavailable for this file.
+                        </Text>
                     </View>
-                    {showSignInBanner && (
-                        <View className="flex-row items-center px-4 py-2 gap-3 border-b border-border bg-muted">
-                            <Text className="text-foreground flex-1" style={{ fontSize: 13 }}>
-                                {`Sign in to ${verb} this document`}
-                            </Text>
-                            <Pressable
-                                onPress={() => setSignInOpen(true)}
-                                className="bg-primary px-3 py-1.5 rounded-md"
-                            >
-                                <Text
-                                    className="text-primary-foreground"
-                                    style={{ fontSize: 13, fontWeight: '600' }}
-                                >
-                                    Sign in
-                                </Text>
-                            </Pressable>
-                        </View>
-                    )}
-                    <View className="flex-1 overflow-hidden">
-                        {showSignInPanel ? (
-                            <ShareLinkSignIn
-                                token={token}
-                                role={session.role === 'editor' ? 'editor' : 'commentor'}
-                                onSuccess={() => setSignInOpen(false)}
-                            />
-                        ) : mount != null && ShareEditor != null ? (
-                            <ShareEditor mount={mount} />
-                        ) : isLoading ? (
-                            <FullScreenSpinner />
-                        ) : (
-                            <View className="flex-1 items-center justify-center px-6">
-                                <Text className="text-muted-foreground text-center" style={{ fontSize: 14 }}>
-                                    Preview unavailable for this file.
-                                </Text>
-                            </View>
-                        )}
-                    </View>
-                </ModalContent>
-            </Modal>
+                )}
+            </View>
         </View>
     )
 }
