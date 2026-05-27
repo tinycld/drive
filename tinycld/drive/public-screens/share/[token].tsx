@@ -13,7 +13,7 @@ import { useShareLinkVisitorRole } from '@tinycld/core/lib/editor/use-share-visi
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
 import { OrgSlugProvider } from '@tinycld/core/lib/use-org-slug'
 import { Redirect, useLocalSearchParams } from 'expo-router'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 
 const shareLinkUrl = (token: string) => `${PB_SERVER_ADDR}/api/drive/share-link/${token}`
@@ -209,7 +209,14 @@ function ShareEditorView({ token, session }: { token: string; session: ShareSess
                         onSuccess={() => setSignInOpen(false)}
                     />
                 ) : mount != null && ShareEditor != null ? (
-                    <ShareEditor mount={mount} />
+                    // The registered ShareEditor is a React.lazy component
+                    // (text/calc providers defer their screen tree to avoid
+                    // closing a require cycle through pocketbase). A
+                    // Suspense boundary here lets the editor chunk load
+                    // without crashing the share route.
+                    <Suspense fallback={<FullScreenSpinner />}>
+                        <ShareEditor mount={mount} />
+                    </Suspense>
                 ) : isLoading ? (
                     <FullScreenSpinner />
                 ) : (
