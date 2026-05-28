@@ -98,19 +98,12 @@ function helpTopicForSection(activeSection: string, isSearchActive: boolean): He
 // Labels mirror the drive sidebar items so the toolbar heading matches
 // the highlighted sidebar entry. Only used at the root of a section —
 // once the user opens a folder, the breadcrumb's folder name takes over.
-function sectionLabel(section: SidebarSection): string {
-    switch (section) {
-        case 'my-drive':
-            return 'My Files'
-        case 'shared-with-me':
-            return 'Shared with me'
-        case 'recent':
-            return 'Recent'
-        case 'starred':
-            return 'Starred'
-        case 'trash':
-            return 'Trash'
-    }
+const SECTION_LABELS: Record<SidebarSection, string> = {
+    'my-drive': 'My Files',
+    'shared-with-me': 'Shared with me',
+    recent: 'Recent',
+    starred: 'Starred',
+    trash: 'Trash',
 }
 
 export function DriveToolbar() {
@@ -178,7 +171,7 @@ export function DriveToolbar() {
     const helpTopic = helpTopicForSection(activeSection, isSearchActive)
 
     const currentFolder = breadcrumbs.at(-1)
-    const currentLabel = currentFolder?.name ?? sectionLabel(activeSection)
+    const currentLabel = currentFolder?.name ?? SECTION_LABELS[activeSection]
 
     // Rename / Delete act on the currently-selected item, so they only
     // appear once exactly one item is selected. Without a selection the
