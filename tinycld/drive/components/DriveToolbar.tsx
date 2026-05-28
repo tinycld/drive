@@ -35,7 +35,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
 import { useDrive } from '../hooks/useDrive'
 import { type PromptDialog, useDriveUIStore } from '../stores/drive-ui-store'
-import type { DriveItemView, ViewMode } from '../types'
+import type { DriveItemView, SidebarSection, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
 import { ShareDialogConnected } from './ShareDialogConnected'
 import { UploadButton } from './UploadButton'
@@ -93,6 +93,17 @@ function helpTopicForSection(activeSection: string, isSearchActive: boolean): He
     if (activeSection === 'trash') return 'drive:trash'
     if (activeSection === 'shared-with-me') return 'drive:sharing'
     return 'drive:files'
+}
+
+// Labels mirror the drive sidebar items so the toolbar heading matches
+// the highlighted sidebar entry. Only used at the root of a section —
+// once the user opens a folder, the breadcrumb's folder name takes over.
+const SECTION_LABELS: Record<SidebarSection, string> = {
+    'my-drive': 'My Files',
+    'shared-with-me': 'Shared with me',
+    recent: 'Recent',
+    starred: 'Starred',
+    trash: 'Trash',
 }
 
 export function DriveToolbar() {
@@ -160,7 +171,7 @@ export function DriveToolbar() {
     const helpTopic = helpTopicForSection(activeSection, isSearchActive)
 
     const currentFolder = breadcrumbs.at(-1)
-    const currentLabel = currentFolder?.name ?? 'My Files'
+    const currentLabel = currentFolder?.name ?? SECTION_LABELS[activeSection]
 
     // Rename / Delete act on the currently-selected item, so they only
     // appear once exactly one item is selected. Without a selection the
@@ -213,19 +224,6 @@ export function DriveToolbar() {
                     }}
                 >
                     Search results{isSearching ? '...' : ''}
-                </Text>
-            )
-        }
-        if (activeSection === 'trash') {
-            return (
-                <Text
-                    className="flex-1 text-foreground"
-                    style={{
-                        fontSize: 24,
-                        fontWeight: '500',
-                    }}
-                >
-                    Trash
                 </Text>
             )
         }
@@ -359,6 +357,8 @@ function DesktopBreadcrumbs({
                 </View>
             ))}
             <Text
+                accessibilityRole="header"
+                aria-level={1}
                 numberOfLines={1}
                 className="text-foreground"
                 style={{
@@ -408,6 +408,8 @@ function MobileBreadcrumbs({
                 </Pressable>
             )}
             <Text
+                accessibilityRole="header"
+                aria-level={1}
                 numberOfLines={1}
                 className="text-foreground"
                 style={{
