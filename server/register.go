@@ -475,6 +475,14 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 		return re.BadRequestError("failed to save restored item", nil)
 	}
 
+	itemType := item.GetString("type")
+	if hook := VersionHookFor(itemType); hook.OnRestore != nil {
+		if err := hook.OnRestore(app, item, version); err != nil {
+			app.Logger().Warn("drive: version restore hook failed",
+				"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+		}
+	}
+
 	return re.JSON(http.StatusOK, map[string]any{
 		"id":        item.Id,
 		"name":      item.GetString("name"),
