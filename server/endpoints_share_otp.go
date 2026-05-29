@@ -364,6 +364,14 @@ func findOrCreateGuestUser(app core.App, email string) (*core.Record, error) {
 // slips through this read-then-write check (the app.Save in
 // findOrCreateGuestUser will surface the constraint violation).
 //
+// Bases shorter than 3 characters are padded with trailing "0" before
+// probing — PocketBase's stock users collection enforces a min length of
+// 3 on `username`, and short email prefixes (e.g. "ok@example.com" →
+// "ok") would otherwise fail validation at app.Save. The migration in
+// this codebase relaxes that to min=1, but the PB v0.38 test fixture
+// (`pocketbase/tests`) still ships with min=3; padding keeps both prod
+// and the test-fixture flow working.
+//
 // PB's FindFirstRecordByFilter returns sql.ErrNoRows when nothing
 // matches; we treat that as "username is free." Any other error is a
 // real lookup failure (collection missing, DB hiccup, malformed filter)
@@ -371,6 +379,9 @@ func findOrCreateGuestUser(app core.App, email string) (*core.Record, error) {
 // silently swallowed and the caller's app.Save would collide on the
 // unique index, producing an opaque 500.
 func pickAvailableUsername(app core.App, base string) (string, error) {
+	for len(base) < 3 {
+		base += "0"
+	}
 	candidate := base
 	for i := 2; i < 1000; i++ {
 		existing, err := app.FindFirstRecordByFilter("users", "username = {:u}", map[string]any{"u": candidate})
