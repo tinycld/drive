@@ -17,6 +17,7 @@ import (
 	"tinycld.org/core/audit"
 	"tinycld.org/core/notify"
 	"tinycld.org/core/userorg"
+	"tinycld.org/core/versionhooks"
 )
 
 func Register(app *pocketbase.PocketBase) {
@@ -386,7 +387,7 @@ func handleSnapshotVersion(app *pocketbase.PocketBase, re *core.RequestEvent) er
 
 	if version != nil {
 		itemType := item.GetString("type")
-		if hook := VersionHookFor(itemType); hook.OnSnapshot != nil {
+		if hook := versionhooks.For(itemType); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, version); err != nil {
 				app.Logger().Warn("drive: version snapshot hook failed",
 					"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
@@ -476,7 +477,7 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 	}
 
 	itemType := item.GetString("type")
-	if hook := VersionHookFor(itemType); hook.OnRestore != nil {
+	if hook := versionhooks.For(itemType); hook.OnRestore != nil {
 		if err := hook.OnRestore(app, item, version); err != nil {
 			app.Logger().Warn("drive: version restore hook failed",
 				"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
