@@ -175,7 +175,7 @@ func (f *driveFile) persistWrite() error {
 		}
 
 		if f.existing.GetString("file") != "" {
-			if err := snapshotCurrentFile(f.fs.app, f.existing, f.userOrg.Id, "upload", ""); err != nil {
+			if _, err := snapshotCurrentFile(f.fs.app, f.existing, f.userOrg.Id, "upload", ""); err != nil {
 				f.fs.app.Logger().Warn("WebDAV: version snapshot failed", "id", f.existing.Id, "error", err)
 			}
 		}
