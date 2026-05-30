@@ -16,9 +16,23 @@ import (
 	"golang.org/x/net/webdav"
 	"tinycld.org/core/audit"
 	"tinycld.org/core/notify"
+	"tinycld.org/core/userorg"
 )
 
 func Register(app *pocketbase.PocketBase) {
+	// Reassignable authorship FKs surfaced to the leave-org transaction.
+	// All five point at user_org with cascadeDelete:false, so without
+	// reassignment a user with any drive content can't leave the org.
+	for _, ref := range []userorg.ReassignableRef{
+		{Collection: "drive_items", Field: "created_by"},
+		{Collection: "drive_shares", Field: "created_by"},
+		{Collection: "drive_item_versions", Field: "created_by"},
+		{Collection: "drive_share_links", Field: "created_by"},
+		{Collection: "drive_preview_comments", Field: "author_user_org"},
+	} {
+		userorg.RegisterReassignable(ref)
+	}
+
 	// Audit logging for drive collections
 	audit.RegisterCollection(app, "drive_items", &audit.CollectionConfig{
 		ExtractLabel: audit.LabelFromField("name"),
