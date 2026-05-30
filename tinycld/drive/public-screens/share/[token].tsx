@@ -5,6 +5,7 @@ import {
     type PublicShareMetadata,
 } from '@tinycld/core/components/public-share'
 import { ShareLinkSignIn } from '@tinycld/core/components/share/ShareLinkSignIn'
+import { PackageProviderWrapper } from '@tinycld/core/components/workspace/PackageProviderWrapper'
 import { getShareEditor } from '@tinycld/core/file-viewer/registry'
 import { type ShareSession, useShareSession } from '@tinycld/core/lib/anon-identity'
 import { useAuth } from '@tinycld/core/lib/auth'
@@ -76,10 +77,23 @@ export default function ShareTokenPage() {
     }
 
     // Anonymous OR guest visitor: mint a share session and render the
-    // document preview (calc/text) or fall back to the generic file
-    // layout. The mount hook (Part A) decides which kind of EditorMount
-    // to build based on the visitor's role.
-    return <ShareView token={token} />
+    // document preview or fall back to the generic file layout. The
+    // mount hook decides which kind of EditorMount to build based on the
+    // visitor's role.
+    //
+    // PackageProviderWrapper mounts every installed package's provider
+    // — each provider's lazy chunk side-effect-registers its share
+    // editor with the registry on first load. Without this wrapper the
+    // share-editor registry is empty on the public share route (no
+    // package code has run yet outside the workspace), so
+    // getShareEditor() returns undefined and the route falls through
+    // to the static PublicShareLayout dialog instead of mounting the
+    // real editor.
+    return (
+        <PackageProviderWrapper>
+            <ShareView token={token} />
+        </PackageProviderWrapper>
+    )
 }
 
 // ShareView mints the share session for the visitor (anon or guest) and
