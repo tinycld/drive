@@ -17,6 +17,7 @@ import (
 	"tinycld.org/core/audit"
 	"tinycld.org/core/notify"
 	"tinycld.org/core/userorg"
+	"tinycld.org/core/versionhooks"
 )
 
 func Register(app *pocketbase.PocketBase) {
@@ -324,7 +325,7 @@ func handleUploadVersion(app *pocketbase.PocketBase, re *core.RequestEvent) erro
 		}
 	}
 
-	if err := snapshotCurrentFile(app, item, userOrgID, "upload", ""); err != nil {
+	if _, err := snapshotCurrentFile(app, item, userOrgID, "upload", ""); err != nil {
 		app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
 	}
 
@@ -378,9 +379,21 @@ func handleSnapshotVersion(app *pocketbase.PocketBase, re *core.RequestEvent) er
 		return router.NewApiError(http.StatusUnprocessableEntity, "nothing to snapshot — file is empty", nil)
 	}
 
-	if err := snapshotCurrentFile(app, item, userOrgID, "user", label); err != nil {
+	version, err := snapshotCurrentFile(app, item, userOrgID, "user", label)
+	if err != nil {
 		app.Logger().Warn("version snapshot failed", "id", item.Id, "error", err)
 		return re.InternalServerError("failed to save version", nil)
+	}
+
+	if version != nil {
+		itemType := item.GetString("type")
+		if hook := versionhooks.For(itemType); hook.OnSnapshot != nil {
+			if err := hook.OnSnapshot(app, item, version); err != nil {
+				app.Logger().Warn("drive: version snapshot hook failed",
+					"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+				// continue — the docx blob is already saved; the hook is supplementary
+			}
+		}
 	}
 
 	return re.JSON(http.StatusOK, map[string]any{"item": item.Id})
@@ -423,7 +436,7 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 	}
 
 	// Snapshot the current file before restoring (system-generated, hidden from UI)
-	if err := snapshotCurrentFile(app, item, userOrgID, "system", ""); err != nil {
+	if _, err := snapshotCurrentFile(app, item, userOrgID, "system", ""); err != nil {
 		app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
 	}
 
@@ -461,6 +474,14 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 
 	if err := app.Save(item); err != nil {
 		return re.BadRequestError("failed to save restored item", nil)
+	}
+
+	itemType := item.GetString("type")
+	if hook := versionhooks.For(itemType); hook.OnRestore != nil {
+		if err := hook.OnRestore(app, item, version); err != nil {
+			app.Logger().Warn("drive: version restore hook failed",
+				"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+		}
 	}
 
 	return re.JSON(http.StatusOK, map[string]any{

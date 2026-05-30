@@ -392,6 +392,12 @@ function RestoreConfirmDialog({
     )
 }
 
+interface VersionMetadata {
+    suggestionsOpen?: number
+    authors?: string[]
+    schemaVersion?: number
+}
+
 interface VersionRowProps {
     version: {
         id: string
@@ -399,14 +405,32 @@ interface VersionRowProps {
         size: number
         created: string
         file: string
+        version_metadata?: unknown
     }
     onRestore: () => void
     onDownload: () => void
     isRestoring: boolean
 }
 
+function formatMetadataBadge(metadata: VersionMetadata | null | undefined): string | null {
+    if (!metadata) return null
+    const items: string[] = []
+    const suggestions = metadata.suggestionsOpen ?? 0
+    if (suggestions > 0) {
+        items.push(`${suggestions} pending suggestion${suggestions === 1 ? '' : 's'}`)
+    }
+    const contributors = metadata.authors?.length ?? 0
+    if (contributors > 0) {
+        items.push(`${contributors} contributor${contributors === 1 ? '' : 's'}`)
+    }
+    return items.length > 0 ? items.join(' · ') : null
+}
+
 function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
+    const badgeText = formatMetadataBadge(
+        version.version_metadata as VersionMetadata | null | undefined
+    )
 
     return (
         <View
@@ -420,6 +444,11 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
                 <Text className="text-muted-foreground" style={{ fontSize: 11 }}>
                     {formatDate(version.created)} · {formatBytes(version.size)}
                 </Text>
+                {badgeText && (
+                    <Text className="text-muted-foreground" style={{ fontSize: 11, marginTop: 2 }}>
+                        {badgeText}
+                    </Text>
+                )}
             </View>
             <View className="flex-row gap-2">
                 <Pressable onPress={onDownload} hitSlop={8} className="p-1">

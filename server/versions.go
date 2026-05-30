@@ -9,36 +9,38 @@ import (
 )
 
 // snapshotCurrentFile creates a version record from the current file on a drive_items record.
-// Skips silently if the item has no file attached.
+// Skips silently if the item has no file attached (returns nil, nil).
 // Version number assignment is done inside a transaction to prevent races.
-func snapshotCurrentFile(app *pocketbase.PocketBase, itemRecord *core.Record, userOrgID, source, label string) error {
+// Returns the created version record on success so callers can fire post-snapshot hooks.
+func snapshotCurrentFile(app *pocketbase.PocketBase, itemRecord *core.Record, userOrgID, source, label string) (*core.Record, error) {
 	filename := itemRecord.GetString("file")
 	if filename == "" {
-		return nil
+		return nil, nil
 	}
 
 	reader, err := readFileContent(app, itemRecord)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer reader.Close()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	f, err := filesystem.NewFileFromBytes(data, filename)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	collection, err := app.FindCollectionByNameOrId("drive_item_versions")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return app.RunInTransaction(func(txApp core.App) error {
+	var created *core.Record
+	err = app.RunInTransaction(func(txApp core.App) error {
 		var result struct {
 			Max int `db:"max_ver"`
 		}
@@ -60,6 +62,14 @@ func snapshotCurrentFile(app *pocketbase.PocketBase, itemRecord *core.Record, us
 		record.Set("label", label)
 		record.Set("created_by", userOrgID)
 
-		return txApp.Save(record)
+		if err := txApp.Save(record); err != nil {
+			return err
+		}
+		created = record
+		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return created, nil
 }
