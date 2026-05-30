@@ -1,7 +1,14 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { type Href, Link } from 'expo-router'
-import { Clock, FolderOpen, type LucideIcon, Plus, Upload } from 'lucide-react-native'
+import {
+    Clock,
+    FolderOpen,
+    LayoutTemplate,
+    type LucideIcon,
+    Plus,
+    Upload,
+} from 'lucide-react-native'
 import { useCallback } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
 
@@ -22,6 +29,12 @@ interface NoFilePanelProps {
     accept: string
     onCreateNew: () => void
     onUpload: (files: File[]) => void
+    /**
+     * Optional fourth card opening a package-supplied template picker.
+     * `label` is the accessible name (also the visible card label) — text
+     * uses 'From template…' so its e2e selectors keep working.
+     */
+    template?: { label: string; onPress: () => void }
     /** Disables Create + Upload while a mutation is in flight. */
     isPending?: boolean
 }
@@ -45,6 +58,7 @@ export function NoFilePanel({
     accept,
     onCreateNew,
     onUpload,
+    template,
     isPending = false,
 }: NoFilePanelProps) {
     const orgHref = useOrgHref()
@@ -78,6 +92,15 @@ export function NoFilePanel({
                         onPress={onCreateNew}
                         disabled={isPending}
                     />
+                    {template ? (
+                        <CtaCard
+                            Icon={LayoutTemplate}
+                            label={template.label}
+                            hint="Pick a starter"
+                            onPress={template.onPress}
+                            disabled={isPending}
+                        />
+                    ) : null}
                     <UploadCard
                         hint={uploadHint}
                         accept={accept}
