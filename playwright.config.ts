@@ -5,4 +5,12 @@ import appConfig from '../app/playwright.config'
 const WS_ROOT = path.resolve(import.meta.dirname, '..')
 const TEST_DIR = path.join(WS_ROOT, 'node_modules', '@tinycld', 'drive', 'tests')
 
-export default defineConfig({ ...appConfig, testDir: TEST_DIR })
+export default defineConfig({
+    ...appConfig,
+    testDir: TEST_DIR,
+    // Per-test timeout. Default is 30s; drive tests open folders + load
+    // file rows which include nested package-screen lazy chunks; on CI
+    // under parallel load the first navigation per worker can blow
+    // through 30s before the sidebar or first row mounts.
+    timeout: 60_000,
+})
