@@ -187,7 +187,7 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         const context = await browser.newContext()
         try {
             const page = await context.newPage()
-            await page.goto(`/share/${link.token}`)
+            await page.goto(`/p/drive/share/${link.token}`)
             await expect(page.getByText('Stub share editor')).toBeVisible({
                 timeout: REACTION_TIMEOUT,
             })
@@ -253,7 +253,7 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         const context = await browser.newContext()
         try {
             const page = await context.newPage()
-            await page.goto(`/share/${link.token}`)
+            await page.goto(`/p/drive/share/${link.token}`)
             await expect(page.getByText('Stub share editor')).toBeVisible({
                 timeout: REACTION_TIMEOUT,
             })
@@ -302,7 +302,7 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         const firstContext = await browser.newContext()
         try {
             const firstPage = await firstContext.newPage()
-            await firstPage.goto(`/share/${firstLink.token}`)
+            await firstPage.goto(`/p/drive/share/${firstLink.token}`)
             await expect(firstPage.getByText('Stub share editor')).toBeVisible({
                 timeout: REACTION_TIMEOUT,
             })
@@ -332,7 +332,7 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         const secondContext = await browser.newContext()
         try {
             const secondPage = await secondContext.newPage()
-            await secondPage.goto(`/share/${secondLink.token}`)
+            await secondPage.goto(`/p/drive/share/${secondLink.token}`)
             await expect(secondPage.getByText('Stub share editor')).toBeVisible({
                 timeout: REACTION_TIMEOUT,
             })

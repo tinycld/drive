@@ -207,7 +207,7 @@ export async function uploadFileAsDriveItem(opts: {
 
 // Mints a public share link via the production endpoint
 // (/api/drive/share-link, POST). Returns the link record's id and token.
-// The share-route public URL is `${origin}/share/<token>`.
+// The share-route public URL is `${origin}/p/drive/share/<token>`.
 //
 // The endpoint requires PB auth (the owner). Use the test user's token
 // (authAsTestUser) — the test user owns every item they create, so the
@@ -234,7 +234,7 @@ export async function createShareLink(opts: {
 }
 
 // Revokes a share link via DELETE /api/drive/share-link/<id>. The endpoint
-// flips is_active to false; subsequent visits to /share/<token> resolve
+// flips is_active to false; subsequent visits to /p/drive/share/<token> resolve
 // to a PublicShareError(410), which the share screen renders as the
 // "Link expired" view.
 export async function revokeShareLink(linkId: string): Promise<void> {

@@ -173,7 +173,7 @@ function ShareEditorView({ token, session }: { token: string; session: ShareSess
           ? `Sign in to edit · viewing as ${session.displayName}`
           : `Viewing as ${session.displayName}`
 
-    // Full-screen layout: anon/guest share pages live at /share/[token],
+    // Full-screen layout: anon/guest share pages live at /p/drive/share/[token],
     // outside the org-scoped app shell — there's no PackagesRail or workspace
     // nav to overlay, so the editor should fill the viewport directly rather
     // than sit inside a Modal that would only add a backdrop + boxed frame.
