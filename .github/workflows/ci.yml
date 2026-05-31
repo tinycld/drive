@@ -69,32 +69,17 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: ws/.go-version
-      # Metro warns "Watchman was not found in PATH" without this and falls
-      # back to fs.watch polling. Under multi-worker Playwright load the
-      # polling fallback compounds enough that Metro can go silent for 70+s
-      # on a `page.reload()`-triggered bundle re-fetch, surfacing as a
-      # blank-page-after-reload flake (see prior failed runs on this repo).
-      # The release zip is the only Linux distribution channel; pin to a
-      # known-working tag rather than `latest` so a future release breaking
-      # the zip layout doesn't silently break CI.
-      - name: Install watchman
-        run: |
-          curl -fsSL -o /tmp/watchman.zip https://github.com/facebook/watchman/releases/download/v2026.05.11.00/watchman-v2026.05.11.00-linux.zip
-          unzip -q /tmp/watchman.zip -d /tmp/watchman
-          sudo mv /tmp/watchman/watchman-v2026.05.11.00-linux/bin/* /usr/local/bin/
-          sudo mv /tmp/watchman/watchman-v2026.05.11.00-linux/lib/* /usr/local/lib/
-          # ldconfig picks up the libgflags / libglog / libsnappy bundled in
-          # the zip so the watchman binary's runtime linker resolves them.
-          sudo ldconfig
-          sudo mkdir -p /usr/local/var/run/watchman
-          sudo chmod 2777 /usr/local/var/run/watchman
-          watchman --version
       - name: Assemble workspace (app + core)
         working-directory: ws
         run: TINYCLD_REPO_BASE=https://github.com/tinycld npx @tinycld/bootstrap@latest --assemble-only
       - name: Install (workspace root)
         working-directory: ws
         run: npm install
+      # Installs watchman so Metro's file watcher doesn't fall back to
+      # polling — see tinycld/app#21 for the trace evidence and the
+      # blank-page-after-reload flake it fixed.
+      - name: Configure test env
+        uses: tinycld/app/.github/actions/configure-test-env@main
       # Drive's share-link E2E mounts an editor for a doc, but the editor
       # itself is contributed by a package OTHER than drive (text, calc,
       # etc.). To avoid coupling drive's CI to those packages' internals,
