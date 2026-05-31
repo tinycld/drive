@@ -18,7 +18,9 @@ import {
 test.describe('Drive — Browser', () => {
     test.beforeEach(async ({ page }) => {
         await login(page)
-        await navigateToPackage(page, 'drive')
+        await navigateToPackage(page, 'drive', {
+            waitFor: page.getByTestId('package-sidebar-mounted'),
+        })
         await dismissErrorOverlay(page)
     })
 
@@ -165,7 +167,9 @@ test.describe('Drive — Mobile', () => {
 
     test.beforeEach(async ({ page }) => {
         await login(page)
-        await navigateToPackage(page, 'drive')
+        await navigateToPackage(page, 'drive', {
+            waitFor: page.getByTestId('package-sidebar-mounted'),
+        })
         await dismissErrorOverlay(page)
     })
 

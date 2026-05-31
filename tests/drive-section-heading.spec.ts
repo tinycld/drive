@@ -18,7 +18,9 @@ test.describe('Drive — section heading', () => {
     })
 
     test('My Files at /drive root', async ({ page }) => {
-        await navigateToPackage(page, 'drive')
+        await navigateToPackage(page, 'drive', {
+            waitFor: page.getByTestId('package-sidebar-mounted'),
+        })
         await dismissErrorOverlay(page)
         await expect(page.getByRole('heading', { name: 'My Files', level: 1 })).toBeVisible({
             timeout: 15_000,
@@ -63,7 +65,9 @@ test.describe('Drive — section heading', () => {
         // navigating away from My Files the FrozenSlideStack keeps the
         // prior screen mounted; the active screen's heading is the one
         // currently rendered as visible.
-        await navigateToPackage(page, 'drive')
+        await navigateToPackage(page, 'drive', {
+            waitFor: page.getByTestId('package-sidebar-mounted'),
+        })
         await dismissErrorOverlay(page)
         await expect(page.getByRole('heading', { name: 'My Files', level: 1 })).toBeVisible({
             timeout: 15_000,
