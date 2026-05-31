@@ -4,6 +4,7 @@ import {
     SidebarDivider,
     SidebarItem,
     SidebarNav,
+    SidebarSlot,
 } from '@tinycld/core/components/sidebar-primitives'
 import { openHelpPackage } from '@tinycld/core/lib/help/open-help'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
@@ -125,6 +126,8 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
             />
 
             <SidebarDivider />
+
+            <SidebarSlot target="drive" slot="sidebar.after-tree" />
 
             <SidebarItem
                 label="Shared with me"

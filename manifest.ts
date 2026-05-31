@@ -7,6 +7,7 @@ const manifest = {
     publicRoutes: { directory: 'public-screens' },
     nav: { label: 'Drive', icon: 'hard-drive', order: 12, shortcut: 'd' },
     sidebar: { component: 'sidebar' },
+    slots: ['sidebar.after-tree'],
     provider: { component: 'provider' },
     help: { directory: 'help' },
     migrations: { directory: 'pb-migrations' },
