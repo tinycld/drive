@@ -38,7 +38,7 @@ function uniqueXffIp(): string {
 }
 
 async function pinXffOnContext(ctx: BrowserContext, ip: string): Promise<void> {
-    await ctx.route('**/api/**', async (route) => {
+    await ctx.route('**/api/**', async route => {
         const headers = { ...route.request().headers(), 'x-forwarded-for': ip }
         await route.continue({ headers })
     })

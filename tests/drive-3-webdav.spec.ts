@@ -77,7 +77,9 @@ test.describe('Drive — WebDAV', () => {
     test('org PROPFIND matches the names visible in the web UI', async ({ page }) => {
         // Snapshot folder names visible in the web UI at the org's drive root.
         await login(page)
-        await navigateToPackage(page, 'drive')
+        await navigateToPackage(page, 'drive', {
+            waitFor: page.getByTestId('package-sidebar-mounted'),
+        })
         // Wait for any seeded root folder to appear before snapshotting.
         await expect(page.getByText('Projects').first()).toBeVisible({ timeout: 10_000 })
 
@@ -109,7 +111,9 @@ test.describe('Drive — WebDAV', () => {
             await putFile(`/${ORG_SLUG}/${fileName}`, body, 'text/plain')
 
             await login(page)
-            await navigateToPackage(page, 'drive')
+            await navigateToPackage(page, 'drive', {
+                waitFor: page.getByTestId('package-sidebar-mounted'),
+            })
             // The drive root mixes seeded fixtures with files from
             // earlier suites, so the WebDAV-injected row often lands
             // below the FlashList viewport. Filter the list with the
@@ -135,7 +139,9 @@ test.describe('Drive — WebDAV', () => {
             await mkcol(`/${ORG_SLUG}/${folderName}/`)
 
             await login(page)
-            await navigateToPackage(page, 'drive')
+            await navigateToPackage(page, 'drive', {
+                waitFor: page.getByTestId('package-sidebar-mounted'),
+            })
             // Same filter-with-search trick as the PUT test above; the
             // WebDAV-created folder otherwise tends to land outside the
             // FlashList viewport and toBeVisible() rejects it.
