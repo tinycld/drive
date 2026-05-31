@@ -116,7 +116,7 @@ export function ShareDialog({
     const activeShareLink = shareLinksData?.links?.find(l => l.is_active)
 
     const publicShareUrl = activeShareLink
-        ? `${window.location.origin}/share/${activeShareLink.token}`
+        ? `${window.location.origin}/p/drive/share/${activeShareLink.token}`
         : ''
 
     // Contacts is an optional sibling package; load suggestions from it
@@ -134,7 +134,7 @@ export function ShareDialog({
                     method: 'POST',
                     body: { item_id: itemId, role: 'viewer' },
                 })
-                url = `${window.location.origin}/share/${resp.token}`
+                url = `${window.location.origin}/p/drive/share/${resp.token}`
                 queryClient.invalidateQueries({ queryKey: ['share-links', itemId] })
             } catch (err) {
                 captureException('share-link', err)

@@ -65,7 +65,7 @@ async function openAnonShareLink(
     const context = await browser.newContext()
     await pinXffOnContext(context, uniqueXffIp())
     const page = await context.newPage()
-    await page.goto(`/share/${token}`)
+    await page.goto(`/p/drive/share/${token}`)
     return { context, page }
 }
 
@@ -135,7 +135,7 @@ test.describe('Drive — anon viewer share link (stub)', () => {
         await pinXffOnContext(context, uniqueXffIp())
         try {
             const page = await context.newPage()
-            await page.goto(`/share/${fixture.token}`)
+            await page.goto(`/p/drive/share/${fixture.token}`)
             await expect(page.getByText('Stub share editor')).toBeVisible({
                 timeout: VISIBILITY_TIMEOUT,
             })
@@ -169,7 +169,7 @@ test.describe('Drive — anon viewer share link (stub)', () => {
         await pinXffOnContext(context, uniqueXffIp())
         try {
             const page = await context.newPage()
-            await page.goto(`/share/${oneShot.token}`)
+            await page.goto(`/p/drive/share/${oneShot.token}`)
             // Expired UI is owned by core's PublicShareLayout — drive's
             // share route falls back to it when the session mint fails
             // (revoked link returns 410). This is the negative-path

@@ -106,7 +106,7 @@ test.describe('Drive — share link role change (stub)', () => {
         await pinXffOnContext(context, uniqueXffIp())
         try {
             const page = await context.newPage()
-            await page.goto(`/share/${link.token}`)
+            await page.goto(`/p/drive/share/${link.token}`)
             await expect(page.getByText('Stub share editor')).toBeVisible({
                 timeout: VISIBILITY_TIMEOUT,
             })
@@ -159,7 +159,7 @@ test.describe('Drive — share link role change (stub)', () => {
             const page = await context.newPage()
 
             // First visit: stub mounts.
-            await page.goto(`/share/${link.token}`)
+            await page.goto(`/p/drive/share/${link.token}`)
             await expect(page.getByText('Stub share editor')).toBeVisible({
                 timeout: VISIBILITY_TIMEOUT,
             })
