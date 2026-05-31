@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { login, navigateToPackage } from '../../app/tests/e2e/helpers'
+import { login, navigateToPackage, ORG_SLUG } from '../../app/tests/e2e/helpers'
 import {
     createDriveItem,
     dismissErrorOverlay,
@@ -168,14 +168,16 @@ test.describe('Drive — Mobile', () => {
 
     test.beforeEach(async ({ page }) => {
         await login(page)
-        // Mobile renders MobileLayout (no PackageSidebar), so the
-        // package-sidebar-mounted testID never appears. Gate on the
-        // "Projects" seeded folder row instead — it's drive's
-        // canonical first-row entry that proves the mobile screen
+        // Mobile renders MobileLayout (no PackageRail, no PackageSidebar)
+        // and uses a bottom tab bar instead. navigateToPackage's rail-
+        // click path doesn't work here; goto directly and gate on the
+        // seeded "Projects" folder row which proves the mobile screen
         // has hydrated.
-        await navigateToPackage(page, 'drive', {
-            waitFor: page.getByText('Projects', { exact: true }).first(),
-        })
+        await page.goto(`/a/${ORG_SLUG}/drive`)
+        await page
+            .getByText('Projects', { exact: true })
+            .first()
+            .waitFor({ state: 'visible', timeout: 60_000 })
         await dismissErrorOverlay(page)
     })
 
