@@ -1,5 +1,6 @@
 import { FlashList, type FlashListRef, useRecyclingState } from '@shopify/flash-list'
 import { DataTableHeader } from '@tinycld/core/components/DataTableHeader'
+import { DocumentTitle } from '@tinycld/core/components/DocumentTitle'
 import { EmptyState } from '@tinycld/core/components/EmptyState'
 import { rowFocusStyle } from '@tinycld/core/components/focusable-row'
 import { HoverAction } from '@tinycld/core/components/HoverAction'
@@ -285,6 +286,7 @@ export default function DriveScreen() {
 
     return (
         <SwipeableRowProvider>
+            <DocumentTitle pkg="Drive" />
             <View className="flex-1" onLayout={onLayout}>
                 {viewMode === 'list' ? (
                     <DriveListMode
