@@ -66,13 +66,14 @@ test.describe('Drive — Browser', () => {
         await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
         await openDriveItem(page, 'Engineering')
 
-        // Wait for the folder to populate, then pick the first row.
-        await expect(page.getByRole('button').first()).toBeVisible({ timeout: 10_000 })
-        const firstRow = page
-            .getByRole('button')
-            .filter({ visible: true })
-            .filter({ hasText: /\.[a-z]{2,4}\b/i })
-            .first()
+        // Wait for the folder to populate, then pick the first row matching a
+        // file extension. The .filter({ visible: true }) chain we used
+        // previously was nondeterministic on a slow CI — Playwright doesn't
+        // wait for "visible" to flip to true the way a top-level locator
+        // would, so the click could race the FlashList row mount. Anchor on
+        // a stable file row instead.
+        const firstRow = page.getByRole('button', { name: /\.docx/i }).first()
+        await expect(firstRow).toBeVisible({ timeout: 30_000 })
         await firstRow.click()
 
         // The folder-action "New folder" button is part of the normal
@@ -85,11 +86,11 @@ test.describe('Drive — Browser', () => {
         await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
         await openDriveItem(page, 'Engineering')
 
-        const fileRows = page
-            .getByRole('button')
-            .filter({ visible: true })
-            .filter({ hasText: /\.[a-z]{2,4}\b/i })
-        await expect(fileRows.first()).toBeVisible({ timeout: 10_000 })
+        // Anchor on visible-by-default file rows. Same fix as the previous
+        // test: the previous `.filter({ visible: true })` chain raced the
+        // FlashList row mount on CI.
+        const fileRows = page.getByRole('button', { name: /\.[a-z]{2,4}\b/i })
+        await expect(fileRows.first()).toBeVisible({ timeout: 30_000 })
 
         const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
         await fileRows.nth(0).click({ modifiers: [modifier] })

@@ -11,6 +11,8 @@ export default defineConfig({
     // Per-test timeout. Default is 30s; drive tests open folders + load
     // file rows which include nested package-screen lazy chunks; on CI
     // under parallel load the first navigation per worker can blow
-    // through 30s before the sidebar or first row mounts.
-    timeout: 60_000,
+    // through 60s before the sidebar or first row mounts. 90s matches
+    // mail's bump for the same root cause (cold-cache lazy compile on
+    // the 2-core ubuntu runner).
+    timeout: 90_000,
 })
