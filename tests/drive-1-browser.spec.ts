@@ -168,8 +168,13 @@ test.describe('Drive — Mobile', () => {
 
     test.beforeEach(async ({ page }) => {
         await login(page)
+        // Mobile renders MobileLayout (no PackageSidebar), so the
+        // package-sidebar-mounted testID never appears. Gate on the
+        // "Projects" seeded folder row instead — it's drive's
+        // canonical first-row entry that proves the mobile screen
+        // has hydrated.
         await navigateToPackage(page, 'drive', {
-            waitFor: page.getByTestId('package-sidebar-mounted'),
+            waitFor: page.getByText('Projects', { exact: true }).first(),
         })
         await dismissErrorOverlay(page)
     })
