@@ -20,7 +20,7 @@
  *
  * Invocation:
  *   - CI: workflow runs `tsx drive/tests/scripts/scaffold-share-stub.ts`
- *     from the workspace root after `npm install`.
+ *     from the workspace root after `pnpm install`.
  *   - Local: `tinycld-pkg test:e2e` invokes it before booting Playwright.
  *
  * Layout invariant: the workspace root is the parent of drive/, and the
@@ -50,7 +50,7 @@ function ensureBootstrapped(wsRoot: string): void {
     }
     console.log(`[scaffold-share-stub] running bootstrap to scaffold ${STUB_SLUG}/`)
     // --no-link: bootstrap would otherwise try to assemble app+core (already
-    // present) and run npm install. The caller is responsible for the
+    // present) and run pnpm install. The caller is responsible for the
     // install step, so we skip both.
     execFileSync(
         'npx',
@@ -177,7 +177,7 @@ function regenerateConfig(wsRoot: string): void {
     // After adding share-stub to the workspace tree we have to re-run it,
     // otherwise PackageProviderWrapper won't know to mount the stub's
     // provider and getShareEditor() will keep returning undefined.
-    const r = spawnSync('npm', ['run', 'packages:generate'], {
+    const r = spawnSync('pnpm', ['run', 'packages:generate'], {
         cwd: join(wsRoot, 'app'),
         stdio: 'inherit',
     })
@@ -212,20 +212,45 @@ function ensureMember(wsRoot: string): void {
     const path = join(wsRoot, 'package.json')
     const pkg = JSON.parse(readFileSync(path, 'utf8'))
     const workspaces: string[] = Array.isArray(pkg.workspaces) ? pkg.workspaces : []
-    if (workspaces.includes(STUB_SLUG)) return
-    pkg.workspaces = [...workspaces, STUB_SLUG]
-    writeFileSync(path, `${JSON.stringify(pkg, null, 4)}\n`)
-    // npm install relinks workspaces. We piggy-back on the caller's
-    // install (CI runs npm install before invoking this script) by
-    // requiring this script to run AFTER install — but only when adding
-    // a brand-new member. The first-time scaffold path needs a second
-    // install to wire the symlink; subsequent runs are no-ops.
-    const r = spawnSync('npm', ['install'], { cwd: wsRoot, stdio: 'inherit' })
+    const alreadyMember = workspaces.includes(STUB_SLUG)
+    if (!alreadyMember) {
+        pkg.workspaces = [...workspaces, STUB_SLUG]
+        writeFileSync(path, `${JSON.stringify(pkg, null, 4)}\n`)
+    }
+    // pnpm discovers members from pnpm-workspace.yaml, so register the stub
+    // there too (the package.json workspaces[] is only a tooling hint).
+    const added = ensurePnpmMember(join(wsRoot, 'pnpm-workspace.yaml'))
+    if (alreadyMember && !added) return
+    // pnpm install relinks workspaces. We piggy-back on the caller's install
+    // (CI runs pnpm install before invoking this script); the first-time
+    // scaffold path needs a second install to wire the symlink. corepack
+    // enable selects the pinned pnpm.
+    spawnSync('corepack', ['enable'], { cwd: wsRoot, stdio: 'inherit' })
+    const r = spawnSync('pnpm', ['install', '--no-frozen-lockfile'], { cwd: wsRoot, stdio: 'inherit' })
     if (r.status !== 0) {
         throw new Error(
-            'npm install (post-member-add) failed; the share-stub symlink under node_modules may be missing'
+            'pnpm install (post-member-add) failed; the share-stub symlink under node_modules may be missing'
         )
     }
+}
+
+// Add `  - <STUB_SLUG>` to pnpm-workspace.yaml's packages: block if absent.
+// Returns true if a line was added.
+function ensurePnpmMember(yamlPath: string): boolean {
+    const yaml = readFileSync(yamlPath, 'utf8')
+    const lines = yaml.split('\n')
+    const pkgIdx = lines.findIndex((l) => /^packages:\s*$/.test(l))
+    if (pkgIdx === -1) throw new Error(`no packages: block in ${yamlPath}`)
+    let lastEntry = pkgIdx
+    for (let i = pkgIdx + 1; i < lines.length; i++) {
+        const line = lines[i] ?? ''
+        if (line.trim() === `- ${STUB_SLUG}`) return false
+        if (/^\s+-\s+/.test(line)) lastEntry = i
+        else if (/^\S/.test(line) && line.trim() !== '') break
+    }
+    lines.splice(lastEntry + 1, 0, `  - ${STUB_SLUG}`)
+    writeFileSync(yamlPath, lines.join('\n'))
+    return true
 }
 
 main()
