@@ -59,7 +59,7 @@ function ChooseFolderDialogBody({
     return (
         <Modal isOpen onClose={onClose}>
             <ModalBackdrop />
-            <ModalContent className="w-[400px] max-h-[70vh] p-0">
+            <ModalContent testID="choose-folder-dialog" className="w-[400px] max-h-[70vh] p-0">
                 <View className="px-4 pt-4 pb-2">
                     <Text className="text-foreground" style={{ fontSize: 16, fontWeight: '600' }}>
                         {title ?? `Move \u201C${itemName}\u201D`}

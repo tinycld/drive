@@ -14,11 +14,11 @@ import { useAuthedThumbnailURL } from '@tinycld/core/file-viewer/use-authed-file
 import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
 import { queryClient } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { Download, Info, Star, Trash2 } from 'lucide-react-native'
+import { Image } from 'expo-image'
+import { Download, FolderInput, Info, Star, Trash2 } from 'lucide-react-native'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     type GestureResponderEvent,
-    Image,
     LayoutAnimation,
     type LayoutChangeEvent,
     Platform,
@@ -103,6 +103,7 @@ interface CellContext {
     dangerColor: string
     infoColor: string
     warningColor: string
+    primaryColor: string
     focusedId: string | null
     isSelected: (id: string) => boolean
     handleSelect: (id: string, event: GestureResponderEvent) => void
@@ -151,6 +152,7 @@ export default function DriveScreen() {
     const dangerColor = useThemeColor('danger')
     const infoColor = useThemeColor('info')
     const warningColor = useThemeColor('warning')
+    const primaryColor = useThemeColor('primary')
 
     const [isRefreshing, setIsRefreshing] = useState(false)
     const handleRefresh = useCallback(async () => {
@@ -247,6 +249,7 @@ export default function DriveScreen() {
             dangerColor,
             infoColor,
             warningColor,
+            primaryColor,
             focusedId,
             isSelected,
             handleSelect,
@@ -261,6 +264,7 @@ export default function DriveScreen() {
             dangerColor,
             infoColor,
             warningColor,
+            primaryColor,
             focusedId,
             isSelected,
             handleSelect,
@@ -558,6 +562,18 @@ function FilesListRowImpl({
                 onPress: () => actions.moveToTrash(item.id),
                 backgroundColor: ctx.dangerColor,
             },
+            // Move-to-folder, the mobile counterpart to the desktop right-click
+            // "Move". Trashed items can't be re-filed, so it's omitted in trash.
+            ...(ctx.isTrash
+                ? []
+                : [
+                      {
+                          icon: FolderInput,
+                          label: 'Move',
+                          onPress: () => actions.openMoveDialog(item.id, item.name),
+                          backgroundColor: ctx.primaryColor,
+                      },
+                  ]),
             {
                 icon: Download,
                 label: 'Download',
@@ -571,7 +587,17 @@ function FilesListRowImpl({
                 backgroundColor: ctx.warningColor,
             },
         ],
-        [item.id, item.starred, actions, ctx.dangerColor, ctx.infoColor, ctx.warningColor]
+        [
+            item.id,
+            item.name,
+            item.starred,
+            actions,
+            ctx.isTrash,
+            ctx.dangerColor,
+            ctx.infoColor,
+            ctx.warningColor,
+            ctx.primaryColor,
+        ]
     )
 
     if (ctx.isMobile) {
@@ -774,7 +800,12 @@ function ListRowThumbnailImpl({
         <Image
             source={{ uri: thumbnailUrl }}
             style={{ width: size, height: size, borderRadius: 4 }}
-            resizeMode="cover"
+            contentFit="cover"
+            // Disk+memory cache keyed on the stable item id (not the rotating
+            // ?token= URL) so scrolling the list doesn't refetch thumbnails.
+            cachePolicy="memory-disk"
+            recyclingKey={item.id}
+            transition={100}
         />
     )
 }

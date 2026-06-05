@@ -195,4 +195,39 @@ test.describe('Drive — Mobile', () => {
         await page.getByRole('button', { name: 'Go up' }).click()
         await expect(driveItem(page, 'Personal')).toBeVisible({ timeout: 10_000 })
     })
+
+    // Stefan: "when I open a PDF preview the modal doesn't cover the bottom
+    // navigation — it should." The fullscreen preview must paint OVER the
+    // MobileTabBar, and switching tabs underneath it (which left the modal
+    // stuck) must not be possible while it's open.
+    test('file preview covers the bottom nav and is not escapable via the tab bar', async ({
+        page,
+    }) => {
+        // Open the seeded PDF preview.
+        await driveItem(page, 'Funny Jokes.pdf').click()
+
+        const modal = page.getByTestId('file-preview-modal')
+        await expect(modal).toBeVisible({ timeout: 15_000 })
+
+        // The modal's box must extend to the very bottom of the viewport,
+        // covering the tab bar (which sits at the bottom).
+        const modalBox = await modal.boundingBox()
+        const calendarTab = page.getByTestId('nav-calendar')
+        const tabBox = await calendarTab.boundingBox()
+        if (!modalBox || !tabBox) throw new Error('missing modal/tab box')
+        // The fullscreen modal should reach the viewport bottom (>= the tab
+        // bar's top edge), i.e. it overlays the nav rather than stopping above it.
+        expect(modalBox.y + modalBox.height).toBeGreaterThanOrEqual(tabBox.y)
+
+        // And a tab tap must not silently swap the screen underneath the open
+        // modal (the "stuck" bug). A *forced* click bypasses actionability to
+        // simulate the tab still receiving the event; the modal must either
+        // block it (URL stays on drive) or close cleanly — never strand the
+        // user on another tab with the modal still mounted.
+        await calendarTab.click({ force: true })
+        await page.waitForTimeout(500)
+        const stuck =
+            page.url().includes('/calendar') && (await modal.isVisible().catch(() => false))
+        expect(stuck, 'modal stranded over a switched tab').toBe(false)
+    })
 })

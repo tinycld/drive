@@ -8,6 +8,7 @@ export interface DriveSearchResult {
     mime_type: string
     size: number
     description: string
+    updated: string
     highlight: string
 }
 
