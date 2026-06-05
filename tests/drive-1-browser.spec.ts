@@ -205,7 +205,23 @@ test.describe('Drive — Mobile', () => {
     test('file preview covers the bottom nav and is not escapable via the tab bar', async ({
         page,
     }) => {
-        const fileRow = driveItem(page, 'Hippo.jpg')
+        // Put a previewable file in a fresh folder and open it from there, so
+        // the row is the only one in view (the full mobile root list buries
+        // files below the fold under CI). A bare record (no real bytes) is
+        // enough — the preview modal shell mounts regardless of image load.
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const folderName = `PreviewCase-${stamp}`
+        const fileName = `PreviewMe-${stamp}.png`
+        const folder = await createDriveItem({ name: folderName, isFolder: true })
+        await createDriveItem({ name: fileName, parent: folder.id })
+        await page.reload()
+        await page
+            .getByText('Projects', { exact: true })
+            .first()
+            .waitFor({ state: 'visible', timeout: 60_000 })
+
+        await openDriveItem(page, folderName)
+        const fileRow = driveItem(page, fileName)
         await expect(fileRow).toBeVisible({ timeout: 15_000 })
         await fileRow.click()
 
