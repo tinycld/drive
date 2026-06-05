@@ -1,7 +1,8 @@
+import { downloadFile, downloadFromUrl } from '@tinycld/core/file-viewer/file-url'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
-import { Platform } from 'react-native'
+import { driveItemToSource } from '../lib/file-url'
 import type { DriveItemView } from '../types'
 
 interface UseDriveMutationsParams {
@@ -215,25 +216,25 @@ export function useDriveMutations({
     const downloadItem = async (itemId: string) => {
         const item = itemsById.get(itemId)
         if (!item) return
-        if (Platform.OS !== 'web') return
 
         if (item.isFolder) {
+            // Folders download as a server-zipped archive behind a one-shot
+            // token URL. downloadFromUrl handles both web (anchor download) and
+            // native (cache + share sheet).
             const response = await pb.send('/api/drive/download-token', {
                 method: 'POST',
                 body: { item: itemId },
             })
-            const a = document.createElement('a')
-            a.href = `${pb.baseURL}${response.url}`
-            a.download = `${item.name}.zip`
-            a.click()
-        } else {
-            if (!item.file) return
-            const url = pb.files.getURL({ collectionId: 'drive_items', id: itemId }, item.file)
-            const a = document.createElement('a')
-            a.href = `${url}?download=1`
-            a.download = item.name
-            a.click()
+            downloadFromUrl(`${pb.baseURL}${response.url}`, `${item.name}.zip`, 'application/zip')
+            return
         }
+
+        if (!item.file) return
+        // Files download via the shared helper, which fetches a short-lived
+        // file token (so protected collections work) and routes to the right
+        // platform path — previously this early-returned on native, so the
+        // mobile download button did nothing.
+        downloadFile(driveItemToSource(item))
     }
 
     return {

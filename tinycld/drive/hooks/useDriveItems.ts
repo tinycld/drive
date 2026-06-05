@@ -270,7 +270,7 @@ export function useDriveItems({
                 parentId: '',
                 owner: '',
                 ownerUserOrgId: '',
-                updated: '',
+                updated: sr.updated,
                 size: sr.size,
                 shared: false,
                 starred: false,

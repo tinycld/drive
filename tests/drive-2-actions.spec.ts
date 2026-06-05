@@ -1,6 +1,12 @@
 import { expect, type Page, test } from '@playwright/test'
 import { clickSidebarItem, login, navigateToPackage } from '../../app/tests/e2e/helpers'
-import { createDriveItem, driveItem, escapeRegex, openDriveItem } from './helpers'
+import {
+    createDriveItem,
+    driveItem,
+    escapeRegex,
+    openDriveItem,
+    uploadFileAsDriveItem,
+} from './helpers'
 
 // Opens a file row's detail panel via its Info hover-action. The Info
 // affordance lives in the row's RowHoverActions layer (list view only),
@@ -66,6 +72,29 @@ test.describe('Drive — Actions', () => {
 
         await searchInput.clear()
         await expect(driveItem(page, 'Projects')).toBeVisible({ timeout: 10_000 })
+    })
+
+    // Regression: search-result rows for files not in the loaded folder view
+    // used to show "Invalid Date" because the search API returned no date.
+    // The API now returns `updated`; assert the row shows a real date and never
+    // the literal "Invalid Date".
+    test('search results show a real date, not "Invalid Date"', async ({ page }) => {
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const fileName = `DatedSearch-${stamp}.txt`
+        await createDriveItem({ name: fileName })
+        await page.reload()
+
+        await page.getByPlaceholder('Search in Files').fill(fileName)
+        const row = driveItem(page, fileName)
+        await expect(row).toBeVisible({ timeout: 10_000 })
+
+        // No row may render the literal "Invalid Date" — this is the core
+        // assertion (search rows used to show it because the API returned no
+        // date). The row's accessibility label is "<name> <date>", so a real
+        // formatted date must appear in it.
+        await expect(page.getByText('Invalid Date')).toHaveCount(0)
+        const label = (await row.getAttribute('aria-label')) ?? ''
+        expect(label).toMatch(/[A-Z][a-z]{2} \d{1,2}, \d{4}/)
     })
 
     test('selecting a file reveals Rename and Delete in the toolbar', async ({ page }) => {
@@ -203,6 +232,105 @@ test.describe('Drive — Actions', () => {
 
         const download = await downloadPromise
         expect(download.suggestedFilename()).toBe(`${folderName}.zip`)
+    })
+
+    // Regression for the mobile-download bug: downloadItem used to early-return
+    // on native and only worked via inline web-only code. It now routes through
+    // the shared downloadFile() helper (web anchor + native cache/share). On web
+    // we assert a real browser download fires with the file's own name.
+    test('download file via context menu', async ({ page }) => {
+        const fs = await import('node:fs')
+        const os = await import('node:os')
+        const path = await import('node:path')
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const fileName = `DownloadFile-${stamp}.pdf`
+        const fixturePath = path.join(os.tmpdir(), fileName)
+        // Minimal valid-enough PDF bytes; content is irrelevant to the download path.
+        fs.writeFileSync(fixturePath, '%PDF-1.4\n%test\n')
+        await uploadFileAsDriveItem({
+            fixturePath,
+            name: fileName,
+            mimeType: 'application/pdf',
+        })
+        await page.reload()
+
+        // The file lands at root among the long seeded list; filter to it via
+        // search so its row is on-screen (not buried below the fold).
+        await page.getByPlaceholder('Search in Files').fill(fileName)
+        await expect(driveItem(page, fileName)).toBeVisible({ timeout: 10_000 })
+        await driveItem(page, fileName).click({ button: 'right' })
+
+        const downloadMenuItem = page.getByText('Download', { exact: true })
+        await expect(downloadMenuItem).toBeVisible({ timeout: 5_000 })
+
+        const downloadPromise = page.waitForEvent('download')
+        await downloadMenuItem.dispatchEvent('click')
+
+        // A real browser download must fire (previously the file path no-op'd on
+        // native and this asserts the web path still works after the refactor).
+        // The server normalizes the stored filename, so assert the extension
+        // rather than the exact display name.
+        const download = await downloadPromise
+        expect(download.suggestedFilename()).toMatch(/\.pdf$/)
+    })
+
+    // Repro for "creating a new folder doesn't update the list after saving":
+    // drive a folder through the real New folder dialog (not the REST helper)
+    // and assert the row appears without a manual refresh.
+    test('creating a folder via the dialog shows it in the list', async ({ page }) => {
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const folderName = `NewViaDialog-${stamp}`
+
+        await page.getByRole('button', { name: 'New folder' }).click()
+
+        const nameInput = page.getByPlaceholder('Untitled folder')
+        await expect(nameInput).toBeVisible({ timeout: 5_000 })
+        await nameInput.fill(folderName)
+        await page.getByRole('button', { name: 'Create' }).click()
+
+        // The new folder must appear in the list reactively (no page.reload()).
+        await expect(driveItem(page, folderName)).toBeVisible({ timeout: 10_000 })
+    })
+
+    // Move-to-folder flow. The mobile affordance is a swipe action (native
+    // only, not rendered on web), but it reuses this exact dialog + moveItem
+    // mutation that the desktop right-click "Move" triggers — so this e2e
+    // guards the shared flow the mobile swipe depends on.
+    test('move a file into a folder via the move dialog', async ({ page }) => {
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const folderName = `MoveTarget-${stamp}`
+        const fileName = `MoveMe-${stamp}.txt`
+        // The file lives in a fresh parent folder (so its row isn't buried in
+        // the long seeded root list); the move target is a top-level folder so
+        // it's a one-click pick in the dialog tree (no expansion needed).
+        const parent = await createDriveItem({ name: `MoveCase-${stamp}`, isFolder: true })
+        await createDriveItem({ name: folderName, isFolder: true })
+        await createDriveItem({ name: fileName, parent: parent.id })
+        await page.reload()
+
+        await openDriveItem(page, `MoveCase-${stamp}`)
+        await expect(driveItem(page, fileName)).toBeVisible({ timeout: 10_000 })
+        await driveItem(page, fileName).click({ button: 'right' })
+
+        const moveMenuItem = page.getByText('Move', { exact: true })
+        await expect(moveMenuItem).toBeVisible({ timeout: 5_000 })
+        await moveMenuItem.dispatchEvent('click')
+
+        // The dialog lists folders; pick our top-level target then confirm.
+        // Scope to the dialog — the folder name also appears in the sidebar tree.
+        const dialog = page.getByTestId('choose-folder-dialog')
+        await expect(dialog).toBeVisible({ timeout: 5_000 })
+        await dialog.getByText(folderName, { exact: true }).click()
+        await dialog.getByText('Move here', { exact: true }).click()
+
+        // The file leaves the current (MoveCase) folder...
+        await expect(driveItem(page, fileName)).toHaveCount(0, { timeout: 10_000 })
+        // ...and appears inside the target folder. Navigate there via the
+        // sidebar folder tree (scoped to the sidebar to avoid the dialog/root
+        // "My Files" ambiguity).
+        const sidebar = page.getByTestId('package-sidebar-mounted')
+        await sidebar.getByText(folderName, { exact: true }).click()
+        await expect(driveItem(page, fileName)).toBeVisible({ timeout: 10_000 })
     })
 
     test('context menu closes when clicking outside it', async ({ page }) => {

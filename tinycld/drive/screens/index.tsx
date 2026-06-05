@@ -14,11 +14,11 @@ import { useAuthedThumbnailURL } from '@tinycld/core/file-viewer/use-authed-file
 import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
 import { queryClient } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { Download, Info, Star, Trash2 } from 'lucide-react-native'
+import { Image } from 'expo-image'
+import { Download, FolderInput, Info, Star, Trash2 } from 'lucide-react-native'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     type GestureResponderEvent,
-    Image,
     LayoutAnimation,
     type LayoutChangeEvent,
     Platform,
@@ -103,6 +103,7 @@ interface CellContext {
     dangerColor: string
     infoColor: string
     warningColor: string
+    primaryColor: string
     focusedId: string | null
     isSelected: (id: string) => boolean
     handleSelect: (id: string, event: GestureResponderEvent) => void
@@ -151,6 +152,7 @@ export default function DriveScreen() {
     const dangerColor = useThemeColor('danger')
     const infoColor = useThemeColor('info')
     const warningColor = useThemeColor('warning')
+    const primaryColor = useThemeColor('primary')
 
     const [isRefreshing, setIsRefreshing] = useState(false)
     const handleRefresh = useCallback(async () => {
@@ -247,6 +249,7 @@ export default function DriveScreen() {
             dangerColor,
             infoColor,
             warningColor,
+            primaryColor,
             focusedId,
             isSelected,
             handleSelect,
@@ -261,6 +264,7 @@ export default function DriveScreen() {
             dangerColor,
             infoColor,
             warningColor,
+            primaryColor,
             focusedId,
             isSelected,
             handleSelect,
@@ -558,6 +562,18 @@ function FilesListRowImpl({
                 onPress: () => actions.moveToTrash(item.id),
                 backgroundColor: ctx.dangerColor,
             },
+            // Move-to-folder, the mobile counterpart to the desktop right-click
+            // "Move". Trashed items can't be re-filed, so it's omitted in trash.
+            ...(ctx.isTrash
+                ? []
+                : [
+                      {
+                          icon: FolderInput,
+                          label: 'Move',
+                          onPress: () => actions.openMoveDialog(item.id, item.name),
+                          backgroundColor: ctx.primaryColor,
+                      },
+                  ]),
             {
                 icon: Download,
                 label: 'Download',
@@ -571,7 +587,17 @@ function FilesListRowImpl({
                 backgroundColor: ctx.warningColor,
             },
         ],
-        [item.id, item.starred, actions, ctx.dangerColor, ctx.infoColor, ctx.warningColor]
+        [
+            item.id,
+            item.name,
+            item.starred,
+            actions,
+            ctx.isTrash,
+            ctx.dangerColor,
+            ctx.infoColor,
+            ctx.warningColor,
+            ctx.primaryColor,
+        ]
     )
 
     if (ctx.isMobile) {
@@ -772,9 +798,20 @@ function ListRowThumbnailImpl({
 
     return (
         <Image
-            source={{ uri: thumbnailUrl }}
+            // cacheKey pins the disk/memory cache entry to the stable item id
+            // rather than the URL, so the rotating ?token= doesn't bust the
+            // cache (the token changes ~every 90s but the file doesn't). On web
+            // expo-image renders a plain <img> and ignores cacheKey — the
+            // browser still caches by URL — so the token-rotation win is
+            // native-only; stabilising the web URL is a separate core change.
+            source={{ uri: thumbnailUrl, cacheKey: item.id }}
             style={{ width: size, height: size, borderRadius: 4 }}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            recyclingKey={item.id}
+            // No fade in the list — a per-cell transition reads as flicker as
+            // FlashList recycles rows during fast scrolls.
+            transition={0}
         />
     )
 }

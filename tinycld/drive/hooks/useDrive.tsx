@@ -43,6 +43,7 @@ export interface DriveActions {
     selectItem: (id: string | null) => void
     openDetailPanel: () => void
     dismissUpload: (id: string) => void
+    openMoveDialog: (id: string, name: string) => void
 }
 
 export interface DriveContextValue {
@@ -213,6 +214,7 @@ function useStableDriveActions(latest: DriveActions): DriveActions {
             selectItem: id => ref.current.selectItem(id),
             openDetailPanel: () => ref.current.openDetailPanel(),
             dismissUpload: id => ref.current.dismissUpload(id),
+            openMoveDialog: (id, name) => ref.current.openMoveDialog(id, name),
         }),
         []
     )
@@ -402,6 +404,7 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         selectItem,
         openDetailPanel,
         dismissUpload: upload.dismissUpload,
+        openMoveDialog,
     })
 
     return {

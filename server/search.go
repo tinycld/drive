@@ -105,6 +105,7 @@ type driveSearchResultItem struct {
 	MimeType    string `json:"mime_type"`
 	Size        int64  `json:"size"`
 	Description string `json:"description"`
+	Updated     string `json:"updated"`
 	Highlight   string `json:"highlight"`
 }
 
@@ -169,6 +170,7 @@ func handleDriveSearch(app *pocketbase.PocketBase, re *core.RequestEvent) error 
 			d.mime_type,
 			d.size,
 			d.description,
+			d.updated,
 			snippet(fts_drive_items, -1, '<mark>', '</mark>', '...', 30) as highlight
 		FROM fts_drive_items
 		JOIN drive_items d ON d.id = fts_drive_items.record_id
@@ -198,6 +200,7 @@ func handleDriveSearch(app *pocketbase.PocketBase, re *core.RequestEvent) error 
 		MimeType    string `db:"mime_type"`
 		Size        int64  `db:"size"`
 		Description string `db:"description"`
+		Updated     string `db:"updated"`
 		Highlight   string `db:"highlight"`
 	}
 
@@ -216,6 +219,7 @@ func handleDriveSearch(app *pocketbase.PocketBase, re *core.RequestEvent) error 
 			MimeType:    r.MimeType,
 			Size:        r.Size,
 			Description: r.Description,
+			Updated:     r.Updated,
 			Highlight:   r.Highlight,
 		}
 	}
