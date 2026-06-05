@@ -798,14 +798,20 @@ function ListRowThumbnailImpl({
 
     return (
         <Image
-            source={{ uri: thumbnailUrl }}
+            // cacheKey pins the disk/memory cache entry to the stable item id
+            // rather than the URL, so the rotating ?token= doesn't bust the
+            // cache (the token changes ~every 90s but the file doesn't). On web
+            // expo-image renders a plain <img> and ignores cacheKey — the
+            // browser still caches by URL — so the token-rotation win is
+            // native-only; stabilising the web URL is a separate core change.
+            source={{ uri: thumbnailUrl, cacheKey: item.id }}
             style={{ width: size, height: size, borderRadius: 4 }}
             contentFit="cover"
-            // Disk+memory cache keyed on the stable item id (not the rotating
-            // ?token= URL) so scrolling the list doesn't refetch thumbnails.
             cachePolicy="memory-disk"
             recyclingKey={item.id}
-            transition={100}
+            // No fade in the list — a per-cell transition reads as flicker as
+            // FlashList recycles rows during fast scrolls.
+            transition={0}
         />
     )
 }
