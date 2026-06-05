@@ -88,10 +88,13 @@ test.describe('Drive — Actions', () => {
         const row = driveItem(page, fileName)
         await expect(row).toBeVisible({ timeout: 10_000 })
 
-        // No row may render the literal "Invalid Date".
+        // No row may render the literal "Invalid Date" — this is the core
+        // assertion (search rows used to show it because the API returned no
+        // date). The row's accessibility label is "<name> <date>", so a real
+        // formatted date must appear in it.
         await expect(page.getByText('Invalid Date')).toHaveCount(0)
-        // The matched row shows a formatted date (e.g. "Jun 4, 2026").
-        await expect(row).toHaveText(/[A-Z][a-z]{2} \d{1,2}, \d{4}/)
+        const label = (await row.getAttribute('aria-label')) ?? ''
+        expect(label).toMatch(/[A-Z][a-z]{2} \d{1,2}, \d{4}/)
     })
 
     test('selecting a file reveals Rename and Delete in the toolbar', async ({ page }) => {

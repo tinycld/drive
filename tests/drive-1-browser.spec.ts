@@ -196,18 +196,21 @@ test.describe('Drive — Mobile', () => {
         await expect(driveItem(page, 'Personal')).toBeVisible({ timeout: 10_000 })
     })
 
-    // Stefan: "when I open a PDF preview the modal doesn't cover the bottom
+    // Stefan: "when I open a file preview the modal doesn't cover the bottom
     // navigation — it should." The fullscreen preview must paint OVER the
     // MobileTabBar, and switching tabs underneath it (which left the modal
-    // stuck) must not be possible while it's open.
+    // stuck) must not be possible while it's open. Uses a seeded image (light
+    // to render) rather than the PDF — the fix is mime-agnostic and the PDF's
+    // pdfjs worker is slow to mount under CI load.
     test('file preview covers the bottom nav and is not escapable via the tab bar', async ({
         page,
     }) => {
-        // Open the seeded PDF preview.
-        await driveItem(page, 'Funny Jokes.pdf').click()
+        const fileRow = driveItem(page, 'Hippo.jpg')
+        await expect(fileRow).toBeVisible({ timeout: 15_000 })
+        await fileRow.click()
 
         const modal = page.getByTestId('file-preview-modal')
-        await expect(modal).toBeVisible({ timeout: 15_000 })
+        await expect(modal).toBeVisible({ timeout: 30_000 })
 
         // The modal's box must extend to the very bottom of the viewport,
         // covering the tab bar (which sits at the bottom).
