@@ -37,9 +37,32 @@ const STUB_SLUG = 'share-stub'
 const STUB_MIME_TYPE = 'application/x-tinycld-stub'
 const BOOTSTRAP_VERSION = '@tinycld/bootstrap@2.0.1'
 
+// Hard ceiling for every child process we spawn. pnpm has intermittently
+// failed to exit after finishing its work in CI (the step then rode the
+// runner's multi-hour default timeout). A spawnSync timeout turns that into
+// a fast, attributable failure instead of a silent hang. `run` wraps
+// spawnSync so each call enforces it uniformly and surfaces a clear error.
+const CHILD_TIMEOUT_MS = 4 * 60_000
+
 function workspaceRoot(): string {
     // drive/tests/scripts/scaffold-share-stub.ts → drive/ → workspace root
     return resolve(fileURLToPath(import.meta.url), '..', '..', '..', '..')
+}
+
+// spawnSync with a uniform timeout + non-zero/timeout → throw. spawnSync
+// reports a timeout via `error` (an Error whose code is 'ETIMEDOUT') and
+// kills the child, so a wedged subprocess can never wedge this script.
+function run(cmd: string, args: string[], cwd: string): void {
+    const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', timeout: CHILD_TIMEOUT_MS })
+    if (r.error) {
+        const timedOut = (r.error as NodeJS.ErrnoException).code === 'ETIMEDOUT'
+        throw new Error(
+            `\`${cmd} ${args.join(' ')}\` ${timedOut ? `timed out after ${CHILD_TIMEOUT_MS}ms` : 'failed'}: ${r.error.message}`
+        )
+    }
+    if (r.status !== 0) {
+        throw new Error(`\`${cmd} ${args.join(' ')}\` exited with status ${r.status}`)
+    }
 }
 
 function ensureBootstrapped(wsRoot: string): void {
@@ -70,7 +93,7 @@ function ensureBootstrapped(wsRoot: string): void {
             '--target',
             stubDir,
         ],
-        { stdio: 'inherit', cwd: wsRoot }
+        { stdio: 'inherit', cwd: wsRoot, timeout: CHILD_TIMEOUT_MS }
     )
 }
 
@@ -177,13 +200,7 @@ function regenerateConfig(wsRoot: string): void {
     // After adding share-stub to the workspace tree we have to re-run it,
     // otherwise PackageProviderWrapper won't know to mount the stub's
     // provider and getShareEditor() will keep returning undefined.
-    const r = spawnSync('pnpm', ['run', 'packages:generate'], {
-        cwd: join(wsRoot, 'app'),
-        stdio: 'inherit',
-    })
-    if (r.status !== 0) {
-        throw new Error('packages:generate failed; share-stub will not be loaded by the app')
-    }
+    run('pnpm', ['run', 'packages:generate'], join(wsRoot, 'app'))
 }
 
 function main(): void {
@@ -198,17 +215,21 @@ function main(): void {
     writeProvider(stubDir)
     writeShareEditor(stubDir)
 
-    // Re-link as a workspace member + regenerate config. The workspace
-    // root's package.json must list share-stub for npm to symlink it under
-    // node_modules/@tinycld/share-stub, which is how peer packages (and
-    // the test file path) resolve.
-    ensureMember(wsRoot)
-    regenerateConfig(wsRoot)
+    // Re-link as a workspace member. When this triggers an install, that
+    // install's postinstall already runs packages:generate — so only
+    // regenerate explicitly on the idempotent path (stub already linked, no
+    // install). The redundant second `pnpm run packages:generate` was the
+    // step that intermittently hung in CI, so we no longer issue it after a
+    // fresh install.
+    const installed = ensureMember(wsRoot)
+    if (!installed) regenerateConfig(wsRoot)
 
     console.log(`[scaffold-share-stub] done — ${STUB_SLUG}/ ready at ${stubDir}`)
 }
 
-function ensureMember(wsRoot: string): void {
+// Returns true if it ran a `pnpm install` (whose postinstall regenerates the
+// config), false if the stub was already linked and nothing was installed.
+function ensureMember(wsRoot: string): boolean {
     const path = join(wsRoot, 'package.json')
     const pkg = JSON.parse(readFileSync(path, 'utf8'))
     const workspaces: string[] = Array.isArray(pkg.workspaces) ? pkg.workspaces : []
@@ -220,21 +241,14 @@ function ensureMember(wsRoot: string): void {
     // pnpm discovers members from pnpm-workspace.yaml, so register the stub
     // there too (the package.json workspaces[] is only a tooling hint).
     const added = ensurePnpmMember(join(wsRoot, 'pnpm-workspace.yaml'))
-    if (alreadyMember && !added) return
+    if (alreadyMember && !added) return false
     // pnpm install relinks workspaces. We piggy-back on the caller's install
     // (CI runs pnpm install before invoking this script); the first-time
     // scaffold path needs a second install to wire the symlink. corepack
     // enable selects the pinned pnpm.
-    spawnSync('corepack', ['enable'], { cwd: wsRoot, stdio: 'inherit' })
-    const r = spawnSync('pnpm', ['install', '--no-frozen-lockfile'], {
-        cwd: wsRoot,
-        stdio: 'inherit',
-    })
-    if (r.status !== 0) {
-        throw new Error(
-            'pnpm install (post-member-add) failed; the share-stub symlink under node_modules may be missing'
-        )
-    }
+    run('corepack', ['enable'], wsRoot)
+    run('pnpm', ['install', '--no-frozen-lockfile'], wsRoot)
+    return true
 }
 
 // Add `  - <STUB_SLUG>` to pnpm-workspace.yaml's packages: block if absent.
