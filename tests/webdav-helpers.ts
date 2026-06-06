@@ -1,4 +1,4 @@
-import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from '../../app/tests/e2e/helpers'
+import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from '../../tinycld/tests/e2e/helpers'
 
 // PB owns /drive (WebDAV handler); dev.ts's proxy fans /drive to PB,
 // so we can hit the public proxy port instead of PB directly.
