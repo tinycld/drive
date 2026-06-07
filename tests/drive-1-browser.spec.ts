@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { login, navigateToPackage, ORG_SLUG } from '../../tinycld/tests/e2e/helpers'
+import { login, navigateToPackage, ORG_SLUG } from '@tinycld/core/e2e-helpers'
 import {
     createDriveItem,
     dismissErrorOverlay,

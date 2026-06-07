@@ -1,10 +1,5 @@
 import { expect, test } from '@playwright/test'
-import {
-    clickSidebarItem,
-    login,
-    navigateToPackage,
-    ORG_SLUG,
-} from '../../tinycld/tests/e2e/helpers'
+import { clickSidebarItem, login, navigateToPackage, ORG_SLUG } from '@tinycld/core/e2e-helpers'
 import { dismissErrorOverlay } from './helpers'
 
 // The toolbar's primary heading mirrors whichever drive section the
