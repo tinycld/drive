@@ -2,17 +2,17 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 // The Go LogSender appends one JSON object per line ("JSONL") to whatever
-// path TINYCLD_EMAIL_LOG points at. app/playwright.config.ts sets this
-// to `app/tmp/emails.log` for the webServer process AND exports it via
+// path TINYCLD_EMAIL_LOG points at. tinycld/playwright.config.ts sets this
+// to `tinycld/tmp/emails.log` for the webServer process AND exports it via
 // webServer.env so PB (spawned by dev.ts) writes there; the test process
 // also inherits it from the launching shell so both ends agree on one
 // path. The relative fallback covers the unusual case of a test runner
 // invoking this helper without the env var (e.g. a one-off `node` repl)
-// and assumes the drive checkout sits next to the app checkout under
+// and assumes the drive checkout sits next to the tinycld member under
 // ~/code/tinycld/.
 const EMAIL_LOG_PATH =
     process.env.TINYCLD_EMAIL_LOG ??
-    path.resolve(import.meta.dirname, '..', '..', 'app', 'tmp', 'emails.log')
+    path.resolve(import.meta.dirname, '..', '..', 'tinycld', 'tmp', 'emails.log')
 
 export interface CapturedEmail {
     timestamp: string
