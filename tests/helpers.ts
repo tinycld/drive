@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
-import { ORG_SLUG, TEST_USER_EMAIL, TEST_USER_PASSWORD } from '../../app/tests/e2e/helpers'
+import { ORG_SLUG, TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e-helpers'
 
 // Drive uses FrozenSlideStack inside its package layout, so navigating
 // from /drive → /drive/folder/<id> → another folder keeps every prior

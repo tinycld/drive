@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildGridRows, buildListRows, sortDriveItems } from '../tinycld/drive/hooks/useDriveRows'
-import type { DriveItemView } from '../tinycld/drive/types'
+import { buildGridRows, buildListRows, sortDriveItems } from '~/tinycld/drive/hooks/useDriveRows'
+import type { DriveItemView } from '~/tinycld/drive/types'
 
 function item(id: string, opts: Partial<DriveItemView> = {}): DriveItemView {
     return {

@@ -28,28 +28,23 @@ jobs:
     # blocking the PR and burning a runner the whole time.
     timeout-minutes: 20
     steps:
-      # 1. The workspace meta-repo becomes the job root.
-      - uses: actions/checkout@v5
-        with:
-          repository: tinycld/workspace
-          ref: main
-          path: ws
-      # 2. This PR's code, checked out into the member slot.
+      # This PR's code, checked out into its member slot. The workspace root is
+      # not a committed repo — bootstrap assembles it from scratch around this
+      # checkout. `--assemble-only` clones the `tinycld` member (app shell + core
+      # + package-scripts) plus this PACKAGE, skipping PACKAGE's slot since it's
+      # already present, so CI tests this PR's code.
       - uses: actions/checkout@v5
         with:
           path: ws/${{ env.PACKAGE }}
+      - name: Assemble workspace (app + core)
+        working-directory: ws
+        run: TINYCLD_REPO_BASE=https://github.com/tinycld npx @tinycld/bootstrap@latest --assemble-only
       - uses: actions/setup-node@v5
         with:
           node-version-file: ws/.node-version
       - uses: actions/setup-go@v6
         with:
           go-version-file: ws/.go-version
-      # 3. Clone app + core (the PR's PACKAGE is already checked out into its
-      #    slot; bootstrap skips dirs that already exist). A sibling only
-      #    needs app + core + itself to typecheck + unit-test.
-      - name: Assemble workspace (app + core)
-        working-directory: ws
-        run: TINYCLD_REPO_BASE=https://github.com/tinycld npx @tinycld/bootstrap@latest --assemble-only
       - name: Install (workspace root)
         working-directory: ws
         run: corepack enable && pnpm install --no-frozen-lockfile
@@ -67,21 +62,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          repository: tinycld/workspace
-          ref: main
-          path: ws
-      - uses: actions/checkout@v5
-        with:
           path: ws/${{ env.PACKAGE }}
+      - name: Assemble workspace (app + core)
+        working-directory: ws
+        run: TINYCLD_REPO_BASE=https://github.com/tinycld npx @tinycld/bootstrap@latest --assemble-only
       - uses: actions/setup-node@v5
         with:
           node-version-file: ws/.node-version
       - uses: actions/setup-go@v6
         with:
           go-version-file: ws/.go-version
-      - name: Assemble workspace (app + core)
-        working-directory: ws
-        run: TINYCLD_REPO_BASE=https://github.com/tinycld npx @tinycld/bootstrap@latest --assemble-only
       - name: Install (workspace root)
         working-directory: ws
         run: corepack enable && pnpm install --no-frozen-lockfile
@@ -89,7 +79,7 @@ jobs:
       # polling — see tinycld/app#21 for the trace evidence and the
       # blank-page-after-reload flake it fixed.
       - name: Configure test env
-        uses: tinycld/app/.github/actions/configure-test-env@main
+        uses: ./ws/tinycld/.github/actions/configure-test-env
       # Drive's share-link E2E mounts an editor for a doc, but the editor
       # itself is contributed by a package OTHER than drive (text, calc,
       # etc.). To avoid coupling drive's CI to those packages' internals,
@@ -106,7 +96,7 @@ jobs:
         timeout-minutes: 5
         run: pnpm exec tsx ${{ env.PACKAGE }}/tests/scripts/scaffold-share-stub.ts
       - name: Install Playwright browsers
-        working-directory: ws/app
+        working-directory: ws/tinycld
         run: pnpm exec playwright install --with-deps chromium
       - name: E2E
         working-directory: ws/${{ env.PACKAGE }}
