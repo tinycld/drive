@@ -16,6 +16,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { useDrive } from '../hooks/useDrive'
 import { useVersionHistory } from '../hooks/useVersionHistory'
 import type { DriveItemView } from '../types'
+import { DriveItemMenuButton } from './DriveItemMenuButton'
 import { Thumbnail } from './Thumbnail'
 
 interface DetailPanelProps {
@@ -88,6 +89,7 @@ function DetailPanelContent({
                     >
                         {item.name}
                     </Text>
+                    <DriveItemMenuButton item={item} size={20} />
                     <DrawerCloseButton accessibilityLabel="Close details panel">
                         <X size={18} color={mutedColor} />
                     </DrawerCloseButton>

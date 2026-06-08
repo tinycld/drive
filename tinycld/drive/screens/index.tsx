@@ -1,4 +1,5 @@
 import { FlashList, type FlashListRef, useRecyclingState } from '@shopify/flash-list'
+import { consumeContextMenuPressSuppression } from '@tinycld/core/components/context-menu-press-guard'
 import { DataTableHeader } from '@tinycld/core/components/DataTableHeader'
 import { DocumentTitle } from '@tinycld/core/components/DocumentTitle'
 import { EmptyState } from '@tinycld/core/components/EmptyState'
@@ -28,6 +29,7 @@ import {
     View,
 } from 'react-native'
 import { DriveContextMenu } from '../components/DriveContextMenu'
+import { DriveItemMenuButton } from '../components/DriveItemMenuButton'
 import { getFileIcon } from '../components/file-icons'
 import { Thumbnail } from '../components/Thumbnail'
 import { UploadingGridCard } from '../components/UploadingGridCard'
@@ -550,6 +552,9 @@ function FilesListRowImpl({
     const handlePress = item.isFolder ? handleFolderWebPress : handleFileDoublePress
 
     const handleMobilePress = useCallback(() => {
+        // A long-press opened the context menu; ignore the tap that fires when
+        // the finger lifts so the file doesn't open out from under the menu.
+        if (consumeContextMenuPressSuppression(Date.now())) return
         if (item.isFolder) actions.navigateToFolder(item.id)
         else actions.openPreview(item)
     }, [item, actions])
@@ -640,6 +645,7 @@ function FilesListRowImpl({
                 >
                     <StarIcon isStarred={item.starred} size={18} />
                 </Pressable>
+                <DriveItemMenuButton item={item} size={18} />
             </Pressable>
         )
 
@@ -711,15 +717,18 @@ function FilesListRowImpl({
                 isHovered={isHovered}
                 width={108}
                 rest={
-                    <Pressable
-                        style={{ padding: 4 }}
-                        onPress={e => {
-                            e.stopPropagation()
-                            actions.toggleStar(item.id)
-                        }}
-                    >
-                        <StarIcon isStarred={item.starred} size={16} />
-                    </Pressable>
+                    <View className="flex-row items-center">
+                        <Pressable
+                            style={{ padding: 4 }}
+                            onPress={e => {
+                                e.stopPropagation()
+                                actions.toggleStar(item.id)
+                            }}
+                        >
+                            <StarIcon isStarred={item.starred} size={16} />
+                        </Pressable>
+                        <DriveItemMenuButton item={item} />
+                    </View>
                 }
                 hover={
                     <>
@@ -921,6 +930,7 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
     const handlePress = useCallback(
         (event: GestureResponderEvent) => {
             if (ctx.isMobile) {
+                if (consumeContextMenuPressSuppression(Date.now())) return
                 handleNavigate()
                 return
             }
@@ -947,6 +957,16 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
                 <Text numberOfLines={1} className="flex-1 text-xs font-medium text-foreground">
                     {item.name}
                 </Text>
+                <Pressable
+                    style={{ padding: 2 }}
+                    onPress={e => {
+                        e.stopPropagation()
+                        actions.toggleStar(item.id)
+                    }}
+                >
+                    <StarIcon isStarred={item.starred} size={14} />
+                </Pressable>
+                <DriveItemMenuButton item={item} size={14} />
             </View>
             <View className="flex-1 items-center justify-center bg-muted-foreground/5">
                 <FileIcon size={56} color={iconColor} />
@@ -966,8 +986,12 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
         [item.id, ctx]
     )
     const handleDouble = useCallback(() => actions.openPreview(item), [item, actions])
+    const handleMobilePress = useCallback(() => {
+        if (consumeContextMenuPressSuppression(Date.now())) return
+        actions.openPreview(item)
+    }, [item, actions])
     const handleDesktopPress = useDoubleClick(handleSingle, handleDouble)
-    const handlePress = ctx.isMobile ? handleDouble : handleDesktopPress
+    const handlePress = ctx.isMobile ? handleMobilePress : handleDesktopPress
 
     return (
         <Pressable
@@ -982,6 +1006,16 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
                 <Text numberOfLines={1} className="flex-1 text-xs font-medium text-foreground">
                     {item.name}
                 </Text>
+                <Pressable
+                    style={{ padding: 2 }}
+                    onPress={e => {
+                        e.stopPropagation()
+                        actions.toggleStar(item.id)
+                    }}
+                >
+                    <StarIcon isStarred={item.starred} size={14} />
+                </Pressable>
+                <DriveItemMenuButton item={item} size={14} />
             </View>
             <View className="flex-1 items-center justify-center bg-muted-foreground/5">
                 <Thumbnail item={item} size={120} />
