@@ -77,7 +77,7 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
     )
 }
 
-function DriveMenuContent({ item }: { item: DriveItemView }) {
+export function DriveMenuContent({ item }: { item: DriveItemView }) {
     const mutedColor = useThemeColor('muted-foreground')
     const {
         activeSection,

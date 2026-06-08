@@ -248,7 +248,7 @@ export function ShareDialog({
         <Modal isOpen={open} onClose={onClose}>
             <ModalBackdrop />
             <ModalContent
-                className="w-[540px] p-0 rounded-2xl overflow-hidden"
+                className="w-[min(540px,92vw)] p-0 rounded-2xl overflow-hidden"
                 style={{ maxHeight: '90vh' } as object}
             >
                 <ContactSuggestionsProvider>
