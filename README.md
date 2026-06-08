@@ -2,7 +2,7 @@
 
 Cloud file storage for your organization.
 
-A feature package for the [tinycld](https://tinycld.org/) ecosystem. Lives as a standalone git repo alongside the [`tinycld`](https://tinycld.org/) app shell and other sibling packages (`contacts`, `mail`, `calendar`, `calc`, `text`, `google-takeout-import`). The app shell bundles `@tinycld/core` inside it — there is no separate core repo to clone.
+A feature package for the [tinycld](https://tinycld.org/) ecosystem. Lives as a standalone git repo alongside the [`tinycld`](https://tinycld.org/) app shell and other sibling feature packages (`contacts`, `mail`, `calendar`, `calc`, `text`, `google-takeout-import`). `@tinycld/core` is the shared runtime/UI library, nested inside the `tinycld` shell repo at `tinycld/core/` and imported as `@tinycld/core`.
 
 ## What it does
 
