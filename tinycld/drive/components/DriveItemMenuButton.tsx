@@ -40,7 +40,13 @@ export function DriveItemMenuButton({ item, size = 16 }: DriveItemMenuButtonProp
             <Menu.Trigger>
                 <Pressable
                     style={{ padding: 4 }}
-                    accessibilityLabel={`Actions for ${item.name}`}
+                    // Deliberately generic — must NOT contain item.name. Row
+                    // locators select file rows by an accessible name ending in a
+                    // file extension (e.g. /\.[a-z]{2,4}\b/); embedding the
+                    // filename here would make this 3-dot button collide with
+                    // those locators and steal row clicks. Matches the
+                    // ResponsiveToolbar overflow button's "More actions".
+                    accessibilityLabel="More actions"
                     accessibilityRole="button"
                     // Keep the row's own press/navigation from also firing.
                     onPress={e => e.stopPropagation()}
