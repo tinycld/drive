@@ -6,7 +6,6 @@ import { EmptyState } from '@tinycld/core/components/EmptyState'
 import { rowFocusStyle } from '@tinycld/core/components/focusable-row'
 import { HoverAction } from '@tinycld/core/components/HoverAction'
 import { LoadingState } from '@tinycld/core/components/LoadingState'
-import { RowHoverActions } from '@tinycld/core/components/RowHoverActions'
 import { StarIcon } from '@tinycld/core/components/StarIcon'
 import { ConfirmTrash } from '@tinycld/core/components/SuretyGuard'
 import { SwipeableRow, SwipeableRowProvider } from '@tinycld/core/components/SwipeableRow'
@@ -16,8 +15,8 @@ import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
 import { queryClient } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Image } from 'expo-image'
-import { Download, FolderInput, Info, Star, Trash2 } from 'lucide-react-native'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Download, FolderInput, Info, Share2, Star, Trash2 } from 'lucide-react-native'
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     type GestureResponderEvent,
     LayoutAnimation,
@@ -28,8 +27,10 @@ import {
     Text,
     View,
 } from 'react-native'
+import { DragGrip, DraggableDriveItem } from '../components/DraggableDriveItem'
 import { DriveContextMenu } from '../components/DriveContextMenu'
 import { DriveItemMenuButton } from '../components/DriveItemMenuButton'
+import { FolderDropTarget } from '../components/FolderDropTarget'
 import { getFileIcon } from '../components/file-icons'
 import { Thumbnail } from '../components/Thumbnail'
 import { UploadingGridCard } from '../components/UploadingGridCard'
@@ -64,6 +65,10 @@ const TRASH_COLUMNS: DriveColumn[] = [
     { label: 'Date deleted', flex: 2, sortField: 'trashedAt' },
     { label: 'File size', flex: 1, sortField: 'size' },
 ]
+
+// Selection happens on press-down (onPressIn); the double-click handler only
+// needs to open, so its single-click slot is a no-op.
+const noop = () => {}
 
 const GRID_GAP = 12
 const GRID_PADDING = 16
@@ -110,6 +115,56 @@ interface CellContext {
     isSelected: (id: string) => boolean
     handleSelect: (id: string, event: GestureResponderEvent) => void
     actions: DriveActions
+    itemsById: Map<string, DriveItemView>
+}
+
+// Composes the drag-and-drop wrappers around a row/card. Every item is
+// draggable (outside trash, where re-filing is disabled); folders are also
+// drop targets that reparent the dropped selection. Mobile keeps long-press
+// for the context menu and swipe actions, so drag is web/desktop-leaning but
+// the same wrappers work on touch via Drax's long-press activation.
+function DriveDnDCell({
+    item,
+    ctx,
+    dragPreview,
+    children,
+}: {
+    item: DriveItemView
+    ctx: CellContext
+    /** 'name' in list view, 'card' in grid view — controls the drag preview. */
+    dragPreview: 'name' | 'card'
+    children: ReactNode
+}) {
+    // Grid view drags the whole card (small enough that Drax's hit-test tracks
+    // the finger). List rows are full-width, so wrapping the row as the
+    // draggable would push the hit-test point far off the finger (it's anchored
+    // at finger − grabOffset + sourceWidth/2) and miss narrow targets like the
+    // sidebar — so list rows instead drag via a finger-sized <DragGrip> the row
+    // renders itself, and the cell adds no draggable wrapper here.
+    const content =
+        dragPreview === 'card' ? (
+            <DraggableDriveItem
+                itemId={item.id}
+                label={item.name}
+                category={item.category}
+                dragPreview={dragPreview}
+                isEnabled={!ctx.isTrash}
+            >
+                {children}
+            </DraggableDriveItem>
+        ) : (
+            children
+        )
+    if (ctx.isTrash || !item.isFolder) return content
+    return (
+        <FolderDropTarget
+            targetFolderId={item.id}
+            itemsById={ctx.itemsById}
+            onDropItems={ctx.actions.moveItems}
+        >
+            {content}
+        </FolderDropTarget>
+    )
 }
 
 export default function DriveScreen() {
@@ -256,6 +311,7 @@ export default function DriveScreen() {
             isSelected,
             handleSelect,
             actions,
+            itemsById,
         }),
         [
             isMobile,
@@ -271,6 +327,7 @@ export default function DriveScreen() {
             isSelected,
             handleSelect,
             actions,
+            itemsById,
         ]
     )
 
@@ -367,7 +424,9 @@ function DriveListMode({
             }
             return (
                 <DriveContextMenu item={it}>
-                    <FilesListRow item={it} index={item.index} ctx={ctx} />
+                    <DriveDnDCell item={it} ctx={ctx} dragPreview="name">
+                        <FilesListRow item={it} index={item.index} ctx={ctx} />
+                    </DriveDnDCell>
                 </DriveContextMenu>
             )
         },
@@ -451,11 +510,13 @@ function DriveGridMode({
                         <UploadingGridCard item={it} onDismiss={ctx.actions.dismissUpload} />
                     ) : (
                         <DriveContextMenu item={it}>
-                            {it.isFolder ? (
-                                <FolderGridCard item={it} ctx={ctx} />
-                            ) : (
-                                <FileGridCard item={it} ctx={ctx} />
-                            )}
+                            <DriveDnDCell item={it} ctx={ctx} dragPreview="card">
+                                {it.isFolder ? (
+                                    <FolderGridCard item={it} ctx={ctx} />
+                                ) : (
+                                    <FileGridCard item={it} ctx={ctx} />
+                                )}
+                            </DriveDnDCell>
                         </DriveContextMenu>
                     )}
                 </View>
@@ -526,30 +587,31 @@ function FilesListRowImpl({
     // a fast scroll.
     const [isHovered, setIsHovered] = useRecyclingState(false, [item.id])
 
-    const handleSingle = useCallback(
-        (event: GestureResponderEvent) => ctx.handleSelect(item.id, event),
-        [item.id, ctx]
+    // Select on press-down (onPressIn) for instant highlight. Files always
+    // select; folders select only with a modifier (cmd/ctrl/shift) — a plain
+    // press on a folder is a navigate, so it must not steal selection.
+    const handleSelectIn = useCallback(
+        (event: GestureResponderEvent) => {
+            if (item.isFolder) {
+                const native = event.nativeEvent as unknown as MouseEvent
+                if (!(native.metaKey || native.ctrlKey || native.shiftKey)) return
+            }
+            ctx.handleSelect(item.id, event)
+        },
+        [item.id, item.isFolder, ctx]
     )
-    const handleDouble = useCallback(() => {
-        if (item.isFolder) actions.navigateToFolder(item.id)
-        else actions.openPreview(item)
-    }, [item, actions])
-    const handleFileDoublePress = useDoubleClick(handleSingle, handleDouble)
-    // Folders open on a single click on web — selection only happens with
-    // a modifier (cmd/ctrl/shift) so users can still build a multi-select
-    // for bulk actions. Modifier paths fall through to handleSelect.
+    // Open on click: files open the preview on double-click; folders navigate
+    // on a plain single-click (a modifier click only selected, in onPressIn).
+    const handleFileOpen = useDoubleClick(noop, () => actions.openPreview(item))
     const handleFolderWebPress = useCallback(
         (event: GestureResponderEvent) => {
             const native = event.nativeEvent as unknown as MouseEvent
-            if (native.metaKey || native.ctrlKey || native.shiftKey) {
-                ctx.handleSelect(item.id, event)
-                return
-            }
+            if (native.metaKey || native.ctrlKey || native.shiftKey) return
             actions.navigateToFolder(item.id)
         },
-        [item.id, ctx, actions]
+        [item.id, actions]
     )
-    const handlePress = item.isFolder ? handleFolderWebPress : handleFileDoublePress
+    const handlePress = item.isFolder ? handleFolderWebPress : handleFileOpen
 
     const handleMobilePress = useCallback(() => {
         // A long-press opened the context menu; ignore the tap that fires when
@@ -609,7 +671,9 @@ function FilesListRowImpl({
         const mobileRow = (
             <Pressable
                 onPress={handleMobilePress}
-                accessibilityRole="button"
+                // No accessibilityRole="button": the row contains its own
+                // buttons (star, ⋯ menu), and a <button> can't nest a <button>
+                // on web. A labelled clickable region is the correct semantic.
                 accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
                 className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
@@ -673,7 +737,9 @@ function FilesListRowImpl({
     return (
         <Pressable
             onPress={handlePress}
-            accessibilityRole="button"
+            onPressIn={handleSelectIn}
+            // No "button" role — the row hosts its own buttons (star, ⋯ menu);
+            // nesting <button> in <button> is invalid. Labelled clickable row.
             accessibilityLabel={`${item.name} ${item.owner} ${formatDate(item.updated)}`}
             className={`flex-row items-center px-3 py-2.5 border-b border-border ${isSelectedRow ? '' : 'bg-background'}`}
             style={[
@@ -683,6 +749,14 @@ function FilesListRowImpl({
             {...hoverWebProps}
         >
             <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
+                {ctx.isTrash ? null : (
+                    <DragGrip
+                        itemId={item.id}
+                        label={item.name}
+                        category={item.category}
+                        dragPreview="name"
+                    />
+                )}
                 <ListRowThumbnail
                     item={item}
                     size={28}
@@ -713,61 +787,64 @@ function FilesListRowImpl({
             <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 1 }}>
                 {item.isFolder ? '—' : formatBytes(item.size)}
             </Text>
-            <RowHoverActions
-                isHovered={isHovered}
-                width={108}
-                rest={
-                    <View className="flex-row items-center">
-                        <Pressable
-                            style={{ padding: 4 }}
-                            onPress={e => {
-                                e.stopPropagation()
-                                actions.toggleStar(item.id)
-                            }}
-                        >
-                            <StarIcon isStarred={item.starred} size={16} />
-                        </Pressable>
-                        <DriveItemMenuButton item={item} />
-                    </View>
-                }
-                hover={
-                    <>
-                        <HoverAction
-                            icon={Info}
-                            label="Info"
-                            onPress={handleInfo}
-                            tooltipPosition={tooltipPosition}
-                        />
-                        <ConfirmTrash
-                            itemName={item.name}
-                            onConfirmed={() => actions.moveToTrash(item.id)}
-                        >
-                            {onOpen => (
-                                <HoverAction
-                                    icon={Trash2}
-                                    label="Delete"
-                                    onPress={onOpen}
-                                    tooltipPosition={tooltipPosition}
-                                />
-                            )}
-                        </ConfirmTrash>
-                        <HoverAction
-                            icon={Download}
-                            label="Download"
-                            onPress={() => actions.downloadItem(item.id)}
-                            tooltipPosition={tooltipPosition}
-                        />
-                        <HoverAction
-                            icon={Star}
-                            label={item.starred ? 'Unstar' : 'Star'}
-                            onPress={() => actions.toggleStar(item.id)}
-                            iconColor={item.starred ? ctx.mutedColor : ctx.warningColor}
-                            iconFill={item.starred ? 'transparent' : ctx.warningColor}
-                            tooltipPosition={tooltipPosition}
-                        />
-                    </>
-                }
-            />
+            {/* Trailing column: the quick-action icons (Info, Delete, Download,
+                Share) reveal on hover, followed by the always-visible ★ star +
+                ⋯ menu. Laid out in normal flow (left → right) so nothing
+                overlaps the ⋯ trigger (an absolute overlay there stole its
+                click). The hover group collapses to zero width when not hovered
+                so the row layout doesn't shift. */}
+            <View
+                className="flex-row items-center justify-end"
+                style={{ width: 108, flexShrink: 0 }}
+            >
+                <View
+                    className="flex-row items-center"
+                    style={isHovered ? undefined : { width: 0, opacity: 0, overflow: 'hidden' }}
+                    pointerEvents={isHovered ? 'auto' : 'none'}
+                >
+                    <HoverAction
+                        icon={Info}
+                        label="Info"
+                        onPress={handleInfo}
+                        tooltipPosition={tooltipPosition}
+                    />
+                    <ConfirmTrash
+                        itemName={item.name}
+                        onConfirmed={() => actions.moveToTrash(item.id)}
+                    >
+                        {onOpen => (
+                            <HoverAction
+                                icon={Trash2}
+                                label="Delete"
+                                onPress={onOpen}
+                                tooltipPosition={tooltipPosition}
+                            />
+                        )}
+                    </ConfirmTrash>
+                    <HoverAction
+                        icon={Download}
+                        label="Download"
+                        onPress={() => actions.downloadItem(item.id)}
+                        tooltipPosition={tooltipPosition}
+                    />
+                    <HoverAction
+                        icon={Share2}
+                        label="Share"
+                        onPress={() => actions.openShareDialog(item.id, item.name)}
+                        tooltipPosition={tooltipPosition}
+                    />
+                </View>
+                <Pressable
+                    style={{ padding: 4 }}
+                    onPress={e => {
+                        e.stopPropagation()
+                        actions.toggleStar(item.id)
+                    }}
+                >
+                    <StarIcon isStarred={item.starred} size={16} />
+                </Pressable>
+                <DriveItemMenuButton item={item} />
+            </View>
         </Pressable>
     )
 }
@@ -833,7 +910,8 @@ function TrashListRowImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
         return (
             <Pressable
                 onPress={e => ctx.handleSelect(item.id, e)}
-                accessibilityRole="button"
+                // No "button" role — the row hosts its own buttons; nesting
+                // <button> in <button> is invalid on web.
                 accessibilityLabel={`${item.name} ${formatDate(item.trashedAt)}`}
                 className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
@@ -867,7 +945,8 @@ function TrashListRowImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
     return (
         <Pressable
             onPress={e => ctx.handleSelect(item.id, e)}
-            accessibilityRole="button"
+            // No "button" role — the row hosts its own buttons; nesting
+            // <button> in <button> is invalid on web.
             accessibilityLabel={`${item.name} ${formatDate(item.trashedAt)}`}
             className="flex-row items-center px-3 py-2.5 border-b border-border"
             style={isSelectedRow ? { backgroundColor: `${ctx.activeIndicator}12` } : undefined}
@@ -947,7 +1026,8 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
     return (
         <Pressable
             onPress={handlePress}
-            accessibilityRole="button"
+            // No "button" role — the card hosts its own buttons (⋯ menu);
+            // nesting <button> in <button> is invalid on web.
             accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
             style={{ height: GRID_CARD_HEIGHT }}
             className={`rounded-lg border ${isSelectedRow ? 'border-2 border-active-indicator' : 'border-border'}`}
@@ -981,22 +1061,26 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
     const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, ctx.mutedColor)
     const isSelectedRow = ctx.isSelected(item.id)
 
-    const handleSingle = useCallback(
+    // Desktop: select on press-down (onPressIn) so the highlight is instant,
+    // and open on double-click via onPress. Selection no longer rides onPress,
+    // which fired on release and lagged behind the press.
+    const handleSelectIn = useCallback(
         (event: GestureResponderEvent) => ctx.handleSelect(item.id, event),
         [item.id, ctx]
     )
-    const handleDouble = useCallback(() => actions.openPreview(item), [item, actions])
+    const handleOpen = useCallback(() => actions.openPreview(item), [item, actions])
+    const handleDesktopOpen = useDoubleClick(noop, handleOpen)
     const handleMobilePress = useCallback(() => {
         if (consumeContextMenuPressSuppression(Date.now())) return
         actions.openPreview(item)
     }, [item, actions])
-    const handleDesktopPress = useDoubleClick(handleSingle, handleDouble)
-    const handlePress = ctx.isMobile ? handleMobilePress : handleDesktopPress
 
     return (
         <Pressable
-            onPress={handlePress}
-            accessibilityRole="button"
+            onPressIn={ctx.isMobile ? undefined : handleSelectIn}
+            onPress={ctx.isMobile ? handleMobilePress : handleDesktopOpen}
+            // No "button" role — the card hosts its own buttons (⋯ menu);
+            // nesting <button> in <button> is invalid on web.
             accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
             style={{ height: GRID_CARD_HEIGHT }}
             className={`rounded-lg overflow-hidden border ${isSelectedRow ? 'border-2 border-active-indicator' : 'border-border'}`}

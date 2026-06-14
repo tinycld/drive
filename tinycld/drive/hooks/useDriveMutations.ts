@@ -1,5 +1,7 @@
 import { downloadFile, downloadFromUrl } from '@tinycld/core/file-viewer/file-url'
+import { captureException, errorToString } from '@tinycld/core/lib/errors'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
+import { notify } from '@tinycld/core/lib/notify'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
 import { driveItemToSource } from '../lib/file-url'
@@ -145,6 +147,19 @@ export function useDriveMutations({
                 draft.parent = newParentId
             })
         }),
+        // Covers every move path — drag-and-drop, the move dialog, and
+        // restore-to-folder. Without this, a rejected move (permission denied,
+        // network) rolls back the optimistic update with no feedback. .mutate()
+        // never throws to its caller, so this is the only place errors surface.
+        onError: err => {
+            captureException('drive.move', err)
+            notify.emit({
+                event: 'mutation.error',
+                title: 'Could not move item',
+                body: errorToString(err),
+                data: { operation: 'drive.move', error: errorToString(err) },
+            })
+        },
     })
 
     const toggleStar = (itemId: string) => {

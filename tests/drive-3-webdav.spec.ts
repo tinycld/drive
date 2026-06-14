@@ -123,9 +123,7 @@ test.describe('Drive — WebDAV', () => {
             // buttons whose name is `<filename> <Month D, YYYY>`.
             await page.getByPlaceholder('Search in Files').fill(fileName)
             await expect(
-                page
-                    .getByRole('button', { name: new RegExp(`^${escapeRegex(fileName)} `) })
-                    .filter({ visible: true })
+                page.getByLabel(new RegExp(`^${escapeRegex(fileName)} `)).filter({ visible: true })
             ).toBeVisible({ timeout: 15_000 })
         } finally {
             await deleteResource(`/${ORG_SLUG}/${fileName}`)
@@ -148,7 +146,7 @@ test.describe('Drive — WebDAV', () => {
             await page.getByPlaceholder('Search in Files').fill(folderName)
             await expect(
                 page
-                    .getByRole('button', { name: new RegExp(`^${escapeRegex(folderName)} `) })
+                    .getByLabel(new RegExp(`^${escapeRegex(folderName)} `))
                     .filter({ visible: true })
             ).toBeVisible({ timeout: 15_000 })
         } finally {

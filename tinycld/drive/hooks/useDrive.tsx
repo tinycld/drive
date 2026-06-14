@@ -14,6 +14,7 @@ import {
     useRef,
     useState,
 } from 'react'
+import { type DriveDragPayload, movableIds } from '../lib/dnd'
 import { notifyDriveSnapshotListeners, writeDriveSnapshot } from '../stores/drive-snapshot-store'
 import type { DialogTarget, PromptDialog } from '../stores/drive-ui-store'
 import { useDriveUIStore } from '../stores/drive-ui-store'
@@ -44,6 +45,10 @@ export interface DriveActions {
     openDetailPanel: () => void
     dismissUpload: (id: string) => void
     openMoveDialog: (id: string, name: string) => void
+    openShareDialog: (id: string, name: string) => void
+    /** Drag-and-drop move: reparents every movable id in the payload into the
+     *  target folder ('' = root), then clears the selection. */
+    moveItems: (payload: DriveDragPayload, targetFolderId: string) => void
 }
 
 export interface DriveContextValue {
@@ -215,6 +220,8 @@ function useStableDriveActions(latest: DriveActions): DriveActions {
             openDetailPanel: () => ref.current.openDetailPanel(),
             dismissUpload: id => ref.current.dismissUpload(id),
             openMoveDialog: (id, name) => ref.current.openMoveDialog(id, name),
+            openShareDialog: (id, name) => ref.current.openShareDialog(id, name),
+            moveItems: (payload, targetFolderId) => ref.current.moveItems(payload, targetFolderId),
         }),
         []
     )
@@ -385,6 +392,19 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         openShareDialogStore(id, name)
     }
 
+    // Drag-and-drop move. Filters the payload to ids that actually move
+    // (shared rules with the receiver highlight), reparents each via the same
+    // mutation the move dialog uses, then clears the selection so the dropped
+    // items aren't left highlighted in their old location. Per-move failures
+    // surface via moveMutation's onError (toast + capture); .mutate() is
+    // fire-and-forget, so there's nothing to catch here.
+    const moveItems = (payload: DriveDragPayload, targetFolderId: string) => {
+        const ids = movableIds(payload, targetFolderId, items.itemsById)
+        if (ids.length === 0) return
+        for (const id of ids) mutations.moveItem(id, targetFolderId)
+        clearSelection()
+    }
+
     const handlePromptSubmit = (value: string) => {
         if (promptDialog.type === 'new-folder') {
             mutations.createFolder(value)
@@ -405,6 +425,8 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         openDetailPanel,
         dismissUpload: upload.dismissUpload,
         openMoveDialog,
+        openShareDialog,
+        moveItems,
     })
 
     return {

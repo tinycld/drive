@@ -42,6 +42,7 @@
         "pbtsdb": ">=0.5",
         "pocketbase": "^0.26.8",
         "react": ">=19",
-        "react-native": ">=0.83"
+        "react-native": ">=0.83",
+        "react-native-drax": "^1.1.0"
     }
 }

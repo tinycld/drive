@@ -2,8 +2,10 @@ import { expect, type Page, test } from '@playwright/test'
 import { clickSidebarItem, login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
     createDriveItem,
+    dragItemOnto,
     driveItem,
     escapeRegex,
+    findDriveItemByName,
     openDriveItem,
     uploadFileAsDriveItem,
 } from './helpers'
@@ -402,5 +404,136 @@ test.describe('Drive — Actions', () => {
 
         await page.locator('body').click({ position: { x: 10, y: 200 } })
         await expect(closeBtn).not.toBeVisible({ timeout: 5_000 })
+    })
+
+    // The row's always-visible ⋯ ("More actions") button opens the same menu as
+    // right-click. This is a distinct code path (DriveItemMenuButton) from the
+    // right-click context menu the other tests exercise, and a layout change
+    // once silently broke its click — so assert it directly.
+    test('row ⋯ menu button opens the actions menu', async ({ page }) => {
+        const { folderName, fileName } = await setupFixtureFile('RowMenu')
+        await page.reload()
+
+        await ensureListView(page)
+        await openDriveItem(page, folderName)
+        const file = driveItem(page, fileName)
+        await expect(file).toBeVisible({ timeout: 10_000 })
+
+        // The ⋯ button is always visible (not hover-gated); scope to the row.
+        await file.getByLabel('More actions', { exact: true }).first().click({ timeout: 10_000 })
+
+        // Menu opened → its items are visible. Rename/Move are ⋯-menu-only
+        // (not in the hover-action set), so they prove the menu — not a stray
+        // hover icon — is what rendered.
+        await expect(page.getByText('Rename', { exact: true })).toBeVisible({ timeout: 5_000 })
+        await expect(page.getByText('Move', { exact: true })).toBeVisible()
+    })
+
+    // The detail drawer's header also carries a ⋯ button (left of the close X).
+    // It lives inside a Gluestack drawer overlay and opens its own menu overlay
+    // on top — a nested-overlay path that can silently fail to open. Assert it.
+    test('detail drawer ⋯ menu button opens the actions menu', async ({ page }) => {
+        const { folderName, fileName } = await setupFixtureFile('DrawerMenu')
+        await page.reload()
+
+        await ensureListView(page)
+        await openDriveItem(page, folderName)
+        const file = driveItem(page, fileName)
+        await expect(file).toBeVisible({ timeout: 10_000 })
+
+        await openDetailPanelViaInfo(page, file)
+        await expect(page.getByLabel('Close details panel', { exact: true })).toBeVisible({
+            timeout: 5_000,
+        })
+
+        // The drawer header's ⋯ — scope to the open dialog so it doesn't match
+        // the underlying row's ⋯.
+        await page
+            .getByRole('dialog')
+            .getByLabel('More actions', { exact: true })
+            .first()
+            .click({ timeout: 10_000 })
+
+        await expect(page.getByText('Rename', { exact: true })).toBeVisible({ timeout: 5_000 })
+    })
+
+    // Drag-and-drop is the headline move affordance; the unit tests cover the
+    // move-validity rules, but only e2e exercises the real gesture →
+    // Drax hit-test → moveItems → mutation → reparent chain. Use grid view: the
+    // whole card is both the drag handle and the drop hit-area, which makes the
+    // gesture reliable (list rows drag via a tiny grip).
+    test('drag a file onto a folder card moves it in', async ({ page }) => {
+        // Put both the file and the destination folder inside a dedicated
+        // parent and operate there, so the root's seeded files (which scroll
+        // the FlashList and virtualize off-screen rows) can't hide either card.
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const parentFolder = `DnD-Parent-${stamp}`
+        const destFolder = `DnD-Dest-${stamp}`
+        const movedFile = `DnD-File-${stamp}.txt`
+        const parent = await createDriveItem({ name: parentFolder, isFolder: true })
+        const dest = await createDriveItem({
+            name: destFolder,
+            isFolder: true,
+            parent: parent.id,
+        })
+        await createDriveItem({ name: movedFile, parent: parent.id })
+        await page.reload()
+
+        await page.getByTestId('drive-view-grid').click()
+        await openDriveItem(page, parentFolder)
+        const fileCard = driveItem(page, movedFile)
+        const folderCard = driveItem(page, destFolder)
+        await expect(fileCard).toBeVisible({ timeout: 10_000 })
+        await expect(folderCard).toBeVisible({ timeout: 10_000 })
+
+        await dragItemOnto(page, fileCard, folderCard)
+
+        // The move is optimistic + persisted; assert server-side that the file
+        // now lives under the destination folder (the source of truth), polling
+        // until the mutation lands.
+        await expect
+            .poll(
+                async () => (await findDriveItemByName({ name: movedFile, parent: dest.id }))?.id,
+                {
+                    timeout: 10_000,
+                }
+            )
+            .toBeTruthy()
+
+        // And it left the parent: the card no longer shows in the parent listing.
+        await expect(driveItem(page, movedFile)).toHaveCount(0, { timeout: 10_000 })
+    })
+
+    // Dragging onto the sidebar "My Files" entry moves an item back out to the
+    // root — exercises the sidebar FolderDropTarget (targetFolderId='') and the
+    // narrow-target hit path that the list-row DragGrip exists to support.
+    test('drag a file onto the sidebar root moves it out to My Files', async ({ page }) => {
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const srcFolder = `DnD-Src-${stamp}`
+        const movedFile = `DnD-Out-${stamp}.txt`
+        const folder = await createDriveItem({ name: srcFolder, isFolder: true })
+        await createDriveItem({ name: movedFile, parent: folder.id })
+        await page.reload()
+
+        await page.getByTestId('drive-view-grid').click()
+        await openDriveItem(page, srcFolder)
+        const fileCard = driveItem(page, movedFile)
+        await expect(fileCard).toBeVisible({ timeout: 10_000 })
+
+        // The sidebar "My Files" entry is the root drop target. SidebarItem
+        // renders its label as plain text (no aria-label), so match the text.
+        const myFiles = page
+            .getByText('My Files', { exact: true })
+            .filter({ visible: true })
+            .first()
+        await expect(myFiles).toBeVisible({ timeout: 10_000 })
+
+        await dragItemOnto(page, fileCard, myFiles)
+
+        await expect
+            .poll(async () => (await findDriveItemByName({ name: movedFile, parent: '' }))?.id, {
+                timeout: 10_000,
+            })
+            .toBeTruthy()
     })
 })

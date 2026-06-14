@@ -13,7 +13,9 @@ import { ORG_SLUG, TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e
 // (`<name> <Month D, YYYY>`).
 export function driveItem(page: Page, name: string | RegExp): Locator {
     const namePattern = typeof name === 'string' ? new RegExp(`^${escapeRegex(name)} `) : name
-    return page.getByRole('button', { name: namePattern }).filter({ visible: true }).first()
+    // Rows/cards are labelled clickable regions (not <button> — they contain
+    // their own action buttons), so match on aria-label rather than role.
+    return page.getByLabel(namePattern).filter({ visible: true }).first()
 }
 
 export async function openDriveItem(page: Page, name: string | RegExp) {
@@ -21,6 +23,42 @@ export async function openDriveItem(page: Page, name: string | RegExp) {
     const item = driveItem(page, name)
     await expect(item).toBeVisible({ timeout: 10_000 })
     await item.click()
+}
+
+// Drives a drag-and-drop move via react-native-drax. Drax activates a drag on a
+// long-press (DRAG_LONG_PRESS_MS ≈ 120ms) and then tracks pointer movement, so
+// a one-shot Playwright dragTo() won't trigger it — we drive the raw mouse:
+// press on the source, hold past the activation delay, move onto the target in
+// several steps (Drax needs interim move events to update its hit-test), then
+// release. Both locators must be visible. Grid cards are the most reliable
+// source/target (the whole card is the drag handle and the hit area).
+export async function dragItemOnto(page: Page, source: Locator, target: Locator): Promise<void> {
+    const from = await source.boundingBox()
+    const to = await target.boundingBox()
+    if (!from || !to) {
+        throw new Error('dragItemOnto: source or target has no bounding box (not visible?)')
+    }
+    const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 }
+    const end = { x: to.x + to.width / 2, y: to.y + to.height / 2 }
+
+    await page.mouse.move(start.x, start.y)
+    await page.mouse.down()
+    // Hold in place past Drax's long-press activation before moving, so the
+    // gesture is recognised as a drag rather than a click.
+    await page.waitForTimeout(250)
+    // Step the move so Drax receives interim pointer updates and re-runs its
+    // receiver hit-test; a single jump can land without ever flagging the
+    // target as receiving.
+    const STEPS = 12
+    for (let i = 1; i <= STEPS; i++) {
+        await page.mouse.move(
+            start.x + ((end.x - start.x) * i) / STEPS,
+            start.y + ((end.y - start.y) * i) / STEPS
+        )
+    }
+    // Settle on the target so the receiving state is registered before release.
+    await page.waitForTimeout(150)
+    await page.mouse.up()
 }
 
 export async function dismissErrorOverlay(page: Page) {
@@ -52,8 +90,10 @@ export function sortableHeader(page: Page, label: string): Locator {
 // the `among` names. Used to assert sort order while ignoring unrelated
 // seeded rows in the same folder.
 export async function orderedRowNames(page: Page, among: string[]): Promise<string[]> {
+    // Rows are labelled clickable regions (aria-label), not buttons — read all
+    // visible aria-labelled elements in DOM order and keep the ones we track.
     const labels = await page
-        .getByRole('button')
+        .locator('[aria-label]')
         .filter({ visible: true })
         .evaluateAll(els => els.map(el => el.getAttribute('aria-label') ?? '').filter(Boolean))
     const result: string[] = []

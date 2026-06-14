@@ -34,9 +34,11 @@ import {
 import { useCallback, useMemo, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
 import { useDrive } from '../hooks/useDrive'
+import type { DriveDragPayload } from '../lib/dnd'
 import { type PromptDialog, useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, SidebarSection, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
+import { FolderDropTarget } from './FolderDropTarget'
 import { ShareDialogConnected } from './ShareDialogConnected'
 import { UploadButton } from './UploadButton'
 
@@ -129,6 +131,8 @@ export function DriveToolbar() {
         openPrompt,
         openMoveDialog,
         openShareDialog,
+        itemsById,
+        actions,
     } = useDrive()
 
     const selectionCount = selectedIds.size
@@ -244,6 +248,8 @@ export function DriveToolbar() {
                 onNavigate={navigateToFolder}
                 fgColor={fgColor}
                 mutedColor={mutedColor}
+                itemsById={itemsById}
+                onDropItems={actions.moveItems}
             />
         )
     })()
@@ -307,12 +313,16 @@ function DesktopBreadcrumbs({
     onNavigate,
     fgColor: _fgColor,
     mutedColor,
+    itemsById,
+    onDropItems,
 }: {
     breadcrumbs: DriveItemView[]
     currentLabel: string
     onNavigate: (folderId: string) => void
     fgColor: string
     mutedColor: string
+    itemsById: Map<string, DriveItemView>
+    onDropItems: (payload: DriveDragPayload, targetFolderId: string) => void
 }) {
     const ancestors = breadcrumbs.slice(0, -1)
 
@@ -323,15 +333,21 @@ function DesktopBreadcrumbs({
         >
             {ancestors.length > 0 && (
                 <>
-                    <Pressable onPress={() => onNavigate('')}>
-                        <Text
-                            numberOfLines={1}
-                            className="text-muted-foreground"
-                            style={{ fontSize: 16 }}
-                        >
-                            My Files
-                        </Text>
-                    </Pressable>
+                    <FolderDropTarget
+                        targetFolderId=""
+                        itemsById={itemsById}
+                        onDropItems={onDropItems}
+                    >
+                        <Pressable onPress={() => onNavigate('')}>
+                            <Text
+                                numberOfLines={1}
+                                className="text-muted-foreground"
+                                style={{ fontSize: 16 }}
+                            >
+                                My Files
+                            </Text>
+                        </Pressable>
+                    </FolderDropTarget>
                     <ChevronRight size={14} color={mutedColor} />
                 </>
             )}
@@ -341,18 +357,24 @@ function DesktopBreadcrumbs({
                     className="flex-row items-center gap-1 shrink"
                     style={{ minWidth: 0 }}
                 >
-                    <Pressable onPress={() => onNavigate(crumb.id)}>
-                        <Text
-                            numberOfLines={1}
-                            className="text-muted-foreground"
-                            style={{
-                                fontSize: 16,
-                                flexShrink: 1,
-                            }}
-                        >
-                            {crumb.name}
-                        </Text>
-                    </Pressable>
+                    <FolderDropTarget
+                        targetFolderId={crumb.id}
+                        itemsById={itemsById}
+                        onDropItems={onDropItems}
+                    >
+                        <Pressable onPress={() => onNavigate(crumb.id)}>
+                            <Text
+                                numberOfLines={1}
+                                className="text-muted-foreground"
+                                style={{
+                                    fontSize: 16,
+                                    flexShrink: 1,
+                                }}
+                            >
+                                {crumb.name}
+                            </Text>
+                        </Pressable>
+                    </FolderDropTarget>
                     <ChevronRight size={14} color={mutedColor} />
                 </View>
             ))}

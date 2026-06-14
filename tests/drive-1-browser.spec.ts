@@ -72,7 +72,10 @@ test.describe('Drive — Browser', () => {
         // wait for "visible" to flip to true the way a top-level locator
         // would, so the click could race the FlashList row mount. Anchor on
         // a stable file row instead.
-        const firstRow = page.getByRole('button', { name: /\.docx/i }).first()
+        const firstRow = page
+            .getByLabel(/\.docx/i)
+            .filter({ visible: true })
+            .first()
         await expect(firstRow).toBeVisible({ timeout: 30_000 })
         await firstRow.click()
 
@@ -89,7 +92,7 @@ test.describe('Drive — Browser', () => {
         // Anchor on visible-by-default file rows. Same fix as the previous
         // test: the previous `.filter({ visible: true })` chain raced the
         // FlashList row mount on CI.
-        const fileRows = page.getByRole('button', { name: /\.[a-z]{2,4}\b/i })
+        const fileRows = page.getByLabel(/\.[a-z]{2,4}\b/i).filter({ visible: true })
         await expect(fileRows.first()).toBeVisible({ timeout: 30_000 })
 
         const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
