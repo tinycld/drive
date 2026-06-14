@@ -30,9 +30,14 @@ function isSelfOrDescendant(
     itemId: string,
     itemsById: Map<string, DriveItemView>
 ): boolean {
+    // `seen` guards against a cyclic/corrupt parent chain: the data is a true
+    // tree today, but a bad parentId pointing back up would otherwise spin
+    // forever. Revisiting an id means a cycle — stop and treat it as no match.
+    const seen = new Set<string>()
     let id = itemId
-    while (id) {
+    while (id && !seen.has(id)) {
         if (id === ancestorId) return true
+        seen.add(id)
         const item = itemsById.get(id)
         if (!item) break
         id = item.parentId
