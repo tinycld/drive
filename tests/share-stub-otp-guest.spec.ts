@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
 import { readLatestOtpEmail } from './email-log-helper'
-import { authTokenForTestUser, testUserOrgContext, uploadFileAsDriveItem } from './helpers'
+import {
+    authTokenForTestUser,
+    shareStubInstalled,
+    testUserOrgContext,
+    uploadFileAsDriveItem,
+} from './helpers'
 
 // Drive — OTP guest onboarding flow against the stub package.
 //
@@ -174,6 +179,9 @@ async function countUserOrgs(userId: string, orgId: string): Promise<number> {
 
 test.describe('Drive — OTP guest onboarding (stub)', () => {
     test.describe.configure({ mode: 'serial' })
+    // Needs the @tinycld/share-stub package assembled (CI scaffolds it); skip on
+    // a plain dev workspace where it isn't present.
+    test.skip(!shareStubInstalled(), '@tinycld/share-stub not assembled in this workspace')
 
     test('commentor: OTP sign-in flips mount to guest commentor (canComment, !canEdit)', async ({
         browser,

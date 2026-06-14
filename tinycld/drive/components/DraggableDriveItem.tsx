@@ -141,6 +141,10 @@ export function DragGrip({ itemId, label, category, dragPreview }: DragGripProps
             dragPayload={payload}
             longPressDelay={DRAG_LONG_PRESS_MS}
             renderHoverContent={renderHover}
+            // Finger-sized drag handle; labelled so e2e can grab the grip for a
+            // specific row (scoped under that row's aria-label) to drive a drag
+            // to narrow targets like the sidebar.
+            accessibilityLabel="Drag to move"
         >
             <Grip size={16} color={mutedColor} />
         </DraxView>
@@ -203,6 +207,7 @@ function NameDragPreview({
     const text = count > 1 ? `${count} items` : label
     return (
         <View
+            testID="drive-drag-preview"
             className="flex-row items-center gap-2 rounded-lg px-3 py-2 shadow-md"
             style={{ backgroundColor: background }}
         >
@@ -233,7 +238,7 @@ function CardDragPreview({
 }) {
     const { icon: FileIcon, color: iconColor } = getFileIcon(category, neutralColor)
     return (
-        <View>
+        <View testID="drive-drag-preview">
             <View
                 className="rounded-lg border border-border bg-background shadow-md overflow-hidden"
                 style={{ width: 132, height: 120 }}

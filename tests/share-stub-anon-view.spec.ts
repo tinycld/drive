@@ -2,7 +2,12 @@ import { writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type BrowserContext, expect, type Page, test } from '@playwright/test'
-import { createShareLink, revokeShareLink, uploadFileAsDriveItem } from './helpers'
+import {
+    createShareLink,
+    revokeShareLink,
+    shareStubInstalled,
+    uploadFileAsDriveItem,
+} from './helpers'
 
 // Drive — anon viewer flow against the @tinycld/share-stub package.
 //
@@ -84,6 +89,11 @@ async function readStubDisplayName(page: Page): Promise<string> {
 }
 
 test.describe('Drive — anon viewer share link (stub)', () => {
+    // Needs the @tinycld/share-stub package assembled (CI scaffolds it); skip on
+    // a plain dev workspace where it isn't present rather than fail with no stub
+    // editor to mount.
+    test.skip(!shareStubInstalled(), '@tinycld/share-stub not assembled in this workspace')
+
     let fixture: { itemId: string; name: string; token: string; linkId: string }
 
     test('setup: upload .stub fixture and mint viewer share link', async () => {

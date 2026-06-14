@@ -51,33 +51,24 @@ test.describe('Drive — Browser', () => {
         await openDriveItem(page, 'Engineering')
         await expect(driveItem(page, 'Q1 Planning')).not.toBeVisible({ timeout: 5_000 })
 
-        const myFiles = page.getByText('My Files')
-        await myFiles.first().click()
+        // Click the breadcrumb "My Files" (labelled to disambiguate from the
+        // sidebar's plain-text "My Files") to navigate back to root.
+        await page.getByRole('button', { name: 'Breadcrumb: My Files', exact: true }).click()
         await expect(driveItem(page, 'Projects')).toBeVisible({ timeout: 10_000 })
     })
 
     test('clicking a single file does not replace the breadcrumb header', async ({ page }) => {
-        // Navigate to an Engineering subfolder; there's always at least one
-        // file in there (the seed always wires up an Architecture or
-        // similar fixture) — but rather than reading a specific seeded
-        // filename (which other tests may rename), find the first
-        // non-folder row in the list and operate on it.
+        // Engineering seeds exactly two files; anchor on one by NAME so the
+        // click waits for that specific row to mount. (A generic
+        // `getByLabel(/\.docx/).first()` resolves against whatever's rendered
+        // *now* and races FlashList row mounting under CI load.)
         await openDriveItem(page, 'Projects')
         await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
         await openDriveItem(page, 'Engineering')
 
-        // Wait for the folder to populate, then pick the first row matching a
-        // file extension. The .filter({ visible: true }) chain we used
-        // previously was nondeterministic on a slow CI — Playwright doesn't
-        // wait for "visible" to flip to true the way a top-level locator
-        // would, so the click could race the FlashList row mount. Anchor on
-        // a stable file row instead.
-        const firstRow = page
-            .getByLabel(/\.docx/i)
-            .filter({ visible: true })
-            .first()
-        await expect(firstRow).toBeVisible({ timeout: 30_000 })
-        await firstRow.click()
+        const file = driveItem(page, 'Architecture Overview.docx')
+        await expect(file).toBeVisible({ timeout: 10_000 })
+        await file.click()
 
         // The folder-action "New folder" button is part of the normal
         // toolbar; it disappears when the selection toolbar takes over.
@@ -89,17 +80,72 @@ test.describe('Drive — Browser', () => {
         await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
         await openDriveItem(page, 'Engineering')
 
-        // Anchor on visible-by-default file rows. Same fix as the previous
-        // test: the previous `.filter({ visible: true })` chain raced the
-        // FlashList row mount on CI.
-        const fileRows = page.getByLabel(/\.[a-z]{2,4}\b/i).filter({ visible: true })
-        await expect(fileRows.first()).toBeVisible({ timeout: 30_000 })
+        // Click the two Engineering files BY NAME. The previous version clicked
+        // `.nth(0)`/`.nth(1)` on a regex row collection, and `.nth(1)` does NOT
+        // wait for a second row to exist — it resolves against the rows mounted
+        // at that instant, so under CI load the second click landed on nothing
+        // and the selection never reached two. Naming each row makes Playwright
+        // wait for it to be actionable before clicking.
+        const first = driveItem(page, 'Architecture Overview.docx')
+        const second = driveItem(page, 'System Diagram.png')
+        await expect(first).toBeVisible({ timeout: 10_000 })
+        await expect(second).toBeVisible({ timeout: 10_000 })
 
         const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-        await fileRows.nth(0).click({ modifiers: [modifier] })
-        await fileRows.nth(1).click({ modifiers: [modifier] })
+        await first.click({ modifiers: [modifier] })
+        await second.click({ modifiers: [modifier] })
 
         await expect(page.getByText(/2 selected|2 items/)).toBeVisible({ timeout: 5_000 })
+    })
+
+    test('drag-to-select draws a box that selects the items under it (grid view)', async ({
+        page,
+    }) => {
+        // Own fixtures in a fresh folder so the marquee box covers a known set of
+        // cards without racing seeded rows or other tests' files.
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const folder = await createDriveItem({ name: `Marquee-${stamp}`, isFolder: true })
+        const fileA = `MarqueeA-${stamp}.txt`
+        const fileB = `MarqueeB-${stamp}.txt`
+        await createDriveItem({ name: fileA, parent: folder.id })
+        await createDriveItem({ name: fileB, parent: folder.id })
+        await page.reload()
+
+        await page.getByTestId('drive-view-grid').click()
+        await openDriveItem(page, `Marquee-${stamp}`)
+        const cardA = driveItem(page, fileA)
+        const cardB = driveItem(page, fileB)
+        await expect(cardA).toBeVisible({ timeout: 30_000 })
+        await expect(cardB).toBeVisible({ timeout: 10_000 })
+
+        const a = await cardA.boundingBox()
+        const b = await cardB.boundingBox()
+        if (!a || !b) throw new Error('marquee test: a card has no bounding box')
+
+        // Start in empty space to the LEFT of the leftmost card (the grid's
+        // padding gutter — not over any tile, so the gesture is a marquee and
+        // not a card drag), then sweep a box across both cards. Step the move so
+        // the rubber-band passes its movement threshold and hit-tests per frame.
+        const left = Math.min(a.x, b.x)
+        const startX = left - 8
+        const startY = Math.min(a.y, b.y) + 4
+        const endX = Math.max(a.x + a.width, b.x + b.width) + 8
+        const endY = Math.max(a.y + a.height, b.y + b.height) - 4
+
+        await page.mouse.move(startX, startY)
+        await page.mouse.down()
+        const STEPS = 10
+        for (let i = 1; i <= STEPS; i++) {
+            await page.mouse.move(
+                startX + ((endX - startX) * i) / STEPS,
+                startY + ((endY - startY) * i) / STEPS
+            )
+        }
+        await page.mouse.up()
+
+        // Both fixture files fell under the box → the multi-select toolbar shows
+        // its count ("N selected").
+        await expect(page.getByText(/\d+ selected/)).toBeVisible({ timeout: 5_000 })
     })
 
     test('clicking a column heading sorts the list and toggles direction', async ({ page }) => {

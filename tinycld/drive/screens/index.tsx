@@ -32,6 +32,8 @@ import { DriveContextMenu } from '../components/DriveContextMenu'
 import { DriveItemMenuButton } from '../components/DriveItemMenuButton'
 import { FolderDropTarget } from '../components/FolderDropTarget'
 import { getFileIcon } from '../components/file-icons'
+import { MarqueeContainer } from '../components/MarqueeContainer'
+import { MarqueeOverlay } from '../components/MarqueeOverlay'
 import { Thumbnail } from '../components/Thumbnail'
 import { UploadingGridCard } from '../components/UploadingGridCard'
 import { UploadingListRow } from '../components/UploadingListRow'
@@ -40,6 +42,7 @@ import { type DriveActions, useDrive, useRegisterDriveLayoutAnimation } from '..
 import { type GridRow, type ListRow, useGridRows, useListRows } from '../hooks/useDriveRows'
 import { useDriveShortcuts } from '../hooks/useDriveShortcuts'
 import { useFileSelection } from '../hooks/useFileSelection'
+import { useMarqueeSelection } from '../hooks/useMarqueeSelection'
 import { useUploadPlaceholders } from '../hooks/useUploadPlaceholders'
 import { driveItemToSource } from '../lib/file-url'
 import { useDriveUIStore } from '../stores/drive-ui-store'
@@ -257,6 +260,26 @@ export default function DriveScreen() {
     const listFlashRef = useRef<FlashListRef<ListRow>>(null)
     const gridFlashRef = useRef<FlashListRef<GridRow>>(null)
 
+    // Drag-to-select (web/desktop only). The gesture lives on the file-area
+    // container and reads the selection imperatively at drag-start, so the hook
+    // doesn't re-subscribe on every selection change.
+    const marqueeContainerRef = useRef<HTMLDivElement>(null)
+    const setSelection = useDriveUIStore(s => s.setSelection)
+    const clearSelection = useDriveUIStore(s => s.clearSelection)
+    const getBaseSelection = useCallback(() => useDriveUIStore.getState().selectedIds, [])
+    // The active list's ref, type-erased for the marquee's edge auto-scroll.
+    const activeScrollRef = (
+        viewMode === 'list' ? listFlashRef : gridFlashRef
+    ) as React.RefObject<FlashListRef<unknown> | null>
+    const { marqueeRect, isDragging } = useMarqueeSelection({
+        containerRef: marqueeContainerRef,
+        setSelection,
+        clearSelection,
+        getBaseSelection,
+        scrollRef: activeScrollRef,
+        enabled: !isMobile,
+    })
+
     // Read rows through refs so the scroll-to-focused effect doesn't re-fire
     // when row arrays churn identity unrelated to focus. Only focusedId
     // changes should drive a programmatic scroll.
@@ -349,7 +372,7 @@ export default function DriveScreen() {
     return (
         <SwipeableRowProvider>
             <DocumentTitle pkg="Drive" />
-            <View className="flex-1" onLayout={onLayout}>
+            <MarqueeContainer containerRef={marqueeContainerRef} onLayout={onLayout}>
                 {viewMode === 'list' ? (
                     <DriveListMode
                         rows={listRows}
@@ -375,7 +398,8 @@ export default function DriveScreen() {
                         onRefresh={handleRefresh}
                     />
                 )}
-            </View>
+                <MarqueeOverlay rect={marqueeRect} visible={isDragging} />
+            </MarqueeContainer>
         </SwipeableRowProvider>
     )
 }
@@ -747,6 +771,8 @@ function FilesListRowImpl({
             // No "button" role — the row hosts its own buttons (star, ⋯ menu);
             // nesting <button> in <button> is invalid. Labelled clickable row.
             accessibilityLabel={`${item.name} ${item.owner} ${formatDate(item.updated)}`}
+            // Tags the row for the drag-to-select hit-test (full-width row rect).
+            dataSet={{ driveItemId: item.id }}
             className={`flex-row items-center px-3 py-2.5 border-b border-border ${isSelectedRow ? '' : 'bg-background'}`}
             style={[
                 isSelectedRow ? { backgroundColor: `${ctx.activeIndicator}12` } : null,
@@ -954,6 +980,8 @@ function TrashListRowImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
             // No "button" role — the row hosts its own buttons; nesting
             // <button> in <button> is invalid on web.
             accessibilityLabel={`${item.name} ${formatDate(item.trashedAt)}`}
+            // Tags the row for the drag-to-select hit-test (full-width row rect).
+            dataSet={{ driveItemId: item.id }}
             className="flex-row items-center px-3 py-2.5 border-b border-border"
             style={isSelectedRow ? { backgroundColor: `${ctx.activeIndicator}12` } : undefined}
         >
@@ -1035,6 +1063,9 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
             // No "button" role — the card hosts its own buttons (⋯ menu);
             // nesting <button> in <button> is invalid on web.
             accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
+            // Tags the card for the drag-to-select hit-test (its rect == the
+            // visible tile). Renders as data-drive-item-id on web; no-op native.
+            dataSet={{ driveItemId: item.id }}
             style={{ height: GRID_CARD_HEIGHT }}
             className={`rounded-lg border ${isSelectedRow ? 'border-2 border-active-indicator' : 'border-border'}`}
         >
@@ -1095,6 +1126,9 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
             // No "button" role — the card hosts its own buttons (⋯ menu);
             // nesting <button> in <button> is invalid on web.
             accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
+            // Tags the card for the drag-to-select hit-test (its rect == the
+            // visible tile). Renders as data-drive-item-id on web; no-op native.
+            dataSet={{ driveItemId: item.id }}
             style={{ height: GRID_CARD_HEIGHT }}
             className={`rounded-lg overflow-hidden border ${isSelectedRow ? 'border-2 border-active-indicator' : 'border-border'}`}
         >

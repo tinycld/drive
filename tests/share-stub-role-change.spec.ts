@@ -6,6 +6,7 @@ import {
     authTokenForTestUser,
     createShareLink,
     revokeShareLink,
+    shareStubInstalled,
     uploadFileAsDriveItem,
 } from './helpers'
 
@@ -93,6 +94,9 @@ async function readStubDisplayName(page: Page): Promise<string> {
 
 test.describe('Drive — share link role change (stub)', () => {
     test.describe.configure({ mode: 'serial' })
+    // Needs the @tinycld/share-stub package assembled (CI scaffolds it); skip on
+    // a plain dev workspace where it isn't present.
+    test.skip(!shareStubInstalled(), '@tinycld/share-stub not assembled in this workspace')
 
     test('viewer link upgraded to editor: anon mount flips role + subtitle hint appears after reload', async ({
         browser,

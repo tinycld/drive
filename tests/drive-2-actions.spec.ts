@@ -5,7 +5,6 @@ import {
     dragItemOnto,
     driveItem,
     escapeRegex,
-    findDriveItemByName,
     openDriveItem,
     uploadFileAsDriveItem,
 } from './helpers'
@@ -150,7 +149,8 @@ test.describe('Drive — Actions', () => {
         await page.getByLabel('Rename', { exact: true }).click({ timeout: 10_000 })
 
         const newName = `Renamed-${Date.now()}.txt`
-        const input = page.getByRole('textbox').last()
+        const input = page.getByTestId('drive-name-prompt-input')
+        await expect(input).toBeVisible({ timeout: 10_000 })
         await input.clear()
         await input.fill(newName)
 
@@ -489,11 +489,7 @@ test.describe('Drive — Actions', () => {
         const destFolder = `DnD-Dest-${stamp}`
         const movedFile = `DnD-File-${stamp}.txt`
         const parent = await createDriveItem({ name: parentFolder, isFolder: true })
-        const dest = await createDriveItem({
-            name: destFolder,
-            isFolder: true,
-            parent: parent.id,
-        })
+        await createDriveItem({ name: destFolder, isFolder: true, parent: parent.id })
         await createDriveItem({ name: movedFile, parent: parent.id })
         await revealNewItemsAtRoot(page)
 
@@ -506,25 +502,20 @@ test.describe('Drive — Actions', () => {
 
         await dragItemOnto(page, fileCard, folderCard)
 
-        // The move is optimistic + persisted; assert server-side that the file
-        // now lives under the destination folder (the source of truth), polling
-        // until the mutation lands.
-        await expect
-            .poll(
-                async () => (await findDriveItemByName({ name: movedFile, parent: dest.id }))?.id,
-                {
-                    timeout: 10_000,
-                }
-            )
-            .toBeTruthy()
-
-        // And it left the parent: the card no longer shows in the parent listing.
+        // UI proof the drag moved the file: it leaves the parent listing...
         await expect(driveItem(page, movedFile)).toHaveCount(0, { timeout: 10_000 })
+
+        // ...and it's inside the destination folder when we open it — the same
+        // thing a user would check after dropping.
+        await openDriveItem(page, destFolder)
+        await expect(driveItem(page, movedFile)).toBeVisible({ timeout: 10_000 })
     })
 
     // Dragging onto the sidebar "My Files" entry moves an item back out to the
     // root — exercises the sidebar FolderDropTarget (targetFolderId='') and the
-    // narrow-target hit path that the list-row DragGrip exists to support.
+    // narrow-target hit path. Uses LIST view and drags via the row's finger-sized
+    // grip: that's the affordance built for reaching narrow targets like the
+    // sidebar (a wide grid card mis-anchors Drax's hit-test and can't hit it).
     test('drag a file onto the sidebar root moves it out to My Files', async ({ page }) => {
         const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
         const srcFolder = `DnD-Src-${stamp}`
@@ -533,10 +524,14 @@ test.describe('Drive — Actions', () => {
         await createDriveItem({ name: movedFile, parent: folder.id })
         await revealNewItemsAtRoot(page)
 
-        await page.getByTestId('drive-view-grid').click()
+        await page.getByTestId('drive-view-list').click()
         await openDriveItem(page, srcFolder)
-        const fileCard = driveItem(page, movedFile)
-        await expect(fileCard).toBeVisible({ timeout: 10_000 })
+        const fileRow = driveItem(page, movedFile)
+        await expect(fileRow).toBeVisible({ timeout: 10_000 })
+        // The drag source is the row's grip (scoped to this file's row), not the
+        // whole row — the grip is what reaches narrow drop targets.
+        const grip = fileRow.getByLabel('Drag to move', { exact: true })
+        await expect(grip).toBeVisible({ timeout: 10_000 })
 
         // The sidebar "My Files" entry is the root drop target. SidebarItem
         // renders its label as plain text (no aria-label), so match the text.
@@ -546,12 +541,14 @@ test.describe('Drive — Actions', () => {
             .first()
         await expect(myFiles).toBeVisible({ timeout: 10_000 })
 
-        await dragItemOnto(page, fileCard, myFiles)
+        await dragItemOnto(page, grip, myFiles)
 
-        await expect
-            .poll(async () => (await findDriveItemByName({ name: movedFile, parent: '' }))?.id, {
-                timeout: 10_000,
-            })
-            .toBeTruthy()
+        // UI proof: the file leaves the source folder...
+        await expect(driveItem(page, movedFile)).toHaveCount(0, { timeout: 10_000 })
+
+        // ...and shows at the root when we open My Files — what the user sees
+        // after dropping onto the sidebar root.
+        await clickSidebarItem(page, 'My Files')
+        await expect(driveItem(page, movedFile)).toBeVisible({ timeout: 10_000 })
     })
 })

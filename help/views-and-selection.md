@@ -26,6 +26,7 @@ In Grid view, sort is name-only (A → Z).
 - **Click another** to switch the selection.
 - **Shift-click** to select a range of files between your last click and the new one.
 - **Ctrl/⌘-click** (Cmd-click on Mac) to add or remove individual files from the selection — useful for grabbing a disjoint set.
+- **Drag a box** — press on empty space and drag. A selection rectangle appears, and every file it touches is selected as you move. Hold **⌘** while you drag to add the boxed files to what's already selected instead of starting over. Drag past the top or bottom edge to scroll and keep selecting. Works in both List and Grid views.
 
 On iPad, long-press a file to enter selection mode, then tap additional files to add them.
 

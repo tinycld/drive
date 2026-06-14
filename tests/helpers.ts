@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { ORG_SLUG, TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e-helpers'
@@ -26,12 +28,20 @@ export async function openDriveItem(page: Page, name: string | RegExp) {
 }
 
 // Drives a drag-and-drop move via react-native-drax. Drax activates a drag on a
-// long-press (DRAG_LONG_PRESS_MS ≈ 120ms) and then tracks pointer movement, so
-// a one-shot Playwright dragTo() won't trigger it — we drive the raw mouse:
-// press on the source, hold past the activation delay, move onto the target in
-// several steps (Drax needs interim move events to update its hit-test), then
-// release. Both locators must be visible. Grid cards are the most reliable
-// source/target (the whole card is the drag handle and the hit area).
+// long-press and then tracks pointer movement, so a one-shot Playwright
+// dragTo() won't trigger it — we drive the raw mouse by hand.
+//
+// The flake this avoids: under CPU load a fixed `waitForTimeout` after
+// mousedown can elapse in wall-clock before the app's JS thread has even run
+// Drax's long-press activation, so the subsequent moves arrive before a drag
+// exists and are dropped — the gesture silently no-ops. Instead we wait on the
+// floating drag preview (`drive-drag-preview`), the same visible cue the user
+// sees once a drag is live: poll-nudging the pointer until it appears proves the
+// drag actually activated before we travel to the target. Then we step onto the
+// target (Drax re-runs its hit-test per move) and settle before releasing.
+//
+// Both locators must be visible. Grid cards are the most reliable source/target
+// (the whole card is the drag handle and the hit area).
 export async function dragItemOnto(page: Page, source: Locator, target: Locator): Promise<void> {
     const from = await source.boundingBox()
     const to = await target.boundingBox()
@@ -40,15 +50,31 @@ export async function dragItemOnto(page: Page, source: Locator, target: Locator)
     }
     const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 }
     const end = { x: to.x + to.width / 2, y: to.y + to.height / 2 }
+    const preview = page.getByTestId('drive-drag-preview')
 
-    await page.mouse.move(start.x, start.y)
-    await page.mouse.down()
-    // Hold in place past Drax's long-press activation before moving, so the
-    // gesture is recognised as a drag rather than a click.
-    await page.waitForTimeout(250)
-    // Step the move so Drax receives interim pointer updates and re-runs its
-    // receiver hit-test; a single jump can land without ever flagging the
-    // target as receiving.
+    // Activate the drag and wait until the floating preview exists. Drax keys
+    // activation off a CONTINUOUS stream of pointer moves past its touch-slop
+    // (~15px) — a single jump can be missed, and a tiny grip source needs the
+    // gesture tracked step by step. Under heavy CPU contention the starved JS
+    // thread can drop a whole press→move burst, so if the preview hasn't
+    // appeared we fully release and re-press (what a user does when a grab
+    // doesn't take) rather than hoping more moves on a dead gesture help. The
+    // preview's presence is the deterministic "drag is live" signal.
+    await expect(async () => {
+        if ((await preview.count()) === 0) {
+            await page.mouse.up().catch(() => {})
+            await page.mouse.move(start.x, start.y)
+            await page.mouse.down()
+            await page.waitForTimeout(60)
+            for (let px = 4; px <= 32; px += 4) {
+                await page.mouse.move(start.x + px, start.y + px)
+            }
+        }
+        await expect(preview).toHaveCount(1, { timeout: 300 })
+    }).toPass({ timeout: 15_000 })
+
+    // Travel to the target in steps so Drax re-runs its receiver hit-test along
+    // the way; a single jump can land without ever flagging the target.
     const STEPS = 12
     for (let i = 1; i <= STEPS; i++) {
         await page.mouse.move(
@@ -56,8 +82,21 @@ export async function dragItemOnto(page: Page, source: Locator, target: Locator)
             start.y + ((end.y - start.y) * i) / STEPS
         )
     }
-    // Settle on the target so the receiving state is registered before release.
-    await page.waitForTimeout(150)
+
+    // Wait for the target to actually report receiving before releasing.
+    // FolderDropTarget mounts `drop-target-receiving` while a valid drag hovers
+    // it (the same cue as its highlight border); only one target receives at a
+    // time. Releasing before this is set is the drop-misses-narrow-target flake
+    // — the hit-test hadn't registered. Re-nudge on the target each poll so Drax
+    // keeps re-running the hit-test.
+    const receiving = page.getByTestId('drop-target-receiving')
+    await expect(async () => {
+        await page.mouse.move(end.x, end.y)
+        await page.mouse.move(end.x + 2, end.y + 2)
+        await page.mouse.move(end.x, end.y)
+        await expect(receiving).toHaveCount(1, { timeout: 200 })
+    }).toPass({ timeout: 10_000 })
+
     await page.mouse.up()
 }
 
@@ -75,6 +114,18 @@ export async function dismissErrorOverlay(page: Page) {
 
 export function escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// The share-stub specs need the @tinycld/share-stub package assembled into the
+// workspace (it registers a share editor for a fake mime type). CI scaffolds it
+// (ci.yml "Scaffold share-stub package"); a plain dev workspace usually hasn't,
+// so those specs would fail with no stub editor to mount. Detect its presence so
+// the specs can `test.skip` when it's absent rather than fail. The scaffold
+// writes the package at <workspaceRoot>/share-stub (sibling of drive/).
+export function shareStubInstalled(): boolean {
+    // drive/tests/helpers.ts → drive/ → workspace root → share-stub/
+    const stubDir = join(import.meta.dirname, '..', '..', 'share-stub')
+    return existsSync(stubDir)
 }
 
 // The clickable column heading rendered by core's DataTableHeader. The

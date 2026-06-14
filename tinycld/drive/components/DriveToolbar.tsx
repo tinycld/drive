@@ -338,7 +338,11 @@ function DesktopBreadcrumbs({
                         itemsById={itemsById}
                         onDropItems={onDropItems}
                     >
-                        <Pressable onPress={() => onNavigate('')}>
+                        <Pressable
+                            onPress={() => onNavigate('')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Breadcrumb: My Files"
+                        >
                             <Text
                                 numberOfLines={1}
                                 className="text-muted-foreground"
@@ -961,6 +965,7 @@ function NamePromptDialogInner({ prompt }: { prompt: Exclude<PromptDialog, { typ
                     style={{ paddingVertical: 10 }}
                 >
                     <PlainInput
+                        testID="drive-name-prompt-input"
                         value={value}
                         onChangeText={setValue}
                         placeholder={placeholder}
