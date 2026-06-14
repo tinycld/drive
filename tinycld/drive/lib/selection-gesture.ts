@@ -38,33 +38,45 @@ export type SelectionAction =
 
 /**
  * Selection action for a press-DOWN (onPressIn) on web.
- *   - modifier held → toggle / range (these build a selection, never a drag-grab)
+ *
+ * Modifier (toggle/range) selection is deliberately NOT decided here: the
+ * modifier flag is not reliably present on the pointerdown event under load
+ * (observed on CI — a Ctrl+click whose pointerdown reported ctrlKey:false fell
+ * through to `single` and REPLACED the selection instead of extending it). So a
+ * modified press is a no-op on press-down and the toggle/range is resolved on
+ * the click (release), where the modifier is reliable — see clickAction.
+ *
+ *   - modifier held → none (resolved on release, where the modifier is reliable)
  *   - already part of a multi-selection → none (preserve it for a potential drag)
- *   - otherwise → single (instant highlight for the common case)
+ *   - otherwise → single (instant highlight for the common, unmodified case)
  */
 export function pressDownAction(
     itemId: string,
     modifiers: SelectionModifiers,
     selectedIds: ReadonlySet<string>
 ): SelectionAction {
-    if (modifiers.meta || modifiers.ctrl) return { type: 'toggle' }
-    if (modifiers.shift) return { type: 'range' }
+    if (modifiers.meta || modifiers.ctrl || modifiers.shift) return { type: 'none' }
     if (selectedIds.has(itemId) && selectedIds.size > 1) return { type: 'none' }
     return { type: 'single' }
 }
 
 /**
- * Selection action for a release/CLICK (onPress) on web. Only collapses a
- * multi-selection the press-down deliberately preserved; everything else was
- * already settled on press-down, so this is a no-op. Modifier clicks are handled
- * on press-down and ignored here.
+ * Selection action for a release/CLICK (onPress) on web. Resolves the cases the
+ * press-down deferred:
+ *   - meta/ctrl click → toggle (add/remove from the selection)
+ *   - shift click     → range (extend from the anchor)
+ *   - plain click on a preserved multi-selection → single (collapse to this one;
+ *     press-down kept the whole set so a grab could drag it, but this turned out
+ *     to be a click, not a drag)
+ *   - otherwise → none (press-down already settled the single/plain case)
  */
 export function clickAction(
     itemId: string,
     modifiers: SelectionModifiers,
     selectedIds: ReadonlySet<string>
 ): SelectionAction {
-    if (modifiers.meta || modifiers.ctrl || modifiers.shift) return { type: 'none' }
+    if (modifiers.meta || modifiers.ctrl) return { type: 'toggle' }
+    if (modifiers.shift) return { type: 'range' }
     if (selectedIds.has(itemId) && selectedIds.size > 1) return { type: 'single' }
     return { type: 'none' }
 }

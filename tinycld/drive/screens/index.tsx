@@ -610,24 +610,26 @@ function FilesListRowImpl({
     // a fast scroll.
     const [isHovered, setIsHovered] = useRecyclingState(false, [item.id])
 
-    // Select on press-down (onPressIn) for instant highlight. Files always
-    // select; folders select only with a modifier (cmd/ctrl/shift) — a plain
-    // press on a folder is a navigate, so it must not steal selection.
+    // Select on press-down (onPressIn) for instant highlight — but ONLY for a
+    // plain (unmodified) press on a file. Modifier (toggle/range) selection is
+    // resolved on the click instead, because the modifier flag isn't reliable on
+    // pointerdown under load (handleSelect/pressDownAction no-op on a modified
+    // press). A plain press on a folder is a navigate, so it must not select.
     const handleSelectIn = useCallback(
         (event: GestureResponderEvent) => {
-            if (item.isFolder) {
-                const native = event.nativeEvent as unknown as MouseEvent
-                if (!(native.metaKey || native.ctrlKey || native.shiftKey)) return
-            }
+            const native = event.nativeEvent as unknown as MouseEvent
+            const hasModifier = native.metaKey || native.ctrlKey || native.shiftKey
+            if (hasModifier) return // resolved on click (reliable modifier)
+            if (item.isFolder) return // plain press on a folder navigates
             ctx.handleSelect(item.id, event)
         },
         [item.id, item.isFolder, ctx]
     )
-    // Open on click: files open the preview on double-click; folders navigate
-    // on a plain single-click (a modifier click only selected, in onPressIn).
-    // The single-click slot collapses a preserved multi-selection to this row
-    // (handleSelect keeps it on press-down so a grab can drag the whole set);
-    // it runs only on a real click since a drag consumes the pointer.
+    // Open on click: files open the preview on double-click; folders navigate on
+    // a plain single-click. The single-click slot also resolves the deferred
+    // modifier selection (toggle/range) and collapses a preserved multi-selection
+    // to this row (handleSelect keeps the set on press-down so a grab can drag
+    // it). Runs only on a real click since a drag consumes the pointer.
     const handleRowClickSelect = useCallback(
         (event: GestureResponderEvent) => ctx.handleSelectClick(item.id, event),
         [item.id, ctx]
@@ -636,10 +638,15 @@ function FilesListRowImpl({
     const handleFolderWebPress = useCallback(
         (event: GestureResponderEvent) => {
             const native = event.nativeEvent as unknown as MouseEvent
-            if (native.metaKey || native.ctrlKey || native.shiftKey) return
+            // Modifier click selects (toggle/range) via the shared click path;
+            // a plain click navigates into the folder.
+            if (native.metaKey || native.ctrlKey || native.shiftKey) {
+                ctx.handleSelectClick(item.id, event)
+                return
+            }
             actions.navigateToFolder(item.id)
         },
-        [item.id, actions]
+        [item.id, ctx, actions]
     )
     const handlePress = item.isFolder ? handleFolderWebPress : handleFileOpen
 
@@ -1049,7 +1056,9 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
             }
             const native = event.nativeEvent as unknown as MouseEvent
             if (native.metaKey || native.ctrlKey || native.shiftKey) {
-                ctx.handleSelect(item.id, event)
+                // Modifier select on the click (reliable modifier) via the
+                // click path — toggle/range, not the press-down single.
+                ctx.handleSelectClick(item.id, event)
                 return
             }
             handleNavigate()
