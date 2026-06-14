@@ -66,10 +66,6 @@ const TRASH_COLUMNS: DriveColumn[] = [
     { label: 'File size', flex: 1, sortField: 'size' },
 ]
 
-// Selection happens on press-down (onPressIn); the double-click handler only
-// needs to open, so its single-click slot is a no-op.
-const noop = () => {}
-
 const GRID_GAP = 12
 const GRID_PADDING = 16
 const CARD_MIN_DESKTOP = 200
@@ -114,6 +110,7 @@ interface CellContext {
     focusedId: string | null
     isSelected: (id: string) => boolean
     handleSelect: (id: string, event: GestureResponderEvent) => void
+    handleSelectClick: (id: string, event: GestureResponderEvent) => void
     actions: DriveActions
     itemsById: Map<string, DriveItemView>
 }
@@ -243,7 +240,7 @@ export default function DriveScreen() {
         [folders, files]
     )
     const orderedIds = useMemo(() => navigableItems.map(i => i.id), [navigableItems])
-    const { handleSelect, isSelected } = useFileSelection(orderedIds)
+    const { handleSelect, handleSelectClick, isSelected } = useFileSelection(orderedIds)
     const selectToggle = useDriveUIStore(s => s.selectToggle)
     const { focusedId } = useDriveShortcuts({
         items: navigableItems,
@@ -310,6 +307,7 @@ export default function DriveScreen() {
             focusedId,
             isSelected,
             handleSelect,
+            handleSelectClick,
             actions,
             itemsById,
         }),
@@ -326,6 +324,7 @@ export default function DriveScreen() {
             focusedId,
             isSelected,
             handleSelect,
+            handleSelectClick,
             actions,
             itemsById,
         ]
@@ -602,7 +601,14 @@ function FilesListRowImpl({
     )
     // Open on click: files open the preview on double-click; folders navigate
     // on a plain single-click (a modifier click only selected, in onPressIn).
-    const handleFileOpen = useDoubleClick(noop, () => actions.openPreview(item))
+    // The single-click slot collapses a preserved multi-selection to this row
+    // (handleSelect keeps it on press-down so a grab can drag the whole set);
+    // it runs only on a real click since a drag consumes the pointer.
+    const handleRowClickSelect = useCallback(
+        (event: GestureResponderEvent) => ctx.handleSelectClick(item.id, event),
+        [item.id, ctx]
+    )
+    const handleFileOpen = useDoubleClick(handleRowClickSelect, () => actions.openPreview(item))
     const handleFolderWebPress = useCallback(
         (event: GestureResponderEvent) => {
             const native = event.nativeEvent as unknown as MouseEvent
@@ -1068,8 +1074,15 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
         (event: GestureResponderEvent) => ctx.handleSelect(item.id, event),
         [item.id, ctx]
     )
+    // On a plain single-click, collapse a preserved multi-selection to this card
+    // (handleSelect leaves it intact on press-down so a grab can drag the whole
+    // selection). Runs only on a real click — a drag consumes the pointer.
+    const handleClickSelect = useCallback(
+        (event: GestureResponderEvent) => ctx.handleSelectClick(item.id, event),
+        [item.id, ctx]
+    )
     const handleOpen = useCallback(() => actions.openPreview(item), [item, actions])
-    const handleDesktopOpen = useDoubleClick(noop, handleOpen)
+    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleOpen)
     const handleMobilePress = useCallback(() => {
         if (consumeContextMenuPressSuppression(Date.now())) return
         actions.openPreview(item)

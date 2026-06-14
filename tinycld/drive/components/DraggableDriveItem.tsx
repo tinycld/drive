@@ -8,9 +8,18 @@ import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { FileCategory } from '../types'
 import { getFileIcon } from './file-icons'
 
-// Long-press before a drag activates. Short enough to feel immediate (a quick
-// grab-and-move works) but long enough that a plain click still reads as a tap.
-const DRAG_LONG_PRESS_MS = 120
+// How a drag activates, per platform.
+//
+// Web/desktop: 0 — no time-based activation. Drax forwards this to RNGH as
+// `activateAfterLongPress`, and a non-zero value makes the gesture activate on
+// a *timer* while the pointer is held still (no movement), which turned an
+// ordinary click-and-hold on a grid card into an instant drag. With 0, RNGH
+// falls back to its movement threshold (~15px touch-slop): a drag begins only
+// once the pointer actually moves, so a plain click stays a tap/select/open.
+//
+// Native (touch): a short hold — there's no "move while held" affordance before
+// a touch starts scrolling, so press-and-hold is the expected way to grab.
+const DRAG_LONG_PRESS_MS = Platform.OS === 'web' ? 0 : 120
 
 /**
  * Suppresses the browser's native HTML5 drag on web. The grid card renders a
@@ -34,14 +43,24 @@ function NoNativeDrag({ children }: { children: ReactNode }) {
     )
 }
 
-/** Drag payload for an item, honouring the active multi-selection: when the
- *  grabbed item is part of the selection the whole selection travels, else just
- *  this item. Read from a live selectedIds subscription so it's current at
- *  drag-start. */
-function useDragPayload(itemId: string): { payload: DriveDragPayload; count: number } {
-    const selectedIds = useDriveUIStore(s => s.selectedIds)
-    const ids = selectedIds.has(itemId) ? Array.from(selectedIds) : [itemId]
-    return { payload: { kind: 'drive-items', ids }, count: ids.length }
+/** The ids a drag of `itemId` carries: the whole multi-selection when the
+ *  grabbed item is part of it, otherwise just this item. Reads the store
+ *  imperatively so callers can resolve it at drag-START — Drax registers a
+ *  view's props once and doesn't refresh the captured render closures when
+ *  `selectedIds` later changes, so a value closed over at render time would be
+ *  stale (e.g. the drag preview would always show 1). */
+function dragIdsFor(itemId: string): string[] {
+    const { selectedIds } = useDriveUIStore.getState()
+    return selectedIds.has(itemId) ? Array.from(selectedIds) : [itemId]
+}
+
+/** Drag payload for an item — recomputed live so it reflects the selection at
+ *  drag-start, not whenever the view last rendered. */
+function useDragPayload(itemId: string): { payload: DriveDragPayload } {
+    // Subscribe so the DraxView re-registers its dragPayload as the selection
+    // changes; the hover preview reads the count live (see dragIdsFor).
+    useDriveUIStore(s => s.selectedIds)
+    return { payload: { kind: 'drive-items', ids: dragIdsFor(itemId) } }
 }
 
 /** How the floating drag copy should look. List rows drag as a compact name
@@ -77,8 +96,8 @@ export function DraggableDriveItem({
     isEnabled,
     children,
 }: DraggableDriveItemProps) {
-    const { payload, count } = useDragPayload(itemId)
-    const renderHover = useHoverPreview({ label, category, count, dragPreview })
+    const { payload } = useDragPayload(itemId)
+    const renderHover = useHoverPreview({ itemId, label, category, dragPreview })
 
     if (!isEnabled) return <>{children}</>
 
@@ -112,8 +131,8 @@ interface DragGripProps {
  * stays a normal pressable; only this grip initiates a drag.
  */
 export function DragGrip({ itemId, label, category, dragPreview }: DragGripProps) {
-    const { payload, count } = useDragPayload(itemId)
-    const renderHover = useHoverPreview({ label, category, count, dragPreview })
+    const { payload } = useDragPayload(itemId)
+    const renderHover = useHoverPreview({ itemId, label, category, dragPreview })
     const mutedColor = useThemeColor('muted-foreground')
 
     return (
@@ -128,24 +147,29 @@ export function DragGrip({ itemId, label, category, dragPreview }: DragGripProps
     )
 }
 
-/** Shared hover-content renderer for the draggable wrappers + grip. */
+/** Shared hover-content renderer for the draggable wrappers + grip. The count is
+ *  resolved when Drax INVOKES this (at drag-start) — not captured at render —
+ *  because Drax serves the closure it registered for the view and won't refresh
+ *  it on later `selectedIds` changes; reading live keeps the multi-item badge
+ *  accurate. */
 function useHoverPreview({
+    itemId,
     label,
     category,
-    count,
     dragPreview,
 }: {
+    itemId: string
     label: string
     category: FileCategory
-    count: number
     dragPreview: DragPreviewKind
 }): () => ReactNode {
     const primaryColor = useThemeColor('primary')
     const primaryForeground = useThemeColor('primary-foreground')
     const mutedColor = useThemeColor('muted-foreground')
 
-    return () =>
-        dragPreview === 'card' ? (
+    return () => {
+        const count = dragIdsFor(itemId).length
+        return dragPreview === 'card' ? (
             <CardDragPreview
                 label={label}
                 category={category}
@@ -162,6 +186,7 @@ function useHoverPreview({
                 foreground={primaryForeground}
             />
         )
+    }
 }
 
 function NameDragPreview({
