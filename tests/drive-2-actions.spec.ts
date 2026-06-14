@@ -46,6 +46,24 @@ async function ensureListView(page: Page): Promise<void> {
 //
 // The tests still run serially within this file because they share login.
 
+// Surface REST-created fixtures without a hard page.reload(). The beforeEach
+// already mounted the drive root, so its currentFolder liveQuery is stale and
+// won't show items created afterwards. A reload re-fetches but cancels in-flight
+// Metro chunk loads → a 5+s recompile per worker that compounds CI flakiness
+// (see tinycld E2E cold-compile notes). Instead, re-fire the on-demand root
+// query the cheap way: click the "My Files" sidebar entry. drive_items runs in
+// syncMode:'on-demand', so navigating back to root issues a fresh server-side
+// query that includes the new fixtures — SPA nav, no chunk recompile.
+async function revealNewItemsAtRoot(page: Page): Promise<void> {
+    // "My Files" can render in both the sidebar and (when a folder is open) the
+    // breadcrumb, so scope to the first visible match rather than clickSidebarItem's
+    // bare exact-text click.
+    await page.getByText('My Files', { exact: true }).filter({ visible: true }).first().click()
+    // The root listing re-queries on nav; wait for a known-stable seeded folder
+    // so we don't race the fresh snapshot before asserting on fixtures.
+    await expect(driveItem(page, 'Projects')).toBeVisible({ timeout: 10_000 })
+}
+
 async function setupFixtureFile(name: string): Promise<{ folderName: string; fileName: string }> {
     const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
     const folderName = `Drive2-${stamp}`
@@ -412,7 +430,7 @@ test.describe('Drive — Actions', () => {
     // once silently broke its click — so assert it directly.
     test('row ⋯ menu button opens the actions menu', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('RowMenu')
-        await page.reload()
+        await revealNewItemsAtRoot(page)
 
         await ensureListView(page)
         await openDriveItem(page, folderName)
@@ -434,7 +452,7 @@ test.describe('Drive — Actions', () => {
     // on top — a nested-overlay path that can silently fail to open. Assert it.
     test('detail drawer ⋯ menu button opens the actions menu', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('DrawerMenu')
-        await page.reload()
+        await revealNewItemsAtRoot(page)
 
         await ensureListView(page)
         await openDriveItem(page, folderName)
@@ -477,7 +495,7 @@ test.describe('Drive — Actions', () => {
             parent: parent.id,
         })
         await createDriveItem({ name: movedFile, parent: parent.id })
-        await page.reload()
+        await revealNewItemsAtRoot(page)
 
         await page.getByTestId('drive-view-grid').click()
         await openDriveItem(page, parentFolder)
@@ -513,7 +531,7 @@ test.describe('Drive — Actions', () => {
         const movedFile = `DnD-Out-${stamp}.txt`
         const folder = await createDriveItem({ name: srcFolder, isFolder: true })
         await createDriveItem({ name: movedFile, parent: folder.id })
-        await page.reload()
+        await revealNewItemsAtRoot(page)
 
         await page.getByTestId('drive-view-grid').click()
         await openDriveItem(page, srcFolder)
