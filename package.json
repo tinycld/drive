@@ -39,7 +39,7 @@
         "expo-image": ">=55.0.0",
         "expo-router": ">=55.0.0",
         "lucide-react-native": "^1.7.0",
-        "pbtsdb": ">=0.6",
+        "pbtsdb": ">=0.6.3",
         "pocketbase": "^0.26.8",
         "react": ">=19",
         "react-native": ">=0.83",

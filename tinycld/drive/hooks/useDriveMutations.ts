@@ -188,12 +188,20 @@ export function useDriveMutations({
 
     const removeShare = (shareId: string) => unshareMutation.mutate(shareId)
 
-    const moveItem = (itemId: string, newParentId: string) =>
-        moveMutation.mutate({ itemId, newParentId })
-
-    const restoreToFolder = (itemId: string, newParentId: string) => {
+    const moveItem = (itemId: string, newParentId: string) => {
+        // A move reparents the item OUT of the current folder, so it's removed
+        // from the visible list — the same row-removal that trash/delete animate.
+        // Without prepping the layout animation first, FlashList's layout cache
+        // desyncs from the shrunk data and throws "index out of bounds, not
+        // enough layouts" (which, unhandled, raises a LogBox overlay). Every
+        // other row-removing mutation preps; the move path must too.
         prepareLayoutAnimation?.()
         moveMutation.mutate({ itemId, newParentId })
+    }
+
+    const restoreToFolder = (itemId: string, newParentId: string) => {
+        // moveItem already preps the layout animation.
+        moveItem(itemId, newParentId)
         trashMutation.mutate({ itemId, restore: true })
     }
 

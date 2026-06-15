@@ -25,37 +25,31 @@ test.describe('Drive — section heading', () => {
     })
 
     test('My Files at /drive root', async ({ page }) => {
-        await expect(page.getByRole('heading', { name: 'My Files', level: 1 }).first()).toBeVisible(
-            { timeout: 15_000 }
-        )
+        await expect(
+            page.getByRole('heading', { name: 'My Files', level: 1 }).first()
+        ).toBeVisible()
     })
 
     test('Recent at /drive/recent', async ({ page }) => {
         await clickSidebarItem(page, 'Recent')
-        await expect(page.getByRole('heading', { name: 'Recent', level: 1 }).first()).toBeVisible({
-            timeout: 15_000,
-        })
+        await expect(page.getByRole('heading', { name: 'Recent', level: 1 }).first()).toBeVisible()
     })
 
     test('Starred at /drive/starred', async ({ page }) => {
         await clickSidebarItem(page, 'Starred')
-        await expect(page.getByRole('heading', { name: 'Starred', level: 1 }).first()).toBeVisible({
-            timeout: 15_000,
-        })
+        await expect(page.getByRole('heading', { name: 'Starred', level: 1 }).first()).toBeVisible()
     })
 
     test('Shared with me at /drive/shared', async ({ page }) => {
         await clickSidebarItem(page, 'Shared with me')
         await expect(
             page.getByRole('heading', { name: 'Shared with me', level: 1 }).first()
-        ).toBeVisible({ timeout: 15_000 })
+        ).toBeVisible()
     })
 
     test('Trash at /drive/trash', async ({ page }) => {
         await clickSidebarItem(page, 'Trash')
-        await expect(page.getByRole('heading', { name: 'Trash', level: 1 }).first()).toBeVisible({
-            timeout: 15_000,
-        })
+        await expect(page.getByRole('heading', { name: 'Trash', level: 1 }).first()).toBeVisible()
     })
 
     test('sidebar nav from My Files to Recent updates the heading', async ({ page }) => {
@@ -63,12 +57,10 @@ test.describe('Drive — section heading', () => {
         // the initial render): assert My Files first, then click through to
         // Recent. The FrozenSlideStack keeps My Files mounted but the
         // visible heading is the active screen's.
-        await expect(page.getByRole('heading', { name: 'My Files', level: 1 }).first()).toBeVisible(
-            { timeout: 15_000 }
-        )
+        await expect(
+            page.getByRole('heading', { name: 'My Files', level: 1 }).first()
+        ).toBeVisible()
         await clickSidebarItem(page, 'Recent')
-        await expect(page.getByRole('heading', { name: 'Recent', level: 1 }).first()).toBeVisible({
-            timeout: 10_000,
-        })
+        await expect(page.getByRole('heading', { name: 'Recent', level: 1 }).first()).toBeVisible()
     })
 })

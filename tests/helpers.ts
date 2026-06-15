@@ -23,8 +23,35 @@ export function driveItem(page: Page, name: string | RegExp): Locator {
 export async function openDriveItem(page: Page, name: string | RegExp) {
     await dismissErrorOverlay(page)
     const item = driveItem(page, name)
-    await expect(item).toBeVisible({ timeout: 10_000 })
+    await expect(item).toBeVisible()
     await item.click()
+}
+
+// Surfaces a drive row by NAME via the search box and returns its (visible)
+// locator. The root listing holds ~50 seeded items; a fixture created there
+// sorts somewhere in the middle and, after a reload, FlashList may have it
+// virtualized off-screen, so a bare `driveItem` (which only matches *visible*
+// rows) can't find it. Searching filters the listing to the named item so it's
+// reliably on-screen. The caller decides what to do with the row (click,
+// right-click, assert) and is responsible for clearing search afterwards if it
+// stays on the listing — `openDriveItemViaSearch` does that for the open case.
+//
+// Use this for ANY first interaction with a freshly-created fixture at the
+// large seeded root; plain `driveItem` is fine inside small subfolders.
+export async function revealDriveRow(page: Page, name: string): Promise<Locator> {
+    await dismissErrorOverlay(page)
+    await page.getByPlaceholder('Search in Files').fill(name)
+    const row = driveItem(page, name)
+    await expect(row).toBeVisible()
+    return row
+}
+
+// Opens (clicks) a drive item by NAME via search, then clears the search so the
+// navigated-into folder shows its own listing rather than the filtered results.
+export async function openDriveItemViaSearch(page: Page, name: string) {
+    const row = await revealDriveRow(page, name)
+    await row.click()
+    await page.getByPlaceholder('Search in Files').clear()
 }
 
 // Drives a drag-and-drop move via react-native-drax. Drax activates a drag on a
@@ -70,8 +97,8 @@ export async function dragItemOnto(page: Page, source: Locator, target: Locator)
                 await page.mouse.move(start.x + px, start.y + px)
             }
         }
-        await expect(preview).toHaveCount(1, { timeout: 300 })
-    }).toPass({ timeout: 15_000 })
+        await expect(preview).toHaveCount(1)
+    }).toPass()
 
     // Travel to the target in steps so Drax re-runs its receiver hit-test along
     // the way; a single jump can land without ever flagging the target.
@@ -85,17 +112,16 @@ export async function dragItemOnto(page: Page, source: Locator, target: Locator)
 
     // Wait for the target to actually report receiving before releasing.
     // FolderDropTarget mounts `drop-target-receiving` while a valid drag hovers
-    // it (the same cue as its highlight border); only one target receives at a
-    // time. Releasing before this is set is the drop-misses-narrow-target flake
-    // — the hit-test hadn't registered. Re-nudge on the target each poll so Drax
-    // keeps re-running the hit-test.
+    // it; only one target receives at a time. Releasing before it's set is the
+    // drop-misses-narrow-target flake. Each poll nudges OFF the target then back
+    // (start.y is away from the target) so Drax re-runs its hit-test even if the
+    // previous frame already settled — but the nudge ends ON the target.
     const receiving = page.getByTestId('drop-target-receiving')
     await expect(async () => {
+        await page.mouse.move(end.x, start.y)
         await page.mouse.move(end.x, end.y)
-        await page.mouse.move(end.x + 2, end.y + 2)
-        await page.mouse.move(end.x, end.y)
-        await expect(receiving).toHaveCount(1, { timeout: 200 })
-    }).toPass({ timeout: 10_000 })
+        await expect(receiving).toHaveCount(1)
+    }).toPass()
 
     await page.mouse.up()
 }

@@ -6,6 +6,8 @@ import {
     driveItem,
     escapeRegex,
     openDriveItem,
+    openDriveItemViaSearch,
+    revealDriveRow,
     uploadFileAsDriveItem,
 } from './helpers'
 
@@ -25,7 +27,7 @@ async function openDetailPanelViaInfo(
     // Web emits as a div (role=generic, not button) — so target it by its
     // accessible label, not by role. Scope to the hovered row; hovering
     // flips the layer's pointerEvents to auto, making the click land.
-    await row.getByLabel('Info', { exact: true }).first().click({ timeout: 10_000 })
+    await row.getByLabel('Info', { exact: true }).first().click()
 }
 
 // Force list view. The view mode is a persisted user preference, so a
@@ -60,7 +62,7 @@ async function revealNewItemsAtRoot(page: Page): Promise<void> {
     await page.getByText('My Files', { exact: true }).filter({ visible: true }).first().click()
     // The root listing re-queries on nav; wait for a known-stable seeded folder
     // so we don't race the fresh snapshot before asserting on fixtures.
-    await expect(driveItem(page, 'Projects')).toBeVisible({ timeout: 10_000 })
+    await expect(driveItem(page, 'Projects')).toBeVisible()
 }
 
 async function setupFixtureFile(name: string): Promise<{ folderName: string; fileName: string }> {
@@ -87,10 +89,10 @@ test.describe('Drive — Actions', () => {
 
         const searchInput = page.getByPlaceholder('Search in Files')
         await searchInput.fill(fileName)
-        await expect(driveItem(page, fileName)).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, fileName)).toBeVisible()
 
         await searchInput.clear()
-        await expect(driveItem(page, 'Projects')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Projects')).toBeVisible()
     })
 
     // Regression: search-result rows for files not in the loaded folder view
@@ -105,7 +107,7 @@ test.describe('Drive — Actions', () => {
 
         await page.getByPlaceholder('Search in Files').fill(fileName)
         const row = driveItem(page, fileName)
-        await expect(row).toBeVisible({ timeout: 10_000 })
+        await expect(row).toBeVisible()
 
         // No row may render the literal "Invalid Date" — this is the core
         // assertion (search rows used to show it because the API returned no
@@ -120,9 +122,9 @@ test.describe('Drive — Actions', () => {
         const { folderName, fileName } = await setupFixtureFile('SelectActions')
         await page.reload()
 
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const fileRow = driveItem(page, fileName)
-        await expect(fileRow).toBeVisible({ timeout: 10_000 })
+        await expect(fileRow).toBeVisible()
 
         // Scope to role=button so we match only the toolbar's real <button>
         // actions. The row hover-actions render Delete as a labeled div
@@ -133,9 +135,7 @@ test.describe('Drive — Actions', () => {
         await expect(page.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0)
 
         await fileRow.click()
-        await expect(page.getByRole('button', { name: 'Rename', exact: true })).toBeVisible({
-            timeout: 10_000,
-        })
+        await expect(page.getByRole('button', { name: 'Rename', exact: true })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeVisible()
     })
 
@@ -143,88 +143,86 @@ test.describe('Drive — Actions', () => {
         const { folderName, fileName } = await setupFixtureFile('Edit')
         await page.reload()
 
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const row = driveItem(page, new RegExp(`^${escapeRegex(fileName)} `))
         await row.click()
-        await page.getByLabel('Rename', { exact: true }).click({ timeout: 10_000 })
+        await page.getByLabel('Rename', { exact: true }).click()
 
         const newName = `Renamed-${Date.now()}.txt`
         const input = page.getByTestId('drive-name-prompt-input')
-        await expect(input).toBeVisible({ timeout: 10_000 })
+        await expect(input).toBeVisible()
         await input.clear()
         await input.fill(newName)
 
         await page.getByRole('dialog').getByRole('button', { name: 'Rename' }).click()
 
-        await expect(driveItem(page, new RegExp(`^${escapeRegex(newName)} `))).toBeVisible({
-            timeout: 10_000,
-        })
+        await expect(driveItem(page, new RegExp(`^${escapeRegex(newName)} `))).toBeVisible()
     })
 
     test('move selected file to trash from toolbar', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('Trash')
         await page.reload()
 
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
-        await expect(file).toBeVisible({ timeout: 10_000 })
+        await expect(file).toBeVisible()
 
         await file.click()
-        await page.getByRole('button', { name: 'Delete', exact: true }).click({ timeout: 10_000 })
+        await page.getByRole('button', { name: 'Delete', exact: true }).click()
         await page.getByRole('button', { name: /move to trash/i }).click()
 
-        await expect(driveItem(page, fileName)).toHaveCount(0, { timeout: 10_000 })
+        await expect(driveItem(page, fileName)).toHaveCount(0)
     })
 
     test('restore from trash', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('Bring')
         await page.reload()
 
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
-        await expect(file).toBeVisible({ timeout: 10_000 })
+        await expect(file).toBeVisible()
 
         await file.click()
-        await page.getByRole('button', { name: 'Delete', exact: true }).click({ timeout: 10_000 })
+        await page.getByRole('button', { name: 'Delete', exact: true }).click()
         await page
             .getByRole('button', { name: /move to trash/i })
             .or(page.getByRole('button', { name: /confirm/i }))
             .or(page.getByRole('button', { name: /trash/i }).last())
             .click()
 
-        await expect(driveItem(page, fileName)).toHaveCount(0, { timeout: 10_000 })
+        await expect(driveItem(page, fileName)).toHaveCount(0)
 
         await clickSidebarItem(page, 'Trash')
         const trashedRow = driveItem(page, fileName)
-        await expect(trashedRow).toBeVisible({ timeout: 10_000 })
+        await expect(trashedRow).toBeVisible()
 
         await trashedRow.click()
         await page.getByLabel('Restore', { exact: true }).click()
 
-        await expect(driveItem(page, fileName)).toHaveCount(0, { timeout: 10_000 })
+        await expect(driveItem(page, fileName)).toHaveCount(0)
     })
 
     test('permanently delete from trash', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('Perma')
         await page.reload()
 
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
-        await expect(file).toBeVisible({ timeout: 10_000 })
+        await expect(file).toBeVisible()
 
         await file.click()
-        await page.getByRole('button', { name: 'Delete', exact: true }).click({ timeout: 10_000 })
+        await page.getByRole('button', { name: 'Delete', exact: true }).click()
         await page.getByRole('button', { name: /move to trash/i }).click()
 
         await clickSidebarItem(page, 'Trash')
         const trashed = driveItem(page, fileName)
-        await expect(trashed).toBeVisible({ timeout: 10_000 })
+        await expect(trashed).toBeVisible()
 
         await trashed.click()
-        await page.getByLabel('Delete permanently', { exact: true }).click({ timeout: 10_000 })
+        await page.getByLabel('Delete permanently', { exact: true }).click()
         await page.getByRole('dialog').getByRole('button', { name: 'Delete permanently' }).click()
 
-        await expect(driveItem(page, fileName)).toHaveCount(0, { timeout: 10_000 })
+        await expect(driveItem(page, fileName)).toHaveCount(0)
     })
 
     test('download folder via context menu', async ({ page }) => {
@@ -233,10 +231,10 @@ test.describe('Drive — Actions', () => {
         await createDriveItem({ name: folderName, isFolder: true })
         await page.reload()
 
-        await driveItem(page, folderName).click({ button: 'right' })
+        await (await revealDriveRow(page, folderName)).click({ button: 'right' })
 
         const downloadMenuItem = page.getByText('Download', { exact: true })
-        await expect(downloadMenuItem).toBeVisible({ timeout: 5_000 })
+        await expect(downloadMenuItem).toBeVisible()
 
         const tokenRequest = page.waitForResponse(
             resp => resp.url().includes('/api/drive/download-token') && resp.status() === 200
@@ -277,11 +275,11 @@ test.describe('Drive — Actions', () => {
         // The file lands at root among the long seeded list; filter to it via
         // search so its row is on-screen (not buried below the fold).
         await page.getByPlaceholder('Search in Files').fill(fileName)
-        await expect(driveItem(page, fileName)).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, fileName)).toBeVisible()
         await driveItem(page, fileName).click({ button: 'right' })
 
         const downloadMenuItem = page.getByText('Download', { exact: true })
-        await expect(downloadMenuItem).toBeVisible({ timeout: 5_000 })
+        await expect(downloadMenuItem).toBeVisible()
 
         const downloadPromise = page.waitForEvent('download')
         await downloadMenuItem.dispatchEvent('click')
@@ -304,12 +302,14 @@ test.describe('Drive — Actions', () => {
         await page.getByRole('button', { name: 'New folder' }).click()
 
         const nameInput = page.getByPlaceholder('Untitled folder')
-        await expect(nameInput).toBeVisible({ timeout: 5_000 })
+        await expect(nameInput).toBeVisible()
         await nameInput.fill(folderName)
         await page.getByRole('button', { name: 'Create' }).click()
 
         // The new folder must appear in the list reactively (no page.reload()).
-        await expect(driveItem(page, folderName)).toBeVisible({ timeout: 10_000 })
+        // Search to surface it — at the seeded root it may sort off-screen and
+        // be virtualized out of the bare listing even though it's in the data.
+        await expect(await revealDriveRow(page, folderName)).toBeVisible()
     })
 
     // Move-to-folder flow. The mobile affordance is a swipe action (native
@@ -328,29 +328,29 @@ test.describe('Drive — Actions', () => {
         await createDriveItem({ name: fileName, parent: parent.id })
         await page.reload()
 
-        await openDriveItem(page, `MoveCase-${stamp}`)
-        await expect(driveItem(page, fileName)).toBeVisible({ timeout: 10_000 })
+        await openDriveItemViaSearch(page, `MoveCase-${stamp}`)
+        await expect(driveItem(page, fileName)).toBeVisible()
         await driveItem(page, fileName).click({ button: 'right' })
 
         const moveMenuItem = page.getByText('Move', { exact: true })
-        await expect(moveMenuItem).toBeVisible({ timeout: 5_000 })
+        await expect(moveMenuItem).toBeVisible()
         await moveMenuItem.dispatchEvent('click')
 
         // The dialog lists folders; pick our top-level target then confirm.
         // Scope to the dialog — the folder name also appears in the sidebar tree.
         const dialog = page.getByTestId('choose-folder-dialog')
-        await expect(dialog).toBeVisible({ timeout: 5_000 })
+        await expect(dialog).toBeVisible()
         await dialog.getByText(folderName, { exact: true }).click()
         await dialog.getByText('Move here', { exact: true }).click()
 
         // The file leaves the current (MoveCase) folder...
-        await expect(driveItem(page, fileName)).toHaveCount(0, { timeout: 10_000 })
+        await expect(driveItem(page, fileName)).toHaveCount(0)
         // ...and appears inside the target folder. Navigate there via the
         // sidebar folder tree (scoped to the sidebar to avoid the dialog/root
         // "My Files" ambiguity).
         const sidebar = page.getByTestId('package-sidebar-mounted')
         await sidebar.getByText(folderName, { exact: true }).click()
-        await expect(driveItem(page, fileName)).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, fileName)).toBeVisible()
     })
 
     test('context menu closes when clicking outside it', async ({ page }) => {
@@ -359,14 +359,12 @@ test.describe('Drive — Actions', () => {
         await createDriveItem({ name: folderName, isFolder: true })
         await page.reload()
 
-        await driveItem(page, folderName).click({ button: 'right' })
-        await expect(page.getByText('Download', { exact: true })).toBeVisible({ timeout: 5_000 })
+        await (await revealDriveRow(page, folderName)).click({ button: 'right' })
+        await expect(page.getByText('Download', { exact: true })).toBeVisible()
 
         await page.locator('body').click({ position: { x: 5, y: 5 } })
 
-        await expect(page.getByText('Download', { exact: true })).not.toBeVisible({
-            timeout: 5_000,
-        })
+        await expect(page.getByText('Download', { exact: true })).not.toBeVisible()
     })
 
     test('detail panel opens via the Info hover action', async ({ page }) => {
@@ -376,18 +374,16 @@ test.describe('Drive — Actions', () => {
         // The Info hover-action only exists in list view; a prior spec may
         // have left grid view persisted.
         await ensureListView(page)
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
-        await expect(file).toBeVisible({ timeout: 10_000 })
+        await expect(file).toBeVisible()
 
         // The detail panel is opened from the row's Info hover-action, not
         // the selection toolbar (a single file's toolbar shows only Rename
         // and Delete). openDetailPanelViaInfo hovers the row to make the
         // action interactive, then clicks it.
         await openDetailPanelViaInfo(page, file)
-        await expect(page.getByLabel('Close details panel', { exact: true })).toBeVisible({
-            timeout: 5_000,
-        })
+        await expect(page.getByLabel('Close details panel', { exact: true })).toBeVisible()
     })
 
     // The detail panel dismisses via the X button and via a backdrop
@@ -402,26 +398,26 @@ test.describe('Drive — Actions', () => {
         // The Info hover-action only exists in list view; a prior spec may
         // have left grid view persisted.
         await ensureListView(page)
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
-        await expect(file).toBeVisible({ timeout: 10_000 })
+        await expect(file).toBeVisible()
 
         await openDetailPanelViaInfo(page, file)
         const closeBtn = page.getByLabel('Close details panel', { exact: true })
-        await expect(closeBtn).toBeVisible({ timeout: 5_000 })
+        await expect(closeBtn).toBeVisible()
 
         // Dismiss via the X.
         await closeBtn.click()
-        await expect(closeBtn).not.toBeVisible({ timeout: 5_000 })
+        await expect(closeBtn).not.toBeVisible()
 
         // Re-open, then dismiss via backdrop click. The backdrop fills
         // the viewport behind the right-anchored drawer; clicking near
         // the left edge lands on it, not the drawer content.
         await openDetailPanelViaInfo(page, file)
-        await expect(closeBtn).toBeVisible({ timeout: 5_000 })
+        await expect(closeBtn).toBeVisible()
 
         await page.locator('body').click({ position: { x: 10, y: 200 } })
-        await expect(closeBtn).not.toBeVisible({ timeout: 5_000 })
+        await expect(closeBtn).not.toBeVisible()
     })
 
     // The row's always-visible ⋯ ("More actions") button opens the same menu as
@@ -433,17 +429,17 @@ test.describe('Drive — Actions', () => {
         await revealNewItemsAtRoot(page)
 
         await ensureListView(page)
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
-        await expect(file).toBeVisible({ timeout: 10_000 })
+        await expect(file).toBeVisible()
 
         // The ⋯ button is always visible (not hover-gated); scope to the row.
-        await file.getByLabel('More actions', { exact: true }).first().click({ timeout: 10_000 })
+        await file.getByLabel('More actions', { exact: true }).first().click()
 
         // Menu opened → its items are visible. Rename/Move are ⋯-menu-only
         // (not in the hover-action set), so they prove the menu — not a stray
         // hover icon — is what rendered.
-        await expect(page.getByText('Rename', { exact: true })).toBeVisible({ timeout: 5_000 })
+        await expect(page.getByText('Rename', { exact: true })).toBeVisible()
         await expect(page.getByText('Move', { exact: true })).toBeVisible()
     })
 
@@ -455,24 +451,18 @@ test.describe('Drive — Actions', () => {
         await revealNewItemsAtRoot(page)
 
         await ensureListView(page)
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
-        await expect(file).toBeVisible({ timeout: 10_000 })
+        await expect(file).toBeVisible()
 
         await openDetailPanelViaInfo(page, file)
-        await expect(page.getByLabel('Close details panel', { exact: true })).toBeVisible({
-            timeout: 5_000,
-        })
+        await expect(page.getByLabel('Close details panel', { exact: true })).toBeVisible()
 
         // The drawer header's ⋯ — scope to the open dialog so it doesn't match
         // the underlying row's ⋯.
-        await page
-            .getByRole('dialog')
-            .getByLabel('More actions', { exact: true })
-            .first()
-            .click({ timeout: 10_000 })
+        await page.getByRole('dialog').getByLabel('More actions', { exact: true }).first().click()
 
-        await expect(page.getByText('Rename', { exact: true })).toBeVisible({ timeout: 5_000 })
+        await expect(page.getByText('Rename', { exact: true })).toBeVisible()
     })
 
     // Drag-and-drop is the headline move affordance; the unit tests cover the
@@ -494,21 +484,21 @@ test.describe('Drive — Actions', () => {
         await revealNewItemsAtRoot(page)
 
         await page.getByTestId('drive-view-grid').click()
-        await openDriveItem(page, parentFolder)
+        await openDriveItemViaSearch(page, parentFolder)
         const fileCard = driveItem(page, movedFile)
         const folderCard = driveItem(page, destFolder)
-        await expect(fileCard).toBeVisible({ timeout: 10_000 })
-        await expect(folderCard).toBeVisible({ timeout: 10_000 })
+        await expect(fileCard).toBeVisible()
+        await expect(folderCard).toBeVisible()
 
         await dragItemOnto(page, fileCard, folderCard)
 
         // UI proof the drag moved the file: it leaves the parent listing...
-        await expect(driveItem(page, movedFile)).toHaveCount(0, { timeout: 10_000 })
+        await expect(driveItem(page, movedFile)).toHaveCount(0)
 
         // ...and it's inside the destination folder when we open it — the same
         // thing a user would check after dropping.
         await openDriveItem(page, destFolder)
-        await expect(driveItem(page, movedFile)).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, movedFile)).toBeVisible()
     })
 
     // Dragging onto the sidebar "My Files" entry moves an item back out to the
@@ -525,13 +515,13 @@ test.describe('Drive — Actions', () => {
         await revealNewItemsAtRoot(page)
 
         await page.getByTestId('drive-view-list').click()
-        await openDriveItem(page, srcFolder)
+        await openDriveItemViaSearch(page, srcFolder)
         const fileRow = driveItem(page, movedFile)
-        await expect(fileRow).toBeVisible({ timeout: 10_000 })
+        await expect(fileRow).toBeVisible()
         // The drag source is the row's grip (scoped to this file's row), not the
         // whole row — the grip is what reaches narrow drop targets.
         const grip = fileRow.getByLabel('Drag to move', { exact: true })
-        await expect(grip).toBeVisible({ timeout: 10_000 })
+        await expect(grip).toBeVisible()
 
         // The sidebar "My Files" entry is the root drop target. SidebarItem
         // renders its label as plain text (no aria-label), so match the text.
@@ -539,16 +529,18 @@ test.describe('Drive — Actions', () => {
             .getByText('My Files', { exact: true })
             .filter({ visible: true })
             .first()
-        await expect(myFiles).toBeVisible({ timeout: 10_000 })
+        await expect(myFiles).toBeVisible()
 
         await dragItemOnto(page, grip, myFiles)
 
         // UI proof: the file leaves the source folder...
-        await expect(driveItem(page, movedFile)).toHaveCount(0, { timeout: 10_000 })
+        await expect(driveItem(page, movedFile)).toHaveCount(0)
 
         // ...and shows at the root when we open My Files — what the user sees
-        // after dropping onto the sidebar root.
+        // after dropping onto the sidebar root. Search to surface it: at the
+        // seeded root the moved file sorts off-screen and FlashList virtualizes
+        // it out of the bare listing even though it's there.
         await clickSidebarItem(page, 'My Files')
-        await expect(driveItem(page, movedFile)).toBeVisible({ timeout: 10_000 })
+        await expect(await revealDriveRow(page, movedFile)).toBeVisible()
     })
 })

@@ -101,20 +101,20 @@ async function signInAsGuest(
     // RN-web. exact:true anchors on the Text — the banner copy "Sign in
     // to comment on this document" wouldn't exact-match.
     const signInTrigger = page.getByText('Sign in', { exact: true })
-    await expect(signInTrigger).toBeVisible({ timeout: REACTION_TIMEOUT })
+    await expect(signInTrigger).toBeVisible()
     await signInTrigger.click()
 
     // Email panel. The TextInput in ShareLinkSignIn uses
     // placeholder='your@email' — RN-web exposes placeholder as the
     // implicit accessible name when no aria-label is set.
     const emailInput = page.getByPlaceholder('your@email')
-    await expect(emailInput).toBeVisible({ timeout: REACTION_TIMEOUT })
+    await expect(emailInput).toBeVisible()
     await emailInput.fill(email)
     await page.getByText('Send code', { exact: true }).click()
 
     // Code panel.
     const codeInput = page.getByPlaceholder('123456')
-    await expect(codeInput).toBeVisible({ timeout: REACTION_TIMEOUT })
+    await expect(codeInput).toBeVisible()
 
     // Pluck the OTP from TINYCLD_EMAIL_LOG. The mailer write happens
     // synchronously inside the /otp-request handler, so 15s is generous.
@@ -196,16 +196,14 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         try {
             const page = await context.newPage()
             await page.goto(`/p/drive/share/${link.token}`)
-            await expect(page.getByText('Stub share editor')).toBeVisible({
-                timeout: REACTION_TIMEOUT,
-            })
+            await expect(page.getByText('Stub share editor')).toBeVisible()
 
             // Pre-OTP: anon commentor sees the sign-in CTA banner
             // (owned by drive's ShareEditorView). Mount is anon at this
             // point — capabilities all false.
             await expect(
                 page.getByText('Sign in to comment on this document', { exact: true })
-            ).toBeVisible({ timeout: REACTION_TIMEOUT })
+            ).toBeVisible()
             expect(await readStubIdentityKind(page)).toBe('anon')
             expect(await readStubCanComment(page)).toBe(false)
 
@@ -218,16 +216,14 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
             // banner is gone (showSignInBanner gates on isAnon).
             await expect(
                 page.getByText('Sign in to comment on this document', { exact: true })
-            ).not.toBeVisible({ timeout: REACTION_TIMEOUT })
+            ).not.toBeVisible()
 
             // Mount must now be a guest commentor:
             //   identity.kind == 'guest' (OTP-provisioned guest user_org)
             //   role          == 'commentor'  (from the link)
             //   canComment    == true
             //   canEdit       == false (commentor can't edit the doc)
-            await expect
-                .poll(async () => readStubIdentityKind(page), { timeout: REACTION_TIMEOUT })
-                .toBe('guest')
+            await expect.poll(async () => readStubIdentityKind(page)).toBe('guest')
             expect(await readStubRole(page)).toBe('commentor')
             expect(await readStubCanComment(page)).toBe(true)
             expect(await readStubCanEdit(page)).toBe(false)
@@ -236,9 +232,7 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
             // survives (pb.authStore token in localStorage), mount comes
             // back as guest commentor without re-prompting for OTP.
             await page.reload()
-            await expect(page.getByText('Stub share editor')).toBeVisible({
-                timeout: REACTION_TIMEOUT,
-            })
+            await expect(page.getByText('Stub share editor')).toBeVisible()
             await expect(
                 page.getByText('Sign in to comment on this document', { exact: true })
             ).not.toBeVisible()
@@ -262,15 +256,13 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         try {
             const page = await context.newPage()
             await page.goto(`/p/drive/share/${link.token}`)
-            await expect(page.getByText('Stub share editor')).toBeVisible({
-                timeout: REACTION_TIMEOUT,
-            })
+            await expect(page.getByText('Stub share editor')).toBeVisible()
 
             // Pre-OTP: anon editor sees the editor-specific sign-in CTA.
             // Banner copy differs from commentor ("comment on" → "edit").
             await expect(
                 page.getByText('Sign in to edit this document', { exact: true })
-            ).toBeVisible({ timeout: REACTION_TIMEOUT })
+            ).toBeVisible()
 
             const otp = await signInAsGuest(page, email)
             // The OTP email subject is role-agnostic ("Your code to
@@ -281,12 +273,10 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
 
             await expect(
                 page.getByText('Sign in to edit this document', { exact: true })
-            ).not.toBeVisible({ timeout: REACTION_TIMEOUT })
+            ).not.toBeVisible()
 
             // Mount: guest editor — canEdit AND canComment true.
-            await expect
-                .poll(async () => readStubIdentityKind(page), { timeout: REACTION_TIMEOUT })
-                .toBe('guest')
+            await expect.poll(async () => readStubIdentityKind(page)).toBe('guest')
             expect(await readStubRole(page)).toBe('editor')
             expect(await readStubCanEdit(page)).toBe(true)
             expect(await readStubCanComment(page)).toBe(true)
@@ -311,16 +301,14 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         try {
             const firstPage = await firstContext.newPage()
             await firstPage.goto(`/p/drive/share/${firstLink.token}`)
-            await expect(firstPage.getByText('Stub share editor')).toBeVisible({
-                timeout: REACTION_TIMEOUT,
-            })
+            await expect(firstPage.getByText('Stub share editor')).toBeVisible()
             await signInAsGuest(firstPage, sharedEmail)
             // CTA gone means auth state really persisted; without this
             // assert, the second visit's OTP request could race the
             // first's user_org commit.
             await expect(
                 firstPage.getByText('Sign in to comment on this document', { exact: true })
-            ).not.toBeVisible({ timeout: REACTION_TIMEOUT })
+            ).not.toBeVisible()
         } finally {
             await firstContext.close()
         }
@@ -341,13 +329,11 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         try {
             const secondPage = await secondContext.newPage()
             await secondPage.goto(`/p/drive/share/${secondLink.token}`)
-            await expect(secondPage.getByText('Stub share editor')).toBeVisible({
-                timeout: REACTION_TIMEOUT,
-            })
+            await expect(secondPage.getByText('Stub share editor')).toBeVisible()
             await signInAsGuest(secondPage, sharedEmail)
             await expect(
                 secondPage.getByText('Sign in to comment on this document', { exact: true })
-            ).not.toBeVisible({ timeout: REACTION_TIMEOUT })
+            ).not.toBeVisible()
         } finally {
             await secondContext.close()
         }

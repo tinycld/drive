@@ -34,7 +34,6 @@ import {
 
 const STUB_MIME = 'application/x-tinycld-stub'
 const TEST_TIMEOUT = 90_000
-const VISIBILITY_TIMEOUT = 30_000
 
 test.describe.configure({ mode: 'serial' })
 
@@ -112,9 +111,7 @@ test.describe('Drive — anon viewer share link (stub)', () => {
         try {
             // "Stub share editor" — unambiguous "real editor mounted, NOT
             // the static PublicShareLayout fallback" marker.
-            await expect(page.getByText('Stub share editor')).toBeVisible({
-                timeout: VISIBILITY_TIMEOUT,
-            })
+            await expect(page.getByText('Stub share editor')).toBeVisible()
             // The mount the share route built must match an anon viewer:
             //   identity.kind == 'anon', role == 'viewer', no edit/comment.
             await expect(page.locator('[data-test-id="stub-role"]')).toContainText('role: viewer')
@@ -146,18 +143,14 @@ test.describe('Drive — anon viewer share link (stub)', () => {
         try {
             const page = await context.newPage()
             await page.goto(`/p/drive/share/${fixture.token}`)
-            await expect(page.getByText('Stub share editor')).toBeVisible({
-                timeout: VISIBILITY_TIMEOUT,
-            })
+            await expect(page.getByText('Stub share editor')).toBeVisible()
             const first = await readStubDisplayName(page)
 
             // anon_id persists in the context's AsyncStorage (writeAnonId
             // in core/lib/anon-identity.ts). A reload re-mints the same
             // session — same anon_id → same hashed displayName.
             await page.reload()
-            await expect(page.getByText('Stub share editor')).toBeVisible({
-                timeout: VISIBILITY_TIMEOUT,
-            })
+            await expect(page.getByText('Stub share editor')).toBeVisible()
             const second = await readStubDisplayName(page)
 
             expect(second).toBe(first)
@@ -184,9 +177,7 @@ test.describe('Drive — anon viewer share link (stub)', () => {
             // share route falls back to it when the session mint fails
             // (revoked link returns 410). This is the negative-path
             // assertion the stub can't carry; we check core's surface.
-            await expect(page.getByText('Link expired', { exact: true })).toBeVisible({
-                timeout: VISIBILITY_TIMEOUT,
-            })
+            await expect(page.getByText('Link expired', { exact: true })).toBeVisible()
             // And the stub editor must NOT mount for an expired link.
             await expect(page.getByText('Stub share editor')).not.toBeVisible()
         } finally {

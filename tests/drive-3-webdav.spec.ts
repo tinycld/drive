@@ -81,7 +81,7 @@ test.describe('Drive — WebDAV', () => {
             waitFor: page.getByTestId('package-sidebar-mounted'),
         })
         // Wait for any seeded root folder to appear before snapshotting.
-        await expect(page.getByText('Projects').first()).toBeVisible({ timeout: 10_000 })
+        await expect(page.getByText('Projects').first()).toBeVisible()
 
         const expectedRootNames = ['Projects', 'Personal', 'Archive']
         for (const name of expectedRootNames) {
@@ -124,7 +124,7 @@ test.describe('Drive — WebDAV', () => {
             await page.getByPlaceholder('Search in Files').fill(fileName)
             await expect(
                 page.getByLabel(new RegExp(`^${escapeRegex(fileName)} `)).filter({ visible: true })
-            ).toBeVisible({ timeout: 15_000 })
+            ).toBeVisible()
         } finally {
             await deleteResource(`/${ORG_SLUG}/${fileName}`)
         }
@@ -148,7 +148,7 @@ test.describe('Drive — WebDAV', () => {
                 page
                     .getByLabel(new RegExp(`^${escapeRegex(folderName)} `))
                     .filter({ visible: true })
-            ).toBeVisible({ timeout: 15_000 })
+            ).toBeVisible()
         } finally {
             await deleteResource(`/${ORG_SLUG}/${folderName}/`)
         }

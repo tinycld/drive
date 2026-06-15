@@ -29,7 +29,6 @@ import {
 const STUB_MIME = 'application/x-tinycld-stub'
 const PB_URL = 'http://127.0.0.1:7200'
 const TEST_TIMEOUT = 120_000
-const VISIBILITY_TIMEOUT = 30_000
 
 function uniqueXffIp(): string {
     const a = Math.floor(Math.random() * 254) + 1
@@ -111,9 +110,7 @@ test.describe('Drive — share link role change (stub)', () => {
         try {
             const page = await context.newPage()
             await page.goto(`/p/drive/share/${link.token}`)
-            await expect(page.getByText('Stub share editor')).toBeVisible({
-                timeout: VISIBILITY_TIMEOUT,
-            })
+            await expect(page.getByText('Stub share editor')).toBeVisible()
 
             // Pre-upgrade: viewer role, no "sign in to edit" hint.
             expect(await readStubRole(page)).toBe('viewer')
@@ -131,9 +128,7 @@ test.describe('Drive — share link role change (stub)', () => {
             // Reload — AsyncStorage on web is localStorage and survives,
             // so the cached anon_id and resulting displayName persist.
             await page.reload()
-            await expect(page.getByText('Stub share editor')).toBeVisible({
-                timeout: VISIBILITY_TIMEOUT,
-            })
+            await expect(page.getByText('Stub share editor')).toBeVisible()
 
             // Post-upgrade: role flipped, displayName unchanged.
             expect(await readStubRole(page)).toBe('editor')
@@ -143,9 +138,7 @@ test.describe('Drive — share link role change (stub)', () => {
             // Editor-role anon now sees the "sign in to edit" subtitle —
             // owned by drive's public-screens/share/[token].tsx
             // (ShareEditorView ternary on showEditorAnonHint).
-            await expect(page.getByText(/sign in to edit/i).first()).toBeVisible({
-                timeout: VISIBILITY_TIMEOUT,
-            })
+            await expect(page.getByText(/sign in to edit/i).first()).toBeVisible()
         } finally {
             await context.close()
         }
@@ -164,9 +157,7 @@ test.describe('Drive — share link role change (stub)', () => {
 
             // First visit: stub mounts.
             await page.goto(`/p/drive/share/${link.token}`)
-            await expect(page.getByText('Stub share editor')).toBeVisible({
-                timeout: VISIBILITY_TIMEOUT,
-            })
+            await expect(page.getByText('Stub share editor')).toBeVisible()
 
             // Owner revokes. Next mint will 410.
             await revokeShareLink(link.id)
@@ -185,9 +176,7 @@ test.describe('Drive — share link role change (stub)', () => {
             // infinite refetch loop driven by the spinner/mount
             // alternation in ShareTokenPage.
             await page.reload()
-            await expect(page.getByText('Link expired', { exact: true })).toBeVisible({
-                timeout: VISIBILITY_TIMEOUT,
-            })
+            await expect(page.getByText('Link expired', { exact: true })).toBeVisible()
             await expect(page.getByText('Stub share editor')).not.toBeVisible()
         } finally {
             await context.close()
