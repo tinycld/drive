@@ -1,4 +1,5 @@
 import { create } from '@tinycld/core/lib/store'
+import { sameSelection } from '../lib/marquee'
 
 type PromptDialog =
     | { type: 'closed' }
@@ -50,6 +51,8 @@ interface DriveUIActions {
     selectSingle: (id: string) => void
     selectToggle: (id: string) => void
     selectRange: (id: string, orderedIds: string[]) => void
+    /** Replace the whole selection (used by drag-to-select / marquee). */
+    setSelection: (ids: Set<string>) => void
     clearSelection: () => void
     setSearchQuery: (query: string) => void
     openPrompt: (state: PromptDialog) => void
@@ -114,6 +117,13 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>(set => ({
             const rangeIds = orderedIds.slice(lo, hi + 1)
             return { selectedIds: new Set([...prev.selectedIds, ...rangeIds]), lastSelectedId: id }
         }),
+
+    // Marquee owns the whole set. `lastSelectedId` is left untouched (a box has
+    // no single anchor) so a later shift-click still extends from the user's
+    // last explicit pick. Idempotent — an equal set returns the same state so a
+    // per-frame drag that crosses no tile boundary doesn't notify subscribers.
+    setSelection: (ids: Set<string>) =>
+        set(prev => (sameSelection(prev.selectedIds, ids) ? prev : { selectedIds: ids })),
 
     clearSelection: () => set({ selectedIds: new Set<string>(), lastSelectedId: null }),
 

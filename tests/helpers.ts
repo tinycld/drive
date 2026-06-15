@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { ORG_SLUG, TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e-helpers'
@@ -13,14 +15,115 @@ import { ORG_SLUG, TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e
 // (`<name> <Month D, YYYY>`).
 export function driveItem(page: Page, name: string | RegExp): Locator {
     const namePattern = typeof name === 'string' ? new RegExp(`^${escapeRegex(name)} `) : name
-    return page.getByRole('button', { name: namePattern }).filter({ visible: true }).first()
+    // Rows/cards are labelled clickable regions (not <button> — they contain
+    // their own action buttons), so match on aria-label rather than role.
+    return page.getByLabel(namePattern).filter({ visible: true }).first()
 }
 
 export async function openDriveItem(page: Page, name: string | RegExp) {
     await dismissErrorOverlay(page)
     const item = driveItem(page, name)
-    await expect(item).toBeVisible({ timeout: 10_000 })
+    await expect(item).toBeVisible()
     await item.click()
+}
+
+// Surfaces a drive row by NAME via the search box and returns its (visible)
+// locator. The root listing holds ~50 seeded items; a fixture created there
+// sorts somewhere in the middle and, after a reload, FlashList may have it
+// virtualized off-screen, so a bare `driveItem` (which only matches *visible*
+// rows) can't find it. Searching filters the listing to the named item so it's
+// reliably on-screen. The caller decides what to do with the row (click,
+// right-click, assert) and is responsible for clearing search afterwards if it
+// stays on the listing — `openDriveItemViaSearch` does that for the open case.
+//
+// Use this for ANY first interaction with a freshly-created fixture at the
+// large seeded root; plain `driveItem` is fine inside small subfolders.
+export async function revealDriveRow(page: Page, name: string): Promise<Locator> {
+    await dismissErrorOverlay(page)
+    await page.getByPlaceholder('Search in Files').fill(name)
+    const row = driveItem(page, name)
+    await expect(row).toBeVisible()
+    return row
+}
+
+// Opens (clicks) a drive item by NAME via search, then clears the search so the
+// navigated-into folder shows its own listing rather than the filtered results.
+export async function openDriveItemViaSearch(page: Page, name: string) {
+    const row = await revealDriveRow(page, name)
+    await row.click()
+    await page.getByPlaceholder('Search in Files').clear()
+}
+
+// Drives a drag-and-drop move via react-native-drax. Drax activates a drag on a
+// long-press and then tracks pointer movement, so a one-shot Playwright
+// dragTo() won't trigger it — we drive the raw mouse by hand.
+//
+// The flake this avoids: under CPU load a fixed `waitForTimeout` after
+// mousedown can elapse in wall-clock before the app's JS thread has even run
+// Drax's long-press activation, so the subsequent moves arrive before a drag
+// exists and are dropped — the gesture silently no-ops. Instead we wait on the
+// floating drag preview (`drive-drag-preview`), the same visible cue the user
+// sees once a drag is live: poll-nudging the pointer until it appears proves the
+// drag actually activated before we travel to the target. Then we step onto the
+// target (Drax re-runs its hit-test per move) and settle before releasing.
+//
+// Both locators must be visible. Grid cards are the most reliable source/target
+// (the whole card is the drag handle and the hit area).
+export async function dragItemOnto(page: Page, source: Locator, target: Locator): Promise<void> {
+    const from = await source.boundingBox()
+    const to = await target.boundingBox()
+    if (!from || !to) {
+        throw new Error('dragItemOnto: source or target has no bounding box (not visible?)')
+    }
+    const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 }
+    const end = { x: to.x + to.width / 2, y: to.y + to.height / 2 }
+    const preview = page.getByTestId('drive-drag-preview')
+
+    // Activate the drag and wait until the floating preview exists. Drax keys
+    // activation off a CONTINUOUS stream of pointer moves past its touch-slop
+    // (~15px) — a single jump can be missed, and a tiny grip source needs the
+    // gesture tracked step by step. Under heavy CPU contention the starved JS
+    // thread can drop a whole press→move burst, so if the preview hasn't
+    // appeared we fully release and re-press (what a user does when a grab
+    // doesn't take) rather than hoping more moves on a dead gesture help. The
+    // preview's presence is the deterministic "drag is live" signal.
+    await expect(async () => {
+        if ((await preview.count()) === 0) {
+            await page.mouse.up().catch(() => {})
+            await page.mouse.move(start.x, start.y)
+            await page.mouse.down()
+            await page.waitForTimeout(60)
+            for (let px = 4; px <= 32; px += 4) {
+                await page.mouse.move(start.x + px, start.y + px)
+            }
+        }
+        await expect(preview).toHaveCount(1)
+    }).toPass()
+
+    // Travel to the target in steps so Drax re-runs its receiver hit-test along
+    // the way; a single jump can land without ever flagging the target.
+    const STEPS = 12
+    for (let i = 1; i <= STEPS; i++) {
+        await page.mouse.move(
+            start.x + ((end.x - start.x) * i) / STEPS,
+            start.y + ((end.y - start.y) * i) / STEPS
+        )
+    }
+
+    // Wait for the target to actually report receiving before releasing.
+    // FolderDropTarget mounts `drop-target-receiving` while a valid drag hovers
+    // it; only one target receives at a time. Releasing before it's set is the
+    // drop-misses-narrow-target flake. Each poll nudges OFF the target then back
+    // (start.y is away from the target) so Drax re-runs its hit-test even if the
+    // previous frame already settled — but the nudge ends ON the target.
+    const receiving = page.getByTestId('drop-target-receiving')
+    await expect(async () => {
+        await page.mouse.move(end.x, start.y)
+        await page.mouse.move(end.x, end.y)
+        await expect(receiving).toHaveCount(1)
+    }).toPass()
+
+    await page.mouse.up()
 }
 
 export async function dismissErrorOverlay(page: Page) {
@@ -39,6 +142,18 @@ export function escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+// The share-stub specs need the @tinycld/share-stub package assembled into the
+// workspace (it registers a share editor for a fake mime type). CI scaffolds it
+// (ci.yml "Scaffold share-stub package"); a plain dev workspace usually hasn't,
+// so those specs would fail with no stub editor to mount. Detect its presence so
+// the specs can `test.skip` when it's absent rather than fail. The scaffold
+// writes the package at <workspaceRoot>/share-stub (sibling of drive/).
+export function shareStubInstalled(): boolean {
+    // drive/tests/helpers.ts → drive/ → workspace root → share-stub/
+    const stubDir = join(import.meta.dirname, '..', '..', 'share-stub')
+    return existsSync(stubDir)
+}
+
 // The clickable column heading rendered by core's DataTableHeader. The
 // sortable header cell is a Pressable exposed with accessibilityRole=button
 // and label `Sort by <Column>` (e.g. "Sort by Name").
@@ -52,8 +167,10 @@ export function sortableHeader(page: Page, label: string): Locator {
 // the `among` names. Used to assert sort order while ignoring unrelated
 // seeded rows in the same folder.
 export async function orderedRowNames(page: Page, among: string[]): Promise<string[]> {
+    // Rows are labelled clickable regions (aria-label), not buttons — read all
+    // visible aria-labelled elements in DOM order and keep the ones we track.
     const labels = await page
-        .getByRole('button')
+        .locator('[aria-label]')
         .filter({ visible: true })
         .evaluateAll(els => els.map(el => el.getAttribute('aria-label') ?? '').filter(Boolean))
     const result: string[] = []

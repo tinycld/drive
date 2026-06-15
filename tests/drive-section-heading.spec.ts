@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { clickSidebarItem, login, navigateToPackage, ORG_SLUG } from '@tinycld/core/e2e-helpers'
+import { clickSidebarItem, login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { dismissErrorOverlay } from './helpers'
 
 // The toolbar's primary heading mirrors whichever drive section the
@@ -8,73 +8,59 @@ import { dismissErrorOverlay } from './helpers'
 //
 // Drive's layout uses FrozenSlideStack: previously-visited screens stay
 // mounted-but-frozen, so a sidebar click from /drive → /drive/trash
-// leaves both screens' headings in the accessibility tree. To assert on
-// a single heading reliably, each test loads its section via page.goto
-// (a fresh navigation that drops the prior frozen screen) rather than
-// chaining through the sidebar.
+// leaves both screens' headings in the accessibility tree. The frozen
+// screen's heading stays in the tree but is NOT visible, so each
+// assertion uses `.first()` + toBeVisible — the visible-filter drops the
+// stale frozen heading. We reach each section by clicking its sidebar
+// item (SPA nav) rather than page.goto: a hard navigation tears down the
+// SPA and cancels in-flight chunk loads, forcing a Metro recompile that
+// compounds CI flakiness.
 test.describe('Drive — section heading', () => {
     test.beforeEach(async ({ page }) => {
         await login(page)
+        await navigateToPackage(page, 'drive', {
+            waitFor: page.getByTestId('package-sidebar-mounted'),
+        })
+        await dismissErrorOverlay(page)
     })
 
     test('My Files at /drive root', async ({ page }) => {
-        await navigateToPackage(page, 'drive', {
-            waitFor: page.getByTestId('package-sidebar-mounted'),
-        })
-        await dismissErrorOverlay(page)
-        await expect(page.getByRole('heading', { name: 'My Files', level: 1 })).toBeVisible({
-            timeout: 15_000,
-        })
+        await expect(
+            page.getByRole('heading', { name: 'My Files', level: 1 }).first()
+        ).toBeVisible()
     })
 
     test('Recent at /drive/recent', async ({ page }) => {
-        await page.goto(`/a/${ORG_SLUG}/drive/recent`)
-        await dismissErrorOverlay(page)
-        await expect(page.getByRole('heading', { name: 'Recent', level: 1 })).toBeVisible({
-            timeout: 15_000,
-        })
+        await clickSidebarItem(page, 'Recent')
+        await expect(page.getByRole('heading', { name: 'Recent', level: 1 }).first()).toBeVisible()
     })
 
     test('Starred at /drive/starred', async ({ page }) => {
-        await page.goto(`/a/${ORG_SLUG}/drive/starred`)
-        await dismissErrorOverlay(page)
-        await expect(page.getByRole('heading', { name: 'Starred', level: 1 })).toBeVisible({
-            timeout: 15_000,
-        })
+        await clickSidebarItem(page, 'Starred')
+        await expect(page.getByRole('heading', { name: 'Starred', level: 1 }).first()).toBeVisible()
     })
 
     test('Shared with me at /drive/shared', async ({ page }) => {
-        await page.goto(`/a/${ORG_SLUG}/drive/shared`)
-        await dismissErrorOverlay(page)
-        await expect(page.getByRole('heading', { name: 'Shared with me', level: 1 })).toBeVisible({
-            timeout: 15_000,
-        })
+        await clickSidebarItem(page, 'Shared with me')
+        await expect(
+            page.getByRole('heading', { name: 'Shared with me', level: 1 }).first()
+        ).toBeVisible()
     })
 
     test('Trash at /drive/trash', async ({ page }) => {
-        await page.goto(`/a/${ORG_SLUG}/drive/trash`)
-        await dismissErrorOverlay(page)
-        await expect(page.getByRole('heading', { name: 'Trash', level: 1 })).toBeVisible({
-            timeout: 15_000,
-        })
+        await clickSidebarItem(page, 'Trash')
+        await expect(page.getByRole('heading', { name: 'Trash', level: 1 }).first()).toBeVisible()
     })
 
     test('sidebar nav from My Files to Recent updates the heading', async ({ page }) => {
-        // In-app navigation (no fresh page load) — exercises the
-        // currentLabel reactivity, not just the initial render. After
-        // navigating away from My Files the FrozenSlideStack keeps the
-        // prior screen mounted; the active screen's heading is the one
-        // currently rendered as visible.
-        await navigateToPackage(page, 'drive', {
-            waitFor: page.getByTestId('package-sidebar-mounted'),
-        })
-        await dismissErrorOverlay(page)
-        await expect(page.getByRole('heading', { name: 'My Files', level: 1 })).toBeVisible({
-            timeout: 15_000,
-        })
+        // Exercises currentLabel reactivity across an in-app nav (not just
+        // the initial render): assert My Files first, then click through to
+        // Recent. The FrozenSlideStack keeps My Files mounted but the
+        // visible heading is the active screen's.
+        await expect(
+            page.getByRole('heading', { name: 'My Files', level: 1 }).first()
+        ).toBeVisible()
         await clickSidebarItem(page, 'Recent')
-        await expect(page.getByRole('heading', { name: 'Recent', level: 1 }).first()).toBeVisible({
-            timeout: 10_000,
-        })
+        await expect(page.getByRole('heading', { name: 'Recent', level: 1 }).first()).toBeVisible()
     })
 })

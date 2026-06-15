@@ -3,41 +3,30 @@ import type { GestureResponderEvent } from 'react-native'
 
 const DOUBLE_CLICK_MS = 300
 
-// Disambiguates single-tap from double-tap by deferring the single-tap
-// handler for 300ms. A second tap inside that window cancels the timer
-// and fires the double-tap handler instead. Works the same on web and
-// native — iPad/iPhone double-tap-to-preview was previously broken
-// because the web-only branch never tested the time-since-last-tap on
-// native; every tap just scheduled another onSingleClick.
+// Fires `onSingleClick` immediately on every tap, and additionally fires
+// `onDoubleClick` when a second tap lands within 300ms. The single handler is
+// NOT deferred: its only use here is selection, which is harmless to apply
+// eagerly and must feel instant — a double-tap simply selects then opens.
+// (The previous version deferred the single handler 300ms to disambiguate,
+// which made selecting a file feel laggy.)
 export function useDoubleClick(
     onSingleClick: (event: GestureResponderEvent) => void,
     onDoubleClick: () => void
 ) {
     const lastTapRef = useRef(0)
-    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const pendingEventRef = useRef<GestureResponderEvent | null>(null)
 
     return useCallback(
         (event: GestureResponderEvent) => {
+            onSingleClick(event)
             const now = Date.now()
             if (now - lastTapRef.current < DOUBLE_CLICK_MS) {
-                if (timerRef.current) {
-                    clearTimeout(timerRef.current)
-                    timerRef.current = null
-                }
-                pendingEventRef.current = null
                 onDoubleClick()
+                // Reset so a third rapid tap starts a fresh pair rather than
+                // immediately counting as another double.
+                lastTapRef.current = 0
             } else {
-                pendingEventRef.current = event
-                timerRef.current = setTimeout(() => {
-                    if (pendingEventRef.current) {
-                        onSingleClick(pendingEventRef.current)
-                        pendingEventRef.current = null
-                    }
-                    timerRef.current = null
-                }, DOUBLE_CLICK_MS)
+                lastTapRef.current = now
             }
-            lastTapRef.current = now
         },
         [onSingleClick, onDoubleClick]
     )

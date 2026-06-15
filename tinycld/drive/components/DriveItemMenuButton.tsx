@@ -2,7 +2,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import { EllipsisVertical } from 'lucide-react-native'
 import { useCallback } from 'react'
-import { Pressable } from 'react-native'
+import { Platform, Pressable } from 'react-native'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
 import { DriveMenuContent } from './DriveContextMenu'
@@ -35,24 +35,44 @@ export function DriveItemMenuButton({ item, size = 16 }: DriveItemMenuButtonProp
         [item.id]
     )
 
+    const triggerButton = (
+        <Pressable
+            style={{ padding: 4 }}
+            // Deliberately generic — must NOT contain item.name. Row
+            // locators select file rows by an accessible name ending in a
+            // file extension (e.g. /\.[a-z]{2,4}\b/); embedding the
+            // filename here would make this 3-dot button collide with
+            // those locators and steal row clicks. Matches the
+            // ResponsiveToolbar overflow button's "More actions".
+            accessibilityLabel="More actions"
+            accessibilityRole="button"
+            // Keep the row's own press/navigation from also firing.
+            onPress={e => e.stopPropagation()}
+        >
+            <EllipsisVertical size={size} color={mutedColor} />
+        </Pressable>
+    )
+
     return (
         <Menu onOpenChange={handleOpenChange}>
+            {/* On web, halt pointerdown/touchstart at the ⋯ so a press here can't
+                start an enclosing draggable card/row's Pan gesture (which listens
+                on pointerdown); the menu's own click still fires. On native the
+                trigger child must stay the bare Pressable — Menu.Trigger clones
+                it to inject onPress/ref — so the wrapper is web-only. */}
             <Menu.Trigger>
-                <Pressable
-                    style={{ padding: 4 }}
-                    // Deliberately generic — must NOT contain item.name. Row
-                    // locators select file rows by an accessible name ending in a
-                    // file extension (e.g. /\.[a-z]{2,4}\b/); embedding the
-                    // filename here would make this 3-dot button collide with
-                    // those locators and steal row clicks. Matches the
-                    // ResponsiveToolbar overflow button's "More actions".
-                    accessibilityLabel="More actions"
-                    accessibilityRole="button"
-                    // Keep the row's own press/navigation from also firing.
-                    onPress={e => e.stopPropagation()}
-                >
-                    <EllipsisVertical size={size} color={mutedColor} />
-                </Pressable>
+                {Platform.OS === 'web' ? (
+                    <div
+                        role="presentation"
+                        style={{ display: 'contents' }}
+                        onPointerDownCapture={e => e.stopPropagation()}
+                        onTouchStartCapture={e => e.stopPropagation()}
+                    >
+                        {triggerButton}
+                    </div>
+                ) : (
+                    triggerButton
+                )}
             </Menu.Trigger>
             <Menu.Portal>
                 <Menu.Overlay />

@@ -23,12 +23,14 @@ import {
     Upload,
     UserPlus,
 } from 'lucide-react-native'
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
+import { FolderDropTarget } from './components/FolderDropTarget'
 import { useDriveState } from './hooks/useDrive'
 import type { StorageUsage } from './hooks/useTotalStorage'
+import type { DriveDragPayload } from './lib/dnd'
 import { useDriveUIStore } from './stores/drive-ui-store'
-import type { FolderTreeNode } from './types'
+import type { DriveItemView, FolderTreeNode } from './types'
 
 interface DriveSidebarProps {
     isCollapsed: boolean
@@ -45,46 +47,51 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
         storageUsage,
         triggerFilePicker,
         openPrompt,
+        itemsById,
+        actions,
     } = useDriveState()
     const openUploadSheet = useDriveUIStore(s => s.openUploadSheet)
     const handleUploadPress = Platform.OS === 'web' ? triggerFilePicker : openUploadSheet
     const handleNewFolderPress = () => openPrompt({ type: 'new-folder' })
-    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+    // Explicit per-folder open/closed intent from user toggles. Absent = no
+    // opinion (fall back to the auto-expand rules below). Kept separate from the
+    // derived set so navigation can auto-open ancestors without clobbering a
+    // folder the user deliberately collapsed.
+    const [userExpanded, setUserExpanded] = useState<Map<string, boolean>>(new Map())
 
-    useEffect(() => {
-        if (breadcrumbs.length === 0 && folderTree.length > 0) {
-            setExpandedIds(prev => {
-                if (prev.size > 0) return prev
-                return new Set(folderTree.map(n => n.item.id))
-            })
+    // Which folders render expanded — derived during render rather than synced
+    // via an effect. (A breadcrumb/tree effect that setState'd here raced the
+    // sidebar's own useLiveQuery first-snapshot commit, tripping React's
+    // "setState while rendering" once Drax drop targets mounted.) Auto-expand =
+    // all top-level folders when sitting at the root untouched, plus every
+    // breadcrumb ancestor of the current folder; explicit user toggles win.
+    const expandedIds = useMemo(() => {
+        const ids = new Set<string>()
+        const atUntouchedRoot = breadcrumbs.length === 0 && userExpanded.size === 0
+        if (atUntouchedRoot) {
+            for (const node of folderTree) ids.add(node.item.id)
         }
-        if (breadcrumbs.length > 0) {
-            const ancestorIds = breadcrumbs.map(b => b.id)
-            setExpandedIds(prev => {
-                const next = new Set(prev)
-                for (const id of ancestorIds) next.add(id)
-                return next
-            })
+        for (const b of breadcrumbs) ids.add(b.id)
+        for (const [id, open] of userExpanded) {
+            if (open) ids.add(id)
+            else ids.delete(id)
         }
-    }, [breadcrumbs, folderTree])
+        return ids
+    }, [breadcrumbs, folderTree, userExpanded])
 
     const toggleExpand = (id: string) => {
-        setExpandedIds(prev => {
-            const next = new Set(prev)
-            if (next.has(id)) {
-                next.delete(id)
-            } else {
-                next.add(id)
-            }
+        setUserExpanded(prev => {
+            const next = new Map(prev)
+            next.set(id, !expandedIds.has(id))
             return next
         })
     }
 
     const handleFolderPress = (id: string) => {
         navigateToFolder(id)
-        setExpandedIds(prev => {
-            const next = new Set(prev)
-            next.add(id)
+        setUserExpanded(prev => {
+            const next = new Map(prev)
+            next.set(id, true)
             return next
         })
     }
@@ -108,13 +115,19 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                 </Menu.Portal>
             </Menu>
 
-            <SidebarItem
-                label="My Files"
-                icon={HardDrive}
-                isActive={activeSection === 'my-drive' && currentFolderId === ''}
-                closesDrawer
-                onPress={() => navigateToSection('my-drive')}
-            />
+            <FolderDropTarget
+                targetFolderId=""
+                itemsById={itemsById}
+                onDropItems={actions.moveItems}
+            >
+                <SidebarItem
+                    label="My Files"
+                    icon={HardDrive}
+                    isActive={activeSection === 'my-drive' && currentFolderId === ''}
+                    closesDrawer
+                    onPress={() => navigateToSection('my-drive')}
+                />
+            </FolderDropTarget>
 
             <FolderTree
                 nodes={folderTree}
@@ -123,6 +136,8 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
                 onToggle={toggleExpand}
                 onSelect={handleFolderPress}
                 depth={1}
+                itemsById={itemsById}
+                onDropItems={actions.moveItems}
             />
 
             <SidebarDivider />
@@ -182,6 +197,8 @@ interface FolderTreeProps {
     onToggle: (id: string) => void
     onSelect: (id: string) => void
     depth: number
+    itemsById: Map<string, DriveItemView>
+    onDropItems: (payload: DriveDragPayload, targetFolderId: string) => void
 }
 
 function FolderTree({
@@ -191,6 +208,8 @@ function FolderTree({
     onToggle,
     onSelect,
     depth,
+    itemsById,
+    onDropItems,
 }: FolderTreeProps) {
     if (nodes.length === 0) return null
 
@@ -205,6 +224,8 @@ function FolderTree({
                     onToggle={onToggle}
                     onSelect={onSelect}
                     depth={depth}
+                    itemsById={itemsById}
+                    onDropItems={onDropItems}
                 />
             ))}
         </View>
@@ -218,6 +239,8 @@ interface FolderTreeItemProps {
     onToggle: (id: string) => void
     onSelect: (id: string) => void
     depth: number
+    itemsById: Map<string, DriveItemView>
+    onDropItems: (payload: DriveDragPayload, targetFolderId: string) => void
 }
 
 function FolderTreeItem({
@@ -227,6 +250,8 @@ function FolderTreeItem({
     onToggle,
     onSelect,
     depth,
+    itemsById,
+    onDropItems,
 }: FolderTreeItemProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
@@ -238,40 +263,46 @@ function FolderTreeItem({
 
     return (
         <View key={node.item.id}>
-            <Pressable
-                className="flex-row items-center rounded-lg pr-3"
-                style={{
-                    gap: 6,
-                    paddingVertical: 6,
-                    paddingLeft: depth * 16,
-                    ...(isSelected ? { backgroundColor: `${activeIndicator}18` } : {}),
-                }}
-                onPress={() => onSelect(node.item.id)}
+            <FolderDropTarget
+                targetFolderId={node.item.id}
+                itemsById={itemsById}
+                onDropItems={onDropItems}
             >
-                {hasChildren ? (
-                    <Pressable
-                        onPress={() => onToggle(node.item.id)}
-                        className="items-center justify-center"
-                        style={{ width: 18 }}
-                    >
-                        <ChevronIcon size={14} color={mutedColor} />
-                    </Pressable>
-                ) : (
-                    <View className="items-center justify-center" style={{ width: 18 }} />
-                )}
-                <Folder size={16} color={isSelected ? activeIndicator : mutedColor} />
-                <Text
-                    numberOfLines={1}
-                    className="flex-1"
+                <Pressable
+                    className="flex-row items-center rounded-lg pr-3"
                     style={{
-                        fontSize: 12,
-                        color: isSelected ? activeIndicator : fgColor,
-                        fontWeight: isSelected ? '600' : undefined,
+                        gap: 6,
+                        paddingVertical: 6,
+                        paddingLeft: depth * 16,
+                        ...(isSelected ? { backgroundColor: `${activeIndicator}18` } : {}),
                     }}
+                    onPress={() => onSelect(node.item.id)}
                 >
-                    {node.item.name}
-                </Text>
-            </Pressable>
+                    {hasChildren ? (
+                        <Pressable
+                            onPress={() => onToggle(node.item.id)}
+                            className="items-center justify-center"
+                            style={{ width: 18 }}
+                        >
+                            <ChevronIcon size={14} color={mutedColor} />
+                        </Pressable>
+                    ) : (
+                        <View className="items-center justify-center" style={{ width: 18 }} />
+                    )}
+                    <Folder size={16} color={isSelected ? activeIndicator : mutedColor} />
+                    <Text
+                        numberOfLines={1}
+                        className="flex-1"
+                        style={{
+                            fontSize: 12,
+                            color: isSelected ? activeIndicator : fgColor,
+                            fontWeight: isSelected ? '600' : undefined,
+                        }}
+                    >
+                        {node.item.name}
+                    </Text>
+                </Pressable>
+            </FolderDropTarget>
             {isExpanded && node.children.length > 0 && (
                 <FolderTree
                     nodes={node.children}
@@ -280,6 +311,8 @@ function FolderTreeItem({
                     onToggle={onToggle}
                     onSelect={onSelect}
                     depth={depth + 1}
+                    itemsById={itemsById}
+                    onDropItems={onDropItems}
                 />
             )}
         </View>

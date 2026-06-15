@@ -5,6 +5,7 @@ import {
     dismissErrorOverlay,
     driveItem,
     openDriveItem,
+    openDriveItemViaSearch,
     orderedRowNames,
     sortableHeader,
 } from './helpers'
@@ -27,54 +28,46 @@ test.describe('Drive — Browser', () => {
     test('navigate into folder with single click (list view)', async ({ page }) => {
         await openDriveItem(page, 'Projects')
 
-        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible()
         await expect(driveItem(page, 'Marketing')).toBeVisible()
         await expect(driveItem(page, 'Engineering')).toBeVisible()
     })
 
     test('navigate into folder with single click (grid view)', async ({ page }) => {
-        await expect(driveItem(page, 'Projects')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Projects')).toBeVisible()
         await page.getByTestId('drive-view-grid').click()
-        await expect(page.getByText('Folders', { exact: true }).first()).toBeVisible({
-            timeout: 5_000,
-        })
+        await expect(page.getByText('Folders', { exact: true }).first()).toBeVisible()
 
         await openDriveItem(page, 'Projects')
 
-        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible()
     })
 
     test('breadcrumb navigation', async ({ page }) => {
         await openDriveItem(page, 'Projects')
-        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible()
 
         await openDriveItem(page, 'Engineering')
-        await expect(driveItem(page, 'Q1 Planning')).not.toBeVisible({ timeout: 5_000 })
+        await expect(driveItem(page, 'Q1 Planning')).not.toBeVisible()
 
-        const myFiles = page.getByText('My Files')
-        await myFiles.first().click()
-        await expect(driveItem(page, 'Projects')).toBeVisible({ timeout: 10_000 })
+        // Click the breadcrumb "My Files" (labelled to disambiguate from the
+        // sidebar's plain-text "My Files") to navigate back to root.
+        await page.getByRole('button', { name: 'Breadcrumb: My Files', exact: true }).click()
+        await expect(driveItem(page, 'Projects')).toBeVisible()
     })
 
     test('clicking a single file does not replace the breadcrumb header', async ({ page }) => {
-        // Navigate to an Engineering subfolder; there's always at least one
-        // file in there (the seed always wires up an Architecture or
-        // similar fixture) — but rather than reading a specific seeded
-        // filename (which other tests may rename), find the first
-        // non-folder row in the list and operate on it.
+        // Engineering seeds exactly two files; anchor on one by NAME so the
+        // click waits for that specific row to mount. (A generic
+        // `getByLabel(/\.docx/).first()` resolves against whatever's rendered
+        // *now* and races FlashList row mounting under CI load.)
         await openDriveItem(page, 'Projects')
-        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible()
         await openDriveItem(page, 'Engineering')
 
-        // Wait for the folder to populate, then pick the first row matching a
-        // file extension. The .filter({ visible: true }) chain we used
-        // previously was nondeterministic on a slow CI — Playwright doesn't
-        // wait for "visible" to flip to true the way a top-level locator
-        // would, so the click could race the FlashList row mount. Anchor on
-        // a stable file row instead.
-        const firstRow = page.getByRole('button', { name: /\.docx/i }).first()
-        await expect(firstRow).toBeVisible({ timeout: 30_000 })
-        await firstRow.click()
+        const file = driveItem(page, 'Architecture Overview.docx')
+        await expect(file).toBeVisible()
+        await file.click()
 
         // The folder-action "New folder" button is part of the normal
         // toolbar; it disappears when the selection toolbar takes over.
@@ -83,20 +76,75 @@ test.describe('Drive — Browser', () => {
 
     test('selection toolbar appears only after multi-select', async ({ page }) => {
         await openDriveItem(page, 'Projects')
-        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible()
         await openDriveItem(page, 'Engineering')
 
-        // Anchor on visible-by-default file rows. Same fix as the previous
-        // test: the previous `.filter({ visible: true })` chain raced the
-        // FlashList row mount on CI.
-        const fileRows = page.getByRole('button', { name: /\.[a-z]{2,4}\b/i })
-        await expect(fileRows.first()).toBeVisible({ timeout: 30_000 })
+        // Click the two Engineering files BY NAME. The previous version clicked
+        // `.nth(0)`/`.nth(1)` on a regex row collection, and `.nth(1)` does NOT
+        // wait for a second row to exist — it resolves against the rows mounted
+        // at that instant, so under CI load the second click landed on nothing
+        // and the selection never reached two. Naming each row makes Playwright
+        // wait for it to be actionable before clicking.
+        const first = driveItem(page, 'Architecture Overview.docx')
+        const second = driveItem(page, 'System Diagram.png')
+        await expect(first).toBeVisible()
+        await expect(second).toBeVisible()
 
         const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-        await fileRows.nth(0).click({ modifiers: [modifier] })
-        await fileRows.nth(1).click({ modifiers: [modifier] })
+        await first.click({ modifiers: [modifier] })
+        await second.click({ modifiers: [modifier] })
 
-        await expect(page.getByText(/2 selected|2 items/)).toBeVisible({ timeout: 5_000 })
+        await expect(page.getByText(/2 selected|2 items/)).toBeVisible()
+    })
+
+    test('drag-to-select draws a box that selects the items under it (grid view)', async ({
+        page,
+    }) => {
+        // Own fixtures in a fresh folder so the marquee box covers a known set of
+        // cards without racing seeded rows or other tests' files.
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const folder = await createDriveItem({ name: `Marquee-${stamp}`, isFolder: true })
+        const fileA = `MarqueeA-${stamp}.txt`
+        const fileB = `MarqueeB-${stamp}.txt`
+        await createDriveItem({ name: fileA, parent: folder.id })
+        await createDriveItem({ name: fileB, parent: folder.id })
+        await page.reload()
+
+        await page.getByTestId('drive-view-grid').click()
+        await openDriveItemViaSearch(page, `Marquee-${stamp}`)
+        const cardA = driveItem(page, fileA)
+        const cardB = driveItem(page, fileB)
+        await expect(cardA).toBeVisible()
+        await expect(cardB).toBeVisible()
+
+        const a = await cardA.boundingBox()
+        const b = await cardB.boundingBox()
+        if (!a || !b) throw new Error('marquee test: a card has no bounding box')
+
+        // Start in empty space to the LEFT of the leftmost card (the grid's
+        // padding gutter — not over any tile, so the gesture is a marquee and
+        // not a card drag), then sweep a box across both cards. Step the move so
+        // the rubber-band passes its movement threshold and hit-tests per frame.
+        const left = Math.min(a.x, b.x)
+        const startX = left - 8
+        const startY = Math.min(a.y, b.y) + 4
+        const endX = Math.max(a.x + a.width, b.x + b.width) + 8
+        const endY = Math.max(a.y + a.height, b.y + b.height) - 4
+
+        await page.mouse.move(startX, startY)
+        await page.mouse.down()
+        const STEPS = 10
+        for (let i = 1; i <= STEPS; i++) {
+            await page.mouse.move(
+                startX + ((endX - startX) * i) / STEPS,
+                startY + ((endY - startY) * i) / STEPS
+            )
+        }
+        await page.mouse.up()
+
+        // Both fixture files fell under the box → the multi-select toolbar shows
+        // its count ("N selected").
+        await expect(page.getByText(/\d+ selected/)).toBeVisible()
     })
 
     test('clicking a column heading sorts the list and toggles direction', async ({ page }) => {
@@ -116,8 +164,8 @@ test.describe('Drive — Browser', () => {
         // Column headings only render in list view; a prior test switches to
         // grid and the choice persists across the serial session.
         await page.getByTestId('drive-view-list').click()
-        await openDriveItem(page, `Sort-${stamp}`)
-        await expect(driveItem(page, alpha)).toBeVisible({ timeout: 10_000 })
+        await openDriveItemViaSearch(page, `Sort-${stamp}`)
+        await expect(driveItem(page, alpha)).toBeVisible()
 
         const fixtures = [alpha, mike, zulu]
 
@@ -129,15 +177,11 @@ test.describe('Drive — Browser', () => {
 
         // Click Name → ascending (field switch resets direction to asc).
         await sortableHeader(page, 'Name').click()
-        await expect
-            .poll(() => orderedRowNames(page, fixtures), { timeout: 10_000 })
-            .toEqual([alpha, mike, zulu])
+        await expect.poll(() => orderedRowNames(page, fixtures)).toEqual([alpha, mike, zulu])
 
         // Click Name again → descending toggle.
         await sortableHeader(page, 'Name').click()
-        await expect
-            .poll(() => orderedRowNames(page, fixtures), { timeout: 10_000 })
-            .toEqual([zulu, mike, alpha])
+        await expect.poll(() => orderedRowNames(page, fixtures)).toEqual([zulu, mike, alpha])
     })
 
     test('storage indicator shows usage', async ({ page }) => {
@@ -156,9 +200,7 @@ test.describe('Drive — Browser', () => {
         // a deterministic "sidebar is rendered" signal, not a longer timeout
         // dressed up as a wait. Once the sidebar nav is up, StorageBar is in
         // the same subtree and its `0.00 GB used` text is already mounted.
-        await expect(page.getByText('Trash', { exact: true })).toBeVisible({
-            timeout: 15_000,
-        })
+        await expect(page.getByText('Trash', { exact: true })).toBeVisible()
         await expect(page.getByText(/\d+(\.\d+)? GB used/)).toBeVisible()
     })
 })
@@ -174,26 +216,23 @@ test.describe('Drive — Mobile', () => {
         // seeded "Projects" folder row which proves the mobile screen
         // has hydrated.
         await page.goto(`/a/${ORG_SLUG}/drive`)
-        await page
-            .getByText('Projects', { exact: true })
-            .first()
-            .waitFor({ state: 'visible', timeout: 60_000 })
+        await page.getByText('Projects', { exact: true }).first().waitFor({ state: 'visible' })
         await dismissErrorOverlay(page)
     })
 
     test('back button walks up nested folders', async ({ page }) => {
         await openDriveItem(page, 'Projects')
-        await expect(driveItem(page, 'Engineering')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Engineering')).toBeVisible()
         await openDriveItem(page, 'Engineering')
 
         const backButton = page.getByRole('button', { name: 'Go up' })
-        await expect(backButton).toBeVisible({ timeout: 10_000 })
+        await expect(backButton).toBeVisible()
         await backButton.click()
-        await expect(driveItem(page, 'Q1 Planning')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Q1 Planning')).toBeVisible()
 
         await expect(page.getByRole('button', { name: 'Go up' })).toBeVisible()
         await page.getByRole('button', { name: 'Go up' }).click()
-        await expect(driveItem(page, 'Personal')).toBeVisible({ timeout: 10_000 })
+        await expect(driveItem(page, 'Personal')).toBeVisible()
     })
 
     // Stefan: "when I open a file preview the modal doesn't cover the bottom
@@ -215,18 +254,15 @@ test.describe('Drive — Mobile', () => {
         const folder = await createDriveItem({ name: folderName, isFolder: true })
         await createDriveItem({ name: fileName, parent: folder.id })
         await page.reload()
-        await page
-            .getByText('Projects', { exact: true })
-            .first()
-            .waitFor({ state: 'visible', timeout: 60_000 })
+        await page.getByText('Projects', { exact: true }).first().waitFor({ state: 'visible' })
 
-        await openDriveItem(page, folderName)
+        await openDriveItemViaSearch(page, folderName)
         const fileRow = driveItem(page, fileName)
-        await expect(fileRow).toBeVisible({ timeout: 15_000 })
+        await expect(fileRow).toBeVisible()
         await fileRow.click()
 
         const modal = page.getByTestId('file-preview-modal')
-        await expect(modal).toBeVisible({ timeout: 30_000 })
+        await expect(modal).toBeVisible()
 
         // The fullscreen preview spans the viewport (it should overlay the
         // bottom tab bar, not stop above it). The exact bottom-inset coverage

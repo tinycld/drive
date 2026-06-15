@@ -1,5 +1,7 @@
 import { downloadFile, downloadFromUrl } from '@tinycld/core/file-viewer/file-url'
+import { captureException, errorToString } from '@tinycld/core/lib/errors'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
+import { notify } from '@tinycld/core/lib/notify'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
 import { driveItemToSource } from '../lib/file-url'
@@ -145,6 +147,19 @@ export function useDriveMutations({
                 draft.parent = newParentId
             })
         }),
+        // Covers every move path — drag-and-drop, the move dialog, and
+        // restore-to-folder. Without this, a rejected move (permission denied,
+        // network) rolls back the optimistic update with no feedback. .mutate()
+        // never throws to its caller, so this is the only place errors surface.
+        onError: err => {
+            captureException('drive.move', err)
+            notify.emit({
+                event: 'mutation.error',
+                title: 'Could not move item',
+                body: errorToString(err),
+                data: { operation: 'drive.move', error: errorToString(err) },
+            })
+        },
     })
 
     const toggleStar = (itemId: string) => {
@@ -173,12 +188,20 @@ export function useDriveMutations({
 
     const removeShare = (shareId: string) => unshareMutation.mutate(shareId)
 
-    const moveItem = (itemId: string, newParentId: string) =>
-        moveMutation.mutate({ itemId, newParentId })
-
-    const restoreToFolder = (itemId: string, newParentId: string) => {
+    const moveItem = (itemId: string, newParentId: string) => {
+        // A move reparents the item OUT of the current folder, so it's removed
+        // from the visible list — the same row-removal that trash/delete animate.
+        // Without prepping the layout animation first, FlashList's layout cache
+        // desyncs from the shrunk data and throws "index out of bounds, not
+        // enough layouts" (which, unhandled, raises a LogBox overlay). Every
+        // other row-removing mutation preps; the move path must too.
         prepareLayoutAnimation?.()
         moveMutation.mutate({ itemId, newParentId })
+    }
+
+    const restoreToFolder = (itemId: string, newParentId: string) => {
+        // moveItem already preps the layout animation.
+        moveItem(itemId, newParentId)
         trashMutation.mutate({ itemId, restore: true })
     }
 
