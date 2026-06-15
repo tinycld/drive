@@ -41,11 +41,14 @@ async function ensureListView(page: Page): Promise<void> {
 }
 
 // Each destructive test creates its own per-test folder + fixture file via
-// the PB REST API, then operates on that. We don't read or mutate seeded
-// files (Profile Photo.jpg, Logo Variants.png, Product Roadmap 2026.docx)
-// because drive-1-browser reads the same seed structure in parallel.
+// the PB REST API (uniquely stamped), then operates on that. We don't read or
+// mutate seeded files (Profile Photo.jpg, Logo Variants.png, Product Roadmap
+// 2026.docx) because drive-1-browser reads the same seed structure in parallel.
 //
-// The tests still run serially within this file because they share login.
+// Tests run in parallel (Playwright's default): each gets its own page +
+// uniquely-stamped fixtures, so no test reads another's data. They do still
+// share one org's drive_items collection, so the org-wide folder tree (sidebar
+// + move dialog) churns as siblings create/trash folders concurrently.
 
 // Surface REST-created fixtures without a hard page.reload(). The beforeEach
 // already mounted the drive root, so its currentFolder liveQuery is stale and
@@ -75,7 +78,6 @@ async function setupFixtureFile(name: string): Promise<{ folderName: string; fil
 }
 
 test.describe('Drive — Actions', () => {
-    test.describe.configure({ mode: 'serial' })
     test.beforeEach(async ({ page }) => {
         await login(page)
         await navigateToPackage(page, 'drive', {
@@ -85,8 +87,6 @@ test.describe('Drive — Actions', () => {
 
     test('search files', async ({ page }) => {
         const { fileName } = await setupFixtureFile('Search')
-        await page.reload()
-
         const searchInput = page.getByPlaceholder('Search in Files')
         await searchInput.fill(fileName)
         await expect(driveItem(page, fileName)).toBeVisible()
@@ -103,8 +103,6 @@ test.describe('Drive — Actions', () => {
         const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
         const fileName = `DatedSearch-${stamp}.txt`
         await createDriveItem({ name: fileName })
-        await page.reload()
-
         await page.getByPlaceholder('Search in Files').fill(fileName)
         const row = driveItem(page, fileName)
         await expect(row).toBeVisible()
@@ -120,8 +118,6 @@ test.describe('Drive — Actions', () => {
 
     test('selecting a file reveals Rename and Delete in the toolbar', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('SelectActions')
-        await page.reload()
-
         await openDriveItemViaSearch(page, folderName)
         const fileRow = driveItem(page, fileName)
         await expect(fileRow).toBeVisible()
@@ -141,8 +137,6 @@ test.describe('Drive — Actions', () => {
 
     test('rename selected file from toolbar', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('Edit')
-        await page.reload()
-
         await openDriveItemViaSearch(page, folderName)
         const row = driveItem(page, new RegExp(`^${escapeRegex(fileName)} `))
         await row.click()
@@ -161,8 +155,6 @@ test.describe('Drive — Actions', () => {
 
     test('move selected file to trash from toolbar', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('Trash')
-        await page.reload()
-
         await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
         await expect(file).toBeVisible()
@@ -176,8 +168,6 @@ test.describe('Drive — Actions', () => {
 
     test('restore from trash', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('Bring')
-        await page.reload()
-
         await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
         await expect(file).toBeVisible()
@@ -204,8 +194,6 @@ test.describe('Drive — Actions', () => {
 
     test('permanently delete from trash', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('Perma')
-        await page.reload()
-
         await openDriveItemViaSearch(page, folderName)
         const file = driveItem(page, fileName)
         await expect(file).toBeVisible()
@@ -229,8 +217,6 @@ test.describe('Drive — Actions', () => {
         const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
         const folderName = `Download-${stamp}`
         await createDriveItem({ name: folderName, isFolder: true })
-        await page.reload()
-
         await (await revealDriveRow(page, folderName)).click({ button: 'right' })
 
         const downloadMenuItem = page.getByText('Download', { exact: true })
@@ -270,8 +256,6 @@ test.describe('Drive — Actions', () => {
             name: fileName,
             mimeType: 'application/pdf',
         })
-        await page.reload()
-
         // The file lands at root among the long seeded list; filter to it via
         // search so its row is on-screen (not buried below the fold).
         await page.getByPlaceholder('Search in Files').fill(fileName)
@@ -326,8 +310,6 @@ test.describe('Drive — Actions', () => {
         const parent = await createDriveItem({ name: `MoveCase-${stamp}`, isFolder: true })
         await createDriveItem({ name: folderName, isFolder: true })
         await createDriveItem({ name: fileName, parent: parent.id })
-        await page.reload()
-
         await openDriveItemViaSearch(page, `MoveCase-${stamp}`)
         await expect(driveItem(page, fileName)).toBeVisible()
         await driveItem(page, fileName).click({ button: 'right' })
@@ -357,8 +339,6 @@ test.describe('Drive — Actions', () => {
         const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
         const folderName = `CtxMenu-${stamp}`
         await createDriveItem({ name: folderName, isFolder: true })
-        await page.reload()
-
         await (await revealDriveRow(page, folderName)).click({ button: 'right' })
         await expect(page.getByText('Download', { exact: true })).toBeVisible()
 
@@ -369,8 +349,6 @@ test.describe('Drive — Actions', () => {
 
     test('detail panel opens via the Info hover action', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('Detail')
-        await page.reload()
-
         // The Info hover-action only exists in list view; a prior spec may
         // have left grid view persisted.
         await ensureListView(page)
@@ -393,8 +371,6 @@ test.describe('Drive — Actions', () => {
     // takes effect immediately and no lingering overlay swallows the press.
     test('detail panel closes via X and backdrop', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('DetailClose')
-        await page.reload()
-
         // The Info hover-action only exists in list view; a prior spec may
         // have left grid view persisted.
         await ensureListView(page)
