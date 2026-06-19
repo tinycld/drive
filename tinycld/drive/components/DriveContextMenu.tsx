@@ -182,12 +182,14 @@ function NormalMenuItems({
                     mutedColor={mutedColor}
                 />
             )}
-            <ContextMenuItem
-                label="Open"
-                icon={FolderOpen}
-                onPress={onOpen}
-                mutedColor={mutedColor}
-            />
+            {item.isFolder && (
+                <ContextMenuItem
+                    label="Open"
+                    icon={FolderOpen}
+                    onPress={onOpen}
+                    mutedColor={mutedColor}
+                />
+            )}
             {extensionActions.map(action => (
                 <ContextMenuItem
                     key={action.id}
