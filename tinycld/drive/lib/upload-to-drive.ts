@@ -78,6 +78,11 @@ export function useCreateDriveItem() {
             const maxAttempts = 5
             let lastError: unknown = null
             for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                // Must read network-fresh each retry: the whole point of the loop
+                // is to observe a name another tab/worker grabbed since the last
+                // attempt. The pbtsdb store would return stale data and defeat
+                // the conflict detection, so readCollectionCached is wrong here.
+                // biome-ignore lint/plugin/pbtsdb-no-raw-pb-access: deliberate fresh read for concurrent-create detection in the dedup retry loop.
                 const siblings = await pb.collection('drive_items').getFullList({
                     filter: pb.filter('org = {:org} && parent = {:parent}', {
                         org: orgId,
@@ -111,6 +116,7 @@ export function useCreateDriveItem() {
                     // would reject it.
                     const record = await pb
                         .collection('drive_items')
+                        // biome-ignore lint/plugin/pbtsdb-no-raw-pb-access: multipart FormData file upload — pbtsdb's optimistic transaction can't carry a file blob.
                         .create<{ file: string }>(formData)
                     return { itemId, finalName, parentId, file: record.file }
                 } catch (err) {

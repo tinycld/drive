@@ -1,6 +1,10 @@
 import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
-import { pb } from '@tinycld/core/lib/pocketbase'
+import { pb, useStore } from '@tinycld/core/lib/pocketbase'
+import {
+    findCollectionCached,
+    readCollectionCached,
+} from '@tinycld/core/lib/read-collection-cached'
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
@@ -45,6 +49,7 @@ export function useCopyDriveItem() {
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
     const userOrgId = userOrg?.id ?? ''
+    const [itemsCollection] = useStore('drive_items')
 
     return useMutation({
         mutationFn: async (input: CopyDriveItemInput): Promise<CopyDriveItemResult> => {
@@ -52,9 +57,15 @@ export function useCopyDriveItem() {
                 throw new Error('Organization context not ready')
             }
 
-            const source = await pb.collection('drive_items').getOne(input.sourceItemId, {
-                fields: 'id,name,mime_type,file,parent,is_folder',
-            })
+            // Read the source from the pbtsdb store — the item the user chose to
+            // copy is by definition visible, so it's loaded.
+            const source = await findCollectionCached(
+                itemsCollection,
+                i => i.id === input.sourceItemId
+            )
+            if (!source) {
+                throw new Error('Source drive item not found')
+            }
             if (source.is_folder) {
                 throw new Error('Cannot copy folders')
             }
@@ -74,13 +85,12 @@ export function useCopyDriveItem() {
             // Pre-dedupe so we report the right final name back to the caller
             // even on the happy path (the server-side hook would do the same
             // thing, but the client doesn't see the server-rewritten name).
-            const siblings = await pb.collection('drive_items').getFullList({
-                filter: pb.filter('org = {:org} && parent = {:parent}', {
-                    org: orgId,
-                    parent: parentId,
-                }),
-                fields: 'name',
-            })
+            // Read siblings from the pbtsdb store; the server re-dedupes
+            // authoritatively, so a stale store only risks a cosmetic name diff.
+            const siblings = await readCollectionCached(
+                itemsCollection,
+                i => i.org === orgId && i.parent === parentId
+            )
             const finalName = deduplicateName(upload.name, new Set(siblings.map(s => s.name)))
 
             const itemId = newRecordId()
@@ -101,6 +111,7 @@ export function useCopyDriveItem() {
             // owner drive_shares row in the same transaction, so the client
             // must not also insert one — the unique (item, user_org) index
             // would reject it.
+            // biome-ignore lint/plugin/pbtsdb-no-raw-pb-access: multipart FormData file upload — pbtsdb's optimistic transaction can't carry a file blob.
             await pb.collection('drive_items').create(formData)
 
             return { itemId, finalName, parentId }
