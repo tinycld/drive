@@ -1,15 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { dismissErrorOverlay, revealDriveRow } from './helpers'
-
-// Force list view. The view mode is a persisted user preference, so a
-// prior test may have left grid view active. Tests that rely on dblclick
-// to open files must be in list view (grid cards use the same gesture but
-// the seeded root listing is virtualized — list view is the stable surface
-// for these read-only open-in-app flows).
-async function ensureListView(page: import('@playwright/test').Page): Promise<void> {
-    await page.getByTestId('drive-view-list').click()
-}
+import { dismissErrorOverlay, ensureListView, revealDriveRow } from './helpers'
 
 test.describe('Drive — Open in App', () => {
     test.beforeEach(async ({ page }) => {
