@@ -2,7 +2,8 @@ import type { FilePreviewSource } from '@tinycld/core/file-viewer/types'
 import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { notify } from '@tinycld/core/lib/notify'
-import { pb } from '@tinycld/core/lib/pocketbase'
+import { pb, useStore } from '@tinycld/core/lib/pocketbase'
+import { readCollectionCached } from '@tinycld/core/lib/read-collection-cached'
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
@@ -33,6 +34,7 @@ export function useSaveToDrive() {
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
     const userOrgId = userOrg?.id ?? ''
+    const [itemsCollection] = useStore('drive_items')
 
     return useMutation({
         mutationFn: async ({ source, parentId, parentName }: SaveToDriveInput) => {
@@ -53,14 +55,15 @@ export function useSaveToDrive() {
             const mimeType = source.mimeType || 'application/octet-stream'
             const upload = await fetchForUpload(sourceUrl, source.displayName, mimeType)
 
-            // De-duplicate the filename within the destination folder.
-            const siblings = await pb.collection('drive_items').getFullList({
-                filter: pb.filter('org = {:org} && parent = {:parent}', {
-                    org: orgId,
-                    parent: parentId,
-                }),
-                fields: 'name',
-            })
+            // De-duplicate the filename within the destination folder, reading
+            // siblings from the pbtsdb store (the folder is typically already
+            // loaded by the Drive view). The server's create hook re-dedupes
+            // authoritatively, so a momentarily-stale store only risks a cosmetic
+            // name difference, never a collision.
+            const siblings = await readCollectionCached(
+                itemsCollection,
+                i => i.org === orgId && i.parent === parentId
+            )
             const finalName = deduplicateName(upload.name, new Set(siblings.map(s => s.name)))
 
             const itemId = newRecordId()
@@ -81,6 +84,7 @@ export function useSaveToDrive() {
             // owner drive_shares row in the same transaction, so the client
             // must not also insert one — the unique (item, user_org) index
             // would reject it.
+            // biome-ignore lint/plugin/pbtsdb-no-raw-pb-access: multipart FormData file upload — pbtsdb's optimistic transaction can't carry a file blob.
             await pb.collection('drive_items').create(formData)
 
             return { itemId, finalName, parentId, parentName }
