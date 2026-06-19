@@ -19,7 +19,7 @@ Anything else opens the **Info** panel — there's no in-app viewer, so you'll n
 
 ## Custom previewers
 
-Some packages register their own previewers and replace the default for a specific file type. The most common example: a `.xlsx` opens in [Calc](help://calc:getting-started) rather than as a generic file preview. When a custom previewer is available, both **Open in &lt;package&gt;** and **Preview** appear on the file's context menu — Open uses the custom UI, Preview falls back to a generic view if there is one.
+Some packages register their own openers and replace the default for a specific file type. The most common example: a `.xlsx` opens directly in [Calc](help://calc:getting-started) rather than in a generic preview — double-clicking or tapping the file takes you straight to that app's editor. For files with a custom opener, the context menu offers both **Open in &lt;package&gt;** (to jump to the editor) and **Preview** (to view the file inline without leaving Drive).
 
 ## In the preview modal
 

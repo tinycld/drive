@@ -7,20 +7,20 @@ order: 40
 
 ## Opening a file
 
-Click (or tap) any file to open it. What "open" means depends on the type:
+**Double-click** (desktop) or **tap** (mobile/iPad) a file to open it. On desktop, a single click only selects the file. What "open" means depends on the type:
 
-- **Files with a custom opener** — e.g. a `.xlsx` opens in [Calc](help://calc:getting-started). The custom action appears as the default click target.
+- **Files with a custom opener** — e.g. a `.xlsx` opens directly in [Calc](help://calc:getting-started), a `.docx` opens directly in Text. No preview step.
 - **Files with a preview** — PDFs, images, video, audio, text and code files open in the [preview modal](help://drive:previews).
 - **Everything else** — opens the file's info panel; download from there if you want the bytes.
 
-You can also right-click → **Preview** for any previewable file, or **Open** for files that have a custom opener.
+To peek at a file without opening its editor, right-click → **Preview**.
 
 ## File actions
 
 Right-click any file (or use the toolbar when one is selected) for the full set of actions:
 
 - **Preview** — open the in-app preview.
-- **Open** — open with the package that handles this type (Calc for spreadsheets, etc.).
+- **Open in &lt;app&gt;** — for files with a custom opener (e.g. Open in Calc for spreadsheets, Open in Text for documents), jumps straight to that app's editor.
 - **Download** — save the file to your device.
 - **Share** — open the [share dialog](help://drive:sharing).
 - **Rename** — change the file's name.
