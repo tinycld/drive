@@ -377,7 +377,6 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
 
     const nav = useDriveNavigation({
         orgSlug,
-        selectItem,
         clearSearch: () => setSearchQuery(''),
         clearSelection,
     })

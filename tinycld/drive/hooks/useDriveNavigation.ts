@@ -26,14 +26,12 @@ export function parseDrivePath(pathname: string): { section: SidebarSection; fol
 
 interface UseDriveNavigationParams {
     orgSlug: string
-    selectItem: (itemId: string | null) => void
     clearSearch: () => void
     clearSelection: () => void
 }
 
 export function useDriveNavigation({
     orgSlug,
-    selectItem,
     clearSearch,
     clearSelection,
 }: UseDriveNavigationParams) {
@@ -74,12 +72,12 @@ export function useDriveNavigation({
         clearSelection()
     }
 
+    // Only ever reached for folders now: the context menu's "Open" row is
+    // gated to folders, and file opening goes through useOpenDriveItem's
+    // openFile (app opener or preview). Kept folder-shaped for the menu's
+    // folder navigation; the file branch would be dead, so it's gone.
     const openItem = (item: DriveItemView) => {
-        if (item.isFolder) {
-            navigateToFolder(item.id)
-        } else {
-            selectItem(item.id)
-        }
+        if (item.isFolder) navigateToFolder(item.id)
     }
 
     return {
