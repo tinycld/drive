@@ -1,7 +1,7 @@
-import { useCallback, useMemo } from 'react'
-import { getDriveItemActionFactories } from '../lib/item-actions-registry'
+import { useCallback, useRef } from 'react'
 import { resolveOpenAction } from '../lib/resolve-open-action'
 import type { DriveItemView } from '../types'
+import { useResolvedDriveItemActions } from './useDriveItemActions'
 
 interface UseOpenDriveItemActions {
     navigateToFolder: (folderId: string) => void
@@ -14,16 +14,18 @@ interface UseOpenDriveItemActions {
  *   - file w/ app match → launch the registered opener (router.push to the app)
  *   - file, no match    → open the preview modal
  *
- * Factories are invoked here (not inside the callback) because they are
- * React hooks; registration happens at module load so the factory list is
- * stable for the app's lifetime — see resolveOpenAction for the match rules.
+ * Item-action factories are hooks whose count varies at runtime (lazy
+ * providers register them), so they're invoked in their own component
+ * instances (DriveItemActionsHost) and the resolved actions are read here
+ * from a stable store — never by calling the factories at this top level,
+ * which would crash React's hook dispatcher. See useDriveItemActions.
  */
 export function useOpenDriveItem(actions: UseOpenDriveItemActions) {
-    // Factory list is fixed for the app lifetime (registration is
-    // module-load-time), so invoke the factories once on mount. A fresh
-    // array each render would make the useCallback below a no-op and bust
-    // memoization in the row/card consumers that hold openFile.
-    const itemActions = useMemo(() => getDriveItemActionFactories().map(factory => factory()), [])
+    const itemActions = useResolvedDriveItemActions()
+    // Stash in a ref so `openFile` stays stable for row/card memoization
+    // even as the resolved-actions list settles after lazy registration.
+    const itemActionsRef = useRef(itemActions)
+    itemActionsRef.current = itemActions
 
     const openFile = useCallback(
         (item: DriveItemView) => {
@@ -31,14 +33,14 @@ export function useOpenDriveItem(actions: UseOpenDriveItemActions) {
                 actions.navigateToFolder(item.id)
                 return
             }
-            const openAction = resolveOpenAction(item, itemActions)
+            const openAction = resolveOpenAction(item, itemActionsRef.current)
             if (openAction) {
                 openAction.onPress(item)
             } else {
                 actions.openPreview(item)
             }
         },
-        [actions, itemActions]
+        [actions]
     )
 
     return openFile

@@ -16,7 +16,7 @@ import {
     UserPlus,
 } from 'lucide-react-native'
 import { type ReactNode, useCallback } from 'react'
-import { getDriveItemActionFactories } from '../lib/item-actions-registry'
+import { useResolvedDriveItemActions } from '../hooks/useDriveItemActions'
 import { useDriveSnapshot } from '../stores/drive-snapshot-store'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
@@ -162,15 +162,14 @@ function NormalMenuItems({
     onMove: () => void
     onTrash: () => void
 }) {
-    // Extension-point actions registered by other packages (e.g.
-    // calc's "Open in Calc" for xlsx files). Factories register at
-    // module-load time, so the list is stable for the lifetime of the
-    // app — calling each factory unconditionally here is safe under
-    // the rules of hooks. Folders never get extension actions
-    // (they're not files).
-    const extensionActions = getDriveItemActionFactories()
-        .map(factory => factory())
-        .filter(action => !item.isFolder && (action.isApplicable?.(item) ?? true))
+    // Extension-point actions registered by other packages (e.g. calc's
+    // "Open in Calc" for xlsx files). Read the already-resolved actions from
+    // the store rather than invoking the factories here: factory count varies
+    // at runtime (lazy providers), and calling them at the top level would
+    // crash React's hook dispatcher. Folders never get extension actions.
+    const extensionActions = useResolvedDriveItemActions().filter(
+        action => !item.isFolder && (action.isApplicable?.(item) ?? true)
+    )
 
     return (
         <>

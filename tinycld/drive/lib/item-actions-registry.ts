@@ -45,30 +45,59 @@ export interface DriveItemAction {
 export type DriveItemActionFactory = () => DriveItemAction
 
 const factories = new Map<string, DriveItemActionFactory>()
+const subscribers = new Set<() => void>()
+
+// Cached snapshot so getDriveItemActionFactories returns a referentially
+// stable array between mutations — required by useSyncExternalStore, which
+// would otherwise loop forever on a fresh array each render.
+let snapshot: { id: string; factory: DriveItemActionFactory }[] = []
+
+function refreshSnapshot() {
+    snapshot = Array.from(factories, ([id, factory]) => ({ id, factory }))
+    for (const notify of subscribers) notify()
+}
 
 /**
  * Register a DriveItemAction factory by ID. Re-registering the same
  * ID replaces the prior entry (most recent linker wins). Designed to
  * be called at module load from a consumer package's provider.
+ *
+ * Providers are lazy-loaded (see tinycld.config.ts), so registration
+ * can land AFTER a drive screen has already rendered. Subscribers are
+ * notified so consumers re-render with the now-complete list rather
+ * than reading a half-populated registry mid-mount.
  */
 export function registerDriveItemAction(id: string, factory: DriveItemActionFactory) {
     factories.set(id, factory)
+    refreshSnapshot()
 }
 
 export function unregisterDriveItemAction(id: string) {
     factories.delete(id)
+    refreshSnapshot()
 }
 
 /**
- * Returns the registered factories in insertion order. Drive's
- * context menu calls this from a React component, invokes each
- * factory to obtain hook results, and renders the resulting actions
- * after filtering by `isApplicable`.
+ * Referentially-stable snapshot of registered factories (with their
+ * ids), in insertion order. The array identity only changes when the
+ * registry mutates, so it is safe to feed useSyncExternalStore.
+ *
+ * IMPORTANT: do NOT call these factories directly at a component's top
+ * level — their count varies as lazy providers register, which would
+ * change the host component's hook count between renders and crash
+ * React's hook dispatcher. Render each one inside its own keyed child
+ * component instead (see useDriveItemActions).
  */
-export function getDriveItemActionFactories(): DriveItemActionFactory[] {
-    return Array.from(factories.values())
+export function getDriveItemActionFactories(): { id: string; factory: DriveItemActionFactory }[] {
+    return snapshot
+}
+
+export function subscribeDriveItemActions(notify: () => void): () => void {
+    subscribers.add(notify)
+    return () => subscribers.delete(notify)
 }
 
 export function __resetDriveItemActionRegistryForTests() {
     factories.clear()
+    refreshSnapshot()
 }
