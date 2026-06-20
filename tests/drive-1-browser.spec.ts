@@ -108,8 +108,11 @@ test.describe('Drive — Browser', () => {
         const fileB = `MarqueeB-${stamp}.txt`
         await createDriveItem({ name: fileA, parent: folder.id })
         await createDriveItem({ name: fileB, parent: folder.id })
-        await page.reload()
 
+        // No page.reload() to surface the REST-created fixtures: the drive_items
+        // liveQuery is reactive and picks up the inserts, and the search below
+        // re-queries on demand regardless. A hard reload tears down the SPA and
+        // cancels in-flight Metro chunk loads — the documented CI-flake source.
         await page.getByTestId('drive-view-grid').click()
         await openDriveItemViaSearch(page, `Marquee-${stamp}`)
         const cardA = driveItem(page, fileA)
@@ -159,7 +162,10 @@ test.describe('Drive — Browser', () => {
         await createDriveItem({ name: zulu, parent: folder.id })
         await createDriveItem({ name: mike, parent: folder.id })
         await createDriveItem({ name: alpha, parent: folder.id })
-        await page.reload()
+
+        // No page.reload(): the liveQuery reacts to the inserts and the search
+        // below re-queries anyway. A hard reload cancels in-flight Metro chunk
+        // loads (the documented CI-flake source).
 
         // Column headings only render in list view; a prior test switches to
         // grid and the choice persists across the serial session.
@@ -210,12 +216,15 @@ test.describe('Drive — Mobile', () => {
 
     test.beforeEach(async ({ page }) => {
         await login(page)
-        // Mobile renders MobileLayout (no PackageRail, no PackageSidebar)
-        // and uses a bottom tab bar instead. navigateToPackage's rail-
-        // click path doesn't work here; goto directly and gate on the
-        // seeded "Projects" folder row which proves the mobile screen
-        // has hydrated.
-        await page.goto(`/a/${ORG_SLUG}/drive`)
+        // Mobile renders MobileLayout (no PackageRail, no PackageSidebar) and
+        // uses a bottom tab bar. navigateToPackage's rail-click path doesn't
+        // apply here, but the tab bar's Drive entry (testID nav-<slug>) does an
+        // SPA router.push — so click it instead of page.goto. A hard goto would
+        // tear down the SPA and cancel in-flight Metro chunk loads (the
+        // documented CI-flake source). Gate on the seeded "Projects" folder row
+        // (sorted first, so it's in view) to confirm the drive screen hydrated.
+        await page.getByTestId('nav-drive').click()
+        await page.waitForURL(new RegExp(`/a/${ORG_SLUG}/drive(/|$|\\?)`))
         await page.getByText('Projects', { exact: true }).first().waitFor({ state: 'visible' })
         await dismissErrorOverlay(page)
     })
@@ -253,9 +262,10 @@ test.describe('Drive — Mobile', () => {
         const fileName = `PreviewMe-${stamp}.png`
         const folder = await createDriveItem({ name: folderName, isFolder: true })
         await createDriveItem({ name: fileName, parent: folder.id })
-        await page.reload()
-        await page.getByText('Projects', { exact: true }).first().waitFor({ state: 'visible' })
 
+        // No page.reload(): the page is already mounted (beforeEach) and the
+        // search below re-queries on demand, so the liveQuery surfaces the new
+        // fixture without a hard reload (which would cancel in-flight chunks).
         await openDriveItemViaSearch(page, folderName)
         const fileRow = driveItem(page, fileName)
         await expect(fileRow).toBeVisible()
