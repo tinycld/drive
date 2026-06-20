@@ -35,6 +35,10 @@ import { fileURLToPath } from 'node:url'
 
 const STUB_SLUG = 'share-stub'
 const STUB_MIME_TYPE = 'application/x-tinycld-stub'
+// Query param the stub's open-in-app action appends to the drive route as a
+// race-free "drive invoked the opener" beacon. open-in-app.spec.ts asserts on
+// this exact key — keep them in sync.
+const STUB_OPEN_PARAM = 'openInApp'
 const BOOTSTRAP_VERSION = '@tinycld/bootstrap@2.0.1'
 
 // Hard ceiling for every child process we spawn. pnpm has intermittently
@@ -125,6 +129,14 @@ function patchPackageJson(stubDir: string): void {
         './provider': `./tinycld/${STUB_SLUG}/provider.tsx`,
         './share-editor': `./tinycld/${STUB_SLUG}/share-editor.tsx`,
     }
+    // The provider imports @tinycld/drive (the item-action registry) the same
+    // way a real sibling does. nodeLinker:hoisted resolves it from the root
+    // node_modules regardless, but declaring it as a peer keeps the stub
+    // honest and lets a standalone typecheck resolve the import by name.
+    pkg.peerDependencies = {
+        ...(pkg.peerDependencies ?? {}),
+        '@tinycld/drive': '*',
+    }
     writeFileSync(path, `${JSON.stringify(pkg, null, 4)}\n`)
 }
 
@@ -132,16 +144,49 @@ function writeProvider(stubDir: string): void {
     const dir = join(stubDir, 'tinycld', STUB_SLUG)
     mkdirSync(dir, { recursive: true })
     const path = join(dir, 'provider.tsx')
-    // The provider's only job is to register the share-editor by side
-    // effect at module load. PackageProviderWrapper imports + mounts each
-    // package's provider on the share route, which is what makes the
-    // registration fire before getShareEditor() is consulted. Children
-    // pass through unchanged — the stub has no react context to provide.
+    // The provider registers two stub contributions by side effect at
+    // module load:
+    //   1. a share-editor for the stub mime type (the share-link specs);
+    //   2. an open-in-app DriveItemAction for the stub mime type (the
+    //      open-in-app specs).
+    // Both mirror how a real sibling (calc/text) contributes to drive,
+    // without drive's CI knowing those packages exist. PackageProviderWrapper
+    // mounts every package's provider, so these registrations fire before
+    // drive consults either registry.
+    //
+    // The open-in-app action's onPress navigates to the already-mounted drive
+    // route with a beacon query param (`?${STUB_OPEN_PARAM}=<id>`) rather than a
+    // real editor screen. This proves drive's contract (double-click →
+    // resolveOpenAction picks this action → onPress fires) via a URL change,
+    // with no dependency on a sibling editor chunk compiling/committing.
+    //
+    // Why the drive route is safe to beacon onto: drive's only URL writer,
+    // usePreviewUrlSync (useDrive.tsx), does a shallow router.setParams of just
+    // {file, preview} and short-circuits when both are already absent — so it
+    // never strips or races this param. And the drive route is real + warmed,
+    // so there's no unknown-route href-interpolation risk a stub path would have.
     const contents = `import { registerShareEditor } from '@tinycld/core/file-viewer/registry'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
+import { registerDriveItemAction } from '@tinycld/drive/lib/item-actions-registry'
+import { router } from 'expo-router'
+import { ExternalLink } from 'lucide-react-native'
 import { lazy, type ReactNode } from 'react'
 
 registerShareEditor('${STUB_MIME_TYPE}', {
     component: lazy(() => import('./share-editor')),
+})
+
+registerDriveItemAction('stub.open', () => {
+    const orgHref = useOrgHref()
+    return {
+        id: 'stub.open',
+        icon: ExternalLink,
+        label: 'Open in Stub',
+        isApplicable: item => item.mimeType === '${STUB_MIME_TYPE}',
+        onPress: item => {
+            router.push(orgHref('drive', { ${STUB_OPEN_PARAM}: item.id }))
+        },
+    }
 })
 
 export default function StubProvider({ children }: { children: ReactNode }) {
@@ -196,11 +241,12 @@ export default function StubShareEditor({ mount }: { mount: EditorMount }) {
 }
 
 function regenerateConfig(wsRoot: string): void {
-    // The generator emits app/tinycld.config.ts from getPackages() output.
+    // The generator emits tinycld/tinycld.config.ts from getPackages() output.
     // After adding share-stub to the workspace tree we have to re-run it,
     // otherwise PackageProviderWrapper won't know to mount the stub's
-    // provider and getShareEditor() will keep returning undefined.
-    run('pnpm', ['run', 'packages:generate'], join(wsRoot, 'app'))
+    // provider and getShareEditor() will keep returning undefined. The app
+    // shell (which owns packages:generate) lives at <wsRoot>/tinycld.
+    run('pnpm', ['run', 'packages:generate'], join(wsRoot, 'tinycld'))
 }
 
 function main(): void {

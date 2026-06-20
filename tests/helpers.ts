@@ -54,6 +54,15 @@ export async function openDriveItemViaSearch(page: Page, name: string) {
     await page.getByPlaceholder('Search in Files').clear()
 }
 
+// Force list view. View mode is a persisted user preference, so a prior spec
+// (some switch to grid) can leak its choice into a later one in the same
+// session. Specs that depend on list-only affordances must assert the
+// precondition rather than inherit ambient state. Idempotent: clicking when
+// already in list view is a no-op.
+export async function ensureListView(page: Page): Promise<void> {
+    await page.getByTestId('drive-view-list').click()
+}
+
 // Drives a drag-and-drop move via react-native-drax. Drax activates a drag on a
 // long-press and then tracks pointer movement, so a one-shot Playwright
 // dragTo() won't trigger it — we drive the raw mouse by hand.

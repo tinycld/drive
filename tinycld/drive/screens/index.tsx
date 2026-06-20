@@ -43,6 +43,7 @@ import { type GridRow, type ListRow, useGridRows, useListRows } from '../hooks/u
 import { useDriveShortcuts } from '../hooks/useDriveShortcuts'
 import { useFileSelection } from '../hooks/useFileSelection'
 import { useMarqueeSelection } from '../hooks/useMarqueeSelection'
+import { useOpenDriveItem } from '../hooks/useOpenDriveItem'
 import { useUploadPlaceholders } from '../hooks/useUploadPlaceholders'
 import { driveItemToSource } from '../lib/file-url'
 import { useDriveUIStore } from '../stores/drive-ui-store'
@@ -115,6 +116,7 @@ interface CellContext {
     handleSelect: (id: string, event: GestureResponderEvent) => void
     handleSelectClick: (id: string, event: GestureResponderEvent) => void
     actions: DriveActions
+    openFile: (item: DriveItemView) => void
     itemsById: Map<string, DriveItemView>
 }
 
@@ -244,14 +246,13 @@ export default function DriveScreen() {
     )
     const orderedIds = useMemo(() => navigableItems.map(i => i.id), [navigableItems])
     const { handleSelect, handleSelectClick, isSelected } = useFileSelection(orderedIds)
+    const openFile = useOpenDriveItem(actions)
+
     const selectToggle = useDriveUIStore(s => s.selectToggle)
     const { focusedId } = useDriveShortcuts({
         items: navigableItems,
         toggleSelect: selectToggle,
-        openItem: item => {
-            if (item.isFolder) actions.navigateToFolder(item.id)
-            else actions.openPreview(item)
-        },
+        openItem: openFile,
         onNewFolder: () => openPrompt({ type: 'new-folder' }),
         isEnabled: !isTrash,
         listKey: `${activeSection}:${currentFolderId}`,
@@ -332,6 +333,7 @@ export default function DriveScreen() {
             handleSelect,
             handleSelectClick,
             actions,
+            openFile,
             itemsById,
         }),
         [
@@ -349,6 +351,7 @@ export default function DriveScreen() {
             handleSelect,
             handleSelectClick,
             actions,
+            openFile,
             itemsById,
         ]
     )
@@ -634,7 +637,8 @@ function FilesListRowImpl({
         (event: GestureResponderEvent) => ctx.handleSelectClick(item.id, event),
         [item.id, ctx]
     )
-    const handleFileOpen = useDoubleClick(handleRowClickSelect, () => actions.openPreview(item))
+    const handleFileOpenAction = useCallback(() => ctx.openFile(item), [item, ctx])
+    const handleFileOpen = useDoubleClick(handleRowClickSelect, handleFileOpenAction)
     const handleFolderWebPress = useCallback(
         (event: GestureResponderEvent) => {
             const native = event.nativeEvent as unknown as MouseEvent
@@ -654,9 +658,8 @@ function FilesListRowImpl({
         // A long-press opened the context menu; ignore the tap that fires when
         // the finger lifts so the file doesn't open out from under the menu.
         if (consumeContextMenuPressSuppression(Date.now())) return
-        if (item.isFolder) actions.navigateToFolder(item.id)
-        else actions.openPreview(item)
-    }, [item, actions])
+        ctx.openFile(item)
+    }, [item, ctx])
 
     const swipeActions = useMemo(
         () => [
@@ -1121,12 +1124,12 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
         (event: GestureResponderEvent) => ctx.handleSelectClick(item.id, event),
         [item.id, ctx]
     )
-    const handleOpen = useCallback(() => actions.openPreview(item), [item, actions])
+    const handleOpen = useCallback(() => ctx.openFile(item), [item, ctx])
     const handleDesktopOpen = useDoubleClick(handleClickSelect, handleOpen)
     const handleMobilePress = useCallback(() => {
         if (consumeContextMenuPressSuppression(Date.now())) return
-        actions.openPreview(item)
-    }, [item, actions])
+        ctx.openFile(item)
+    }, [item, ctx])
 
     return (
         <Pressable
