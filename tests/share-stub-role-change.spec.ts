@@ -99,7 +99,6 @@ test.describe('Drive — share link role change (stub)', () => {
     test('viewer link upgraded to editor: anon mount flips role + subtitle hint appears after reload', async ({
         browser,
     }) => {
-
         const doc = await uploadStubFixture(`stub-upgrade-${Date.now()}`)
         const link = await createShareLink({ itemId: doc.id, role: 'viewer' })
 
@@ -143,7 +142,6 @@ test.describe('Drive — share link role change (stub)', () => {
     })
 
     test('viewer link revoked: anon reload shows expired UI', async ({ browser }) => {
-
         const doc = await uploadStubFixture(`stub-revoke-${Date.now()}`)
         const link = await createShareLink({ itemId: doc.id, role: 'viewer' })
 

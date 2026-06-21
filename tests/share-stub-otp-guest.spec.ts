@@ -180,7 +180,6 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
     test('commentor: OTP sign-in flips mount to guest commentor (canComment, !canEdit)', async ({
         browser,
     }) => {
-
         const doc = await uploadStubFixture(`stub-otp-commentor-${uniqueSuffix()}`)
         const link = await createShareLink(doc.id, 'commentor')
         const email = uniqueGuestEmail('commentor')
@@ -239,7 +238,6 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
     test('editor: OTP sign-in flips mount to guest editor (canEdit + canComment)', async ({
         browser,
     }) => {
-
         const doc = await uploadStubFixture(`stub-otp-editor-${uniqueSuffix()}`)
         const link = await createShareLink(doc.id, 'editor')
         const email = uniqueGuestEmail('editor')
@@ -280,7 +278,6 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
     test('idempotency: re-using a verified email on a new link does not double-provision', async ({
         browser,
     }) => {
-
         const sharedEmail = uniqueGuestEmail('commentor')
         const orgCtx = await testUserOrgContext()
 
