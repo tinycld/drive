@@ -11,7 +11,13 @@ export function registerCollections(
     coreStores: CoreStores
 ) {
     const drive_items = newCollection('drive_items', {
-        omitOnInsert: ['created', 'updated', 'thumbnail'] as const,
+        omitOnInsert: [
+            'created',
+            'updated',
+            'thumbnail',
+            'thumb_region_hash',
+            'index_hash',
+        ] as const,
         expand: { created_by: coreStores.user_org },
         // On-demand: each useLiveQuery against drive_items issues a server
         // fetch with the where/orderBy translated into a PocketBase filter.
