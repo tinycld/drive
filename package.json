@@ -19,6 +19,7 @@
         "./lib/item-actions-registry": "./tinycld/drive/lib/item-actions-registry.ts",
         "./lib/save-to-drive": "./tinycld/drive/lib/save-to-drive.ts",
         "./lib/save-to-drive-action": "./tinycld/drive/lib/save-to-drive-action.tsx",
+        "./lib/template-naming": "./tinycld/drive/lib/template-naming.ts",
         "./lib/upload-to-drive": "./tinycld/drive/lib/upload-to-drive.ts",
         "./public-screens/*": "./tinycld/drive/public-screens/*.tsx"
     },
