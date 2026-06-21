@@ -277,6 +277,11 @@ function UploadCard({ hint, accept, onPick, disabled }: UploadCardProps) {
                         </View>
                     </View>
                     <input
+                        // Stable hook for e2e: the app shell keeps other package
+                        // screens mounted-but-frozen (freezeOnBlur), so a bare
+                        // `input[type="file"]` selector can match a frozen
+                        // sibling's upload input too. Tests target this id.
+                        data-testid="nofile-upload-input"
                         type="file"
                         multiple
                         accept={accept}
