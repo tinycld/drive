@@ -70,9 +70,7 @@ test.describe('Drive — Open in App', () => {
             // The stub opener's onPress fired iff the URL carries its beacon
             // param keyed to this item — proving drive resolved the action and
             // called it, not that it fell back to the preview modal.
-            await page.waitForURL(new RegExp(`[?&]${STUB_OPEN_PARAM}=${fixture.id}(?:&|$)`), {
-                timeout: 30_000,
-            })
+            await page.waitForURL(new RegExp(`[?&]${STUB_OPEN_PARAM}=${fixture.id}(?:&|$)`))
             await expect(page.getByTestId('file-preview-modal')).not.toBeVisible()
         })
     })

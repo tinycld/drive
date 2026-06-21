@@ -36,8 +36,6 @@ import {
 
 const PB_URL = 'http://127.0.0.1:7200'
 const STUB_MIME = 'application/x-tinycld-stub'
-const REACTION_TIMEOUT = 15_000
-const SCENARIO_TIMEOUT = 180_000
 
 function uniqueSuffix(): string {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -79,15 +77,11 @@ async function createShareLink(
 // localStorage. pb.authStore.save() is fire-and-forget against
 // AsyncStorage.setItem, so without this, a reload() that races the write
 // would boot the next page as anon.
-async function waitForAuthStoreFlush(page: Page, timeoutMs = REACTION_TIMEOUT): Promise<void> {
-    await page.waitForFunction(
-        () => {
-            const v = window.localStorage.getItem('pb_auth')
-            return typeof v === 'string' && v.length > 0
-        },
-        undefined,
-        { timeout: timeoutMs }
-    )
+async function waitForAuthStoreFlush(page: Page): Promise<void> {
+    await page.waitForFunction(() => {
+        const v = window.localStorage.getItem('pb_auth')
+        return typeof v === 'string' && v.length > 0
+    })
 }
 
 // Drives the email → code → verify path. Returns the captured OTP so a
@@ -186,8 +180,6 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
     test('commentor: OTP sign-in flips mount to guest commentor (canComment, !canEdit)', async ({
         browser,
     }) => {
-        test.setTimeout(SCENARIO_TIMEOUT)
-
         const doc = await uploadStubFixture(`stub-otp-commentor-${uniqueSuffix()}`)
         const link = await createShareLink(doc.id, 'commentor')
         const email = uniqueGuestEmail('commentor')
@@ -246,8 +238,6 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
     test('editor: OTP sign-in flips mount to guest editor (canEdit + canComment)', async ({
         browser,
     }) => {
-        test.setTimeout(SCENARIO_TIMEOUT)
-
         const doc = await uploadStubFixture(`stub-otp-editor-${uniqueSuffix()}`)
         const link = await createShareLink(doc.id, 'editor')
         const email = uniqueGuestEmail('editor')
@@ -288,8 +278,6 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
     test('idempotency: re-using a verified email on a new link does not double-provision', async ({
         browser,
     }) => {
-        test.setTimeout(SCENARIO_TIMEOUT)
-
         const sharedEmail = uniqueGuestEmail('commentor')
         const orgCtx = await testUserOrgContext()
 

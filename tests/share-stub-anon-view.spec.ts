@@ -33,7 +33,6 @@ import {
 // test through its own counter; we keep that pattern here.
 
 const STUB_MIME = 'application/x-tinycld-stub'
-const TEST_TIMEOUT = 90_000
 
 test.describe.configure({ mode: 'serial' })
 
@@ -96,7 +95,6 @@ test.describe('Drive — anon viewer share link (stub)', () => {
     let fixture: { itemId: string; name: string; token: string; linkId: string }
 
     test('setup: upload .stub fixture and mint viewer share link', async () => {
-        test.setTimeout(TEST_TIMEOUT)
         const doc = await uploadStubFixture(`stub-view-${Date.now()}`)
         const link = await createShareLink({ itemId: doc.id, role: 'viewer' })
         fixture = { itemId: doc.id, name: doc.name, token: link.token, linkId: link.id }
@@ -106,7 +104,6 @@ test.describe('Drive — anon viewer share link (stub)', () => {
     test('mount: viewer share link renders the stub editor for an anon visitor', async ({
         browser,
     }) => {
-        test.setTimeout(TEST_TIMEOUT)
         const { context, page } = await openAnonShareLink(browser, fixture.token)
         try {
             // "Stub share editor" — unambiguous "real editor mounted, NOT
@@ -137,7 +134,6 @@ test.describe('Drive — anon viewer share link (stub)', () => {
     test('identity persistence: reloading the same context yields the same anon displayName', async ({
         browser,
     }) => {
-        test.setTimeout(TEST_TIMEOUT)
         const context = await browser.newContext()
         await pinXffOnContext(context, uniqueXffIp())
         try {
@@ -162,7 +158,6 @@ test.describe('Drive — anon viewer share link (stub)', () => {
     })
 
     test('revoke: revoked share link renders the "Link expired" UI', async ({ browser }) => {
-        test.setTimeout(TEST_TIMEOUT)
         // Mint a fresh link so the suite-level fixture stays usable for
         // any later test in this file that depends on it.
         const oneShot = await createShareLink({ itemId: fixture.itemId, role: 'viewer' })

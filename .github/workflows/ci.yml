@@ -75,11 +75,6 @@ jobs:
       - name: Install (workspace root)
         working-directory: ws
         run: corepack enable && pnpm install --no-frozen-lockfile
-      # Installs watchman so Metro's file watcher doesn't fall back to
-      # polling — see tinycld/app#21 for the trace evidence and the
-      # blank-page-after-reload flake it fixed.
-      - name: Configure test env
-        uses: ./ws/tinycld/.github/actions/configure-test-env
       # Drive's share-link E2E mounts an editor for a doc, but the editor
       # itself is contributed by a package OTHER than drive (text, calc,
       # etc.). To avoid coupling drive's CI to those packages' internals,
@@ -91,20 +86,16 @@ jobs:
       # ~20s normally; it has hung indefinitely after its inner pnpm
       # install (the process failed to exit). Cap it so the failure is
       # attributed here and the job fails in minutes, not hours.
-      - name: Scaffold share-stub package
-        working-directory: ws
-        timeout-minutes: 5
-        run: pnpm exec tsx ${{ env.PACKAGE }}/tests/scripts/scaffold-share-stub.ts
-      - name: Install Playwright browsers
-        working-directory: ws/tinycld
-        run: pnpm exec playwright install --with-deps chromium
+      # Shared e2e prep: installs the Playwright browser and pre-builds the
+      # static web bundle. e2e serves it statically (no Metro), so watchman is
+      # gone; the E2E step reuses the build via TINYCLD_E2E_SKIP_EXPORT. The
+      # scaffold above runs first so the stub's routes are in the bundle.
+      - name: Configure test env
+        uses: ./ws/tinycld/.github/actions/configure-test-env
       - name: E2E
         working-directory: ws/${{ env.PACKAGE }}
         env:
-          # Pre-warm drive's lazy screen chunk in globalSetup so the
-          # first test per worker doesn't race the cold Metro compile.
-          # See tinycld/app#18.
-          TINYCLD_WARM_PACKAGES: drive
+          TINYCLD_E2E_SKIP_EXPORT: '1'
         run: pnpm exec tinycld-pkg test:e2e
       # Capture Playwright's per-failure artifacts (trace, screenshot,
       # video, error-context.md) so a CI failure can be diagnosed
