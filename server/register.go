@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/webdav"
 	"tinycld.org/core/audit"
 	"tinycld.org/core/notify"
+	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/userorg"
 	"tinycld.org/core/versionhooks"
 )
@@ -91,15 +92,19 @@ func Register(app *pocketbase.PocketBase) {
 	// FTS sync hooks for drive_items
 	app.OnRecordAfterCreateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		syncDriveItemToFTS(app, e.Record, "create")
-		routine.FireAndForget(func() { extractAndIndexDriveItem(app, e.Record) })
-		routine.FireAndForget(func() { generateThumbnail(app, e.Record) })
+		rec := e.Record
+		payload, has := previewqueue.Take(rec.Id)
+		routine.FireAndForget(func() { extractAndIndexDriveItem(app, rec, payload, has) })
+		routine.FireAndForget(func() { generateThumbnail(app, rec, payload, has) })
 		return e.Next()
 	})
 
 	app.OnRecordAfterUpdateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		syncDriveItemToFTS(app, e.Record, "update")
-		routine.FireAndForget(func() { extractAndIndexDriveItem(app, e.Record) })
-		routine.FireAndForget(func() { generateThumbnail(app, e.Record) })
+		rec := e.Record
+		payload, has := previewqueue.Take(rec.Id)
+		routine.FireAndForget(func() { extractAndIndexDriveItem(app, rec, payload, has) })
+		routine.FireAndForget(func() { generateThumbnail(app, rec, payload, has) })
 		return e.Next()
 	})
 
@@ -338,6 +343,11 @@ func handleUploadVersion(app *pocketbase.PocketBase, re *core.RequestEvent) erro
 	item.Set("size", len(data))
 	item.Set("mime_type", header.Header.Get("Content-Type"))
 
+	// Clear editor hashes so the freshly uploaded bytes force a one-shot full
+	// regen via the upload fallback path rather than being skipped as stale.
+	item.Set("thumb_region_hash", "")
+	item.Set("index_hash", "")
+
 	if err := app.Save(item); err != nil {
 		return re.BadRequestError("failed to save item", nil)
 	}
@@ -471,6 +481,11 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 	item.Set("file", f)
 	item.Set("size", version.GetInt("size"))
 	item.Set("mime_type", version.GetString("mime_type"))
+
+	// Clear editor hashes so the restored bytes force a one-shot full regen via
+	// the upload fallback path rather than being skipped as stale.
+	item.Set("thumb_region_hash", "")
+	item.Set("index_hash", "")
 
 	if err := app.Save(item); err != nil {
 		return re.BadRequestError("failed to save restored item", nil)

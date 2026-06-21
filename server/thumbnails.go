@@ -9,7 +9,9 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 
+	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/thumbnails"
+	"tinycld.org/core/thumbnails/textpreview"
 )
 
 // appIsLive reports whether the app still has an open database connection.
@@ -24,7 +26,12 @@ func appIsLive(app *pocketbase.PocketBase) bool {
 
 // generateThumbnail generates a thumbnail for a drive item's file and stores it
 // on the record's thumbnail field. Designed to run in a goroutine.
-func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
+//
+// Editor docs (text/calc) flush with thumb_region_hash set and stash a
+// PageModel payload; we render a lightweight pure-Go text preview (no mupdf)
+// and skip entirely when the region is unchanged. Regular uploads leave
+// thumb_region_hash empty and take the existing mupdf/HEIC path.
+func generateThumbnail(app *pocketbase.PocketBase, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
 	if !appIsLive(app) {
 		return
 	}
@@ -38,6 +45,56 @@ func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
 		return
 	}
 
+	if record.GetString("thumb_region_hash") != "" {
+		generateEditorThumbnail(app, record, filename, payload, hasPayload)
+		return
+	}
+
+	generateUploadThumbnail(app, record, filename)
+}
+
+// generateEditorThumbnail renders the lightweight pure-Go text preview for an
+// editor doc and saves it to the thumbnail field.
+func generateEditorThumbnail(
+	app *pocketbase.PocketBase,
+	record *core.Record,
+	filename string,
+	payload previewqueue.Payload,
+	hasPayload bool,
+) {
+	// Region unchanged since the last preview — nothing visible would change.
+	if record.GetString("thumbnail") != "" &&
+		record.Original().GetString("thumb_region_hash") == record.GetString("thumb_region_hash") {
+		return
+	}
+
+	var model textpreview.PageModel
+	if hasPayload {
+		model = payload.Page
+	} else {
+		// Fallback (no stashed payload): read + extract the file bytes and
+		// build a minimal text-only page model from the first region.
+		mimeType := record.GetString("mime_type")
+		text, ok := extractFileText(app, record, filename, mimeType)
+		if !ok {
+			return
+		}
+		region, _ := textpreview.FirstRegionText(text)
+		model = textpreview.PageModel{Lines: splitPreviewLines(region)}
+	}
+
+	outputPath, err := renderTextPreview(app, record, model)
+	if err != nil {
+		return
+	}
+	defer os.Remove(outputPath)
+
+	saveThumbnail(app, record, filename, outputPath)
+}
+
+// generateUploadThumbnail is the existing mupdf/HEIC path for regular uploads,
+// unchanged in behavior.
+func generateUploadThumbnail(app *pocketbase.PocketBase, record *core.Record, filename string) {
 	mimeType := record.GetString("mime_type")
 	if !thumbnails.CanGenerate(mimeType) {
 		app.Logger().Debug("Thumbnail: skipping unsupported mime type",
@@ -108,6 +165,36 @@ func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
 		return
 	}
 
+	saveThumbnail(app, record, filename, outputPath)
+}
+
+// renderTextPreview renders model to a temp .jpg file and returns its path. The
+// caller owns removing the file.
+func renderTextPreview(app *pocketbase.PocketBase, record *core.Record, model textpreview.PageModel) (string, error) {
+	outputFile, err := os.CreateTemp(os.TempDir(), "thumb-out-*.jpg")
+	if err != nil {
+		app.Logger().Warn("Thumbnail: failed to create temp output",
+			"id", record.Id, "error", err)
+		return "", err
+	}
+	outputPath := outputFile.Name()
+	outputFile.Close()
+
+	if err := textpreview.RenderJPEG(model, outputPath, thumbnails.DefaultWidth, thumbnails.DefaultHeight); err != nil {
+		app.Logger().Warn("Thumbnail: text preview render failed",
+			"id", record.Id, "error", err)
+		os.Remove(outputPath)
+		return "", err
+	}
+
+	return outputPath, nil
+}
+
+// saveThumbnail reads the generated jpg at outputPath and persists it to the
+// record's thumbnail field, re-fetching the record and re-checking liveness
+// (the generation above is slow and the app/DB can be reset out from under this
+// goroutine in that window).
+func saveThumbnail(app *pocketbase.PocketBase, record *core.Record, filename, outputPath string) {
 	thumbData, err := os.ReadFile(outputPath)
 	if err != nil {
 		app.Logger().Warn("Thumbnail: failed to read generated thumbnail",
@@ -123,8 +210,6 @@ func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
 		return
 	}
 
-	// Re-check liveness: thumbnail generation above is slow, and the app/DB
-	// can be reset out from under this goroutine in that window.
 	if !appIsLive(app) {
 		return
 	}
@@ -144,6 +229,28 @@ func generateThumbnail(app *pocketbase.PocketBase, record *core.Record) {
 		return
 	}
 	app.Logger().Info("Thumbnail: saved", "id", record.Id, "thumbnail", thumbFilename)
+}
+
+// splitPreviewLines breaks a text region into preview lines, splitting on
+// newlines and wrapping any long line to ~90 characters.
+func splitPreviewLines(region string) []string {
+	const maxLineChars = 90
+	var lines []string
+	for _, raw := range strings.Split(region, "\n") {
+		if len(raw) <= maxLineChars {
+			lines = append(lines, raw)
+			continue
+		}
+		runes := []rune(raw)
+		for len(runes) > maxLineChars {
+			lines = append(lines, string(runes[:maxLineChars]))
+			runes = runes[maxLineChars:]
+		}
+		if len(runes) > 0 {
+			lines = append(lines, string(runes))
+		}
+	}
+	return lines
 }
 
 func extensionForMime(mimeType string) string {
