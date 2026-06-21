@@ -28,7 +28,6 @@ import {
 
 const STUB_MIME = 'application/x-tinycld-stub'
 const PB_URL = 'http://127.0.0.1:7200'
-const TEST_TIMEOUT = 120_000
 
 function uniqueXffIp(): string {
     const a = Math.floor(Math.random() * 254) + 1
@@ -100,7 +99,6 @@ test.describe('Drive — share link role change (stub)', () => {
     test('viewer link upgraded to editor: anon mount flips role + subtitle hint appears after reload', async ({
         browser,
     }) => {
-        test.setTimeout(TEST_TIMEOUT)
 
         const doc = await uploadStubFixture(`stub-upgrade-${Date.now()}`)
         const link = await createShareLink({ itemId: doc.id, role: 'viewer' })
@@ -145,7 +143,6 @@ test.describe('Drive — share link role change (stub)', () => {
     })
 
     test('viewer link revoked: anon reload shows expired UI', async ({ browser }) => {
-        test.setTimeout(TEST_TIMEOUT)
 
         const doc = await uploadStubFixture(`stub-revoke-${Date.now()}`)
         const link = await createShareLink({ itemId: doc.id, role: 'viewer' })
