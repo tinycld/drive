@@ -113,6 +113,9 @@ export function useDriveItemFileActions(
                 roomKind,
                 title: `Save template "${templateName}" to`,
                 confirmLabel: 'Save template',
+                // Stay on the current document after saving the template —
+                // don't navigate into the freshly-created `.tmpl.*` file.
+                skipNavigateOnDone: true,
             })
         },
         [openCopyDialog, sourceParentId, roomKind]

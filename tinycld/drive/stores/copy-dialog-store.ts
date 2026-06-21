@@ -13,6 +13,12 @@ interface PendingCopy {
     // same copy flow but wants template-flavored title/confirm text.
     title?: string
     confirmLabel?: string
+    // When true, CopyToFolderDialog does NOT call its host's onCopied
+    // navigation after the copy — "Export as template" saves a template in
+    // the background and should leave the user on their current document,
+    // unlike "Make a copy" which opens the new copy. A success toast is
+    // shown instead.
+    skipNavigateOnDone?: boolean
 }
 
 interface CopyDialogState {

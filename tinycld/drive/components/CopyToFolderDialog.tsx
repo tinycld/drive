@@ -1,4 +1,5 @@
 import { captureException } from '@tinycld/core/lib/errors'
+import { notify } from '@tinycld/core/lib/notify'
 import { useForceFlush } from '../hooks/use-force-flush'
 import { useCopyDriveItem } from '../lib/copy-drive-item'
 import { useCopyDialogStore } from '../stores/copy-dialog-store'
@@ -35,15 +36,34 @@ export function CopyToFolderDialog({ itemId, onCopied }: CopyToFolderDialogProps
 
     if (pending == null) return null
 
+    // Capture the bits we need at fire time — the store entry is cleared
+    // by `close()`, so reading `pending` inside the async onSuccess would
+    // race the clear.
+    const { copyName, skipNavigateOnDone } = pending
+
     const runCopy = (targetFolderId: string) => {
         copyDriveItem.mutate(
             {
                 sourceItemId: itemId,
-                newName: pending.copyName,
+                newName: copyName,
                 parentId: targetFolderId,
             },
             {
-                onSuccess: result => onCopied(result.itemId),
+                onSuccess: result => {
+                    if (skipNavigateOnDone) {
+                        // "Export as template": leave the user on their
+                        // current document and confirm with a toast.
+                        notify.emit({
+                            event: 'drive.template_saved',
+                            title: 'Template saved',
+                            body: copyName,
+                            durationMs: 4000,
+                            data: { name: copyName },
+                        })
+                        return
+                    }
+                    onCopied(result.itemId)
+                },
             }
         )
     }
