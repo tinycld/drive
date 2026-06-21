@@ -1,5 +1,4 @@
 import { FrozenSlideStack } from '@tinycld/core/components/workspace/FrozenStack'
-import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { View } from 'react-native'
 import { DetailPanel } from '../components/DetailPanel'
 import { DriveDialogs, DriveToolbar } from '../components/DriveToolbar'
@@ -31,8 +30,10 @@ function DriveLayoutInner() {
         detailPanelOpen,
         closeDetailPanel,
     } = useDrive()
-    const isMobile = useBreakpoint() === 'mobile'
-    const showDetail = detailPanelOpen && !!selectedItem && !isMobile
+    // The detail panel renders as a right-anchored Drawer (~80% width,
+    // full-height) that works on every breakpoint, so it isn't gated to
+    // desktop/tablet — on a phone "Info" opens the same drawer the web shows.
+    const showDetail = detailPanelOpen && !!selectedItem
     const isMyDrive = activeSection === 'my-drive'
 
     return (
