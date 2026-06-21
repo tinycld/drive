@@ -1,3 +1,5 @@
+import { captureException } from '@tinycld/core/lib/errors'
+import { useForceFlush } from '../hooks/use-force-flush'
 import { useCopyDriveItem } from '../lib/copy-drive-item'
 import { useCopyDialogStore } from '../stores/copy-dialog-store'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
@@ -18,18 +20,22 @@ interface CopyToFolderDialogProps {
 // the useCopyDriveItem mutation. On success it calls onCopied with
 // the new row id so the host can navigate (or otherwise react).
 //
-// The dialog is opened by useDriveItemFileActions.makeCopy, which
-// pushes `{ copyName, sourceParentId }` into useCopyDialogStore.
-// Mount this once alongside the host package's other detail-screen
-// dialogs.
+// The dialog is opened by useDriveItemFileActions.makeCopy (and the
+// analogous "Export as template" action), which pushes the pending copy
+// into useCopyDialogStore. When the pending copy names a `roomKind`, the
+// source is a live document (text/calc) whose durable blob only refreshes
+// on a debounce — so we force-flush the room before copying, otherwise
+// the duplicate would miss the most recent edits. Mount this once
+// alongside the host package's other detail-screen dialogs.
 export function CopyToFolderDialog({ itemId, onCopied }: CopyToFolderDialogProps) {
     const pending = useCopyDialogStore(s => s.pendingCopy)
     const close = useCopyDialogStore(s => s.closeCopyDialog)
     const copyDriveItem = useCopyDriveItem()
+    const forceFlush = useForceFlush()
 
     if (pending == null) return null
 
-    const handleMove = (targetFolderId: string) => {
+    const runCopy = (targetFolderId: string) => {
         copyDriveItem.mutate(
             {
                 sourceItemId: itemId,
@@ -42,6 +48,26 @@ export function CopyToFolderDialog({ itemId, onCopied }: CopyToFolderDialogProps
         )
     }
 
+    const handleMove = (targetFolderId: string) => {
+        if (!pending.roomKind) {
+            runCopy(targetFolderId)
+            return
+        }
+        // Flush the live room first so the copy reads edit-current bytes.
+        // A flush failure is non-fatal: fall back to copying the
+        // last-saved blob rather than blocking the user entirely.
+        forceFlush.mutate(
+            { roomKind: pending.roomKind, itemId },
+            {
+                onSuccess: () => runCopy(targetFolderId),
+                onError: err => {
+                    captureException('drive.copyToFolder.forceFlush', err)
+                    runCopy(targetFolderId)
+                },
+            }
+        )
+    }
+
     return (
         <ChooseFolderDialog
             open
@@ -50,8 +76,8 @@ export function CopyToFolderDialog({ itemId, onCopied }: CopyToFolderDialogProps
             initialSelectedId={pending.sourceParentId}
             onMove={handleMove}
             onClose={close}
-            title={`Copy "${pending.copyName}" to`}
-            confirmLabel="Copy here"
+            title={pending.title ?? `Copy "${pending.copyName}" to`}
+            confirmLabel={pending.confirmLabel ?? 'Copy here'}
         />
     )
 }

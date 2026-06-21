@@ -3,8 +3,8 @@ import type { FilePreviewSource } from '@tinycld/core/file-viewer/types'
 import { formatRelativeDate } from '@tinycld/core/lib/format-utils'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
-import { type TemplateItem, useTemplateItems } from '~/tinycld/drive/hooks/use-template-items'
-import { type TemplateExtension, templateDisplayName } from '~/tinycld/drive/lib/template-naming'
+import { type TemplateItem, useTemplateItems } from '../hooks/use-template-items'
+import { type TemplateExtension, templateDisplayName } from '../lib/template-naming'
 
 interface TemplatePickerDialogProps {
     open: boolean

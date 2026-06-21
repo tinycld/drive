@@ -2,11 +2,7 @@ import { and, eq } from '@tanstack/db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
 import { useMemo } from 'react'
-import {
-    isTemplateName,
-    TEMPLATE_EXTENSIONS,
-    type TemplateExtension,
-} from '~/tinycld/drive/lib/template-naming'
+import { isTemplateName, TEMPLATE_EXTENSIONS, type TemplateExtension } from '../lib/template-naming'
 
 // The drive mime types that back each template extension. The live query
 // filters on mime server-side (drive_items syncs on-demand, so the

@@ -13,6 +13,10 @@ import { useCopyDialogStore } from '../stores/copy-dialog-store'
 export interface DriveItemFileActions {
     rename: (newName: string) => void
     makeCopy: (copyName: string) => void
+    // Opens the same folder-picker copy flow as makeCopy, but force-
+    // flushes the live room first and labels the dialog for templates.
+    // `templateName` is the already-derived `.tmpl.*` name.
+    exportAsTemplate: (templateName: string) => void
     moveToTrash: () => void
     openDriveDetails: () => void
 }
@@ -23,6 +27,10 @@ interface UseDriveItemFileActionsParams {
     // index route (e.g. orgHref('calc'), orgHref('text')) so the user
     // isn't left staring at the trashed item.
     onTrashed: () => void
+    // The realtime room kind that owns this document ('text', 'calc').
+    // Threaded into the copy flow so "Make a copy" / "Export as template"
+    // force-flush the live room before duplicating its drive_items.file.
+    roomKind: string
 }
 
 // Self-contained wrappers around the drive_items collection for any
@@ -45,7 +53,7 @@ interface UseDriveItemFileActionsParams {
 export function useDriveItemFileActions(
     params: UseDriveItemFileActionsParams
 ): DriveItemFileActions {
-    const { itemId, onTrashed } = params
+    const { itemId, onTrashed, roomKind } = params
     const [driveItemsCollection, driveItemStateCollection] = useStore(
         'drive_items',
         'drive_item_state'
@@ -92,9 +100,22 @@ export function useDriveItemFileActions(
 
     const makeCopy = useCallback(
         (copyName: string) => {
-            openCopyDialog({ copyName, sourceParentId })
+            openCopyDialog({ copyName, sourceParentId, roomKind })
         },
-        [openCopyDialog, sourceParentId]
+        [openCopyDialog, sourceParentId, roomKind]
+    )
+
+    const exportAsTemplate = useCallback(
+        (templateName: string) => {
+            openCopyDialog({
+                copyName: templateName,
+                sourceParentId,
+                roomKind,
+                title: `Save template "${templateName}" to`,
+                confirmLabel: 'Save template',
+            })
+        },
+        [openCopyDialog, sourceParentId, roomKind]
     )
 
     const trashMutation = useMutation({
@@ -124,5 +145,5 @@ export function useDriveItemFileActions(
         router.push(orgHref('drive', { item: itemId }))
     }, [orgHref, itemId])
 
-    return { rename, makeCopy, moveToTrash, openDriveDetails }
+    return { rename, makeCopy, exportAsTemplate, moveToTrash, openDriveDetails }
 }
