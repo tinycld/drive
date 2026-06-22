@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterTemplateItems } from '~/tinycld/drive/hooks/use-template-items'
+import { computeHasTemplates, filterTemplateItems } from '~/tinycld/drive/hooks/use-template-items'
 import { TEMPLATE_EXTENSIONS } from '~/tinycld/drive/lib/template-naming'
 
 const DOCX = TEMPLATE_EXTENSIONS.docx
@@ -37,5 +37,23 @@ describe('filterTemplateItems', () => {
             updated: '2026-06-01',
             size: 0,
         })
+    })
+})
+
+describe('computeHasTemplates', () => {
+    it('is false while still loading, regardless of count', () => {
+        expect(computeHasTemplates(0, true)).toBe(false)
+        // Hidden until loaded: even a stale non-zero count stays hidden
+        // mid-load so the entry point doesn't flicker in then vanish.
+        expect(computeHasTemplates(3, true)).toBe(false)
+    })
+
+    it('is false once loaded with no templates', () => {
+        expect(computeHasTemplates(0, false)).toBe(false)
+    })
+
+    it('is true once loaded with at least one template', () => {
+        expect(computeHasTemplates(1, false)).toBe(true)
+        expect(computeHasTemplates(9, false)).toBe(true)
     })
 })
