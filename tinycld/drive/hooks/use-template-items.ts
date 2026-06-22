@@ -84,3 +84,20 @@ export function useTemplateItems(extension: TemplateExtension) {
 
     return { items, isLoading }
 }
+
+// computeHasTemplates is the gate predicate, split out so it can be unit
+// tested without a hook harness. Returns false while the query is still
+// loading so the entry point doesn't flicker in and then vanish — it only
+// shows once we've confirmed at least one template exists.
+export function computeHasTemplates(itemCount: number, isLoading: boolean): boolean {
+    return !isLoading && itemCount > 0
+}
+
+// useHasTemplates is a thin gate over useTemplateItems for surfaces that
+// only need a yes/no — the index "From template…" trigger and the File
+// menu item, which are hidden entirely when the org has no templates for
+// the extension.
+export function useHasTemplates(extension: TemplateExtension): boolean {
+    const { items, isLoading } = useTemplateItems(extension)
+    return computeHasTemplates(items.length, isLoading)
+}
