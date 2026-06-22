@@ -3,6 +3,22 @@ import { create } from '@tinycld/core/lib/store'
 interface PendingCopy {
     copyName: string
     sourceParentId: string
+    // The realtime room kind that owns the source document (e.g. 'text',
+    // 'calc'). When set, CopyToFolderDialog force-flushes the live room to
+    // its drive_items.file blob before copying, so the duplicate captures
+    // in-flight edits rather than the last debounced save. Omit for copies
+    // of static files (no live room to flush).
+    roomKind?: string
+    // Optional dialog chrome overrides. "Export as template" reuses this
+    // same copy flow but wants template-flavored title/confirm text.
+    title?: string
+    confirmLabel?: string
+    // When true, CopyToFolderDialog does NOT call its host's onCopied
+    // navigation after the copy — "Export as template" saves a template in
+    // the background and should leave the user on their current document,
+    // unlike "Make a copy" which opens the new copy. A success toast is
+    // shown instead.
+    skipNavigateOnDone?: boolean
 }
 
 interface CopyDialogState {
