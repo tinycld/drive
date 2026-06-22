@@ -84,3 +84,14 @@ export function useTemplateItems(extension: TemplateExtension) {
 
     return { items, isLoading }
 }
+
+// useHasTemplates is a thin gate over useTemplateItems for surfaces that
+// only need a yes/no — the index "From template…" trigger and the File
+// menu item, which are hidden entirely when the org has no templates for
+// the extension. `hasTemplates` stays false while the on-demand query is
+// still loading, so the entry point doesn't flicker in and then vanish:
+// it only appears once we've confirmed at least one template exists.
+export function useHasTemplates(extension: TemplateExtension): boolean {
+    const { items, isLoading } = useTemplateItems(extension)
+    return !isLoading && items.length > 0
+}
