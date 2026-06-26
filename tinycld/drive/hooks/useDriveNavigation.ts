@@ -66,6 +66,21 @@ export function useDriveNavigation({
         clearSelection()
     }
 
+    // Going "up" is a pop, not a push: when the user reached this folder by
+    // tapping into it, router.back() pops the stack and plays the native
+    // slide-out animation. Pushing the parent href instead (as navigateToFolder
+    // does) animates as a forward slide-in — wrong direction for a back action.
+    // Falls back to a push when there's no history to pop (deep link, refresh).
+    const navigateBack = (parentId: string) => {
+        if (router.canGoBack()) {
+            router.back()
+        } else {
+            router.replace(buildDriveHref({ folderId: parentId || undefined }))
+        }
+        clearSearch()
+        clearSelection()
+    }
+
     const navigateToSection = (section: SidebarSection) => {
         router.push(buildDriveHref({ section }))
         clearSearch()
@@ -82,6 +97,7 @@ export function useDriveNavigation({
 
     return {
         navigateToFolder,
+        navigateBack,
         navigateToSection,
         openItem,
         openPreview,

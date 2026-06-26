@@ -124,6 +124,7 @@ export function DriveToolbar() {
         setViewMode,
         selectItem,
         navigateToFolder,
+        navigateBack,
         searchQuery,
         setSearchQuery,
         isSearching,
@@ -236,7 +237,7 @@ export function DriveToolbar() {
                 <MobileBreadcrumbs
                     breadcrumbs={breadcrumbs}
                     currentLabel={currentLabel}
-                    onNavigate={navigateToFolder}
+                    onBack={navigateBack}
                     fgColor={fgColor}
                 />
             )
@@ -402,12 +403,12 @@ function DesktopBreadcrumbs({
 function MobileBreadcrumbs({
     breadcrumbs,
     currentLabel,
-    onNavigate,
+    onBack,
     fgColor,
 }: {
     breadcrumbs: DriveItemView[]
     currentLabel: string
-    onNavigate: (folderId: string) => void
+    onBack: (parentId: string) => void
     fgColor: string
 }) {
     // breadcrumbs.length === 0 → at root ("My Files"), no back. ≥1 means
@@ -416,10 +417,9 @@ function MobileBreadcrumbs({
     const isInsideFolder = breadcrumbs.length >= 1
     const parent = breadcrumbs.at(-2)
 
-    const goUp = () => {
-        if (parent) onNavigate(parent.id)
-        else onNavigate('')
-    }
+    // Pass the parent id only as the deep-link fallback target; when there's
+    // history, onBack pops the stack and ignores it.
+    const goUp = () => onBack(parent?.id ?? '')
 
     return (
         <View className="flex-row items-center flex-1" style={{ gap: 6, minWidth: 0 }}>

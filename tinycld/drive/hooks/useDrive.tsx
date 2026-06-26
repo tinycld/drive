@@ -75,6 +75,7 @@ export interface DriveContextValue {
     openDetailPanel: () => void
     closeDetailPanel: () => void
     navigateToFolder: (folderId: string) => void
+    navigateBack: (parentId: string) => void
     navigateToSection: (section: SidebarSection) => void
     selectItem: (itemId: string | null) => void
     setViewMode: (mode: ViewMode) => void
@@ -452,6 +453,7 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         openDetailPanel,
         closeDetailPanel,
         navigateToFolder: nav.navigateToFolder,
+        navigateBack: nav.navigateBack,
         navigateToSection: nav.navigateToSection,
         selectItem,
         setViewMode,
