@@ -308,7 +308,7 @@ tinycld/drive/
         save-to-drive.ts, save-to-drive-action.tsx, upload-to-drive.ts
     stores/
         upload-store.ts        zustand: uploading-files list (status + progress)
-        ui-store.ts            zustand: shared UI state (dialogs, view mode)
+        drive-ui-store.ts      zustand: shared UI state (dialogs, view mode)
 ```
 
 ## Development
