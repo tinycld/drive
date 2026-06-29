@@ -67,6 +67,7 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 │     drive_shares           ── per-user-org access; role enum         │
 │     drive_share_links      ── public links; 64-hex token             │
 │     drive_item_state       ── per-user starred / last-viewed         │
+│     comment_mentions       ── @-mentions; shared with text/calc      │
 │     fts_drive_items        ── SQLite FTS5 virtual table              │
 │                                                                      │
 │   Hooks (register.go)                                                │
@@ -90,6 +91,9 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 │     GET    /api/drive/share-link/{token}            ── public        │
 │     GET    /api/drive/share-link/{token}/file       ── public        │
 │     GET    /api/drive/share-link/{token}/thumbnail  ── public        │
+│     POST   /api/drive/share-link/{token}/session     ── public       │
+│     POST   /api/drive/share-link/{token}/otp-request ── public       │
+│     POST   /api/drive/share-link/{token}/otp-verify  ── public       │
 │     POST   /api/drive/download-token                                 │
 │     GET    /api/drive/download-folder?token=...                      │
 │     GET    /api/drive/storage-usage                                  │
@@ -305,6 +309,7 @@ tinycld/drive/
     lib/
         copy-drive-item.ts     POST-then-recursive copy
         item-actions-registry.ts  registry for cross-package "Open in X" actions
+        template-naming.ts     derive default names for new-from-template items
         save-to-drive.ts, save-to-drive-action.tsx, upload-to-drive.ts
     stores/
         upload-store.ts        zustand: uploading-files list (status + progress)
