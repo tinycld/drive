@@ -1,7 +1,7 @@
 const manifest = {
     name: 'Drive',
     slug: 'drive',
-    version: '0.1.0',
+    version: '0.2.0',
     description: 'Cloud file storage for your organization',
     routes: { directory: 'screens' },
     publicRoutes: { directory: 'public-screens' },
