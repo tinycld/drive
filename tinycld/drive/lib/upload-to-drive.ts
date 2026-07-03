@@ -137,3 +137,64 @@ function resolveSize(body: UploadBody, explicit: number | undefined): number {
     if (Platform.OS === 'web' && body instanceof Blob) return body.size
     return 0
 }
+
+/** Input for a blank (no-file) drive_items create. */
+export interface CreateBlankDriveItemInput {
+    /** User-visible name including extension (e.g. "Untitled.docx"). */
+    name: string
+    /** MIME type — the server's blankfile hook keys off this to attach the skeleton. */
+    mimeType: string
+    /** Destination folder ID. Empty string = root ("My Files"). */
+    parentId?: string
+    /** Optional description column. */
+    description?: string
+}
+
+/**
+ * Creates a blank drive_items row with **no file**. The server's blankfile
+ * hook (core/server/blankfile) attaches a minimal valid skeleton for the mime
+ * type and re-dedupes the name authoritatively (chooseUniqueDriveItemName in
+ * drive/server), so the client neither uploads a body nor runs a dedup loop.
+ *
+ * This is the path for "New document" / "New sheet": the editor opens by
+ * itemId and the server-attached file streams in via realtime. Use
+ * {@link useCreateDriveItem} instead when uploading real bytes (picker, copy,
+ * save-to-drive) — those genuinely need a multipart file part.
+ *
+ * A plain JSON insert (not FormData), so — unlike the Blob-upload path — it
+ * works uniformly across web/iOS/Android (RN Android can't upload a Blob part).
+ */
+export function useCreateBlankDriveItem() {
+    const { orgId } = useOrgInfo()
+    const orgSlug = useOrgSlug()
+    const userOrg = useCurrentUserOrg(orgSlug ?? '')
+    const userOrgId = userOrg?.id ?? ''
+
+    return useMutation({
+        mutationFn: async (input: CreateBlankDriveItemInput): Promise<{ itemId: string }> => {
+            if (!orgId || !userOrgId) {
+                throw new Error('Organization context not ready')
+            }
+            const itemId = newRecordId()
+            // The server create hook (drive/server/register.go) re-dedupes the
+            // name and inserts the owner drive_shares row in the same
+            // transaction, and the blankfile hook attaches the skeleton file —
+            // so the client sends a bare row: no file, no size, no dedup loop.
+            // biome-ignore lint/plugin/pbtsdb-no-raw-pb-access: create hook attaches a server-side file the optimistic store can't carry; the row is read back via realtime.
+            await pb.collection('drive_items').create({
+                id: itemId,
+                org: orgId,
+                name: input.name,
+                is_folder: false,
+                mime_type: input.mimeType,
+                parent: input.parentId ?? '',
+                created_by: userOrgId,
+                description: input.description ?? '',
+            })
+            return { itemId }
+        },
+        onError: err => {
+            captureException('useCreateBlankDriveItem', err)
+        },
+    })
+}
