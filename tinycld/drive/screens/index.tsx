@@ -715,6 +715,7 @@ function FilesListRowImpl({
                 // buttons (star, ⋯ menu), and a <button> can't nest a <button>
                 // on web. A labelled clickable region is the correct semantic.
                 accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
+                testID={`drive-item-${item.name}`}
                 className="flex-row items-center px-4 py-3 border-b border-border gap-3"
             >
                 <ListRowThumbnail
@@ -781,6 +782,7 @@ function FilesListRowImpl({
             // No "button" role — the row hosts its own buttons (star, ⋯ menu);
             // nesting <button> in <button> is invalid. Labelled clickable row.
             accessibilityLabel={`${item.name} ${item.owner} ${formatDate(item.updated)}`}
+            testID={`drive-item-${item.name}`}
             // Tags the row for the drag-to-select hit-test (full-width row rect).
             dataSet={{ driveItemId: item.id }}
             className={`flex-row items-center px-3 py-2.5 border-b border-border ${isSelectedRow ? '' : 'bg-background'}`}
@@ -1075,6 +1077,7 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
             // No "button" role — the card hosts its own buttons (⋯ menu);
             // nesting <button> in <button> is invalid on web.
             accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
+            testID={`drive-item-${item.name}`}
             // Tags the card for the drag-to-select hit-test (its rect == the
             // visible tile). Renders as data-drive-item-id on web; no-op native.
             dataSet={{ driveItemId: item.id }}
@@ -1138,6 +1141,7 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
             // No "button" role — the card hosts its own buttons (⋯ menu);
             // nesting <button> in <button> is invalid on web.
             accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
+            testID={`drive-item-${item.name}`}
             // Tags the card for the drag-to-select hit-test (its rect == the
             // visible tile). Renders as data-drive-item-id on web; no-op native.
             dataSet={{ driveItemId: item.id }}
