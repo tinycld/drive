@@ -21,6 +21,27 @@ func getUserOrgForOrg(app *pocketbase.PocketBase, userID, orgID string) (*core.R
 	return records[0], nil
 }
 
+// checkReadPermission verifies the user may view the item: its creator or
+// the holder of any drive_shares row, mirroring the drive_items view rule
+// from migration 1716200001 (created_by.user == auth.id || has-share).
+// Go code paths that bypass PocketBase's rule engine (WebDAV, custom
+// endpoints) must apply this per item — org membership alone is not enough.
+func checkReadPermission(app core.App, userOrgID string, item *core.Record) error {
+	if item.GetString("created_by") == userOrgID {
+		return nil
+	}
+	records, err := app.FindRecordsByFilter(
+		"drive_shares",
+		"item = {:item} && user_org = {:userOrg}",
+		"", 1, 0,
+		map[string]any{"item": item.Id, "userOrg": userOrgID},
+	)
+	if err != nil || len(records) == 0 {
+		return os.ErrPermission
+	}
+	return nil
+}
+
 // checkWritePermission verifies the user has editor or owner role on the item via drive_shares.
 func checkWritePermission(app *pocketbase.PocketBase, userOrgID, itemID string) error {
 	records, err := app.FindRecordsByFilter(
