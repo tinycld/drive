@@ -85,7 +85,7 @@ func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (os.FileInfo, 
 		return &driveFileInfo{name: "drive", isDir: true}, nil
 	}
 
-	_, org, _, orgSlug, segments, err := fs.resolveContext(ctx, name)
+	_, org, userOrg, orgSlug, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +97,13 @@ func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (os.FileInfo, 
 	record, err := resolveItemByPath(fs.app, org.Id, segments)
 	if err != nil {
 		return nil, err
+	}
+
+	// The drive_items view rule hides unshared items entirely, so answer
+	// not-found rather than permission-denied to avoid confirming that
+	// the path exists.
+	if err := checkReadPermission(fs.app, userOrg.Id, record); err != nil {
+		return nil, os.ErrNotExist
 	}
 
 	return recordToFileInfo(record), nil
@@ -135,13 +142,13 @@ func (fs *DriveFileSystem) openForRead(ctx context.Context, name string) (webdav
 		}, nil
 	}
 
-	_, org, _, orgSlug, segments, err := fs.resolveContext(ctx, name)
+	_, org, userOrg, orgSlug, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(segments) == 0 {
-		children, err := fs.listOrgChildren(org.Id, "")
+		children, err := fs.listOrgChildren(org.Id, "", userOrg.Id)
 		if err != nil {
 			return nil, err
 		}
@@ -156,8 +163,13 @@ func (fs *DriveFileSystem) openForRead(ctx context.Context, name string) (webdav
 		return nil, err
 	}
 
+	// Same not-found masking as Stat: unshared items must stay invisible.
+	if err := checkReadPermission(fs.app, userOrg.Id, record); err != nil {
+		return nil, os.ErrNotExist
+	}
+
 	if record.GetBool("is_folder") {
-		children, err := fs.listOrgChildren(org.Id, record.Id)
+		children, err := fs.listOrgChildren(org.Id, record.Id, userOrg.Id)
 		if err != nil {
 			return nil, err
 		}
@@ -372,8 +384,12 @@ func (fs *DriveFileSystem) listUserOrgs(userID string) ([]os.FileInfo, error) {
 }
 
 // listOrgChildren returns the immediate child drive_items of a given
-// parent (or, for empty parentID, of the org root).
-func (fs *DriveFileSystem) listOrgChildren(orgID, parentID string) ([]os.FileInfo, error) {
+// parent (or, for empty parentID, of the org root), limited to items the
+// viewer created or holds a drive_shares row for. WebDAV bypasses
+// PocketBase's rule engine, so the drive_items view rule has to be
+// applied here by hand — org membership alone must not expose the whole
+// org's files.
+func (fs *DriveFileSystem) listOrgChildren(orgID, parentID, viewerUserOrgID string) ([]os.FileInfo, error) {
 	filter := "org = {:org}"
 	params := map[string]any{"org": orgID}
 	if parentID == "" {
@@ -390,6 +406,9 @@ func (fs *DriveFileSystem) listOrgChildren(orgID, parentID string) ([]os.FileInf
 
 	infos := make([]os.FileInfo, 0, len(records))
 	for _, r := range records {
+		if checkReadPermission(fs.app, viewerUserOrgID, r) != nil {
+			continue
+		}
 		infos = append(infos, recordToFileInfo(r))
 	}
 	return infos, nil

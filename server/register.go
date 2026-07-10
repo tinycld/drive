@@ -284,16 +284,8 @@ func resolveItemAndUserOrg(app *pocketbase.PocketBase, re *core.RequestEvent, it
 		if err := checkWritePermission(app, matchedUserOrgID, item.Id); err != nil {
 			return nil, "", re.ForbiddenError("editor or owner access required", nil)
 		}
-	} else {
-		shares, err := app.FindRecordsByFilter(
-			"drive_shares",
-			"item = {:item} && user_org = {:uo}",
-			"", 1, 0,
-			map[string]any{"item": item.Id, "uo": matchedUserOrgID},
-		)
-		if err != nil || len(shares) == 0 {
-			return nil, "", re.ForbiddenError("no access to item", nil)
-		}
+	} else if err := checkReadPermission(app, matchedUserOrgID, item); err != nil {
+		return nil, "", re.ForbiddenError("no access to item", nil)
 	}
 
 	return item, matchedUserOrgID, nil
