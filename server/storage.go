@@ -17,6 +17,29 @@ import (
 // documents avoid the temp-file detour.
 const seekableMemoryThreshold = 32 * 1024 * 1024 // 32 MiB
 
+// reconcileDriveItemSize overwrites the record's `size` field with the true
+// byte length of the file about to be persisted, so the untrusted client
+// `size` never reaches the storage-quota check. GetUnsavedFiles returns the
+// *filesystem.File values staged for this save (from the multipart upload),
+// and File.Size is the authoritative length PocketBase computed from the
+// bytes. When no file is staged (folders, blank-item creates, metadata-only
+// updates) the declared `size` is left untouched.
+func reconcileDriveItemSize(record *core.Record) {
+	files := record.GetUnsavedFiles("file")
+	if len(files) == 0 {
+		return
+	}
+
+	var total int64
+	for _, f := range files {
+		if f == nil {
+			continue
+		}
+		total += f.Size
+	}
+	record.Set("size", total)
+}
+
 // readFileContent returns a ReadCloser for the file blob attached to a drive_items record.
 // The caller must close the returned reader.
 func readFileContent(app *pocketbase.PocketBase, record *core.Record) (io.ReadCloser, error) {
