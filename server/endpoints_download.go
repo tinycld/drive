@@ -116,20 +116,25 @@ func handleDownloadFolder(app *pocketbase.PocketBase, re *core.RequestEvent) err
 		Size     int64
 	}
 
+	// The `depth` column caps the recursion so a pre-existing parent cycle
+	// (which the acyclicity hook now prevents, but old/imported data may still
+	// carry) terminates instead of looping forever. maxFolderDepth also bounds
+	// how deep a legitimate tree can be walked.
 	rows, err := app.DB().NewQuery(`
 		WITH RECURSIVE descendants AS (
-			SELECT id, name, is_folder, parent, file, size
+			SELECT id, name, is_folder, parent, file, size, 0 AS depth
 			FROM drive_items WHERE id = {:rootId} AND org = {:orgId}
 			UNION ALL
-			SELECT di.id, di.name, di.is_folder, di.parent, di.file, di.size
+			SELECT di.id, di.name, di.is_folder, di.parent, di.file, di.size, d.depth + 1
 			FROM drive_items di
 			JOIN descendants d ON di.parent = d.id
-			WHERE di.org = {:orgId}
+			WHERE di.org = {:orgId} AND d.depth < {:maxDepth}
 		)
-		SELECT * FROM descendants
+		SELECT id, name, is_folder, parent, file, size FROM descendants
 	`).Bind(map[string]any{
-		"rootId": dt.folderID,
-		"orgId":  dt.orgID,
+		"rootId":   dt.folderID,
+		"orgId":    dt.orgID,
+		"maxDepth": maxFolderDepth,
 	}).Rows()
 	if err != nil {
 		return re.InternalServerError("query failed", nil)
@@ -174,11 +179,20 @@ func handleDownloadFolder(app *pocketbase.PocketBase, re *core.RequestEvent) err
 	rootName := items[0].Name
 	pathCache := map[string]string{items[0].ID: ""}
 
+	// `inProgress` guards against a cyclic parent chain: pathCache is only
+	// written after the recursive call returns, so without this a cycle would
+	// recurse forever before any cache entry is set. Revisiting an id mid-walk
+	// means a cycle — treat it as a root-relative path and stop descending.
+	inProgress := map[string]bool{}
 	var buildPath func(id string) string
 	buildPath = func(id string) string {
 		if p, ok := pathCache[id]; ok {
 			return p
 		}
+		if inProgress[id] {
+			return ""
+		}
+		inProgress[id] = true
 		d := byID[id]
 		parentPath := buildPath(d.Parent)
 		var path string
@@ -188,6 +202,7 @@ func handleDownloadFolder(app *pocketbase.PocketBase, re *core.RequestEvent) err
 			path = parentPath + "/" + d.Name
 		}
 		pathCache[id] = path
+		delete(inProgress, id)
 		return path
 	}
 

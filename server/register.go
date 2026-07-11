@@ -89,6 +89,28 @@ func Register(app *pocketbase.PocketBase) {
 		return createOwnerShare(e.App, e.Record.Id, userOrgID)
 	})
 
+	// Reject reparenting that would create a folder cycle. Move-cycle
+	// prevention is otherwise client-only (dnd.ts), so a direct PATCH of
+	// `parent` — e.g. making A a child of its own descendant — could form a
+	// cycle. A cyclic tree then makes the recursive download CTE and buildPath
+	// loop (see the guards there). This DB-level check is the authoritative
+	// backstop: it fires for every update path, not just the drag UI, and only
+	// does work when `parent` actually changes.
+	app.OnRecordUpdate("drive_items").BindFunc(func(e *core.RecordEvent) error {
+		newParent := e.Record.GetString("parent")
+		if newParent != e.Record.Original().GetString("parent") {
+			cyclic, err := moveWouldCreateCycle(e.App, e.Record.Id, newParent)
+			if err != nil {
+				return fmt.Errorf("check drive_item move cycle: %w", err)
+			}
+			if cyclic {
+				return router.NewApiError(http.StatusUnprocessableEntity,
+					"cannot move a folder into itself or one of its descendants", nil)
+			}
+		}
+		return e.Next()
+	})
+
 	// FTS sync hooks for drive_items
 	app.OnRecordAfterCreateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		syncDriveItemToFTS(app, e.Record, "create")
@@ -249,7 +271,6 @@ func requireAuth(re *core.RequestEvent) error {
 	}
 	return re.Next()
 }
-
 
 // resolveItemAndUserOrg loads the item, validates the user has an org membership matching
 // the item's org, and returns the item plus the matching user_org ID.

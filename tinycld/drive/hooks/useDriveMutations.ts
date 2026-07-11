@@ -215,10 +215,16 @@ export function useDriveMutations({
 
     const getItemPath = (itemId: string) => {
         const parts: string[] = []
+        // `seen` guards a cyclic/corrupt parent chain (mirrors dnd.ts): the
+        // server now rejects moves that would form a cycle, but stale local
+        // data could still loop this walk forever. Revisiting an id means a
+        // cycle — stop.
+        const seen = new Set<string>()
         let id = itemId
-        while (id) {
+        while (id && !seen.has(id)) {
             const item = itemsById.get(id)
             if (!item) break
+            seen.add(id)
             parts.unshift(item.name)
             id = item.parentId
         }
