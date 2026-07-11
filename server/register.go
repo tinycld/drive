@@ -63,6 +63,15 @@ func Register(app *pocketbase.PocketBase) {
 	// transaction commits a colliding name between probe and INSERT — that
 	// surfaces as a save error to the client, which is acceptable.
 	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
+		// The client-supplied `size` is untrusted: a forged `size=0` (or any
+		// small value) would slip past the quota check below and under-report
+		// in handleStorageUsage. Recompute it from the actual uploaded blob —
+		// mirroring the WebDAV and version-upload paths, which both derive
+		// size from the stored bytes (filesystem.File.Size) rather than the
+		// request field. reconcileDriveItemSize leaves fileless creates
+		// (folders, blank items) with their as-declared size.
+		reconcileDriveItemSize(e.Record)
+
 		size := e.Record.GetInt("size")
 		orgID := e.Record.GetString("org")
 		userOrgID := e.Record.GetString("created_by")
@@ -249,7 +258,6 @@ func requireAuth(re *core.RequestEvent) error {
 	}
 	return re.Next()
 }
-
 
 // resolveItemAndUserOrg loads the item, validates the user has an org membership matching
 // the item's org, and returns the item plus the matching user_org ID.
