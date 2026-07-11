@@ -25,10 +25,16 @@ func sanitizeFTSQuery(input string) string {
 		return ""
 	}
 
+	// Use prefix matches (term*) so search-as-you-type finds partial words — a
+	// query of "Financ" matches "Financials". FTS5 matches whole tokens by
+	// default, so without the trailing * every intermediate keystroke of a search
+	// returns zero rows until the last full word is typed. Mail and contacts
+	// search already do this (see mail/contacts server sanitizeFTSQuery); Drive
+	// was the outlier.
 	quoted := make([]string, len(terms))
 	for i, term := range terms {
 		term = strings.ReplaceAll(term, `"`, `""`)
-		quoted[i] = `"` + term + `"`
+		quoted[i] = `"` + term + `"*`
 	}
 
 	return strings.Join(quoted, " ")
