@@ -6,30 +6,24 @@ import {
     ContactSuggestionsProvider,
 } from '@tinycld/core/lib/contacts/use-contact-suggestions'
 import { captureException } from '@tinycld/core/lib/errors'
+import { usePackages } from '@tinycld/core/lib/packages/use-packages'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { Check, ChevronDown, Globe, Link, Lock, Trash2, X } from 'lucide-react-native'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native'
 
-// Local bridge: mounts inside ContactSuggestionsProvider's render prop and
-// pushes the contacts list up into ShareDialog's state via useEffect, so the
-// rest of the dialog can keep using `contacts` directly inside its
-// suggestion-building useMemo.
-function ContactsBridge({
-    contacts,
-    onChange,
-}: {
-    contacts: ContactSuggestion[]
-    onChange: (next: ContactSuggestion[]) => void
-}) {
-    useEffect(() => {
-        onChange(contacts)
-    }, [contacts, onChange])
-    return null
+// One merged, de-duplicated suggestion the picker can render, tagged by where
+// it came from (an org member vs. a contact from the optional contacts pkg).
+interface SuggestionEntry {
+    key: string
+    userOrgId: string
+    name: string
+    email: string
+    source: 'member' | 'contact'
 }
 
 interface OrgMember {
@@ -119,11 +113,6 @@ export function ShareDialog({
         ? `${window.location.origin}/p/drive/share/${activeShareLink.token}`
         : ''
 
-    // Contacts is an optional sibling package; load suggestions from it
-    // only when installed. The source component mounts no hooks when
-    // @tinycld/contacts isn't linked, so ShareDialog works without it.
-    const [contacts, setContacts] = useState<ContactSuggestion[]>([])
-
     const copyLink = useCallback(async () => {
         if (Platform.OS !== 'web') return
         let url = publicShareUrl
@@ -151,48 +140,7 @@ export function ShareDialog({
     const alreadySharedIds = useMemo(() => new Set(shares.map(s => s.userOrgId)), [shares])
     const pendingEmails = useMemo(() => new Set(pending.map(p => p.email.toLowerCase())), [pending])
 
-    const suggestions = useMemo(() => {
-        if (search.length < 1) return []
-        const q = search.toLowerCase()
-
-        const memberResults = orgMembers
-            .filter(
-                m =>
-                    !alreadySharedIds.has(m.userOrgId) &&
-                    !pendingEmails.has(m.email.toLowerCase()) &&
-                    m.userOrgId !== currentUserOrgId &&
-                    (m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
-            )
-            .map(m => ({
-                key: `member:${m.userOrgId}`,
-                userOrgId: m.userOrgId,
-                name: m.name,
-                email: m.email,
-                source: 'member' as const,
-            }))
-
-        const memberEmails = new Set(orgMembers.map(m => m.email.toLowerCase()))
-        const contactResults = (contacts ?? [])
-            .filter(c => {
-                if (!c.email) return false
-                if (memberEmails.has(c.email.toLowerCase())) return false
-                if (pendingEmails.has(c.email.toLowerCase())) return false
-                const fullName = `${c.first_name} ${c.last_name}`.toLowerCase()
-                return fullName.includes(q) || c.email.toLowerCase().includes(q)
-            })
-            .slice(0, 5)
-            .map(c => ({
-                key: `contact:${c.id}`,
-                userOrgId: '',
-                name: `${c.first_name} ${c.last_name}`.trim(),
-                email: c.email,
-                source: 'contact' as const,
-            }))
-
-        return [...memberResults, ...contactResults]
-    }, [search, orgMembers, contacts, alreadySharedIds, pendingEmails, currentUserOrgId])
-
-    const handleSelect = (s: (typeof suggestions)[number]) => {
+    const handleSelect = (s: SuggestionEntry) => {
         setPending(prev => [
             ...prev,
             {
@@ -251,9 +199,6 @@ export function ShareDialog({
                 className="w-[min(540px,92vw)] p-0 rounded-2xl overflow-hidden"
                 style={{ maxHeight: '90vh' } as object}
             >
-                <ContactSuggestionsProvider>
-                    {list => <ContactsBridge contacts={list} onChange={setContacts} />}
-                </ContactSuggestionsProvider>
                 <View className="px-6 pb-4 flex-row items-center gap-2" style={{ paddingTop: 28 }}>
                     <Text
                         className="text-foreground flex-1"
@@ -299,63 +244,14 @@ export function ShareDialog({
                         <RolePicker value={defaultRole} onChange={setDefaultRole} />
                     </View>
 
-                    {suggestions.length > 0 && (
-                        <View
-                            className="border border-border bg-background overflow-hidden"
-                            style={{
-                                position: 'absolute',
-                                top: '100%',
-                                left: 0,
-                                right: 0,
-                                zIndex: 2000,
-                                marginTop: 2,
-                                borderRadius: 12,
-                                ...(webShadow as object),
-                            }}
-                        >
-                            <ScrollView
-                                style={{ maxHeight: 300 }}
-                                keyboardShouldPersistTaps="handled"
-                            >
-                                {suggestions.map(s => {
-                                    const firstName = s.name.split(' ')[0] || s.email.split('@')[0]
-                                    const lastName = s.name.split(' ').slice(1).join(' ')
-
-                                    return (
-                                        <Pressable
-                                            key={s.key}
-                                            onPress={() => handleSelect(s)}
-                                            className="flex-row items-center gap-2 px-3"
-                                            style={{ paddingVertical: 10 }}
-                                        >
-                                            <NameAvatar
-                                                firstName={firstName}
-                                                lastName={lastName}
-                                                size={40}
-                                            />
-                                            <View className="flex-1 gap-0.5">
-                                                <Text
-                                                    className="text-foreground"
-                                                    style={{
-                                                        fontSize: 13,
-                                                        fontWeight: '500',
-                                                    }}
-                                                >
-                                                    {s.name || s.email}
-                                                </Text>
-                                                <Text
-                                                    className="text-muted-foreground"
-                                                    style={{ fontSize: 12 }}
-                                                >
-                                                    {s.email}
-                                                </Text>
-                                            </View>
-                                        </Pressable>
-                                    )
-                                })}
-                            </ScrollView>
-                        </View>
-                    )}
+                    <SuggestionsDropdown
+                        search={search}
+                        orgMembers={orgMembers}
+                        alreadySharedIds={alreadySharedIds}
+                        pendingEmails={pendingEmails}
+                        currentUserOrgId={currentUserOrgId}
+                        onSelect={handleSelect}
+                    />
                 </View>
 
                 {/* Scrollable middle: collapses before the bottom action bar so
@@ -595,6 +491,169 @@ export function ShareDialog({
                 </View>
             </ModalContent>
         </Modal>
+    )
+}
+
+function buildMemberSuggestions(
+    search: string,
+    orgMembers: OrgMember[],
+    alreadySharedIds: Set<string>,
+    pendingEmails: Set<string>,
+    currentUserOrgId: string
+): SuggestionEntry[] {
+    const q = search.toLowerCase()
+    return orgMembers
+        .filter(
+            m =>
+                !alreadySharedIds.has(m.userOrgId) &&
+                !pendingEmails.has(m.email.toLowerCase()) &&
+                m.userOrgId !== currentUserOrgId &&
+                (m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
+        )
+        .map(m => ({
+            key: `member:${m.userOrgId}`,
+            userOrgId: m.userOrgId,
+            name: m.name,
+            email: m.email,
+            source: 'member' as const,
+        }))
+}
+
+function buildContactSuggestions(
+    search: string,
+    contacts: ContactSuggestion[],
+    orgMembers: OrgMember[],
+    pendingEmails: Set<string>
+): SuggestionEntry[] {
+    const q = search.toLowerCase()
+    const memberEmails = new Set(orgMembers.map(m => m.email.toLowerCase()))
+    return contacts
+        .filter(c => {
+            if (!c.email) return false
+            if (memberEmails.has(c.email.toLowerCase())) return false
+            if (pendingEmails.has(c.email.toLowerCase())) return false
+            const fullName = `${c.first_name} ${c.last_name}`.toLowerCase()
+            return fullName.includes(q) || c.email.toLowerCase().includes(q)
+        })
+        .slice(0, 5)
+        .map(c => ({
+            key: `contact:${c.id}`,
+            userOrgId: '',
+            name: `${c.first_name} ${c.last_name}`.trim(),
+            email: c.email,
+            source: 'contact' as const,
+        }))
+}
+
+interface SuggestionsDropdownProps {
+    search: string
+    orgMembers: OrgMember[]
+    alreadySharedIds: Set<string>
+    pendingEmails: Set<string>
+    currentUserOrgId: string
+    onSelect: (s: SuggestionEntry) => void
+}
+
+// Members are always available; contacts come from the optional contacts pkg,
+// so its rows are appended inside ContactSuggestionsProvider (which renders
+// nothing when the package isn't linked). Both branches feed the same
+// SuggestionsList so the merged, de-duplicated dropdown renders in one place.
+function SuggestionsDropdown({
+    search,
+    orgMembers,
+    alreadySharedIds,
+    pendingEmails,
+    currentUserOrgId,
+    onSelect,
+}: SuggestionsDropdownProps) {
+    // The optional contacts package supplies extra suggestions; without it we
+    // still show org members. Gating on usePackages here (the sanctioned
+    // cross-package presence check) lets us render the member list directly
+    // when contacts is absent, and merge contact rows in via the provider's
+    // render prop when it's present — no lifted state, no effect.
+    const contactsLinked = usePackages().some(p => p.slug === 'contacts')
+
+    if (search.length < 1) return null
+
+    const memberSuggestions = buildMemberSuggestions(
+        search,
+        orgMembers,
+        alreadySharedIds,
+        pendingEmails,
+        currentUserOrgId
+    )
+
+    if (!contactsLinked) {
+        return <SuggestionsList suggestions={memberSuggestions} onSelect={onSelect} />
+    }
+
+    return (
+        <ContactSuggestionsProvider>
+            {contacts => (
+                <SuggestionsList
+                    suggestions={[
+                        ...memberSuggestions,
+                        ...buildContactSuggestions(search, contacts, orgMembers, pendingEmails),
+                    ]}
+                    onSelect={onSelect}
+                />
+            )}
+        </ContactSuggestionsProvider>
+    )
+}
+
+function SuggestionsList({
+    suggestions,
+    onSelect,
+}: {
+    suggestions: SuggestionEntry[]
+    onSelect: (s: SuggestionEntry) => void
+}) {
+    if (suggestions.length < 1) return null
+
+    return (
+        <View
+            className="border border-border bg-background overflow-hidden"
+            style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 2000,
+                marginTop: 2,
+                borderRadius: 12,
+                ...(webShadow as object),
+            }}
+        >
+            <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
+                {suggestions.map(s => {
+                    const firstName = s.name.split(' ')[0] || s.email.split('@')[0]
+                    const lastName = s.name.split(' ').slice(1).join(' ')
+
+                    return (
+                        <Pressable
+                            key={s.key}
+                            onPress={() => onSelect(s)}
+                            className="flex-row items-center gap-2 px-3"
+                            style={{ paddingVertical: 10 }}
+                        >
+                            <NameAvatar firstName={firstName} lastName={lastName} size={40} />
+                            <View className="flex-1 gap-0.5">
+                                <Text
+                                    className="text-foreground"
+                                    style={{ fontSize: 13, fontWeight: '500' }}
+                                >
+                                    {s.name || s.email}
+                                </Text>
+                                <Text className="text-muted-foreground" style={{ fontSize: 12 }}>
+                                    {s.email}
+                                </Text>
+                            </View>
+                        </Pressable>
+                    )
+                })}
+            </ScrollView>
+        </View>
     )
 }
 
