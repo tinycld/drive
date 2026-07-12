@@ -15,6 +15,7 @@ const manifest = {
     seed: { script: 'seed' },
     server: { package: 'server', module: 'tinycld.org/packages/drive' },
     repository: { url: 'https://github.com/tinycld/drive' },
+    peerVersions: { '@tinycld/core': '>=0.0.4 <0.1.0' },
 }
 
 export default manifest
