@@ -38,13 +38,13 @@ func newThrottleApp(t *testing.T) *throttleApp {
 //
 // Both guards run purely on the in-memory record (current value vs. its
 // Original() snapshot) and return BEFORE touching the filesystem/FTS on the
-// skip path. That makes the *decision* observable without a real docx/xlsx blob
-// or mupdf: we drive the function and assert the side effect (an fts_drive_items
+// skip path. That makes the *decision* observable without a real docx/xlsx
+// blob: we drive the function and assert the side effect (an fts_drive_items
 // row, or the thumbnail field) is/ isn't written.
 //
-// The non-skip ("regen") side is exercised via the pure-Go editor path
-// (textpreview is CGo-free, no mupdf) plus a stashed payload, so neither test
-// needs real file bytes in object storage.
+// The non-skip ("regen") side is exercised via the textpreview editor path
+// plus a stashed payload, so neither test needs real file bytes in object
+// storage.
 
 // setupThrottleApp builds a bare TestApp with just the drive_items collection
 // (the fields the throttle guards read) and the fts_drive_items virtual table
@@ -277,7 +277,7 @@ func TestGenerateThumbnail_SkipsWhenRegionUnchanged(t *testing.T) {
 
 // Editor path, region changed: thumb_region_hash differs from Original(), so
 // the guard does NOT skip. With a stashed payload it renders the pure-Go text
-// preview (no mupdf) and saves a new thumbnail file. We assert the persisted
+// preview and saves a new thumbnail file. We assert the persisted
 // thumbnail field changed away from the placeholder — proof the throttle let
 // the regen through.
 func TestGenerateThumbnail_RendersWhenRegionChanged(t *testing.T) {

@@ -1,9 +1,12 @@
 package drive
 
 import (
+	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -13,6 +16,11 @@ import (
 	"tinycld.org/core/thumbnails"
 	"tinycld.org/core/thumbnails/textpreview"
 )
+
+// thumbnailTimeout bounds the doctaculous document render, which checks the
+// context between rasterization steps. The storage-blob read and core's HEIF
+// decode are not context-aware, so those steps aren't cancelled by it.
+const thumbnailTimeout = 60 * time.Second
 
 // appIsLive reports whether the app still has an open database connection.
 // generateThumbnail runs in a FireAndForget goroutine that can outlive the app
@@ -28,9 +36,9 @@ func appIsLive(app *pocketbase.PocketBase) bool {
 // on the record's thumbnail field. Designed to run in a goroutine.
 //
 // Editor docs (text/calc) flush with thumb_region_hash set and stash a
-// PageModel payload; we render a lightweight pure-Go text preview (no mupdf)
-// and skip entirely when the region is unchanged. Regular uploads leave
-// thumb_region_hash empty and take the existing mupdf/HEIC path.
+// PageModel payload; we render a lightweight text preview and skip entirely
+// when the region is unchanged. Regular uploads leave thumb_region_hash empty
+// and take the doctaculous/HEIC document-render path.
 func generateThumbnail(app *pocketbase.PocketBase, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
 	if !appIsLive(app) {
 		return
@@ -83,17 +91,17 @@ func generateEditorThumbnail(
 		model = textpreview.PageModel{Lines: splitPreviewLines(region)}
 	}
 
-	outputPath, err := renderTextPreview(app, record, model)
+	thumbData, err := renderTextPreview(app, record, model)
 	if err != nil {
 		return
 	}
-	defer os.Remove(outputPath)
 
-	saveThumbnail(app, record, filename, outputPath)
+	saveThumbnail(app, record, filename, thumbData)
 }
 
-// generateUploadThumbnail is the existing mupdf/HEIC path for regular uploads,
-// unchanged in behavior.
+// generateUploadThumbnail renders the first page of a regular upload via
+// doctaculous (HEIC via goheif), streaming straight from storage — no temp
+// files.
 func generateUploadThumbnail(app *pocketbase.PocketBase, record *core.Record, filename string) {
 	mimeType := record.GetString("mime_type")
 	if !thumbnails.CanGenerate(mimeType) {
@@ -126,82 +134,51 @@ func generateUploadThumbnail(app *pocketbase.PocketBase, record *core.Record, fi
 	}
 	defer blob.Close()
 
-	tmpDir := os.TempDir()
-	ext := filepath.Ext(filename)
-	if ext == "" {
-		ext = extensionForMime(mimeType)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), thumbnailTimeout)
+	defer cancel()
 
-	inputFile, err := os.CreateTemp(tmpDir, "thumb-in-*"+ext)
-	if err != nil {
-		app.Logger().Warn("Thumbnail: failed to create temp input",
-			"id", record.Id, "error", err)
-		return
-	}
-	inputPath := inputFile.Name()
-	defer os.Remove(inputPath)
-
-	if _, err := inputFile.ReadFrom(blob); err != nil {
-		inputFile.Close()
-		app.Logger().Warn("Thumbnail: failed to write temp input",
-			"id", record.Id, "error", err)
-		return
-	}
-	inputFile.Close()
-
-	outputFile, err := os.CreateTemp(tmpDir, "thumb-out-*.jpg")
-	if err != nil {
-		app.Logger().Warn("Thumbnail: failed to create temp output",
-			"id", record.Id, "error", err)
-		return
-	}
-	outputPath := outputFile.Name()
-	outputFile.Close()
-	defer os.Remove(outputPath)
-
-	if err := thumbnails.Generate(inputPath, outputPath, mimeType, thumbnails.DefaultWidth, thumbnails.DefaultHeight); err != nil {
+	var thumb bytes.Buffer
+	if err := thumbnails.Generate(ctx, &thumb, blob, mimeType, thumbnails.DefaultWidth, thumbnails.DefaultHeight); err != nil {
 		app.Logger().Warn("Thumbnail: generation failed",
 			"id", record.Id, "mime", mimeType, "error", err)
 		return
 	}
 
-	saveThumbnail(app, record, filename, outputPath)
+	saveThumbnail(app, record, filename, thumb.Bytes())
 }
 
-// renderTextPreview renders model to a temp .jpg file and returns its path. The
-// caller owns removing the file.
-func renderTextPreview(app *pocketbase.PocketBase, record *core.Record, model textpreview.PageModel) (string, error) {
+// renderTextPreview renders model to a JPEG and returns its bytes.
+func renderTextPreview(app *pocketbase.PocketBase, record *core.Record, model textpreview.PageModel) ([]byte, error) {
 	outputFile, err := os.CreateTemp(os.TempDir(), "thumb-out-*.jpg")
 	if err != nil {
 		app.Logger().Warn("Thumbnail: failed to create temp output",
 			"id", record.Id, "error", err)
-		return "", err
+		return nil, err
 	}
 	outputPath := outputFile.Name()
 	outputFile.Close()
+	defer os.Remove(outputPath)
 
 	if err := textpreview.RenderJPEG(model, outputPath, thumbnails.DefaultWidth, thumbnails.DefaultHeight); err != nil {
 		app.Logger().Warn("Thumbnail: text preview render failed",
 			"id", record.Id, "error", err)
-		os.Remove(outputPath)
-		return "", err
+		return nil, err
 	}
 
-	return outputPath, nil
-}
-
-// saveThumbnail reads the generated jpg at outputPath and persists it to the
-// record's thumbnail field, re-fetching the record and re-checking liveness
-// (the generation above is slow and the app/DB can be reset out from under this
-// goroutine in that window).
-func saveThumbnail(app *pocketbase.PocketBase, record *core.Record, filename, outputPath string) {
 	thumbData, err := os.ReadFile(outputPath)
 	if err != nil {
 		app.Logger().Warn("Thumbnail: failed to read generated thumbnail",
 			"id", record.Id, "error", err)
-		return
+		return nil, err
 	}
+	return thumbData, nil
+}
 
+// saveThumbnail persists the generated jpg bytes to the record's thumbnail
+// field, re-fetching the record and re-checking liveness (the generation above
+// is slow and the app/DB can be reset out from under this goroutine in that
+// window).
+func saveThumbnail(app *pocketbase.PocketBase, record *core.Record, filename string, thumbData []byte) {
 	thumbFilename := strings.TrimSuffix(filename, filepath.Ext(filename)) + "_thumb.jpg"
 	f, err := filesystem.NewFileFromBytes(thumbData, thumbFilename)
 	if err != nil {
@@ -251,25 +228,4 @@ func splitPreviewLines(region string) []string {
 		}
 	}
 	return lines
-}
-
-func extensionForMime(mimeType string) string {
-	switch mimeType {
-	case "application/pdf":
-		return ".pdf"
-	case "application/epub+zip":
-		return ".epub"
-	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-		return ".docx"
-	case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-		return ".xlsx"
-	case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-		return ".pptx"
-	case "image/heic", "image/heic-sequence":
-		return ".heic"
-	case "image/heif", "image/heif-sequence":
-		return ".heif"
-	default:
-		return ".bin"
-	}
 }
