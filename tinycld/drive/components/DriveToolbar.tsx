@@ -477,6 +477,7 @@ function SearchInput({
         >
             <Search size={14} color={mutedColor} />
             <PlainInput
+                testID="drive-search-input"
                 className="flex-1 p-0 text-foreground"
                 style={{ fontSize: 13 }}
                 placeholder="Search in Files"
