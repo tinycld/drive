@@ -250,7 +250,7 @@ func handleGetShareLinkThumbnail(app *pocketbase.PocketBase, re *core.RequestEve
 	}
 	defer reader.Close()
 
-	re.Response.Header().Set("Content-Type", "image/png")
+	re.Response.Header().Set("Content-Type", "image/jpeg")
 	re.Response.Header().Set("Cache-Control", "public, max-age=3600")
 	_, err = io.Copy(re.Response, reader)
 	return err
