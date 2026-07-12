@@ -711,6 +711,7 @@ function FilesListRowImpl({
         const mobileRow = (
             <Pressable
                 onPress={handleMobilePress}
+                testID={`drive-item-${item.name}`}
                 // No accessibilityRole="button": the row contains its own
                 // buttons (star, ⋯ menu), and a <button> can't nest a <button>
                 // on web. A labelled clickable region is the correct semantic.
@@ -778,6 +779,7 @@ function FilesListRowImpl({
         <Pressable
             onPress={handlePress}
             onPressIn={handleSelectIn}
+            testID={`drive-item-${item.name}`}
             // No "button" role — the row hosts its own buttons (star, ⋯ menu);
             // nesting <button> in <button> is invalid. Labelled clickable row.
             accessibilityLabel={`${item.name} ${item.owner} ${formatDate(item.updated)}`}
@@ -1072,6 +1074,7 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
     return (
         <Pressable
             onPress={handlePress}
+            testID={`drive-item-${item.name}`}
             // No "button" role — the card hosts its own buttons (⋯ menu);
             // nesting <button> in <button> is invalid on web.
             accessibilityLabel={`${item.name} ${formatDate(item.updated)}`}
