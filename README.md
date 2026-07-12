@@ -14,7 +14,7 @@ User-facing features:
 - **Versioning** — every replacement of a file's bytes creates a `drive_item_versions` row with `version_number` (monotonic per-item), size, mime type, source (`upload` | `user` | `system`), and an optional label. Other packages (calc, text) call `POST /api/drive/versions/snapshot` to tag the current bytes as a labeled checkpoint without re-uploading. Restore or download any prior version.
 - **Role-based sharing** — per-item shares with `owner` / `editor` / `viewer` roles. "Shared with me" lists everything other people have given you access to.
 - **Public share links** — 64-hex-character tokenized URLs at `/share/<token>` with viewer or editor role, optional expiry, download counters, last-accessed timestamps, and an enable / disable toggle that reuses the same token. Served by a public route so recipients don't need an account.
-- **Server-side thumbnails** — generated asynchronously on upload. PDFs, EPUBs, and Office documents render through MuPDF (`go-fitz`); HEIC/HEIF photos through `goheif`. Plain image types use PocketBase's built-in `?thumb=` query parameter.
+- **Server-side thumbnails** — generated asynchronously on upload. PDFs, EPUBs, and OOXML Office documents render through the pure-Go `doctaculous` library (via `tinycld.org/core/thumbnails`); HEIC/HEIF photos through `goheif`. Plain image types use PocketBase's built-in `?thumb=` query parameter.
 - **In-app previews** — the preview modal and its viewers (PDF canvas renderer, image / video / audio players, text and code viewers) live in `@tinycld/core/file-viewer/`. Drive consumes them and lets other packages register custom previewers (e.g. Calc registers itself for `.xlsx`, surfaced as the "Open in Calc" file action).
 - **Smart categories** — files are classified into `document`, `spreadsheet`, `pdf`, `image`, `presentation`, `drawing`, `video`, `audio`, `archive`, or `code` (mapping lives in `@tinycld/core/file-viewer/file-icons.ts`).
 - **Starred / Recent / Trash** — per-user state. Soft-delete with restore; trashed items still count toward the storage quota until permanently deleted.
@@ -117,8 +117,8 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 
 After a successful create or update, two goroutines fire-and-forget via `routine.FireAndForget`:
 
-- **Text extraction** (`extract.go` → `core/textextract`) — pulls bytes from the attached file, runs the format-specific extractor (PDF via MuPDF, Office via `unioffice`, plain text passthrough, etc.), and writes the result into `fts_drive_items.content` via `updateFTSContent`. Failures log a warning but don't fail the request — the file is searchable by name and description even if content extraction breaks.
-- **Thumbnail generation** (`thumbnails.go` → `core/thumbnails`) — only fires for mimes the core thumbnail package can render (PDF / EPUB / Word / Excel / PowerPoint / HEIC / HEIF). MuPDF-backed extraction is serialized through `fitzMu` because `go-fitz` is not concurrency-safe; HEIC goes through `goheif` and writes a JPEG. The thumbnail is stored on `drive_items.thumbnail`.
+- **Text extraction** (`extract.go` → `core/textextract`) — pulls bytes from the attached file, runs the format-specific extractor (PDF / Office / EPUB / RTF / HTML via `doctaculous`, plain text passthrough, plus any package-registered handlers), and writes the result into `fts_drive_items.content` via `updateFTSContent`. Failures log a warning but don't fail the request — the file is searchable by name and description even if content extraction breaks.
+- **Thumbnail generation** (`thumbnails.go` → `core/thumbnails`) — only fires for mimes the core thumbnail package can render (PDF / EPUB / OOXML Word / Excel / PowerPoint / HEIC / HEIF). Document rendering is pure Go via `doctaculous`, which is safe to run concurrently — there is no global render mutex; HEIC goes through `goheif` and writes a JPEG. The thumbnail is stored on `drive_items.thumbnail`.
 
 Both effectively run as eventual consistency: clients see the item appear immediately, the FTS row catches up when extraction finishes (typically <1 s for small docs, longer for large PDFs), and the thumbnail materializes when generation finishes.
 
@@ -152,10 +152,10 @@ Public endpoints (`/api/drive/share-link/{token}`, `.../file`, `.../thumbnail`) 
 
 - `application/pdf`
 - `application/epub+zip`
-- The OOXML and legacy Office types (`.docx`, `.xlsx`, `.pptx`, `.doc`, `.xls`, `.ppt`)
+- The OOXML Office types (`.docx`, `.xlsx`, `.pptx`) — legacy binary Office (`.doc`, `.xls`, `.ppt`) is deliberately unsupported since the doctaculous migration
 - `image/heic`, `image/heif` (including the `-sequence` variants)
 
-For OOXML / legacy Office, MuPDF renders the first page (`doc.Image(0)`) and the result is resized with `imaging.Fit` (Lanczos) and JPEG-encoded at quality 85. For HEIC/HEIF, `goheif.Decode` handles the iPhone-photo case Go's stdlib can't.
+For documents, `doctaculous` renders the first page straight to a JPEG (quality 85) fitted within the target box, reading the storage blob into memory (capped at 50 MB) with no temp files. For HEIC/HEIF, `goheif.Decode` handles the iPhone-photo case Go's stdlib can't, resized with `imaging.Fit` (Lanczos).
 
 Plain image types (`image/png`, `image/jpeg`, `image/gif`, `image/webp`, SVG) are *not* in either list — PocketBase's built-in `?thumb=` query parameter serves on-demand thumbnails for them directly off the original file, so we don't pre-render those.
 

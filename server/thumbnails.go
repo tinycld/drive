@@ -17,8 +17,9 @@ import (
 	"tinycld.org/core/thumbnails/textpreview"
 )
 
-// thumbnailTimeout bounds a single document render. Rasterizing a page of a
-// pathological document can be slow; the goroutine must not hang forever.
+// thumbnailTimeout bounds the doctaculous document render, which checks the
+// context between rasterization steps. The storage-blob read and core's HEIF
+// decode are not context-aware, so those steps aren't cancelled by it.
 const thumbnailTimeout = 60 * time.Second
 
 // appIsLive reports whether the app still has an open database connection.
