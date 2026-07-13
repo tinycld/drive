@@ -44,48 +44,106 @@ func TestExportInputFormat(t *testing.T) {
 	}
 }
 
-// TestExportConvertsToPDF is the load-bearing check: real office fixtures run
-// through the exact OpenBytesAs -> WritePDF path handleExport uses, and produce
-// bytes that start with the %PDF- signature. This proves the doctaculous
-// dependency is wired correctly (module + render deps resolvable) end to end.
-func TestExportConvertsToPDF(t *testing.T) {
-	fixtures := []struct {
-		file string
-		mime string
+// TestParseTarget checks the target-format gate: empty defaults to PDF, allowed
+// formats resolve, and anything outside the allow-list (images, unknown) fails.
+func TestParseTarget(t *testing.T) {
+	cases := []struct {
+		in      string
+		want    doctaculous.Format
+		wantErr bool
 	}{
-		{"sample.docx", docxMIME},
-		{"sample.xlsx", xlsxMIME},
-		{"sample.pptx", pptxMIME},
+		{"", doctaculous.FormatPDF, false},
+		{"pdf", doctaculous.FormatPDF, false},
+		{"html", doctaculous.FormatHTML, false},
+		{"csv", doctaculous.FormatCSV, false},
+		{"rtf", doctaculous.FormatRTF, false},
+		{"text", doctaculous.FormatText, false},
+		{"png", doctaculous.FormatUnknown, true},   // image output not offered
+		{"jpeg", doctaculous.FormatUnknown, true},  // image output not offered
+		{"tsv", doctaculous.FormatUnknown, true},   // not in the allow-list
+		{"bogus", doctaculous.FormatUnknown, true}, // unknown
+	}
+	for _, c := range cases {
+		got, err := parseTarget(c.in)
+		if (err != nil) != c.wantErr || got != c.want {
+			t.Errorf("parseTarget(%q) = (%q, %v), want (%q, wantErr=%v)", c.in, got, err, c.want, c.wantErr)
+		}
+	}
+}
+
+func TestTargetExt(t *testing.T) {
+	cases := map[doctaculous.Format]string{
+		doctaculous.FormatPDF:      "pdf",
+		doctaculous.FormatHTML:     "html",
+		doctaculous.FormatText:     "txt",
+		doctaculous.FormatMarkdown: "md",
+		doctaculous.FormatCSV:      "csv",
+		doctaculous.FormatRTF:      "rtf",
+	}
+	for f, want := range cases {
+		if got := targetExt(f); got != want {
+			t.Errorf("targetExt(%q) = %q, want %q", f, got, want)
+		}
+	}
+}
+
+// TestExportConvertsFormats is the load-bearing check for the generalized
+// route: real fixtures run through the exact OpenBytesAs -> Write(to) path
+// handleExport uses, across several target formats, and produce non-empty
+// output with the expected signature.
+func TestExportConvertsFormats(t *testing.T) {
+	cases := []struct {
+		name   string
+		file   string
+		mime   string
+		to     doctaculous.Format
+		verify func(t *testing.T, out []byte)
+	}{
+		{"docx->pdf", "sample.docx", docxMIME, doctaculous.FormatPDF, wantPrefix("%PDF-")},
+		{"docx->html", "sample.docx", docxMIME, doctaculous.FormatHTML, wantNonEmpty},
+		{"docx->txt", "sample.docx", docxMIME, doctaculous.FormatText, wantNonEmpty},
+		{"docx->rtf", "sample.docx", docxMIME, doctaculous.FormatRTF, wantPrefix(`{\rtf`)},
+		{"xlsx->pdf", "sample.xlsx", xlsxMIME, doctaculous.FormatPDF, wantPrefix("%PDF-")},
+		{"xlsx->csv", "sample.xlsx", xlsxMIME, doctaculous.FormatCSV, wantNonEmpty},
+		{"pptx->pdf", "sample.pptx", pptxMIME, doctaculous.FormatPDF, wantPrefix("%PDF-")},
 	}
 
-	for _, fx := range fixtures {
-		t.Run(fx.file, func(t *testing.T) {
-			path := filepath.Join("..", "tests", "assets", fx.file)
-			data, err := os.ReadFile(path)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join("..", "tests", "assets", tc.file))
 			if err != nil {
-				t.Fatalf("read fixture %s: %v", path, err)
+				t.Fatalf("read fixture %s: %v", tc.file, err)
 			}
-
-			from, err := exportInputFormat(fx.mime, doctaculous.FormatPDF)
+			from, err := exportInputFormat(tc.mime, tc.to)
 			if err != nil {
-				t.Fatalf("exportInputFormat(%q): %v", fx.mime, err)
+				t.Fatalf("exportInputFormat(%q -> %q): %v", tc.mime, tc.to, err)
 			}
-
 			doc, err := doctaculous.OpenBytesAs(from, data)
 			if err != nil {
-				t.Fatalf("OpenBytesAs(%s): %v", fx.file, err)
+				t.Fatalf("OpenBytesAs(%s): %v", tc.file, err)
 			}
-
 			var buf bytes.Buffer
-			if err := doc.WritePDF(context.Background(), &buf, doctaculous.PDFOptions{Title: fx.file}); err != nil {
-				t.Fatalf("WritePDF(%s): %v", fx.file, err)
+			if err := doc.Write(context.Background(), &buf, tc.to, doctaculous.ConvertOptions{}); err != nil {
+				t.Fatalf("Write(%s -> %s): %v", tc.file, tc.to, err)
 			}
-
-			out := buf.Bytes()
-			if len(out) < 5 || !bytes.HasPrefix(out, []byte("%PDF-")) {
-				t.Fatalf("%s: output is not a PDF (len=%d, prefix=%q)", fx.file, len(out), safePrefix(out))
-			}
+			tc.verify(t, buf.Bytes())
 		})
+	}
+}
+
+func wantPrefix(prefix string) func(*testing.T, []byte) {
+	return func(t *testing.T, out []byte) {
+		t.Helper()
+		if !bytes.HasPrefix(out, []byte(prefix)) {
+			t.Fatalf("output missing prefix %q; got %q", prefix, safePrefix(out))
+		}
+	}
+}
+
+func wantNonEmpty(t *testing.T, out []byte) {
+	t.Helper()
+	if len(bytes.TrimSpace(out)) == 0 {
+		t.Fatal("conversion produced empty output")
 	}
 }
 

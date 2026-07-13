@@ -20,9 +20,10 @@ import (
 	"github.com/nathanstitt/doctaculous/pkg/doctaculous"
 )
 
-// Export converts a drive item to another format on the server and streams the
-// result back as a download. v1 targets PDF only; the token/route shape is
-// generic so other output formats can slot in behind the same `to` param.
+// Export converts a drive item to another document format on the server
+// (doctaculous) and streams the result back as a download. The target format is
+// the `to` param (PDF, DOCX, XLSX, HTML, Markdown, Text, CSV, RTF, EPUB);
+// omitting it defaults to PDF.
 //
 // Auth mirrors the folder-download flow (endpoints_download.go): an authed POST
 // mints a single-use, short-lived token after the read-access check, and an
@@ -63,13 +64,42 @@ func init() {
 	}()
 }
 
+// allowedTargets is the set of output formats "Download as" exposes. It's a
+// deliberate subset of doctaculous's writers: image outputs (png/jpeg) and the
+// same-format cases are excluded, leaving the document conversions users
+// actually ask for. The client curates which of these it offers per source
+// type; the server enforces the whole set plus per-pair convertibility.
+var allowedTargets = map[doctaculous.Format]bool{
+	doctaculous.FormatPDF:      true,
+	doctaculous.FormatDOCX:     true,
+	doctaculous.FormatXLSX:     true,
+	doctaculous.FormatHTML:     true,
+	doctaculous.FormatMarkdown: true,
+	doctaculous.FormatText:     true,
+	doctaculous.FormatCSV:      true,
+	doctaculous.FormatRTF:      true,
+	doctaculous.FormatEPUB:     true,
+}
+
+// parseTarget resolves the requested `to` value to an allowed output format,
+// defaulting to PDF when empty (so existing PDF callers can omit it).
+func parseTarget(to string) (doctaculous.Format, error) {
+	if to == "" {
+		return doctaculous.FormatPDF, nil
+	}
+	f := doctaculous.Format(to)
+	if !allowedTargets[f] {
+		return doctaculous.FormatUnknown, doctaculous.ErrUnsupportedFormat
+	}
+	return f, nil
+}
+
 // exportInputFormat resolves a drive item's MIME type to a doctaculous input
-// format, or reports why the item can't be exported. Already-PDF items are
-// refused because a PDF->PDF conversion is a no-op (ErrSameFormat). Images are
-// refused too: doctaculous can wrap a PNG/JPEG in a PDF page, but "export image
-// to PDF" is not a document workflow — drive already previews and downloads
-// images directly, and the client hides the action for them, so we keep the
-// server contract aligned (documents only).
+// format, or reports why the item can't be converted to `to`. Same-format
+// conversion is a no-op (ErrSameFormat). Images are refused: doctaculous can
+// wrap a PNG/JPEG in a PDF page, but "export image" is not a document workflow
+// — drive already previews and downloads images directly, and the client hides
+// the action for them, so we keep the server contract aligned (documents only).
 func exportInputFormat(mimeType string, to doctaculous.Format) (doctaculous.Format, error) {
 	from := doctaculous.FormatFromMIME(mimeType)
 	if from == doctaculous.FormatPNG || from == doctaculous.FormatJPEG {
@@ -95,9 +125,8 @@ func handleCreateExportToken(app *pocketbase.PocketBase, re *core.RequestEvent) 
 		return re.BadRequestError("missing item", nil)
 	}
 
-	// v1 only exports to PDF. Default an empty `to` to PDF so callers can omit it.
-	to := doctaculous.FormatPDF
-	if body.To != "" && body.To != string(doctaculous.FormatPDF) {
+	to, err := parseTarget(body.To)
+	if err != nil {
 		return re.BadRequestError("unsupported export target", nil)
 	}
 
@@ -114,9 +143,9 @@ func handleCreateExportToken(app *pocketbase.PocketBase, re *core.RequestEvent) 
 
 	if _, err := exportInputFormat(item.GetString("mime_type"), to); err != nil {
 		if errors.Is(err, doctaculous.ErrSameFormat) {
-			return re.BadRequestError("item is already a PDF", nil)
+			return re.BadRequestError("item is already in that format", nil)
 		}
-		return re.BadRequestError("this file type can't be exported to PDF", nil)
+		return re.BadRequestError("this file type can't be converted to the requested format", nil)
 	}
 
 	tokenBytes := make([]byte, 32)
@@ -140,7 +169,8 @@ func handleCreateExportToken(app *pocketbase.PocketBase, re *core.RequestEvent) 
 	})
 }
 
-// handleExport consumes an export token, converts the item, and streams the PDF.
+// handleExport consumes an export token, converts the item to the requested
+// format, and streams the result.
 func handleExport(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 	token := re.Request.URL.Query().Get("token")
 	if token == "" {
@@ -183,19 +213,35 @@ func handleExport(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 	ctx, cancel := context.WithTimeout(re.Request.Context(), exportRenderWait)
 	defer cancel()
 
+	logf := func(format string, args ...any) {
+		app.Logger().Debug("drive.export: " + fmt.Sprintf(format, args...))
+	}
 	var buf bytes.Buffer
-	if err := doc.WritePDF(ctx, &buf, doctaculous.PDFOptions{
-		Title: item.GetString("name"),
-		Logf:  func(format string, args ...any) { app.Logger().Debug("drive.export: " + fmt.Sprintf(format, args...)) },
+	if err := doc.Write(ctx, &buf, et.to, doctaculous.ConvertOptions{
+		PDF:  doctaculous.PDFOptions{Title: item.GetString("name")},
+		Logf: logf,
 	}); err != nil {
-		return re.InternalServerError("failed to render PDF", nil)
+		return re.InternalServerError("failed to convert document", nil)
 	}
 
-	re.Response.Header().Set("Content-Type", "application/pdf")
+	re.Response.Header().Set("Content-Type", et.to.MIME())
 	re.Response.Header().Set("Content-Disposition",
-		fmt.Sprintf(`attachment; filename="%s.pdf"`, sanitizeFilename(pdfBaseName(item.GetString("name")))))
+		fmt.Sprintf(`attachment; filename="%s.%s"`, sanitizeFilename(baseName(item.GetString("name"))), targetExt(et.to)))
 	_, err = io.Copy(re.Response, &buf)
 	return err
+}
+
+// targetExt is the download file extension for an output format. Mostly the
+// format string itself, with the two aliases users expect (.txt, .md).
+func targetExt(f doctaculous.Format) string {
+	switch f {
+	case doctaculous.FormatText:
+		return "txt"
+	case doctaculous.FormatMarkdown:
+		return "md"
+	default:
+		return string(f)
+	}
 }
 
 // readItemBytesCapped reads a drive item's file into memory, erroring if it
@@ -218,9 +264,9 @@ func readItemBytesCapped(app *pocketbase.PocketBase, item *core.Record, max int6
 	return data, nil
 }
 
-// pdfBaseName strips a known document extension from name so the download is
+// baseName strips a trailing extension from name so the converted download is
 // "report.pdf", not "report.docx.pdf".
-func pdfBaseName(name string) string {
+func baseName(name string) string {
 	if i := strings.LastIndexByte(name, '.'); i > 0 {
 		return name[:i]
 	}

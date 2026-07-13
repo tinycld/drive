@@ -31,7 +31,7 @@ test.describe('Drive — Export to PDF', () => {
         await dismissErrorOverlay(page)
     })
 
-    test('Export to PDF from the row context menu downloads a real PDF', async ({ page }) => {
+    test('Download as ▸ PDF from the row context menu downloads a real PDF', async ({ page }) => {
         const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
         const fileName = `ExportDocx-${stamp}.docx`
         await uploadFileAsDriveItem({
@@ -44,11 +44,15 @@ test.describe('Drive — Export to PDF', () => {
         await expect(driveItem(page, fileName)).toBeVisible()
         await driveItem(page, fileName).click({ button: 'right' })
 
-        const exportItem = page.getByText('Export to PDF', { exact: true })
-        await expect(exportItem).toBeVisible()
+        // Open the "Download as" submenu, then pick PDF.
+        const submenu = page.getByText('Download as', { exact: true })
+        await expect(submenu).toBeVisible()
+        await submenu.hover()
+        const pdfItem = page.getByText('PDF', { exact: true })
+        await expect(pdfItem).toBeVisible()
 
         const downloadPromise = page.waitForEvent('download')
-        await exportItem.dispatchEvent('click')
+        await pdfItem.dispatchEvent('click')
         const download = await downloadPromise
 
         // Filename swaps .docx -> .pdf, and the bytes are a real PDF.
@@ -113,5 +117,74 @@ test.describe('Drive — Export to PDF', () => {
             body: JSON.stringify({ item: already.id, to: 'pdf' }),
         })
         expect(refusePdf.status).toBe(400)
+    })
+
+    // The generalized route: convert a document to several targets and check the
+    // Content-Type and a content signature for each. Read-only route probes.
+    test('Download as: docx→html/txt, xlsx→csv', async () => {
+        const token = await authTokenForTestUser()
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
+        const docx = await uploadFileAsDriveItem({
+            fixturePath: join(ASSETS, 'sample.docx'),
+            name: `ConvertDocx-${stamp}.docx`,
+            mimeType: DOCX_MIME,
+        })
+        const xlsx = await uploadFileAsDriveItem({
+            fixturePath: join(ASSETS, 'sample.xlsx'),
+            name: `ConvertXlsx-${stamp}.xlsx`,
+            mimeType: XLSX_MIME,
+        })
+
+        const convert = async (itemId: string, to: string) => {
+            const mint = await fetch(`${PB_URL}/api/drive/export-token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: token },
+                body: JSON.stringify({ item: itemId, to }),
+            })
+            expect(mint.status).toBe(200)
+            const { url } = (await mint.json()) as { url: string }
+            const res = await fetch(`${PB_URL}${url}`)
+            expect(res.status).toBe(200)
+            return res
+        }
+
+        const html = await convert(docx.id, 'html')
+        expect(html.headers.get('content-type')).toBe('text/html')
+        expect(html.headers.get('content-disposition')).toContain('.html')
+        expect((await html.text()).length).toBeGreaterThan(0)
+
+        const txt = await convert(docx.id, 'text')
+        expect(txt.headers.get('content-type')).toBe('text/plain')
+        expect(txt.headers.get('content-disposition')).toContain('.txt')
+
+        const csv = await convert(xlsx.id, 'csv')
+        expect(csv.headers.get('content-type')).toBe('text/csv')
+        expect(csv.headers.get('content-disposition')).toContain('.csv')
+
+        // An image is not a document workflow → refused.
+        const fs = await import('node:fs')
+        const os = await import('node:os')
+        const png = join(os.tmpdir(), `NotADoc-${stamp}.png`)
+        fs.writeFileSync(png, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+        const img = await uploadFileAsDriveItem({
+            fixturePath: png,
+            name: `NotADoc-${stamp}.png`,
+            mimeType: 'image/png',
+        })
+        const refuseImg = await fetch(`${PB_URL}/api/drive/export-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: token },
+            body: JSON.stringify({ item: img.id, to: 'pdf' }),
+        })
+        expect(refuseImg.status).toBe(400)
+
+        // An unsupported target is rejected.
+        const badTarget = await fetch(`${PB_URL}/api/drive/export-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: token },
+            body: JSON.stringify({ item: docx.id, to: 'png' }),
+        })
+        expect(badTarget.status).toBe(400)
     })
 })

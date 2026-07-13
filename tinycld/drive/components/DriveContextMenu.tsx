@@ -5,6 +5,7 @@ import type { LucideIcon } from 'lucide-react-native'
 import {
     Download,
     Eye,
+    FileDown,
     FolderInput,
     FolderOpen,
     Info,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react-native'
 import { type ReactNode, useCallback } from 'react'
 import { useResolvedDriveItemActions } from '../hooks/useDriveItemActions'
+import { exportItemToFormat, exportTargetsFor } from '../lib/export-pdf'
 import { useDriveSnapshot } from '../stores/drive-snapshot-store'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
@@ -205,6 +207,7 @@ function NormalMenuItems({
                 onPress={onDownload}
                 mutedColor={mutedColor}
             />
+            <DownloadAsSubmenu item={item} mutedColor={mutedColor} />
             <Separator className="my-1 mx-2" />
             <ContextMenuItem
                 label={item.starred ? 'Remove star' : 'Add star'}
@@ -238,6 +241,34 @@ function NormalMenuItems({
                 mutedColor={mutedColor}
             />
         </>
+    )
+}
+
+// "Download as ▸" — server-side format conversion (doctaculous). Rendered
+// directly in the drive-native menu (not via the extension-action registry,
+// which is a flat list shared with sibling packages). Returns null for files
+// with no convertible targets (folders, images, unknown types) so the row
+// simply doesn't appear.
+function DownloadAsSubmenu({ item, mutedColor }: { item: DriveItemView; mutedColor: string }) {
+    const targets = item.isFolder ? [] : exportTargetsFor(item.mimeType)
+    if (targets.length === 0) return null
+    return (
+        <Menu.Sub>
+            <Menu.SubTrigger>
+                <FileDown size={16} color={mutedColor} />
+                <Menu.ItemTitle>Download as</Menu.ItemTitle>
+            </Menu.SubTrigger>
+            <Menu.SubContent>
+                {targets.map(target => (
+                    <Menu.Item
+                        key={target.to}
+                        onPress={() => exportItemToFormat(item.id, item.name, target)}
+                    >
+                        <Menu.ItemTitle>{target.label}</Menu.ItemTitle>
+                    </Menu.Item>
+                ))}
+            </Menu.SubContent>
+        </Menu.Sub>
     )
 }
 
