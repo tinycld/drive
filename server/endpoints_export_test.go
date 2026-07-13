@@ -3,8 +3,10 @@ package drive
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nathanstitt/doctaculous/pkg/doctaculous"
@@ -152,4 +154,50 @@ func safePrefix(b []byte) string {
 		b = b[:8]
 	}
 	return string(b)
+}
+
+// TestExportSingleSheet verifies WithSheets restricts an xlsx→csv conversion to
+// one worksheet — the capability the sheet param wires up — and that an unknown
+// sheet name surfaces ErrSheetNotFound (which handleExport maps to a 400). The
+// tiny.xlsx fixture has two sheets: "People" and "Incomes" (whose CSV carries a
+// distinctive "Table 1" marker).
+func TestExportSingleSheet(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "tests", "assets", "tiny.xlsx"))
+	if err != nil {
+		t.Fatalf("read tiny.xlsx: %v", err)
+	}
+
+	toCSV := func(t *testing.T, opts ...doctaculous.OpenOption) string {
+		t.Helper()
+		doc, err := doctaculous.OpenBytesAs(doctaculous.FormatXLSX, data, opts...)
+		if err != nil {
+			t.Fatalf("open: %v", err)
+		}
+		var buf bytes.Buffer
+		if err := doc.Write(context.Background(), &buf, doctaculous.FormatCSV, doctaculous.ConvertOptions{}); err != nil {
+			t.Fatalf("write csv: %v", err)
+		}
+		return buf.String()
+	}
+
+	// All sheets: both People (Dulce) and Incomes (Table 1) content present.
+	all := toCSV(t)
+	if !strings.Contains(all, "Dulce") || !strings.Contains(all, "Table 1") {
+		t.Fatalf("all-sheets CSV missing expected content:\n%s", all)
+	}
+
+	// Single sheet: People content only, Incomes excluded.
+	people := toCSV(t, doctaculous.WithSheets("People"))
+	if !strings.Contains(people, "Dulce") {
+		t.Errorf("People CSV missing People content:\n%s", people)
+	}
+	if strings.Contains(people, "Table 1") {
+		t.Errorf("People CSV leaked Incomes-sheet content:\n%s", people)
+	}
+
+	// Unknown sheet → ErrSheetNotFound.
+	_, err = doctaculous.OpenBytesAs(doctaculous.FormatXLSX, data, doctaculous.WithSheets("Nope"))
+	if !errors.Is(err, doctaculous.ErrSheetNotFound) {
+		t.Errorf("unknown sheet: got %v, want ErrSheetNotFound", err)
+	}
 }

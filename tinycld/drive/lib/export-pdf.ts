@@ -45,6 +45,10 @@ const DOCX: ExportTarget = {
 }
 const CSV: ExportTarget = { to: 'csv', label: 'CSV', mime: 'text/csv', ext: 'csv' }
 
+// Exported so calc can drive current-sheet vs all-sheets CSV via the optional
+// `sheet` param, rather than re-declaring the target.
+export const CSV_TARGET = CSV
+
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
@@ -82,12 +86,17 @@ export function canExport(mimeType: string): boolean {
  * carry the bearer header, so the token in the URL is the credential).
  * Fire-and-forget: callers don't await.
  */
-export function exportItemToFormat(itemId: string, displayName: string, target: ExportTarget) {
+export function exportItemToFormat(
+    itemId: string,
+    displayName: string,
+    target: ExportTarget,
+    opts?: { sheet?: string }
+) {
     void (async () => {
         try {
             const response = await pb.send('/api/drive/export-token', {
                 method: 'POST',
-                body: { item: itemId, to: target.to },
+                body: { item: itemId, to: target.to, sheet: opts?.sheet ?? '' },
             })
             const fileName = `${stripExtension(displayName)}.${target.ext}`
             downloadFromUrl(`${pb.baseURL}${response.url}`, fileName, target.mime)

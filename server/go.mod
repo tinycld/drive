@@ -3,7 +3,7 @@ module tinycld.org/packages/drive
 go 1.26.3
 
 require (
-	github.com/nathanstitt/doctaculous v0.0.4
+	github.com/nathanstitt/doctaculous v0.0.5-0.20260713022548-8c1fa9d9cf84
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.38.1
 	golang.org/x/net v0.54.0
@@ -63,3 +63,4 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+

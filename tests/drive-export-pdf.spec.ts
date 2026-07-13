@@ -187,4 +187,53 @@ test.describe('Drive — Export to PDF', () => {
         })
         expect(badTarget.status).toBe(400)
     })
+
+    // Single-sheet CSV via the `sheet` param. tiny.xlsx has two sheets —
+    // "People" (contains "Dulce") and "Incomes" (contains "Table 1").
+    test('Download as CSV: current sheet vs all sheets', async () => {
+        const token = await authTokenForTestUser()
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
+        const xlsx = await uploadFileAsDriveItem({
+            fixturePath: join(ASSETS, 'tiny.xlsx'),
+            name: `TwoSheets-${stamp}.xlsx`,
+            mimeType: XLSX_MIME,
+        })
+
+        const csvText = async (body: Record<string, string>) => {
+            const mint = await fetch(`${PB_URL}/api/drive/export-token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: token },
+                body: JSON.stringify({ item: xlsx.id, to: 'csv', ...body }),
+            })
+            expect(mint.status).toBe(200)
+            const { url } = (await mint.json()) as { url: string }
+            const res = await fetch(`${PB_URL}${url}`)
+            expect(res.status).toBe(200)
+            return res.text()
+        }
+
+        // All sheets: both People and Incomes content.
+        const all = await csvText({})
+        expect(all).toContain('Dulce')
+        expect(all).toContain('Table 1')
+
+        // Current sheet "People": People content only, Incomes excluded.
+        const people = await csvText({ sheet: 'People' })
+        expect(people).toContain('Dulce')
+        expect(people).not.toContain('Table 1')
+
+        // Unknown sheet → 400 (ErrSheetNotFound).
+        const bad = await fetch(`${PB_URL}/api/drive/export-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: token },
+            body: JSON.stringify({ item: xlsx.id, to: 'csv', sheet: 'Nope' }),
+        })
+        // The sheet is only validated at conversion time (the mint token
+        // succeeds; the GET fails). Mirror that: mint ok, then GET 400.
+        expect(bad.status).toBe(200)
+        const { url } = (await bad.json()) as { url: string }
+        const badRes = await fetch(`${PB_URL}${url}`)
+        expect(badRes.status).toBe(400)
+    })
 })

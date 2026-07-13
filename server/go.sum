@@ -89,8 +89,8 @@ github.com/mattn/go-isatty v0.0.22 h1:j8l17JJ9i6VGPUFUYoTUKPSgKe/83EYU2zBC7YNKMw
 github.com/mattn/go-isatty v0.0.22/go.mod h1:ZXfXG4SQHsB/w3ZeOYbR0PrPwLy+n6xiMrJlRFqopa4=
 github.com/mrz1836/postmark v1.9.0 h1:7MDfX+Kyy+rkWs1bfKOnIj8cULxU/txfNaRaz0uA9oY=
 github.com/mrz1836/postmark v1.9.0/go.mod h1:FGjqkTsuJsTWt8TQqjdB+H7qa31u169LFupMOxCmGrc=
-github.com/nathanstitt/doctaculous v0.0.4 h1:X8nRQuM8XgOeZuSz2pbINHG5e2qUKm+sYkqzw2/qfI0=
-github.com/nathanstitt/doctaculous v0.0.4/go.mod h1:IThecO2Glk7IGQCqtfMTNWfDY8F5cIpfhyG06ds6+5w=
+github.com/nathanstitt/doctaculous v0.0.5-0.20260713022548-8c1fa9d9cf84 h1:r1QJqeT3Nzdah/8hDtLhJ7utLIg4NToAfXVpp50gk+M=
+github.com/nathanstitt/doctaculous v0.0.5-0.20260713022548-8c1fa9d9cf84/go.mod h1:Tl2BoZfptodH5YLrhynkaSXcm6xaWBNc5TkUlWkcbew=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/pingcap/errors v0.11.4 h1:lFuQV/oaUMGcD2tqt+01ROSmJs75VG1ToEOkZIZ4nE4=

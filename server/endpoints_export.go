@@ -37,9 +37,12 @@ const (
 )
 
 type exportToken struct {
-	itemID    string
-	orgID     string
-	to        doctaculous.Format
+	itemID string
+	orgID  string
+	to     doctaculous.Format
+	// sheet, when non-empty, restricts an XLSX source to that single worksheet
+	// (by exact name) before conversion. Empty means the whole workbook.
+	sheet     string
 	expiresAt time.Time
 }
 
@@ -115,8 +118,9 @@ func exportInputFormat(mimeType string, to doctaculous.Format) (doctaculous.Form
 // single-use token URL the client hands to downloadFromUrl.
 func handleCreateExportToken(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 	var body struct {
-		Item string `json:"item"`
-		To   string `json:"to"`
+		Item  string `json:"item"`
+		To    string `json:"to"`
+		Sheet string `json:"sheet"`
 	}
 	if err := json.NewDecoder(re.Request.Body).Decode(&body); err != nil {
 		return re.BadRequestError("invalid request body", nil)
@@ -159,6 +163,7 @@ func handleCreateExportToken(app *pocketbase.PocketBase, re *core.RequestEvent) 
 		itemID:    item.Id,
 		orgID:     item.GetString("org"),
 		to:        to,
+		sheet:     body.Sheet,
 		expiresAt: time.Now().Add(exportTokenTTL),
 	}
 	exportTokensMu.Unlock()
@@ -205,8 +210,18 @@ func handleExport(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 		return re.InternalServerError("failed to read file", nil)
 	}
 
-	doc, err := doctaculous.OpenBytesAs(from, data)
+	// A sheet name restricts an XLSX source to that single worksheet; inert for
+	// other inputs. An unknown name surfaces as ErrSheetNotFound → 400 rather
+	// than a 500, so a stale client sheet name reads as a caller error.
+	var openOpts []doctaculous.OpenOption
+	if et.sheet != "" {
+		openOpts = append(openOpts, doctaculous.WithSheets(et.sheet))
+	}
+	doc, err := doctaculous.OpenBytesAs(from, data, openOpts...)
 	if err != nil {
+		if errors.Is(err, doctaculous.ErrSheetNotFound) {
+			return re.BadRequestError("sheet not found", nil)
+		}
 		return re.InternalServerError("failed to open document", nil)
 	}
 
