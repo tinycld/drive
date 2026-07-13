@@ -228,6 +228,17 @@ func Register(app *pocketbase.PocketBase) {
 			return handleDownloadFolder(app, re)
 		})
 
+		// Export (convert-and-download) endpoints. Same auth shape as the
+		// folder download above: authed POST mints a single-use token; the
+		// unauthed GET streams the converted bytes using the token in the URL.
+		e.Router.POST("/api/drive/export-token", func(re *core.RequestEvent) error {
+			return handleCreateExportToken(app, re)
+		}).BindFunc(requireAuth)
+
+		e.Router.GET("/api/drive/export", func(re *core.RequestEvent) error {
+			return handleExport(app, re)
+		})
+
 		// Storage usage endpoint
 		e.Router.GET("/api/drive/storage-usage", func(re *core.RequestEvent) error {
 			return handleStorageUsage(app, re)
