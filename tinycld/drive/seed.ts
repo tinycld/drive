@@ -50,6 +50,7 @@ const MIME_BY_EXT: Record<string, string> = {
     pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     ppt: 'application/vnd.ms-powerpoint',
     pdf: 'application/pdf',
+    rtf: 'application/rtf',
     txt: 'text/plain',
     md: 'text/plain',
     csv: 'text/csv',

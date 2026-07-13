@@ -23,6 +23,29 @@ interface UseFileUploadOptions {
 const DONE_AUTO_CLEAR_MS = 3000
 const PROGRESS_THROTTLE_MS = 60
 
+// Extension → MIME fallback for uploads whose browser-reported `file.type`
+// is empty. Browsers are inconsistent here — .rtf in particular often
+// arrives with no type — and the server keys document features (thumbnail,
+// full-text index, in-app preview/open) off the stored mime, so an
+// octet-stream upload silently loses all of them. Only the document types
+// doctaculous can process need this; images/media are handled elsewhere.
+const UPLOAD_MIME_BY_EXT: Record<string, string> = {
+    rtf: 'application/rtf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    epub: 'application/epub+zip',
+    csv: 'text/csv',
+    md: 'text/markdown',
+    markdown: 'text/markdown',
+}
+
+function mimeForUpload(file: File): string {
+    if (file.type) return file.type
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    return UPLOAD_MIME_BY_EXT[ext] ?? 'application/octet-stream'
+}
+
 // Direct XHR upload — used instead of pb.collection().create() because we need
 // xhr.upload.onprogress events to drive the per-file progress bar. PocketBase's
 // SDK uses fetch() under the hood, which doesn't expose upload progress.
@@ -123,7 +146,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             formData.append('org', orgId)
             formData.append('name', name)
             formData.append('is_folder', 'false')
-            formData.append('mime_type', file.type || 'application/octet-stream')
+            formData.append('mime_type', mimeForUpload(file))
             formData.append('parent', parentId)
             formData.append('created_by', userOrgId)
             formData.append('size', String(file.size))
