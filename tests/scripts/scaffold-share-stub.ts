@@ -182,6 +182,7 @@ registerDriveItemAction('stub.open', () => {
         id: 'stub.open',
         icon: ExternalLink,
         label: 'Open in Stub',
+        isOpener: true,
         isApplicable: item => item.mimeType === '${STUB_MIME_TYPE}',
         onPress: item => {
             router.push(orgHref('drive', { ${STUB_OPEN_PARAM}: item.id }))

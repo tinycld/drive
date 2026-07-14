@@ -33,6 +33,14 @@ export interface DriveItemAction {
      * applicable to non-folder items.
      */
     isApplicable?: (item: DriveItemView) => boolean
+    /**
+     * Marks this as the action that "opening" the item (a tap on mobile, a
+     * double-click on desktop) should invoke — e.g. "Open in Calc". Only
+     * openers are consulted by resolveOpenAction; auxiliary actions like
+     * "Export to PDF" still appear in the context menu but must never hijack
+     * tap-to-open. Default: false.
+     */
+    isOpener?: boolean
     /** Invoked with the right-clicked item when the user picks the menu row. */
     onPress: (item: DriveItemView) => void
 }
