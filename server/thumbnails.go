@@ -109,7 +109,7 @@ func generateUploadThumbnail(app *pocketbase.PocketBase, record *core.Record, fi
 			"id", record.Id, "mime", mimeType)
 		return
 	}
-	app.Logger().Info("Thumbnail: starting generation",
+	app.Logger().Debug("Thumbnail: starting generation",
 		"id", record.Id, "mime", mimeType, "file", filename)
 
 	// Skip if thumbnail exists and the file hasn't changed since last generation
@@ -205,7 +205,7 @@ func saveThumbnail(app *pocketbase.PocketBase, record *core.Record, filename str
 			"id", record.Id, "error", err)
 		return
 	}
-	app.Logger().Info("Thumbnail: saved", "id", record.Id, "thumbnail", thumbFilename)
+	app.Logger().Debug("Thumbnail: saved", "id", record.Id, "thumbnail", thumbFilename)
 }
 
 // splitPreviewLines breaks a text region into preview lines, splitting on
