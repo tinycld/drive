@@ -6,7 +6,6 @@ import {
     readCollectionCached,
 } from '@tinycld/core/lib/read-collection-cached'
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
-import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
@@ -45,7 +44,6 @@ export interface CopyDriveItemResult {
 // + per-descendant blob copy. Throws if `sourceItemId` resolves to a
 // folder.
 export function useCopyDriveItem() {
-    const { orgId } = useOrgInfo()
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
     const userOrgId = userOrg?.id ?? ''
@@ -53,8 +51,8 @@ export function useCopyDriveItem() {
 
     return useMutation({
         mutationFn: async (input: CopyDriveItemInput): Promise<CopyDriveItemResult> => {
-            if (!orgId || !userOrgId) {
-                throw new Error('Organization context not ready')
+            if (!userOrgId) {
+                throw new Error('User context not ready')
             }
 
             // Read the source from the pbtsdb store — the item the user chose to
@@ -89,14 +87,13 @@ export function useCopyDriveItem() {
             // authoritatively, so a stale store only risks a cosmetic name diff.
             const siblings = await readCollectionCached(
                 itemsCollection,
-                i => i.org === orgId && i.parent === parentId
+                i => i.parent === parentId
             )
             const finalName = deduplicateName(upload.name, new Set(siblings.map(s => s.name)))
 
             const itemId = newRecordId()
             const formData = new FormData()
             formData.append('id', itemId)
-            formData.append('org', orgId)
             formData.append('name', finalName)
             formData.append('is_folder', 'false')
             formData.append('mime_type', mimeType)

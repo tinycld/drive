@@ -40,15 +40,11 @@ export function useFolderTreeQuery(_: UseFolderTreeQueryArgs = {}): FolderTreeNo
     const [itemsCollection] = useStore('drive_items')
 
     const { data: folders = [] } = useOrgLiveQuery(
-        (query, scope) =>
+        (query, { userId }) =>
             query
                 .from({ item: itemsCollection })
                 .where(({ item }) =>
-                    and(
-                        eq(item.org, scope.orgId),
-                        eq(item.is_folder, true),
-                        eq(item.created_by, scope.userOrgId)
-                    )
+                    and(eq(item.is_folder, true), eq(item.created_by, userId))
                 )
                 .select(({ item }) => ({
                     id: item.id,

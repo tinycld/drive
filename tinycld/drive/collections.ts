@@ -18,7 +18,7 @@ export function registerCollections(
             'thumb_region_hash',
             'index_hash',
         ] as const,
-        expand: { created_by: coreStores.user_org },
+        expand: { created_by: coreStores.users },
         // On-demand: each useLiveQuery against drive_items issues a server
         // fetch with the where/orderBy translated into a PocketBase filter.
         // Avoids loading every item in the org just to render a single folder.
@@ -33,8 +33,8 @@ export function registerCollections(
         omitOnInsert: ['created', 'updated'] as const,
         expand: {
             item: drive_items,
-            user_org: coreStores.user_org,
-            created_by: coreStores.user_org,
+            user_org: coreStores.users,
+            created_by: coreStores.users,
         },
         collectionOptions: {
             autoIndex: 'eager' as const,
@@ -44,7 +44,7 @@ export function registerCollections(
 
     const drive_item_state = newCollection('drive_item_state', {
         omitOnInsert: ['created', 'updated'] as const,
-        expand: { item: drive_items, user_org: coreStores.user_org },
+        expand: { item: drive_items, user_org: coreStores.users },
         collectionOptions: {
             autoIndex: 'eager' as const,
             defaultIndexType: BasicIndex,
@@ -53,7 +53,7 @@ export function registerCollections(
 
     const drive_item_versions = newCollection('drive_item_versions', {
         omitOnInsert: ['created', 'updated'] as const,
-        expand: { item: drive_items, created_by: coreStores.user_org },
+        expand: { item: drive_items, created_by: coreStores.users },
         collectionOptions: {
             autoIndex: 'eager' as const,
             defaultIndexType: BasicIndex,
@@ -62,7 +62,7 @@ export function registerCollections(
 
     const drive_share_links = newCollection('drive_share_links', {
         omitOnInsert: ['created', 'updated'] as const,
-        expand: { item: drive_items, created_by: coreStores.user_org },
+        expand: { item: drive_items, created_by: coreStores.users },
         collectionOptions: {
             autoIndex: 'eager' as const,
             defaultIndexType: BasicIndex,
@@ -76,7 +76,7 @@ export function registerCollections(
         omitOnInsert: ['created'] as const,
         expand: {
             drive_item: drive_items,
-            mentioned_user_org: coreStores.user_org,
+            mentioned_user_org: coreStores.users,
         },
     })
 

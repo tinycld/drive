@@ -65,21 +65,19 @@ export function useDriveItemFileActions(
     const openCopyDialog = useCopyDialogStore(s => s.openCopyDialog)
 
     const { data: existingStateRows = [] } = useOrgLiveQuery(
-        (query, scope) =>
+        (query, { userId }) =>
             query
                 .from({ state: driveItemStateCollection })
-                .where(({ state }) =>
-                    and(eq(state.item, itemId), eq(state.user_org, scope.userOrgId))
-                ),
+                .where(({ state }) => and(eq(state.item, itemId), eq(state.user_org, userId))),
         [itemId]
     )
     const existingState = existingStateRows[0]
 
     const { data: itemRows = [] } = useOrgLiveQuery(
-        (query, scope) =>
+        query =>
             query
                 .from({ item: driveItemsCollection })
-                .where(({ item }) => and(eq(item.org, scope.orgId), eq(item.id, itemId)))
+                .where(({ item }) => eq(item.id, itemId))
                 .select(({ item }) => ({ parent: item.parent })),
         [itemId]
     )

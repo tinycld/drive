@@ -67,11 +67,11 @@ export function useTemplateItems(extension: TemplateExtension) {
     const mime = MIME_BY_EXTENSION[extension]
 
     const { data, isLoading } = useOrgLiveQuery(
-        (query, { orgId }) =>
+        query =>
             query
                 .from({ item: driveItemsCollection })
                 .where(({ item }) =>
-                    and(eq(item.org, orgId), eq(item.mime_type, mime), eq(item.is_folder, false))
+                    and(eq(item.mime_type, mime), eq(item.is_folder, false))
                 )
                 .orderBy(({ item }) => item.updated, 'desc'),
         [mime]

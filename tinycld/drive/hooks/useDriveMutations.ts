@@ -8,7 +8,6 @@ import { driveItemToSource } from '../lib/file-url'
 import type { DriveItemView } from '../types'
 
 interface UseDriveMutationsParams {
-    orgId: string
     userOrgId: string
     currentFolderId: string
     stateByItem: Map<string, { id: string; is_starred: boolean; trashed_at: string }>
@@ -20,7 +19,6 @@ interface UseDriveMutationsParams {
 }
 
 export function useDriveMutations({
-    orgId,
     userOrgId,
     currentFolderId,
     stateByItem,
@@ -88,7 +86,6 @@ export function useDriveMutations({
         mutationFn: mutation(function* (name: string) {
             yield itemsCollection.insert({
                 id: newRecordId(),
-                org: orgId,
                 name,
                 is_folder: true,
                 mime_type: '',

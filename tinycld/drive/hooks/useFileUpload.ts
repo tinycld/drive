@@ -15,7 +15,6 @@ export interface DroppedEntry {
 }
 
 interface UseFileUploadOptions {
-    orgId: string
     userOrgId: string
     currentFolderId: string
 }
@@ -94,7 +93,7 @@ function uploadFormDataWithProgress(params: {
     })
 }
 
-export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUploadOptions) {
+export function useFileUpload({ userOrgId, currentFolderId }: UseFileUploadOptions) {
     // Intentionally NOT subscribing to uploadingFiles here. useFileUpload runs
     // inside useDriveState, so any reactive read of upload progress would force
     // every useDrive() consumer (toolbar, dialogs, layout, sidebar) to re-render
@@ -143,7 +142,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
 
             const formData = new FormData()
             formData.append('id', id)
-            formData.append('org', orgId)
             formData.append('name', name)
             formData.append('is_folder', 'false')
             formData.append('mime_type', mimeForUpload(file))
@@ -170,7 +168,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             updateFile(id, { status: 'done', loaded: file.size, name: finalName })
             scheduleClearDone(id)
         },
-        [orgId, userOrgId, makeProgressHandler, updateFile, scheduleClearDone]
+        [userOrgId, makeProgressHandler, updateFile, scheduleClearDone]
     )
 
     const uploadMutation = useMutation({
@@ -259,7 +257,6 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                     await performMutations(function* () {
                         yield itemsCollection.insert({
                             id: folderId,
-                            org: orgId,
                             name,
                             is_folder: true,
                             mime_type: '',

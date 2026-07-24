@@ -1,4 +1,4 @@
-import { and, eq, inArray } from '@tanstack/db'
+import { eq, inArray } from '@tanstack/db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
 import { useMemo } from 'react'
@@ -48,7 +48,7 @@ export function useDriveItems({
     const [itemsCollection] = useStore('drive_items')
     const [sharesCollection] = useStore('drive_shares')
     const [stateCollection] = useStore('drive_item_state')
-    const [userOrgCollection] = useStore('user_org')
+    const [usersCollection] = useStore('users')
 
     // --- supporting eager collections (small) ---------------------------------
 
@@ -57,43 +57,39 @@ export function useDriveItems({
     )
 
     const { data: rawStates, isLoading: statesLoading } = useOrgLiveQuery(
-        (query, { userOrgId: scopedUserOrgId }) =>
+        (query, { userId }) =>
             query
                 .from({ state: stateCollection })
-                .where(({ state }) => eq(state.user_org, scopedUserOrgId))
+                .where(({ state }) => eq(state.user_org, userId))
     )
 
-    const { data: orgUserOrgs, isLoading: userOrgsLoading } = useOrgLiveQuery(
-        (query, { orgId: scopedOrgId }) =>
-            query.from({ uo: userOrgCollection }).where(({ uo }) => eq(uo.org, scopedOrgId))
+    // All users in the single database are members; the roster is just the
+    // users collection. Names/emails are keyed by users id (the value the
+    // drive FKs — created_by / user_org — now store).
+    const { data: allUsers, isLoading: usersLoading } = useOrgLiveQuery(query =>
+        query.from({ user: usersCollection })
     )
 
     const userOrgNames = useMemo(
-        () =>
-            new Map(
-                (orgUserOrgs ?? []).map(uo => [
-                    uo.id,
-                    uo.expand?.user?.name || uo.expand?.user?.email || '',
-                ])
-            ),
-        [orgUserOrgs]
+        () => new Map((allUsers ?? []).map(u => [u.id, u.name || u.email || ''])),
+        [allUsers]
     )
 
     const orgMembers = useMemo(
         () =>
-            (orgUserOrgs ?? [])
-                .filter(uo => uo.id !== userOrgId)
-                .map(uo => ({
-                    userOrgId: uo.id,
-                    name: uo.expand?.user?.name || '',
-                    email: uo.expand?.user?.email || '',
+            (allUsers ?? [])
+                .filter(u => u.id !== userOrgId)
+                .map(u => ({
+                    userOrgId: u.id,
+                    name: u.name || '',
+                    email: u.email || '',
                 })),
-        [orgUserOrgs, userOrgId]
+        [allUsers, userOrgId]
     )
 
     const userOrgEmails = useMemo(
-        () => new Map((orgUserOrgs ?? []).map(uo => [uo.id, uo.expand?.user?.email || ''])),
-        [orgUserOrgs]
+        () => new Map((allUsers ?? []).map(u => [u.id, u.email || ''])),
+        [allUsers]
     )
 
     const sharesByItem = useMemo(() => {
@@ -117,13 +113,11 @@ export function useDriveItems({
     // listing via sectionQuery below.
     const showCurrentFolder = !isSearchActive && activeSection === 'my-drive'
     const { data: rawCurrentFolderItems, isLoading: currentFolderLoading } = useOrgLiveQuery(
-        (query, { orgId: scopedOrgId }) => {
+        query => {
             if (!showCurrentFolder) return null
             return query
                 .from({ item: itemsCollection })
-                .where(({ item }) =>
-                    and(eq(item.org, scopedOrgId), eq(item.parent, currentFolderId))
-                )
+                .where(({ item }) => eq(item.parent, currentFolderId))
         },
         [showCurrentFolder, currentFolderId]
     )
@@ -131,11 +125,8 @@ export function useDriveItems({
     // Every folder the user can see in this org. Small set (folders are a tiny
     // fraction of items), drives the sidebar tree, breadcrumb resolution, and
     // the folder section above the file list.
-    const { data: rawFolders, isLoading: foldersLoading } = useOrgLiveQuery(
-        (query, { orgId: scopedOrgId }) =>
-            query
-                .from({ item: itemsCollection })
-                .where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.is_folder, true)))
+    const { data: rawFolders, isLoading: foldersLoading } = useOrgLiveQuery(query =>
+        query.from({ item: itemsCollection }).where(({ item }) => eq(item.is_folder, true))
     )
 
     // Section-specific listings — only fired for sections other than my-drive,
@@ -168,12 +159,12 @@ export function useDriveItems({
     }, [isStarredSection, isTrashSection, isSharedSection, rawStates, rawShares, userOrgId])
 
     const { data: rawSectionItems, isLoading: sectionLoading } = useOrgLiveQuery(
-        (query, { orgId: scopedOrgId }) => {
+        query => {
             if (!sectionScoped) return null
             const base = query.from({ item: itemsCollection })
             if (isRecentSection) {
                 return base
-                    .where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.is_folder, false)))
+                    .where(({ item }) => eq(item.is_folder, false))
                     .orderBy(({ item }) => item.updated, 'desc')
                     .limit(20)
             }
@@ -181,9 +172,7 @@ export function useDriveItems({
             // rows we already have locally. If the user has no rows in this set,
             // skip the fetch entirely.
             if (!idDrivenSectionIds || idDrivenSectionIds.length === 0) return null
-            return base.where(({ item }) =>
-                and(eq(item.org, scopedOrgId), inArray(item.id, idDrivenSectionIds))
-            )
+            return base.where(({ item }) => inArray(item.id, idDrivenSectionIds))
         },
         [sectionScoped, isRecentSection, idDrivenSectionIds]
     )
@@ -200,11 +189,11 @@ export function useDriveItems({
 
     const lookupNeeded = !!wantedLookupId && !lookupAlreadyLoaded
     const { data: rawLookupItems } = useOrgLiveQuery(
-        (query, { orgId: scopedOrgId }) => {
+        query => {
             if (!lookupNeeded || !wantedLookupId) return null
             return query
                 .from({ item: itemsCollection })
-                .where(({ item }) => and(eq(item.org, scopedOrgId), eq(item.id, wantedLookupId)))
+                .where(({ item }) => eq(item.id, wantedLookupId))
         },
         [lookupNeeded, wantedLookupId]
     )
@@ -364,7 +353,7 @@ export function useDriveItems({
         sectionLoading ||
         sharesLoading ||
         statesLoading ||
-        userOrgsLoading
+        usersLoading
 
     return {
         itemsById,

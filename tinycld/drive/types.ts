@@ -1,11 +1,10 @@
 import type { FileCategory } from '@tinycld/core/file-viewer/file-icons'
-import type { CommentMentions, Orgs, UserOrg } from '@tinycld/core/types/pbSchema'
+import type { CommentMentions, Users } from '@tinycld/core/types/pbSchema'
 
 export type { FileCategory }
 
 export interface DriveItems {
     id: string
-    org: string
     name: string
     is_folder: boolean
     mime_type: string
@@ -114,45 +113,44 @@ export type DriveSchema = {
     drive_items: {
         type: DriveItems
         relations: {
-            org: Orgs
             parent: DriveItems
-            created_by: UserOrg
+            created_by: Users
         }
     }
     drive_shares: {
         type: DriveShares
         relations: {
             item: DriveItems
-            user_org: UserOrg
-            created_by: UserOrg
+            user_org: Users
+            created_by: Users
         }
     }
     drive_item_state: {
         type: DriveItemState
         relations: {
             item: DriveItems
-            user_org: UserOrg
+            user_org: Users
         }
     }
     drive_item_versions: {
         type: DriveItemVersions
         relations: {
             item: DriveItems
-            created_by: UserOrg
+            created_by: Users
         }
     }
     drive_share_links: {
         type: DriveShareLinks
         relations: {
             item: DriveItems
-            created_by: UserOrg
+            created_by: Users
         }
     }
     comment_mentions: {
         type: CommentMentions
         relations: {
             drive_item: DriveItems
-            mentioned_user_org: UserOrg
+            mentioned_user_org: Users
         }
     }
 }

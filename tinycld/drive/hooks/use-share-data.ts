@@ -1,7 +1,6 @@
-import { eq } from '@tanstack/db'
+import { useAuth } from '@tinycld/core/lib/auth'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useCurrentRole } from '@tinycld/core/lib/use-current-role'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
 import { useMemo } from 'react'
 
@@ -35,47 +34,41 @@ export interface ShareData {
  * Loads the data ShareDialog needs without depending on `useDrive()` context.
  * `useDrive()` is only mounted inside the Drive screen tree; this hook is for
  * surfaces that render ShareDialog from elsewhere (the text and calc File
- * menus). The drive_shares and user_org collections are small and eager, so
+ * menus). The drive_shares and users collections are small and eager, so
  * subscribing here is cheap and pbtsdb de-duplicates with any other live
  * queries against the same collections.
  */
 export function useShareData(itemId: string): ShareData {
-    const { userOrgId } = useCurrentRole()
+    const userId = useAuth().user.id
     const [sharesCollection] = useStore('drive_shares')
-    const [userOrgCollection] = useStore('user_org')
+    const [usersCollection] = useStore('users')
 
     const { data: rawShares } = useOrgLiveQuery(query => query.from({ share: sharesCollection }))
 
-    const { data: orgUserOrgs } = useOrgLiveQuery((query, { orgId }) =>
-        query.from({ uo: userOrgCollection }).where(({ uo }) => eq(uo.org, orgId))
-    )
+    // Every user in the single database is a member; names/emails are keyed by
+    // users id (the value drive_shares.user_org now stores).
+    const { data: allUsers } = useOrgLiveQuery(query => query.from({ user: usersCollection }))
 
     const userOrgNames = useMemo(
-        () =>
-            new Map(
-                (orgUserOrgs ?? []).map(uo => [
-                    uo.id,
-                    uo.expand?.user?.name || uo.expand?.user?.email || '',
-                ])
-            ),
-        [orgUserOrgs]
+        () => new Map((allUsers ?? []).map(u => [u.id, u.name || u.email || ''])),
+        [allUsers]
     )
 
     const userOrgEmails = useMemo(
-        () => new Map((orgUserOrgs ?? []).map(uo => [uo.id, uo.expand?.user?.email || ''])),
-        [orgUserOrgs]
+        () => new Map((allUsers ?? []).map(u => [u.id, u.email || ''])),
+        [allUsers]
     )
 
     const orgMembers = useMemo<OrgMember[]>(
         () =>
-            (orgUserOrgs ?? [])
-                .filter(uo => uo.id !== userOrgId)
-                .map(uo => ({
-                    userOrgId: uo.id,
-                    name: uo.expand?.user?.name || '',
-                    email: uo.expand?.user?.email || '',
+            (allUsers ?? [])
+                .filter(u => u.id !== userId)
+                .map(u => ({
+                    userOrgId: u.id,
+                    name: u.name || '',
+                    email: u.email || '',
                 })),
-        [orgUserOrgs, userOrgId]
+        [allUsers, userId]
     )
 
     const shares = useMemo<ShareEntry[]>(() => {
@@ -102,7 +95,7 @@ export function useShareData(itemId: string): ShareData {
     return {
         orgMembers,
         shares,
-        currentUserOrgId: userOrgId,
+        currentUserOrgId: userId,
         removeShare,
     }
 }

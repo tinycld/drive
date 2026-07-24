@@ -5,7 +5,6 @@ import { notify } from '@tinycld/core/lib/notify'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { readCollectionCached } from '@tinycld/core/lib/read-collection-cached'
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
-import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
@@ -30,7 +29,6 @@ export interface SaveToDriveInput {
  * standard `(1)`, `(2)`, … suffix within the destination.
  */
 export function useSaveToDrive() {
-    const { orgId } = useOrgInfo()
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
     const userOrgId = userOrg?.id ?? ''
@@ -38,8 +36,8 @@ export function useSaveToDrive() {
 
     return useMutation({
         mutationFn: async ({ source, parentId, parentName }: SaveToDriveInput) => {
-            if (!orgId || !userOrgId) {
-                throw new Error('Organization context not ready')
+            if (!userOrgId) {
+                throw new Error('User context not ready')
             }
 
             // Fetch the source file (e.g. a mail attachment served by
@@ -62,14 +60,13 @@ export function useSaveToDrive() {
             // name difference, never a collision.
             const siblings = await readCollectionCached(
                 itemsCollection,
-                i => i.org === orgId && i.parent === parentId
+                i => i.parent === parentId
             )
             const finalName = deduplicateName(upload.name, new Set(siblings.map(s => s.name)))
 
             const itemId = newRecordId()
             const formData = new FormData()
             formData.append('id', itemId)
-            formData.append('org', orgId)
             formData.append('name', finalName)
             formData.append('is_folder', 'false')
             formData.append('mime_type', upload.type)

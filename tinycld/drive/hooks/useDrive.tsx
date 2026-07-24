@@ -234,7 +234,7 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         () => (layoutAnimationRef ? () => layoutAnimationRef.current?.() : undefined),
         [layoutAnimationRef]
     )
-    const { orgSlug, orgId } = useOrgInfo()
+    const { orgSlug } = useOrgInfo()
     const userOrg = useCurrentUserOrg(orgSlug)
     const userOrgId = userOrg?.id ?? ''
 
@@ -341,12 +341,10 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
 
     const isSearchActive = searchQuery.length >= 2
     const { results: searchResults, isSearching } = useDriveSearch(
-        isSearchActive ? searchQuery : '',
-        orgId
+        isSearchActive ? searchQuery : ''
     )
 
     const upload = useFileUpload({
-        orgId,
         userOrgId,
         currentFolderId,
     })
@@ -365,7 +363,6 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
     const storageUsage = useTotalStorage()
 
     const mutations = useDriveMutations({
-        orgId,
         userOrgId,
         currentFolderId,
         stateByItem: items.stateByItem,
