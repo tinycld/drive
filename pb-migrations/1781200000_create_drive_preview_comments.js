@@ -78,12 +78,12 @@ migrate(
                     required: false,
                 },
                 {
-                    // Set when a logged-in org member authors the comment.
+                    // Set when a logged-in member authors the comment.
                     id: 'dpc_author_user_org',
                     name: 'author_user_org',
                     type: 'relation',
                     required: false,
-                    collectionId: 'pbc_user_org_01',
+                    collectionId: '_pb_users_auth_',
                     cascadeDelete: false,
                     maxSelect: 1,
                 },

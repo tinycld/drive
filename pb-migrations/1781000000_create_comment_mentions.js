@@ -62,7 +62,7 @@ migrate(
                     name: 'mentioned_user_org',
                     type: 'relation',
                     required: true,
-                    collectionId: 'pbc_user_org_01',
+                    collectionId: '_pb_users_auth_',
                     cascadeDelete: true,
                     maxSelect: 1,
                 },
@@ -81,7 +81,7 @@ migrate(
             listRule: null,
             viewRule: null,
             createRule:
-                '@request.auth.id != "" && drive_item.drive_shares_via_item.user_org.user ?= @request.auth.id',
+                '@request.auth.id != "" && drive_item.drive_shares_via_item.user_org ?= @request.auth.id',
             updateRule: null,
             deleteRule: null,
             indexes: [

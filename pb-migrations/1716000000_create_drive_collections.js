@@ -11,15 +11,6 @@ migrate(
             system: false,
             fields: [
                 {
-                    id: 'drv_items_org',
-                    name: 'org',
-                    type: 'relation',
-                    required: true,
-                    collectionId: 'pbc_orgs_00001',
-                    cascadeDelete: true,
-                    maxSelect: 1,
-                },
-                {
                     id: 'drv_items_name',
                     name: 'name',
                     type: 'text',
@@ -44,7 +35,7 @@ migrate(
                     name: 'created_by',
                     type: 'relation',
                     required: true,
-                    collectionId: 'pbc_user_org_01',
+                    collectionId: '_pb_users_auth_',
                     cascadeDelete: false,
                     maxSelect: 1,
                 },
@@ -86,9 +77,8 @@ migrate(
                 },
             ],
             indexes: [
-                'CREATE INDEX `idx_drv_items_org` ON `drive_items` (`org`)',
                 'CREATE INDEX `idx_drv_items_created_by` ON `drive_items` (`created_by`)',
-                'CREATE INDEX `idx_drv_items_org_updated` ON `drive_items` (`org`, `updated` DESC)',
+                'CREATE INDEX `idx_drv_items_updated` ON `drive_items` (`updated` DESC)',
             ],
         })
         app.save(items)
@@ -107,10 +97,9 @@ migrate(
             })
         )
         itemsWithParent.indexes = [
-            'CREATE INDEX `idx_drv_items_org` ON `drive_items` (`org`)',
-            'CREATE INDEX `idx_drv_items_org_parent` ON `drive_items` (`org`, `parent`)',
+            'CREATE INDEX `idx_drv_items_parent` ON `drive_items` (`parent`)',
             'CREATE INDEX `idx_drv_items_created_by` ON `drive_items` (`created_by`)',
-            'CREATE INDEX `idx_drv_items_org_updated` ON `drive_items` (`org`, `updated` DESC)',
+            'CREATE INDEX `idx_drv_items_updated` ON `drive_items` (`updated` DESC)',
         ]
         app.save(itemsWithParent)
 
@@ -135,7 +124,7 @@ migrate(
                     name: 'user_org',
                     type: 'relation',
                     required: true,
-                    collectionId: 'pbc_user_org_01',
+                    collectionId: '_pb_users_auth_',
                     cascadeDelete: true,
                     maxSelect: 1,
                 },
@@ -152,7 +141,7 @@ migrate(
                     name: 'created_by',
                     type: 'relation',
                     required: true,
-                    collectionId: 'pbc_user_org_01',
+                    collectionId: '_pb_users_auth_',
                     cascadeDelete: false,
                     maxSelect: 1,
                 },
@@ -201,7 +190,7 @@ migrate(
                     name: 'user_org',
                     type: 'relation',
                     required: true,
-                    collectionId: 'pbc_user_org_01',
+                    collectionId: '_pb_users_auth_',
                     cascadeDelete: true,
                     maxSelect: 1,
                 },
@@ -256,23 +245,23 @@ migrate(
             collection.deleteRule = del
         }
 
-        const hasShareRule = 'drive_shares_via_item.user_org.user ?= @request.auth.id'
+        const hasShareRule = 'drive_shares_via_item.user_org ?= @request.auth.id'
         const isOwnerOrEditor =
-            'drive_shares_via_item.user_org.user ?= @request.auth.id && drive_shares_via_item.role ?!= "viewer"'
+            'drive_shares_via_item.user_org ?= @request.auth.id && drive_shares_via_item.role ?!= "viewer"'
         const isOwner =
-            'drive_shares_via_item.user_org.user ?= @request.auth.id && drive_shares_via_item.role ?= "owner"'
-        const orgMemberRule = 'org.user_org_via_org.user ?= @request.auth.id'
-        const ownRecordRule = 'user_org.user = @request.auth.id'
-        const ownShareRecipient = 'user_org.user = @request.auth.id'
+            'drive_shares_via_item.user_org ?= @request.auth.id && drive_shares_via_item.role ?= "owner"'
+        const authedRule = '@request.auth.id != ""'
+        const ownRecordRule = 'user_org = @request.auth.id'
+        const ownShareRecipient = 'user_org = @request.auth.id'
         const isItemOwner =
-            'item.drive_shares_via_item.user_org.user ?= @request.auth.id && item.drive_shares_via_item.role ?= "owner"'
+            'item.drive_shares_via_item.user_org ?= @request.auth.id && item.drive_shares_via_item.role ?= "owner"'
 
-        // drive_items: viewable by share holders, creatable by org members, editable by owner/editor, deletable by owner
+        // drive_items: viewable by share holders, creatable by any authed user, editable by owner/editor, deletable by owner
         const itemsCol = app.findCollectionByNameOrId('drive_items')
         setRules(itemsCol, {
             list: hasShareRule,
             view: hasShareRule,
-            create: orgMemberRule,
+            create: authedRule,
             update: isOwnerOrEditor,
             del: isOwner,
         })
@@ -294,7 +283,7 @@ migrate(
         setRules(stateCol, {
             list: ownRecordRule,
             view: ownRecordRule,
-            create: `${ownRecordRule} && item.drive_shares_via_item.user_org.user ?= @request.auth.id`,
+            create: `${ownRecordRule} && item.drive_shares_via_item.user_org ?= @request.auth.id`,
             update: ownRecordRule,
             del: ownRecordRule,
         })
