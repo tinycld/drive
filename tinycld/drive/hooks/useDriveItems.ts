@@ -7,7 +7,7 @@ import type { DriveItemView, FolderTreeNode, SidebarSection } from '../types'
 import type { DriveSearchResult } from './useDriveSearch'
 
 interface UseDriveItemsParams {
-    userOrgId: string
+    userId: string
     activeSection: SidebarSection
     currentFolderId: string
     selectedItemId: string | null
@@ -37,7 +37,7 @@ interface UseDriveItemsParams {
  * drive_shares and drive_item_state stay eager: small, used everywhere, cheap.
  */
 export function useDriveItems({
-    userOrgId,
+    userId,
     activeSection,
     currentFolderId,
     selectedItemId,
@@ -56,21 +56,18 @@ export function useDriveItems({
         query.from({ share: sharesCollection })
     )
 
-    const { data: rawStates, isLoading: statesLoading } = useOrgLiveQuery(
-        (query, { userId }) =>
-            query
-                .from({ state: stateCollection })
-                .where(({ state }) => eq(state.user_org, userId))
+    const { data: rawStates, isLoading: statesLoading } = useOrgLiveQuery((query, { userId }) =>
+        query.from({ state: stateCollection }).where(({ state }) => eq(state.user, userId))
     )
 
     // All users in the single database are members; the roster is just the
     // users collection. Names/emails are keyed by users id (the value the
-    // drive FKs — created_by / user_org — now store).
+    // drive FKs — created_by / user — now store).
     const { data: allUsers, isLoading: usersLoading } = useOrgLiveQuery(query =>
         query.from({ user: usersCollection })
     )
 
-    const userOrgNames = useMemo(
+    const userNames = useMemo(
         () => new Map((allUsers ?? []).map(u => [u.id, u.name || u.email || ''])),
         [allUsers]
     )
@@ -78,16 +75,16 @@ export function useDriveItems({
     const orgMembers = useMemo(
         () =>
             (allUsers ?? [])
-                .filter(u => u.id !== userOrgId)
+                .filter(u => u.id !== userId)
                 .map(u => ({
-                    userOrgId: u.id,
+                    userId: u.id,
                     name: u.name || '',
                     email: u.email || '',
                 })),
-        [allUsers, userOrgId]
+        [allUsers, userId]
     )
 
-    const userOrgEmails = useMemo(
+    const userEmails = useMemo(
         () => new Map((allUsers ?? []).map(u => [u.id, u.email || ''])),
         [allUsers]
     )
@@ -152,11 +149,11 @@ export function useDriveItems({
         }
         if (isSharedSection) {
             return (rawShares ?? [])
-                .filter(s => s.user_org === userOrgId && s.role !== 'owner')
+                .filter(s => s.user === userId && s.role !== 'owner')
                 .map(s => s.item)
         }
         return null
-    }, [isStarredSection, isTrashSection, isSharedSection, rawStates, rawShares, userOrgId])
+    }, [isStarredSection, isTrashSection, isSharedSection, rawStates, rawShares, userId])
 
     const { data: rawSectionItems, isLoading: sectionLoading } = useOrgLiveQuery(
         query => {
@@ -220,7 +217,7 @@ export function useDriveItems({
                 const state = stateByItem.get(item.id)
                 const shares = sharesByItem.get(item.id) ?? []
                 const hasNonOwnerShares = shares.some(s => s.role !== 'owner')
-                const ownerName = userOrgNames.get(item.created_by) ?? ''
+                const ownerName = userNames.get(item.created_by) ?? ''
 
                 return {
                     id: item.id,
@@ -228,8 +225,8 @@ export function useDriveItems({
                     isFolder: item.is_folder,
                     mimeType: item.mime_type,
                     parentId: item.parent ?? '',
-                    owner: item.created_by === userOrgId ? 'me' : ownerName,
-                    ownerUserOrgId: item.created_by,
+                    owner: item.created_by === userId ? 'me' : ownerName,
+                    ownerUserId: item.created_by,
                     updated: item.updated,
                     size: item.size,
                     shared: hasNonOwnerShares,
@@ -241,7 +238,7 @@ export function useDriveItems({
                     category: mimeTypeToCategory(item.mime_type, item.is_folder),
                 }
             }),
-        [loadedItems, stateByItem, sharesByItem, userOrgId, userOrgNames]
+        [loadedItems, stateByItem, sharesByItem, userId, userNames]
     )
 
     const itemsById = useMemo(() => new Map(allItems.map(i => [i.id, i])), [allItems])
@@ -258,7 +255,7 @@ export function useDriveItems({
                 mimeType: sr.mime_type,
                 parentId: '',
                 owner: '',
-                ownerUserOrgId: '',
+                ownerUserId: '',
                 updated: sr.updated,
                 size: sr.size,
                 shared: false,
@@ -331,9 +328,7 @@ export function useDriveItems({
     )
 
     const folderTree = useMemo(() => {
-        const folders = allItems.filter(
-            i => i.isFolder && i.ownerUserOrgId === userOrgId && !i.trashedAt
-        )
+        const folders = allItems.filter(i => i.isFolder && i.ownerUserId === userId && !i.trashedAt)
 
         function buildTree(parentId: string): FolderTreeNode[] {
             return folders
@@ -345,7 +340,7 @@ export function useDriveItems({
         }
 
         return buildTree('')
-    }, [allItems, userOrgId])
+    }, [allItems, userId])
 
     const isLoading =
         currentFolderLoading ||
@@ -366,7 +361,7 @@ export function useDriveItems({
         orgMembers,
         stateByItem,
         sharesByItem,
-        userOrgNames,
-        userOrgEmails,
+        userNames,
+        userEmails,
     }
 }

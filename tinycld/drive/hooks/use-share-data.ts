@@ -6,14 +6,14 @@ import { useMemo } from 'react'
 
 export interface ShareEntry {
     id: string
-    userOrgId: string
+    userId: string
     name: string
     email: string
     role: string
 }
 
 export interface OrgMember {
-    userOrgId: string
+    userId: string
     name: string
     email: string
 }
@@ -23,7 +23,7 @@ export interface ShareData {
     orgMembers: OrgMember[]
     /** Existing shares for `itemId`. */
     shares: ShareEntry[]
-    /** The current user's user_org id, used by ShareDialog to suppress
+    /** The current user's id, used by ShareDialog to suppress
      *  self-rows and stamp `created_by`. */
     currentUserOrgId: string
     /** Delete a row from drive_shares by share id. */
@@ -46,15 +46,15 @@ export function useShareData(itemId: string): ShareData {
     const { data: rawShares } = useOrgLiveQuery(query => query.from({ share: sharesCollection }))
 
     // Every user in the single database is a member; names/emails are keyed by
-    // users id (the value drive_shares.user_org now stores).
+    // users id (the value drive_shares.user now stores).
     const { data: allUsers } = useOrgLiveQuery(query => query.from({ user: usersCollection }))
 
-    const userOrgNames = useMemo(
+    const userNames = useMemo(
         () => new Map((allUsers ?? []).map(u => [u.id, u.name || u.email || ''])),
         [allUsers]
     )
 
-    const userOrgEmails = useMemo(
+    const userEmails = useMemo(
         () => new Map((allUsers ?? []).map(u => [u.id, u.email || ''])),
         [allUsers]
     )
@@ -64,7 +64,7 @@ export function useShareData(itemId: string): ShareData {
             (allUsers ?? [])
                 .filter(u => u.id !== userId)
                 .map(u => ({
-                    userOrgId: u.id,
+                    userId: u.id,
                     name: u.name || '',
                     email: u.email || '',
                 })),
@@ -77,12 +77,12 @@ export function useShareData(itemId: string): ShareData {
             .filter(s => s.item === itemId)
             .map(s => ({
                 id: s.id,
-                userOrgId: s.user_org,
-                name: userOrgNames.get(s.user_org) ?? '',
-                email: userOrgEmails.get(s.user_org) ?? '',
+                userId: s.user,
+                name: userNames.get(s.user) ?? '',
+                email: userEmails.get(s.user) ?? '',
                 role: s.role,
             }))
-    }, [rawShares, itemId, userOrgNames, userOrgEmails])
+    }, [rawShares, itemId, userNames, userEmails])
 
     const unshareMutation = useMutation({
         mutationFn: mutation(function* (shareId: string) {

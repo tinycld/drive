@@ -70,9 +70,7 @@ export function useTemplateItems(extension: TemplateExtension) {
         query =>
             query
                 .from({ item: driveItemsCollection })
-                .where(({ item }) =>
-                    and(eq(item.mime_type, mime), eq(item.is_folder, false))
-                )
+                .where(({ item }) => and(eq(item.mime_type, mime), eq(item.is_folder, false)))
                 .orderBy(({ item }) => item.updated, 'desc'),
         [mime]
     )

@@ -4,7 +4,7 @@ import { useUploadStore } from '../stores/upload-store'
 import type { DriveItemView, SidebarSection } from '../types'
 
 interface UseUploadPlaceholdersParams {
-    userOrgId: string
+    userId: string
     activeSection: SidebarSection
     currentFolderId: string
     isSearchActive: boolean
@@ -16,7 +16,7 @@ interface UseUploadPlaceholdersParams {
 // the consumer (the drive screen) re-renders on progress ticks but
 // the wider DriveContextValue does not.
 export function useUploadPlaceholders({
-    userOrgId,
+    userId,
     activeSection,
     currentFolderId,
     isSearchActive,
@@ -37,7 +37,7 @@ export function useUploadPlaceholders({
                 mimeType: '',
                 parentId: u.parentId,
                 owner: 'me',
-                ownerUserOrgId: userOrgId,
+                ownerUserId: userId,
                 updated: '',
                 size: u.size,
                 shared: false,
@@ -51,5 +51,5 @@ export function useUploadPlaceholders({
                 uploadLoaded: u.loaded,
                 uploadError: u.errorMessage,
             }))
-    }, [uploadingFiles, currentFolderId, activeSection, isSearchActive, itemsById, userOrgId])
+    }, [uploadingFiles, currentFolderId, activeSection, isSearchActive, itemsById, userId])
 }

@@ -42,7 +42,7 @@ interface UseDriveItemFileActionsParams {
 //
 // `rename` writes the new name through pbtsdb. `moveToTrash` mirrors
 // drive's `trashMutation` flow — writes a `trashed_at` timestamp onto
-// a `drive_item_state` row keyed by (item, user_org), upserting if
+// a `drive_item_state` row keyed by (item, user), upserting if
 // needed, then calls onTrashed so the caller can navigate away.
 //
 // `makeCopy` doesn't mutate immediately — it stashes the desired
@@ -60,7 +60,7 @@ export function useDriveItemFileActions(
     )
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug)
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
     const orgHref = useOrgHref()
     const openCopyDialog = useCopyDialogStore(s => s.openCopyDialog)
 
@@ -68,7 +68,7 @@ export function useDriveItemFileActions(
         (query, { userId }) =>
             query
                 .from({ state: driveItemStateCollection })
-                .where(({ state }) => and(eq(state.item, itemId), eq(state.user_org, userId))),
+                .where(({ state }) => and(eq(state.item, itemId), eq(state.user, userId))),
         [itemId]
     )
     const existingState = existingStateRows[0]
@@ -130,7 +130,7 @@ export function useDriveItemFileActions(
                 yield driveItemStateCollection.insert({
                     id: newRecordId(),
                     item: itemId,
-                    user_org: userOrgId,
+                    user: userId,
                     is_starred: false,
                     trashed_at: trashedAt,
                     last_viewed_at: '',

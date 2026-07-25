@@ -91,7 +91,7 @@ migrate(
 
         // Access rules: all CRUD requires auth + item ownership
         const isItemOwner =
-            'item.drive_shares_via_item.user_org ?= @request.auth.id && item.drive_shares_via_item.role ?= "owner"'
+            'item.drive_shares_via_item.user ?= @request.auth.id && item.drive_shares_via_item.role ?= "owner"'
 
         const col = app.findCollectionByNameOrId('drive_share_links')
         col.listRule = isItemOwner

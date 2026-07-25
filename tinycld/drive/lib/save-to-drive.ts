@@ -31,12 +31,12 @@ export interface SaveToDriveInput {
 export function useSaveToDrive() {
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
     const [itemsCollection] = useStore('drive_items')
 
     return useMutation({
         mutationFn: async ({ source, parentId, parentName }: SaveToDriveInput) => {
-            if (!userOrgId) {
+            if (!userId) {
                 throw new Error('User context not ready')
             }
 
@@ -58,10 +58,7 @@ export function useSaveToDrive() {
             // loaded by the Drive view). The server's create hook re-dedupes
             // authoritatively, so a momentarily-stale store only risks a cosmetic
             // name difference, never a collision.
-            const siblings = await readCollectionCached(
-                itemsCollection,
-                i => i.parent === parentId
-            )
+            const siblings = await readCollectionCached(itemsCollection, i => i.parent === parentId)
             const finalName = deduplicateName(upload.name, new Set(siblings.map(s => s.name)))
 
             const itemId = newRecordId()
@@ -71,7 +68,7 @@ export function useSaveToDrive() {
             formData.append('is_folder', 'false')
             formData.append('mime_type', upload.type)
             formData.append('parent', parentId)
-            formData.append('created_by', userOrgId)
+            formData.append('created_by', userId)
             formData.append('size', String(upload.size))
             // RN's FormData accepts a `{ uri, name, type }` object literal; on
             // web the `file` field is a real File. We cast to satisfy TS.
@@ -79,7 +76,7 @@ export function useSaveToDrive() {
             formData.append('description', '')
             // The drive_items create hook (server/register.go) inserts the
             // owner drive_shares row in the same transaction, so the client
-            // must not also insert one — the unique (item, user_org) index
+            // must not also insert one — the unique (item, user) index
             // would reject it.
             // biome-ignore lint/plugin/pbtsdb-no-raw-pb-access: multipart FormData file upload — pbtsdb's optimistic transaction can't carry a file blob.
             await pb.collection('drive_items').create(formData)

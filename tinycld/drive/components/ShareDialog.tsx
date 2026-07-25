@@ -20,21 +20,21 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from '
 // it came from (an org member vs. a contact from the optional contacts pkg).
 interface SuggestionEntry {
     key: string
-    userOrgId: string
+    userId: string
     name: string
     email: string
     source: 'member' | 'contact'
 }
 
 interface OrgMember {
-    userOrgId: string
+    userId: string
     name: string
     email: string
 }
 
 interface ShareEntry {
     id: string
-    userOrgId: string
+    userId: string
     name: string
     email: string
     role: string
@@ -54,7 +54,7 @@ interface ShareLinkEntry {
 
 interface PendingShare {
     key: string
-    userOrgId: string
+    userId: string
     name: string
     email: string
     role: 'editor' | 'viewer'
@@ -137,7 +137,7 @@ export function ShareDialog({
         setTimeout(() => setLinkCopied(false), 2000)
     }, [publicShareUrl, itemId, queryClient])
 
-    const alreadySharedIds = useMemo(() => new Set(shares.map(s => s.userOrgId)), [shares])
+    const alreadySharedIds = useMemo(() => new Set(shares.map(s => s.userId)), [shares])
     const pendingEmails = useMemo(() => new Set(pending.map(p => p.email.toLowerCase())), [pending])
 
     const handleSelect = (s: SuggestionEntry) => {
@@ -145,7 +145,7 @@ export function ShareDialog({
             ...prev,
             {
                 key: s.key,
-                userOrgId: s.userOrgId,
+                userId: s.userId,
                 name: s.name,
                 email: s.email,
                 role: defaultRole,
@@ -171,7 +171,7 @@ export function ShareDialog({
                     body: {
                         item_id: itemId,
                         recipients: pending.map(p => ({
-                            user_org_id: p.userOrgId || undefined,
+                            user_id: p.userId || undefined,
                             email: p.email,
                             name: p.name,
                             role: p.role,
@@ -189,8 +189,8 @@ export function ShareDialog({
         onClose()
     }
 
-    const currentUserShare = shares.find(s => s.userOrgId === currentUserOrgId)
-    const otherShares = shares.filter(s => s.userOrgId !== currentUserOrgId)
+    const currentUserShare = shares.find(s => s.userId === currentUserOrgId)
+    const otherShares = shares.filter(s => s.userId !== currentUserOrgId)
 
     return (
         <Modal isOpen={open} onClose={onClose}>
@@ -505,14 +505,14 @@ function buildMemberSuggestions(
     return orgMembers
         .filter(
             m =>
-                !alreadySharedIds.has(m.userOrgId) &&
+                !alreadySharedIds.has(m.userId) &&
                 !pendingEmails.has(m.email.toLowerCase()) &&
-                m.userOrgId !== currentUserOrgId &&
+                m.userId !== currentUserOrgId &&
                 (m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
         )
         .map(m => ({
-            key: `member:${m.userOrgId}`,
-            userOrgId: m.userOrgId,
+            key: `member:${m.userId}`,
+            userId: m.userId,
             name: m.name,
             email: m.email,
             source: 'member' as const,
@@ -538,7 +538,7 @@ function buildContactSuggestions(
         .slice(0, 5)
         .map(c => ({
             key: `contact:${c.id}`,
-            userOrgId: '',
+            userId: '',
             name: `${c.first_name} ${c.last_name}`.trim(),
             email: c.email,
             source: 'contact' as const,

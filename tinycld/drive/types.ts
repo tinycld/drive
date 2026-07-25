@@ -29,7 +29,7 @@ export type DriveShareRole = 'owner' | ShareLinkRole
 export interface DriveShares {
     id: string
     item: string
-    user_org: string
+    user: string
     role: DriveShareRole
     created_by: string
     created: string
@@ -39,7 +39,7 @@ export interface DriveShares {
 export interface DriveItemState {
     id: string
     item: string
-    user_org: string
+    user: string
     is_starred: boolean
     trashed_at: string
     last_viewed_at: string
@@ -54,7 +54,7 @@ export interface DriveItemView {
     mimeType: string
     parentId: string
     owner: string
-    ownerUserOrgId: string
+    ownerUserId: string
     updated: string
     size: number
     shared: boolean
@@ -121,7 +121,7 @@ export type DriveSchema = {
         type: DriveShares
         relations: {
             item: DriveItems
-            user_org: Users
+            user: Users
             created_by: Users
         }
     }
@@ -129,7 +129,7 @@ export type DriveSchema = {
         type: DriveItemState
         relations: {
             item: DriveItems
-            user_org: Users
+            user: Users
         }
     }
     drive_item_versions: {
@@ -150,7 +150,7 @@ export type DriveSchema = {
         type: CommentMentions
         relations: {
             drive_item: DriveItems
-            mentioned_user_org: Users
+            mentioned_user: Users
         }
     }
 }

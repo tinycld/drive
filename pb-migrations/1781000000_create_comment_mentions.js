@@ -58,8 +58,8 @@ migrate(
                     maxSelect: 1,
                 },
                 {
-                    id: 'cm_mentioned_user_org',
-                    name: 'mentioned_user_org',
+                    id: 'cm_mentioned_user',
+                    name: 'mentioned_user',
                     type: 'relation',
                     required: true,
                     collectionId: '_pb_users_auth_',
@@ -81,12 +81,12 @@ migrate(
             listRule: null,
             viewRule: null,
             createRule:
-                '@request.auth.id != "" && drive_item.drive_shares_via_item.user_org ?= @request.auth.id',
+                '@request.auth.id != "" && drive_item.drive_shares_via_item.user ?= @request.auth.id',
             updateRule: null,
             deleteRule: null,
             indexes: [
                 'CREATE INDEX `idx_comment_mentions_target` ON `comment_mentions` (`comment_collection`, `comment_record`)',
-                'CREATE INDEX `idx_comment_mentions_user` ON `comment_mentions` (`mentioned_user_org`, `created` DESC)',
+                'CREATE INDEX `idx_comment_mentions_user` ON `comment_mentions` (`mentioned_user`, `created` DESC)',
             ],
         })
         app.save(commentMentions)

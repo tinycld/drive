@@ -33,7 +33,7 @@ export function registerCollections(
         omitOnInsert: ['created', 'updated'] as const,
         expand: {
             item: drive_items,
-            user_org: coreStores.users,
+            user: coreStores.users,
             created_by: coreStores.users,
         },
         collectionOptions: {
@@ -44,7 +44,7 @@ export function registerCollections(
 
     const drive_item_state = newCollection('drive_item_state', {
         omitOnInsert: ['created', 'updated'] as const,
-        expand: { item: drive_items, user_org: coreStores.users },
+        expand: { item: drive_items, user: coreStores.users },
         collectionOptions: {
             autoIndex: 'eager' as const,
             defaultIndexType: BasicIndex,
@@ -76,7 +76,7 @@ export function registerCollections(
         omitOnInsert: ['created'] as const,
         expand: {
             drive_item: drive_items,
-            mentioned_user_org: coreStores.users,
+            mentioned_user: coreStores.users,
         },
     })
 

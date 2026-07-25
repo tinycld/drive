@@ -120,8 +120,8 @@ migrate(
                     maxSelect: 1,
                 },
                 {
-                    id: 'drv_shares_user_org',
-                    name: 'user_org',
+                    id: 'drv_shares_user',
+                    name: 'user',
                     type: 'relation',
                     required: true,
                     collectionId: '_pb_users_auth_',
@@ -161,10 +161,10 @@ migrate(
                 },
             ],
             indexes: [
-                'CREATE UNIQUE INDEX `idx_drv_shares_unique` ON `drive_shares` (`item`, `user_org`)',
+                'CREATE UNIQUE INDEX `idx_drv_shares_unique` ON `drive_shares` (`item`, `user`)',
                 'CREATE INDEX `idx_drv_shares_item` ON `drive_shares` (`item`)',
-                'CREATE INDEX `idx_drv_shares_user_org` ON `drive_shares` (`user_org`)',
-                'CREATE INDEX `idx_drv_shares_user_org_role` ON `drive_shares` (`user_org`, `role`)',
+                'CREATE INDEX `idx_drv_shares_user` ON `drive_shares` (`user`)',
+                'CREATE INDEX `idx_drv_shares_user_role` ON `drive_shares` (`user`, `role`)',
             ],
         })
         app.save(shares)
@@ -186,8 +186,8 @@ migrate(
                     maxSelect: 1,
                 },
                 {
-                    id: 'drv_state_user_org',
-                    name: 'user_org',
+                    id: 'drv_state_user',
+                    name: 'user',
                     type: 'relation',
                     required: true,
                     collectionId: '_pb_users_auth_',
@@ -227,10 +227,10 @@ migrate(
                 },
             ],
             indexes: [
-                'CREATE UNIQUE INDEX `idx_drv_state_unique` ON `drive_item_state` (`item`, `user_org`)',
-                'CREATE INDEX `idx_drv_state_starred` ON `drive_item_state` (`user_org`, `is_starred`)',
-                'CREATE INDEX `idx_drv_state_trashed` ON `drive_item_state` (`user_org`, `trashed_at`)',
-                'CREATE INDEX `idx_drv_state_recent` ON `drive_item_state` (`user_org`, `last_viewed_at` DESC)',
+                'CREATE UNIQUE INDEX `idx_drv_state_unique` ON `drive_item_state` (`item`, `user`)',
+                'CREATE INDEX `idx_drv_state_starred` ON `drive_item_state` (`user`, `is_starred`)',
+                'CREATE INDEX `idx_drv_state_trashed` ON `drive_item_state` (`user`, `trashed_at`)',
+                'CREATE INDEX `idx_drv_state_recent` ON `drive_item_state` (`user`, `last_viewed_at` DESC)',
             ],
         })
         app.save(itemState)
@@ -245,16 +245,16 @@ migrate(
             collection.deleteRule = del
         }
 
-        const hasShareRule = 'drive_shares_via_item.user_org ?= @request.auth.id'
+        const hasShareRule = 'drive_shares_via_item.user ?= @request.auth.id'
         const isOwnerOrEditor =
-            'drive_shares_via_item.user_org ?= @request.auth.id && drive_shares_via_item.role ?!= "viewer"'
+            'drive_shares_via_item.user ?= @request.auth.id && drive_shares_via_item.role ?!= "viewer"'
         const isOwner =
-            'drive_shares_via_item.user_org ?= @request.auth.id && drive_shares_via_item.role ?= "owner"'
+            'drive_shares_via_item.user ?= @request.auth.id && drive_shares_via_item.role ?= "owner"'
         const authedRule = '@request.auth.id != ""'
-        const ownRecordRule = 'user_org = @request.auth.id'
-        const ownShareRecipient = 'user_org = @request.auth.id'
+        const ownRecordRule = 'user = @request.auth.id'
+        const ownShareRecipient = 'user = @request.auth.id'
         const isItemOwner =
-            'item.drive_shares_via_item.user_org ?= @request.auth.id && item.drive_shares_via_item.role ?= "owner"'
+            'item.drive_shares_via_item.user ?= @request.auth.id && item.drive_shares_via_item.role ?= "owner"'
 
         // drive_items: viewable by share holders, creatable by any authed user, editable by owner/editor, deletable by owner
         const itemsCol = app.findCollectionByNameOrId('drive_items')
@@ -283,7 +283,7 @@ migrate(
         setRules(stateCol, {
             list: ownRecordRule,
             view: ownRecordRule,
-            create: `${ownRecordRule} && item.drive_shares_via_item.user_org ?= @request.auth.id`,
+            create: `${ownRecordRule} && item.drive_shares_via_item.user ?= @request.auth.id`,
             update: ownRecordRule,
             del: ownRecordRule,
         })

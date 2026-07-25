@@ -55,11 +55,11 @@ export interface CreateDriveItemResult {
 export function useCreateDriveItem() {
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
 
     return useMutation({
         mutationFn: async (input: CreateDriveItemInput): Promise<CreateDriveItemResult> => {
-            if (!userOrgId) {
+            if (!userId) {
                 throw new Error('User context not ready')
             }
 
@@ -99,7 +99,7 @@ export function useCreateDriveItem() {
                 formData.append('is_folder', 'false')
                 formData.append('mime_type', input.mimeType || 'application/octet-stream')
                 formData.append('parent', parentId)
-                formData.append('created_by', userOrgId)
+                formData.append('created_by', userId)
                 formData.append('size', String(size))
                 // RN's FormData accepts a `{ uri, name, type }` object literal; on
                 // web the `file` field is a real Blob/File. We cast to satisfy TS.
@@ -108,7 +108,7 @@ export function useCreateDriveItem() {
                 try {
                     // The drive_items create hook (server/register.go) inserts the
                     // owner drive_shares row in the same transaction, so the client
-                    // must not also insert one — the unique (item, user_org) index
+                    // must not also insert one — the unique (item, user) index
                     // would reject it.
                     const record = await pb
                         .collection('drive_items')
@@ -163,11 +163,11 @@ export interface CreateBlankDriveItemInput {
 export function useCreateBlankDriveItem() {
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
 
     return useMutation({
         mutationFn: async (input: CreateBlankDriveItemInput): Promise<{ itemId: string }> => {
-            if (!userOrgId) {
+            if (!userId) {
                 throw new Error('User context not ready')
             }
             const itemId = newRecordId()
@@ -182,7 +182,7 @@ export function useCreateBlankDriveItem() {
                 is_folder: false,
                 mime_type: input.mimeType,
                 parent: input.parentId ?? '',
-                created_by: userOrgId,
+                created_by: userId,
                 description: input.description ?? '',
             })
             return { itemId }

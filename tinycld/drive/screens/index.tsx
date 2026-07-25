@@ -182,7 +182,7 @@ export default function DriveScreen() {
         openPrompt,
         actions,
         itemsById,
-        userOrgId,
+        userId,
         sortField,
         sortDirection,
         setSort,
@@ -194,7 +194,7 @@ export default function DriveScreen() {
     // Subscribe to upload progress here (not via DriveContextValue) so the
     // toolbar/dialogs/sidebar/preview don't re-render on every progress tick.
     const uploadPlaceholders = useUploadPlaceholders({
-        userOrgId,
+        userId,
         activeSection,
         currentFolderId,
         isSearchActive,

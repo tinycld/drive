@@ -91,11 +91,11 @@ migrate(
         })
         app.save(versions)
 
-        const hasShareRule = 'item.drive_shares_via_item.user_org ?= @request.auth.id'
+        const hasShareRule = 'item.drive_shares_via_item.user ?= @request.auth.id'
         const isOwnerOrEditor =
-            'item.drive_shares_via_item.user_org ?= @request.auth.id && item.drive_shares_via_item.role ?!= "viewer"'
+            'item.drive_shares_via_item.user ?= @request.auth.id && item.drive_shares_via_item.role ?!= "viewer"'
         const isOwner =
-            'item.drive_shares_via_item.user_org ?= @request.auth.id && item.drive_shares_via_item.role ?= "owner"'
+            'item.drive_shares_via_item.user ?= @request.auth.id && item.drive_shares_via_item.role ?= "owner"'
 
         const versionsCol = app.findCollectionByNameOrId('drive_item_versions')
         versionsCol.listRule = hasShareRule

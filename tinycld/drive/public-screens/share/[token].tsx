@@ -125,7 +125,7 @@ function ShareView({ token }: { token: string }) {
     // comments queryable for them. For anon visitors the org-scoped
     // queries safely return empty (useAuth's anon stub has user.id='', so
     // useCurrentRole's user_org query matches nothing → useOrgLiveQuery's
-    // !userOrgId guard short-circuits).
+    // !userId guard short-circuits).
     if (getShareEditor(session.mimeType)) {
         return (
             <OrgSlugProvider slug={session.orgSlug}>
