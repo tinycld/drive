@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 )
@@ -42,7 +41,7 @@ func reconcileDriveItemSize(record *core.Record) {
 
 // readFileContent returns a ReadCloser for the file blob attached to a drive_items record.
 // The caller must close the returned reader.
-func readFileContent(app *pocketbase.PocketBase, record *core.Record) (io.ReadCloser, error) {
+func readFileContent(app core.App, record *core.Record) (io.ReadCloser, error) {
 	filename := record.GetString("file")
 	if filename == "" {
 		return io.NopCloser(&emptyReader{}), nil
@@ -68,7 +67,7 @@ func readFileContent(app *pocketbase.PocketBase, record *core.Record) (io.ReadCl
 // uploads accumulated in a temp file don't have to be re-buffered in
 // RAM. The caller owns path: this function does not rename, move, or
 // remove it on either success or failure.
-func writeFileContentFromPath(app *pocketbase.PocketBase, record *core.Record, path string) error {
+func writeFileContentFromPath(app core.App, record *core.Record, path string) error {
 	f, err := filesystem.NewFileFromPath(path)
 	if err != nil {
 		return err
@@ -86,7 +85,7 @@ func writeFileContentFromPath(app *pocketbase.PocketBase, record *core.Record, p
 // returned so the caller can clean it up after Close. The returned
 // reader is self-contained — the underlying gocloud blob reader and
 // PocketBase filesystem session are closed before this function returns.
-func openSeekableContent(app *pocketbase.PocketBase, record *core.Record) (rdr io.ReadSeekCloser, tmpPath string, err error) {
+func openSeekableContent(app core.App, record *core.Record) (rdr io.ReadSeekCloser, tmpPath string, err error) {
 	filename := record.GetString("file")
 	if filename == "" {
 		return &nopReadSeekCloser{ReadSeeker: bytes.NewReader(nil)}, "", nil

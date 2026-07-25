@@ -29,19 +29,19 @@ func splitNameExt(name string) (base, ext string) {
 }
 
 // chooseUniqueDriveItemName returns `requested` if no other drive_items row in
-// (org, parent) has that name, otherwise "base (n)ext" where n is the lowest
+// (parent) has that name, otherwise "base (n)ext" where n is the lowest
 // positive integer that yields an unused name. One indexed lookup per probe
-// against the unique (org, parent, name) index; usually one, occasionally a
+// against the unique (parent, name) index; usually one, occasionally a
 // few more on real collisions.
 //
 // The unique index is still the ultimate safety net for the narrow race where
 // another transaction commits a colliding name between our probe and our
 // INSERT — that case surfaces as a save error to the caller.
-func chooseUniqueDriveItemName(app core.App, orgID, parentID, requested string) (string, error) {
+func chooseUniqueDriveItemName(app core.App, parentID, requested string) (string, error) {
 	if requested == "" {
 		return requested, nil
 	}
-	taken, err := driveItemNameTaken(app, orgID, parentID, requested)
+	taken, err := driveItemNameTaken(app, parentID, requested)
 	if err != nil {
 		return "", err
 	}
@@ -51,7 +51,7 @@ func chooseUniqueDriveItemName(app core.App, orgID, parentID, requested string) 
 	base, ext := splitNameExt(requested)
 	for i := 1; i <= maxRenameAttempts; i++ {
 		candidate := fmt.Sprintf("%s (%d)%s", base, i, ext)
-		taken, err := driveItemNameTaken(app, orgID, parentID, candidate)
+		taken, err := driveItemNameTaken(app, parentID, candidate)
 		if err != nil {
 			return "", err
 		}
@@ -62,22 +62,22 @@ func chooseUniqueDriveItemName(app core.App, orgID, parentID, requested string) 
 	return "", fmt.Errorf("could not find a free name for %q in this folder after %d attempts", requested, maxRenameAttempts)
 }
 
-// driveItemNameTaken probes the (org, parent, name) unique index directly via
+// driveItemNameTaken probes the (parent, name) unique index directly via
 // dbx rather than going through FindFirstRecordByFilter. PocketBase's filter
 // expression layer json-marshals empty-string parameters and produces a stored
-// SQL value of `'""'` rather than `''`, so a probe with parentID == "" never
+// SQL value of `'""'` rather than `”`, so a probe with parentID == "" never
 // matches root-level rows whose parent is the empty string. Issuing the query
 // directly with dbx parameter binding sidesteps that substitution path.
-func driveItemNameTaken(app core.App, orgID, parentID, name string) (bool, error) {
-	return driveItemNameTakenDB(app.DB(), orgID, parentID, name)
+func driveItemNameTaken(app core.App, parentID, name string) (bool, error) {
+	return driveItemNameTakenDB(app.DB(), parentID, name)
 }
 
-func driveItemNameTakenDB(db dbx.Builder, orgID, parentID, name string) (bool, error) {
+func driveItemNameTakenDB(db dbx.Builder, parentID, name string) (bool, error) {
 	var id string
 	err := db.
 		Select("id").
 		From("drive_items").
-		Where(dbx.HashExp{"org": orgID, "parent": parentID, "name": name}).
+		Where(dbx.HashExp{"parent": parentID, "name": name}).
 		Limit(1).
 		Row(&id)
 	if err == nil {

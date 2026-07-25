@@ -27,8 +27,7 @@ type driveFile struct {
 	wrBuf    *os.File
 	wrName   string
 	parentID string
-	orgID    string
-	userOrg  *core.Record
+	user     *core.Record
 	existing *core.Record
 
 	// Directory mode
@@ -163,19 +162,19 @@ func (f *driveFile) persistWrite() error {
 	}
 
 	if f.existing != nil {
-		if err := checkWritePermission(f.fs.app, f.userOrg.Id, f.existing.Id); err != nil {
+		if err := checkWritePermission(f.fs.app, f.user.Id, f.existing.Id); err != nil {
 			return err
 		}
 
 		oldSize := int64(f.existing.GetInt("size"))
 		if delta := newSize - oldSize; delta > 0 {
-			if err := checkUserStorageQuotaWebDAV(f.fs.app, f.userOrg.Id, f.orgID, delta); err != nil {
+			if err := checkUserStorageQuotaWebDAV(f.fs.app, f.user.Id, delta); err != nil {
 				return err
 			}
 		}
 
 		if f.existing.GetString("file") != "" {
-			if _, err := snapshotCurrentFile(f.fs.app, f.existing, f.userOrg.Id, "upload", ""); err != nil {
+			if _, err := snapshotCurrentFile(f.fs.app, f.existing, f.user.Id, "upload", ""); err != nil {
 				f.fs.app.Logger().Warn("WebDAV: version snapshot failed", "id", f.existing.Id, "error", err)
 			}
 		}
@@ -195,11 +194,10 @@ func (f *driveFile) persistWrite() error {
 	}
 
 	record := core.NewRecord(collection)
-	record.Set("org", f.orgID)
 	record.Set("name", f.wrName)
 	record.Set("is_folder", false)
 	record.Set("parent", f.parentID)
-	record.Set("created_by", f.userOrg.Id)
+	record.Set("created_by", f.user.Id)
 	record.Set("mime_type", guessMimeType(f.wrName))
 
 	// The OnRecordCreate("drive_items") hook in register.go creates the

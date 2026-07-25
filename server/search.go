@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -40,7 +39,7 @@ func sanitizeFTSQuery(input string) string {
 	return strings.Join(quoted, " ")
 }
 
-func syncDriveItemToFTS(app *pocketbase.PocketBase, record *core.Record, op string) {
+func syncDriveItemToFTS(app core.App, record *core.Record, op string) {
 	db := app.NonconcurrentDB()
 	recordID := record.Id
 
@@ -72,7 +71,7 @@ func syncDriveItemToFTS(app *pocketbase.PocketBase, record *core.Record, op stri
 }
 
 // updateFTSContent updates just the content field for async extraction results.
-func updateFTSContent(app *pocketbase.PocketBase, recordID, content string) {
+func updateFTSContent(app core.App, recordID, content string) {
 	db := app.NonconcurrentDB()
 
 	// Re-read the record to get current name/description
@@ -120,10 +119,9 @@ type driveSearchResponse struct {
 	Total int                     `json:"total"`
 }
 
-func handleDriveSearch(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 	userID := re.Auth.Id
 	q := re.Request.URL.Query().Get("q")
-	orgID := re.Request.URL.Query().Get("org")
 	limitStr := re.Request.URL.Query().Get("limit")
 	offsetStr := re.Request.URL.Query().Get("offset")
 
@@ -147,27 +145,8 @@ func handleDriveSearch(app *pocketbase.PocketBase, re *core.RequestEvent) error 
 		return re.JSON(http.StatusOK, emptyResponse)
 	}
 
-	// Get user's org memberships for authorization
-	userOrgIDs, err := getUserOrgIDs(app, userID)
-	if err != nil || len(userOrgIDs) == 0 {
-		return re.JSON(http.StatusOK, emptyResponse)
-	}
-
-	// Build IN clause for share filtering
-	shareParams := make(map[string]any)
-	sharePlaceholders := make([]string, len(userOrgIDs))
-	for i, id := range userOrgIDs {
-		key := "uo" + strconv.Itoa(i)
-		shareParams[key] = id
-		sharePlaceholders[i] = "{:" + key + "}"
-	}
-	inClause := "(" + strings.Join(sharePlaceholders, ", ") + ")"
-
-	orgFilter := ""
-	if orgID != "" {
-		orgFilter = " AND d.org = {:orgID}"
-	}
-
+	// Single-org: authorization is a single drive_shares row keyed by the
+	// caller's user id — the former per-membership IN clause is gone.
 	searchQuery := `
 		SELECT DISTINCT
 			d.id,
@@ -182,21 +161,16 @@ func handleDriveSearch(app *pocketbase.PocketBase, re *core.RequestEvent) error 
 		JOIN drive_items d ON d.id = fts_drive_items.record_id
 		JOIN drive_shares ds ON ds.item = d.id
 		WHERE fts_drive_items MATCH {:ftsQuery}
-		AND ds.user_org IN ` + inClause + orgFilter + `
+		AND ds.user = {:userID}
 		ORDER BY fts_drive_items.rank
 		LIMIT {:limit} OFFSET {:offset}
 	`
 
 	params := map[string]any{
 		"ftsQuery": ftsQuery,
+		"userID":   userID,
 		"limit":    limit,
 		"offset":   offset,
-	}
-	if orgID != "" {
-		params["orgID"] = orgID
-	}
-	for k, v := range shareParams {
-		params[k] = v
 	}
 
 	var results []struct {
@@ -210,7 +184,7 @@ func handleDriveSearch(app *pocketbase.PocketBase, re *core.RequestEvent) error 
 		Highlight   string `db:"highlight"`
 	}
 
-	err = app.DB().NewQuery(searchQuery).Bind(dbx.Params(params)).All(&results)
+	err := app.DB().NewQuery(searchQuery).Bind(dbx.Params(params)).All(&results)
 	if err != nil {
 		app.Logger().Warn("FTS: drive search query failed", "error", err, "query", q)
 		return re.JSON(http.StatusOK, emptyResponse)
@@ -237,15 +211,9 @@ func handleDriveSearch(app *pocketbase.PocketBase, re *core.RequestEvent) error 
 		JOIN drive_items d ON d.id = fts_drive_items.record_id
 		JOIN drive_shares ds ON ds.item = d.id
 		WHERE fts_drive_items MATCH {:ftsQuery}
-		AND ds.user_org IN ` + inClause + orgFilter
+		AND ds.user = {:userID}`
 
-	countParams := map[string]any{"ftsQuery": ftsQuery}
-	if orgID != "" {
-		countParams["orgID"] = orgID
-	}
-	for k, v := range shareParams {
-		countParams[k] = v
-	}
+	countParams := map[string]any{"ftsQuery": ftsQuery, "userID": userID}
 
 	var countResult struct {
 		Total int `db:"total"`
@@ -255,24 +223,4 @@ func handleDriveSearch(app *pocketbase.PocketBase, re *core.RequestEvent) error 
 	}
 
 	return re.JSON(http.StatusOK, driveSearchResponse{Items: items, Total: countResult.Total})
-}
-
-func getUserOrgIDs(app *pocketbase.PocketBase, userID string) ([]string, error) {
-	userOrgs, err := app.FindRecordsByFilter(
-		"user_org",
-		"user = {:user}",
-		"",
-		100,
-		0,
-		map[string]any{"user": userID},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]string, len(userOrgs))
-	for i, uo := range userOrgs {
-		ids[i] = uo.Id
-	}
-	return ids, nil
 }

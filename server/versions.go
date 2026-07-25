@@ -3,7 +3,6 @@ package drive
 import (
 	"io"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 )
@@ -12,7 +11,7 @@ import (
 // Skips silently if the item has no file attached (returns nil, nil).
 // Version number assignment is done inside a transaction to prevent races.
 // Returns the created version record on success so callers can fire post-snapshot hooks.
-func snapshotCurrentFile(app *pocketbase.PocketBase, itemRecord *core.Record, userOrgID, source, label string) (*core.Record, error) {
+func snapshotCurrentFile(app core.App, itemRecord *core.Record, userOrgID, source, label string) (*core.Record, error) {
 	filename := itemRecord.GetString("file")
 	if filename == "" {
 		return nil, nil

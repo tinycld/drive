@@ -12,7 +12,7 @@ import (
 // parent column is the empty string. Going through PocketBase's filter
 // expression layer (FindFirstRecordByFilter with `{:parent}`) json-marshals
 // the empty string into the literal two characters `""` and produces SQL of
-// `parent = '""'`, which never matches stored `''` and lets duplicate root-
+// `parent = '""'`, which never matches stored `”` and lets duplicate root-
 // level uploads slip past the dedup probe and collide on the unique index at
 // INSERT time.
 func TestDriveItemNameTakenEmptyParent(t *testing.T) {
@@ -25,7 +25,6 @@ func TestDriveItemNameTakenEmptyParent(t *testing.T) {
 	if _, err := db.NewQuery(`
 		CREATE TABLE drive_items (
 			id TEXT PRIMARY KEY,
-			org TEXT NOT NULL,
 			parent TEXT NOT NULL DEFAULT '',
 			name TEXT NOT NULL
 		)
@@ -35,7 +34,6 @@ func TestDriveItemNameTakenEmptyParent(t *testing.T) {
 
 	if _, err := db.Insert("drive_items", dbx.Params{
 		"id":     "row1",
-		"org":    "org1",
 		"parent": "",
 		"name":   "report.pdf",
 	}).Execute(); err != nil {
@@ -44,7 +42,6 @@ func TestDriveItemNameTakenEmptyParent(t *testing.T) {
 
 	if _, err := db.Insert("drive_items", dbx.Params{
 		"id":     "row2",
-		"org":    "org1",
 		"parent": "folder1",
 		"name":   "child.pdf",
 	}).Execute(); err != nil {
@@ -53,21 +50,20 @@ func TestDriveItemNameTakenEmptyParent(t *testing.T) {
 
 	cases := []struct {
 		label    string
-		org      string
 		parent   string
 		name     string
 		expected bool
 	}{
-		{"root collision", "org1", "", "report.pdf", true},
-		{"root miss", "org1", "", "missing.pdf", false},
-		{"child collision", "org1", "folder1", "child.pdf", true},
-		{"wrong org no match", "org2", "", "report.pdf", false},
-		{"wrong parent no match", "org1", "folder1", "report.pdf", false},
+		{"root collision", "", "report.pdf", true},
+		{"root miss", "", "missing.pdf", false},
+		{"child collision", "folder1", "child.pdf", true},
+		{"wrong parent no match", "folder1", "report.pdf", false},
+		{"root probe ignores child rows", "", "child.pdf", false},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.label, func(t *testing.T) {
-			got, err := driveItemNameTakenDB(db, tc.org, tc.parent, tc.name)
+			got, err := driveItemNameTakenDB(db, tc.parent, tc.name)
 			if err != nil {
 				t.Fatalf("driveItemNameTakenDB: %v", err)
 			}

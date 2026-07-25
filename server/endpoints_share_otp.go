@@ -58,9 +58,9 @@ type otpVerifyBody struct {
 //     viewing, so no account is needed.
 //   - The code is emailed; it is NEVER returned in the HTTP response.
 //   - We DO create the `users` record here (PocketBase OTPs are anchored
-//     to an auth record), but we do NOT create the org membership or
-//     drive_shares row — those are created at verify, after email proof.
-//     An unverified user with no membership has no org access, so
+//     to an auth record), but we do NOT grant the guest role or create the
+//     drive_shares row — those happen at verify, after email proof. An
+//     unverified user with no share has no access, so
 //     request-but-never-verify is harmless.
 func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
@@ -91,7 +91,7 @@ func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 		return re.JSON(http.StatusBadRequest, map[string]string{"error": "invalid email address"})
 	}
 
-	// Find-or-create the auth record. We do not touch org membership here;
+	// Find-or-create the auth record. We do not grant any role here;
 	// the user is provisioned with verified=false and a random password,
 	// and only becomes useful once they prove ownership of the address.
 	userRecord, err := findOrCreateGuestUser(app, emailAddr)
@@ -131,9 +131,8 @@ func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 }
 
 // handleShareOTPVerify exchanges an emailed code + the otp_id for a real
-// PocketBase auth token, AND provisions (idempotently) the guest
-// user_org membership + drive_shares row scoped to the link's
-// org+item+role.
+// PocketBase auth token, AND provisions (idempotently) the guest role
+// + drive_shares row scoped to the link's item+role.
 //
 // Public. Rate-limited with the stricter otpLimiter (10/min/IP) to bound
 // brute-force guessing of the 6-digit code from any one IP.
@@ -144,10 +143,10 @@ func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 //     verify → 410).
 //   - viewer links rejected (same reasoning as otp-request).
 //   - Provisioning happens ONLY on a verified-code success path, and
-//     ONLY in the link's org for the link's item with the link's role —
+//     ONLY for the link's item with the link's role —
 //     a verified email for one link must NOT grant access to another.
 //   - Provisioning is idempotent: returning visitors / replayed
-//     verifications reuse the same user_org and drive_shares row.
+//     verifications reuse the same user and drive_shares row.
 //   - The used OTP is deleted so the code cannot be replayed (PB's
 //     standard OTP-consume pattern).
 //   - Response shape mirrors the standard PB auth response so the
@@ -208,9 +207,8 @@ func handleShareOTPVerify(app core.App, re *core.RequestEvent) error {
 		return re.JSON(http.StatusBadRequest, map[string]string{"error": "invalid or expired code"})
 	}
 
-	// At this point the email is proven. Provision the membership and
+	// At this point the email is proven. Provision the guest role and
 	// share in one transaction so a partial provision is impossible.
-	itemOrg := item.GetString("org")
 	linkRole := link.GetString("role")
 	var liveUser *core.Record
 	err = app.RunInTransaction(func(txApp core.App) error {
@@ -229,22 +227,20 @@ func handleShareOTPVerify(app core.App, re *core.RequestEvent) error {
 			}
 		}
 
-		// Find-or-create the org membership. If a membership already
-		// exists with ANY role (e.g. the email matches a real member of
-		// the org), reuse it — never downgrade an existing member to
-		// guest. New rows are created with role=guest.
-		userOrg, ferr := findOrCreateGuestUserOrg(txApp, user.Id, itemOrg)
-		if ferr != nil {
+		// Stamp role=guest only if the user carries no role yet — a real
+		// member/admin/owner whose email matches must never be downgraded
+		// by visiting a share link.
+		if ferr := ensureGuestRole(txApp, user); ferr != nil {
 			return fmt.Errorf("guest membership: %w", ferr)
 		}
 
 		// Find-or-create the per-item share. The unique index on
-		// (item, user_org) backs the idempotency check at the DB level
-		// as a safety net. If the share already exists we reuse it; we
-		// do not silently upgrade its role from the link's current
-		// role (the link's role is the upper bound; an explicit prior
-		// share is already an explicit grant by the owner).
-		if ferr := findOrCreateGuestDriveShare(txApp, item.Id, userOrg.Id, linkRole); ferr != nil {
+		// (item, user) backs the idempotency check at the DB level as a
+		// safety net. If the share already exists we reuse it; we do not
+		// silently upgrade its role from the link's current role (the
+		// link's role is the upper bound; an explicit prior share is
+		// already an explicit grant by the owner).
+		if ferr := findOrCreateGuestDriveShare(txApp, item.Id, user.Id, linkRole); ferr != nil {
 			return fmt.Errorf("guest share: %w", ferr)
 		}
 
@@ -396,51 +392,31 @@ func pickAvailableUsername(app core.App, base string) (string, error) {
 	return "", fmt.Errorf("could not find free username for %q", base)
 }
 
-// findOrCreateGuestUserOrg returns the user_org row for (user, org),
-// creating one with role=guest if none exists. If a membership exists
-// with ANY role we return it unchanged — a real member must not be
-// silently downgraded by visiting a share link.
-func findOrCreateGuestUserOrg(app core.App, userID, orgID string) (*core.Record, error) {
-	existing, _ := app.FindFirstRecordByFilter(
-		"user_org",
-		"user = {:uid} && org = {:oid}",
-		map[string]any{"uid": userID, "oid": orgID},
-	)
-	if existing != nil {
-		return existing, nil
+// ensureGuestRole stamps role=guest on a user that has no role yet.
+// Single-org: membership is the users row itself, so there is no junction
+// to find-or-create — but the "never downgrade a real member" rule still
+// holds: a user who already carries any role keeps it, so an owner/admin/
+// member visiting a share link is never demoted to guest.
+func ensureGuestRole(app core.App, user *core.Record) error {
+	if user.GetString("role") != "" {
+		return nil
 	}
-
-	col, err := app.FindCollectionByNameOrId("user_org")
-	if err != nil {
-		return nil, fmt.Errorf("user_org collection: %w", err)
+	user.Set("role", "guest")
+	if err := app.Save(user); err != nil {
+		return fmt.Errorf("set guest role: %w", err)
 	}
-	rec := core.NewRecord(col)
-	rec.Set("user", userID)
-	rec.Set("org", orgID)
-	rec.Set("role", "guest")
-	if err := app.Save(rec); err != nil {
-		// Race: another concurrent verify call created the row.
-		if again, ferr := app.FindFirstRecordByFilter(
-			"user_org",
-			"user = {:uid} && org = {:oid}",
-			map[string]any{"uid": userID, "oid": orgID},
-		); ferr == nil && again != nil {
-			return again, nil
-		}
-		return nil, fmt.Errorf("create guest user_org: %w", err)
-	}
-	return rec, nil
+	return nil
 }
 
 // findOrCreateGuestDriveShare returns (or creates) a drive_shares row
-// for (item, user_org). The role is set to the link's role on
-// creation; an existing row is returned unchanged (do not silently
-// modify a pre-existing explicit grant).
-func findOrCreateGuestDriveShare(app core.App, itemID, userOrgID, role string) error {
+// for (item, user). The role is set to the link's role on creation; an
+// existing row is returned unchanged (do not silently modify a
+// pre-existing explicit grant).
+func findOrCreateGuestDriveShare(app core.App, itemID, userID, role string) error {
 	existing, _ := app.FindFirstRecordByFilter(
 		"drive_shares",
-		"item = {:item} && user_org = {:uo}",
-		map[string]any{"item": itemID, "uo": userOrgID},
+		"item = {:item} && user = {:user}",
+		map[string]any{"item": itemID, "user": userID},
 	)
 	if existing != nil {
 		return nil
@@ -452,20 +428,20 @@ func findOrCreateGuestDriveShare(app core.App, itemID, userOrgID, role string) e
 	}
 	rec := core.NewRecord(col)
 	rec.Set("item", itemID)
-	rec.Set("user_org", userOrgID)
+	rec.Set("user", userID)
 	rec.Set("role", role)
-	// created_by mirrors user_org so the guest's share is self-attributed
-	// — there is no admin/owner doing the granting in this flow; the
-	// link itself is the grant. Some access predicates require non-empty
+	// created_by mirrors user so the guest's share is self-attributed —
+	// there is no admin/owner doing the granting in this flow; the link
+	// itself is the grant. Some access predicates require non-empty
 	// created_by, and the row is functionally owned by the user.
-	rec.Set("created_by", userOrgID)
+	rec.Set("created_by", userID)
 	if err := app.Save(rec); err != nil {
 		// Race: another verify concurrently created the row (unique
-		// index on (item, user_org)). Tolerate.
+		// index on (item, user)). Tolerate.
 		if again, _ := app.FindFirstRecordByFilter(
 			"drive_shares",
-			"item = {:item} && user_org = {:uo}",
-			map[string]any{"item": itemID, "uo": userOrgID},
+			"item = {:item} && user = {:user}",
+			map[string]any{"item": itemID, "user": userID},
 		); again != nil {
 			return nil
 		}

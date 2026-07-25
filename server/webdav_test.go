@@ -14,41 +14,66 @@ import (
 // expect in production, including the trailing-slash and trailing-double-
 // slash variants Finder produces. The path parser is the foundation of
 // every FileSystem method, so a regression here is silent and severe.
+// Single-org: the grammar is /drive/<segments...> with no org slug —
+// the tree hangs directly off /drive, and /drive or /drive/ is the
+// synthetic root.
 func TestParsePath(t *testing.T) {
 	cases := []struct {
 		in       string
-		wantOrg  string
 		wantSegs []string
 	}{
-		{"/drive", "", nil},
-		{"/drive/", "", nil},
-		{"/drive/acme", "acme", nil},
-		{"/drive/acme/", "acme", nil},
-		{"/drive/acme/Documents", "acme", []string{"Documents"}},
-		{"/drive/acme/Documents/", "acme", []string{"Documents"}},
-		{"/drive/acme/Documents/report.pdf", "acme", []string{"Documents", "report.pdf"}},
+		{"/drive", nil},
+		{"/drive/", nil},
+		{"/drive/Documents", []string{"Documents"}},
+		{"/drive/Documents/", []string{"Documents"}},
+		{"/drive/Documents/report.pdf", []string{"Documents", "report.pdf"}},
+		{"/drive/a/b/c/d.txt", []string{"a", "b", "c", "d.txt"}},
 
 		// path.Clean collapses these — locking down the contract so a
 		// future "simplification" that drops Clean can't silently change
 		// path semantics.
-		{"/drive//acme/Documents", "acme", []string{"Documents"}},
-		{"/drive/acme//Documents//report.pdf", "acme", []string{"Documents", "report.pdf"}},
-		{"/drive/acme/Documents/../OtherDocs", "acme", []string{"OtherDocs"}},
-		{"/drive/acme/./Documents", "acme", []string{"Documents"}},
+		{"/drive//Documents", []string{"Documents"}},
+		{"/drive/Documents//report.pdf", []string{"Documents", "report.pdf"}},
+		{"/drive/Documents/../OtherDocs", []string{"OtherDocs"}},
+		{"/drive/./Documents", []string{"Documents"}},
 		// Traversal that escapes the /drive prefix entirely is clamped
-		// to the synthetic root so a stray ../ can't accidentally hit an
-		// org named "etc". See the parsePath doc comment.
-		{"/drive/../../etc/passwd", "", nil},
-		{"/drive/../etc", "", nil},
+		// to the synthetic root so a stray ../ can't reach outside the
+		// request's intent. See the parsePath doc comment.
+		{"/drive/../../etc/passwd", nil},
+		{"/drive/../etc", nil},
+		// A path outside the /drive prefix is not ours at all. The
+		// "/driveXYZ" case guards the prefix check being a true path
+		// boundary rather than a bare strings.HasPrefix on "/drive".
+		{"/other/Documents", nil},
+		{"/driveXYZ/Documents", nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
-			gotOrg, gotSegs := parsePath(tc.in)
-			if gotOrg != tc.wantOrg {
-				t.Errorf("orgSlug: got %q, want %q", gotOrg, tc.wantOrg)
-			}
+			gotSegs := parsePath(tc.in)
 			if !reflect.DeepEqual(gotSegs, tc.wantSegs) {
 				t.Errorf("segments: got %#v, want %#v", gotSegs, tc.wantSegs)
+			}
+		})
+	}
+}
+
+// TestIsRootPath pins the helper every FileSystem method uses to decide
+// "synthetic root vs. a real drive_items record" — the root is not
+// writable/removable, so a wrong answer here changes permissions.
+func TestIsRootPath(t *testing.T) {
+	cases := map[string]bool{
+		"/drive":              true,
+		"/drive/":             true,
+		"/drive/..":           true,
+		"/drive/Documents":    false,
+		"/drive/a/b.txt":      false,
+		"/other":              true, // not ours -> no segments -> treated as root
+		"/drive/./Documents/": false,
+	}
+	for in, want := range cases {
+		t.Run(in, func(t *testing.T) {
+			if got := isRootPath(in); got != want {
+				t.Errorf("isRootPath(%q) = %v, want %v", in, got, want)
 			}
 		})
 	}

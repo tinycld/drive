@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -25,7 +24,6 @@ const (
 
 type downloadToken struct {
 	folderID  string
-	orgID     string
 	expiresAt time.Time
 }
 
@@ -50,7 +48,7 @@ func init() {
 	}()
 }
 
-func handleCreateDownloadToken(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleCreateDownloadToken(app core.App, re *core.RequestEvent) error {
 	var body struct {
 		Item string `json:"item"`
 	}
@@ -61,7 +59,7 @@ func handleCreateDownloadToken(app *pocketbase.PocketBase, re *core.RequestEvent
 		return re.BadRequestError("missing item", nil)
 	}
 
-	item, _, err := resolveItemAndUserOrg(app, re, body.Item, false)
+	item, _, err := resolveItemAndUser(app, re, body.Item, false)
 	if err != nil {
 		return err
 	}
@@ -79,7 +77,6 @@ func handleCreateDownloadToken(app *pocketbase.PocketBase, re *core.RequestEvent
 	downloadTokensMu.Lock()
 	downloadTokens[token] = downloadToken{
 		folderID:  item.Id,
-		orgID:     item.GetString("org"),
 		expiresAt: time.Now().Add(downloadTokenTTL),
 	}
 	downloadTokensMu.Unlock()
@@ -90,7 +87,7 @@ func handleCreateDownloadToken(app *pocketbase.PocketBase, re *core.RequestEvent
 	})
 }
 
-func handleDownloadFolder(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleDownloadFolder(app core.App, re *core.RequestEvent) error {
 	token := re.Request.URL.Query().Get("token")
 	if token == "" {
 		return re.UnauthorizedError("missing token", nil)
@@ -123,17 +120,16 @@ func handleDownloadFolder(app *pocketbase.PocketBase, re *core.RequestEvent) err
 	rows, err := app.DB().NewQuery(`
 		WITH RECURSIVE descendants AS (
 			SELECT id, name, is_folder, parent, file, size, 0 AS depth
-			FROM drive_items WHERE id = {:rootId} AND org = {:orgId}
+			FROM drive_items WHERE id = {:rootId}
 			UNION ALL
 			SELECT di.id, di.name, di.is_folder, di.parent, di.file, di.size, d.depth + 1
 			FROM drive_items di
 			JOIN descendants d ON di.parent = d.id
-			WHERE di.org = {:orgId} AND d.depth < {:maxDepth}
+			WHERE d.depth < {:maxDepth}
 		)
 		SELECT id, name, is_folder, parent, file, size FROM descendants
 	`).Bind(map[string]any{
 		"rootId":   dt.folderID,
-		"orgId":    dt.orgID,
 		"maxDepth": maxFolderDepth,
 	}).Rows()
 	if err != nil {

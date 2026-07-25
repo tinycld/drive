@@ -9,48 +9,38 @@ import (
 	"strings"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// parsePath strips the /drive/{orgSlug}/ prefix and returns the org slug
-// and the remaining path segments. The empty-string slug indicates the
-// WebDAV root (/drive or /drive/), in which case the handler enumerates
-// the orgs the authenticated user belongs to.
+// parsePath strips the /drive/ prefix and returns the remaining path
+// segments. Empty segments indicate the WebDAV root (/drive or /drive/),
+// which the handler serves as the single synthetic root directory.
+//
+// Single-org: the deployment IS the org, so there is no org segment — the
+// tree hangs directly off /drive. (Multi-org previously nested every path
+// under an /drive/<orgSlug>/ root; the router now handles that split by
+// giving each org its own process.)
 //
 // Inputs are run through path.Clean first, which collapses //, ., and ..
 // segments. If a traversal sequence escapes the /drive prefix entirely
 // (e.g. "/drive/../../etc/passwd" cleans to "/etc/passwd"), this returns
-// the empty slug — i.e. the handler treats it as the WebDAV root rather
-// than as a slug-named org, so authenticated traversal can't accidentally
-// land on a real org outside the request's intent.
+// no segments — i.e. the handler treats it as the WebDAV root rather than
+// resolving anything outside the request's intent.
 //
-// For example: "/drive/acme/Documents/report.pdf" → ("acme", ["Documents", "report.pdf"])
-func parsePath(name string) (orgSlug string, segments []string) {
+// For example: "/drive/Documents/report.pdf" → ["Documents", "report.pdf"]
+func parsePath(name string) (segments []string) {
 	name = path.Clean(name)
 	if name != "/drive" && !strings.HasPrefix(name, "/drive/") {
-		return "", nil
+		return nil
 	}
 	name = strings.TrimPrefix(name, "/drive")
-	name = strings.TrimPrefix(name, "/")
+	name = strings.Trim(name, "/")
 
 	if name == "" || name == "." {
-		return "", nil
+		return nil
 	}
 
-	parts := strings.SplitN(name, "/", 2)
-	orgSlug = parts[0]
-
-	if len(parts) < 2 || parts[1] == "" {
-		return orgSlug, nil
-	}
-
-	remaining := strings.Trim(parts[1], "/")
-	if remaining == "" {
-		return orgSlug, nil
-	}
-
-	return orgSlug, strings.Split(remaining, "/")
+	return strings.Split(name, "/")
 }
 
 // maxFolderDepth bounds every parent-chain walk (acyclicity check, download
@@ -99,20 +89,6 @@ func moveWouldCreateCycle(app core.App, movedID, newParentID string) (bool, erro
 	return false, nil
 }
 
-// resolveOrg finds the org record for a given slug.
-func resolveOrg(app *pocketbase.PocketBase, slug string) (*core.Record, error) {
-	records, err := app.FindRecordsByFilter(
-		"orgs",
-		"slug = {:slug}",
-		"", 1, 0,
-		map[string]any{"slug": slug},
-	)
-	if err != nil || len(records) == 0 {
-		return nil, os.ErrNotExist
-	}
-	return records[0], nil
-}
-
 // resolveItemIDByPath resolves the drive_items.id at the end of a path
 // in a single SQL roundtrip via a recursive CTE driven by a JSON array
 // of segment names. Returns os.ErrNotExist if any segment doesn't
@@ -124,7 +100,7 @@ func resolveOrg(app *pocketbase.PocketBase, slug string) (*core.Record, error) {
 // N children. The CTE is one query regardless of depth; the caller
 // pays one more FindRecordById to hydrate the *core.Record (or skips
 // it entirely if it just needs the ID).
-func resolveItemIDByPath(app *pocketbase.PocketBase, orgID string, segments []string) (id string, isFolder bool, err error) {
+func resolveItemIDByPath(app core.App, segments []string) (id string, isFolder bool, err error) {
 	if len(segments) == 0 {
 		return "", false, nil
 	}
@@ -149,18 +125,17 @@ WITH RECURSIVE
     SELECT segs.idx, di.id, di.is_folder
       FROM segs
       JOIN drive_items di
-        ON di.org = {:org} AND di.parent = '' AND di.name = segs.name AND segs.idx = 0
+        ON di.parent = '' AND di.name = segs.name AND segs.idx = 0
     UNION ALL
     SELECT segs.idx, di.id, di.is_folder
       FROM segs, walk
       JOIN drive_items di
-        ON di.org = {:org} AND di.parent = walk.id AND di.name = segs.name AND segs.idx = walk.idx + 1
+        ON di.parent = walk.id AND di.name = segs.name AND segs.idx = walk.idx + 1
   )
 SELECT idx, id, is_folder FROM walk ORDER BY idx DESC LIMIT 1`
 
 	err = app.DB().NewQuery(q).Bind(dbx.Params{
 		"segs": string(segsJSON),
-		"org":  orgID,
 	}).One(&row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, os.ErrNotExist
@@ -177,14 +152,14 @@ SELECT idx, id, is_folder FROM walk ORDER BY idx DESC LIMIT 1`
 }
 
 // resolveItemByPath walks the path segments to find the drive_items
-// record. Returns nil if the path resolves to the org root (no
-// segments). Two queries total: the recursive CTE in
-// resolveItemIDByPath, then FindRecordById to hydrate.
-func resolveItemByPath(app *pocketbase.PocketBase, orgID string, segments []string) (*core.Record, error) {
+// record. Returns nil if the path resolves to the root (no segments).
+// Two queries total: the recursive CTE in resolveItemIDByPath, then
+// FindRecordById to hydrate.
+func resolveItemByPath(app core.App, segments []string) (*core.Record, error) {
 	if len(segments) == 0 {
 		return nil, nil
 	}
-	id, _, err := resolveItemIDByPath(app, orgID, segments)
+	id, _, err := resolveItemIDByPath(app, segments)
 	if err != nil {
 		return nil, err
 	}
@@ -196,13 +171,13 @@ func resolveItemByPath(app *pocketbase.PocketBase, orgID string, segments []stri
 }
 
 // resolveParentByPath resolves the parent folder for a given path.
-// Returns the parent's drive_items ID (empty for the org root) and the
-// final segment name. The parent must exist and be a folder.
+// Returns the parent's drive_items ID (empty for the root) and the final
+// segment name. The parent must exist and be a folder.
 //
 // Callers (Mkdir, openForWrite, Rename) only ever read the parent's ID,
 // so this skips hydrating the full *core.Record and stays at one SQL
 // roundtrip via the recursive CTE.
-func resolveParentByPath(app *pocketbase.PocketBase, orgID string, segments []string) (parentID, name string, err error) {
+func resolveParentByPath(app core.App, segments []string) (parentID, name string, err error) {
 	if len(segments) == 0 {
 		return "", "", os.ErrNotExist
 	}
@@ -214,7 +189,7 @@ func resolveParentByPath(app *pocketbase.PocketBase, orgID string, segments []st
 		return "", name, nil
 	}
 
-	id, isFolder, err := resolveItemIDByPath(app, orgID, parentSegments)
+	id, isFolder, err := resolveItemIDByPath(app, parentSegments)
 	if err != nil {
 		return "", "", os.ErrNotExist
 	}

@@ -8,7 +8,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"golang.org/x/net/webdav"
 )
@@ -24,11 +23,10 @@ const userKey contextKey = "drive.webdav.user"
 
 // DriveFileSystem implements webdav.FileSystem (golang.org/x/net/webdav)
 // backed by PocketBase drive_items records. The set of paths it serves
-// is rooted at "/drive/" and structured as
-// "/drive/<orgSlug>/<segments...>"; the root and each org root are
-// synthetic directories.
+// is rooted at "/drive/" and structured as "/drive/<segments...>"; the
+// root is a synthetic directory.
 type DriveFileSystem struct {
-	app *pocketbase.PocketBase
+	app core.App
 }
 
 var _ webdav.FileSystem = (*DriveFileSystem)(nil)
@@ -45,56 +43,35 @@ func (fs *DriveFileSystem) userFromContext(ctx context.Context) (*core.Record, e
 	return user, nil
 }
 
-// resolveContext authenticates and resolves the org from the path.
-// Returns os.ErrNotExist when the path is the WebDAV root (no org slug);
-// callers above this layer (Stat, OpenFile read on root, etc.) handle
-// the root case before invoking this helper.
-func (fs *DriveFileSystem) resolveContext(ctx context.Context, name string) (user *core.Record, org *core.Record, userOrg *core.Record, orgSlug string, segments []string, err error) {
+// resolveContext authenticates and parses the path into segments.
+// Single-org: there is no org to resolve, so this is just the auth check
+// plus the path split. Callers handle the root case (no segments)
+// themselves before acting on the result.
+func (fs *DriveFileSystem) resolveContext(ctx context.Context, name string) (user *core.Record, segments []string, err error) {
 	user, err = fs.userFromContext(ctx)
 	if err != nil {
 		return
 	}
-
-	orgSlug, segments = parsePath(name)
-	if orgSlug == "" {
-		err = os.ErrNotExist
-		return
-	}
-
-	org, err = resolveOrg(fs.app, orgSlug)
-	if err != nil {
-		return
-	}
-
-	userOrg, err = getUserOrgForOrg(fs.app, user.Id, org.Id)
-	return
+	return user, parsePath(name), nil
 }
 
 func isRootPath(name string) bool {
-	orgSlug, _ := parsePath(name)
-	return orgSlug == ""
+	return len(parsePath(name)) == 0
 }
 
-// Stat resolves the path to either the synthetic root, an org-root, or
-// a backing drive_items record.
+// Stat resolves the path to either the synthetic root or a backing
+// drive_items record.
 func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (os.FileInfo, error) {
-	if isRootPath(name) {
-		if _, err := fs.userFromContext(ctx); err != nil {
-			return nil, err
-		}
-		return &driveFileInfo{name: "drive", isDir: true}, nil
-	}
-
-	_, org, userOrg, orgSlug, segments, err := fs.resolveContext(ctx, name)
+	user, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(segments) == 0 {
-		return &driveFileInfo{name: orgSlug, isDir: true}, nil
+		return &driveFileInfo{name: "drive", isDir: true}, nil
 	}
 
-	record, err := resolveItemByPath(fs.app, org.Id, segments)
+	record, err := resolveItemByPath(fs.app, segments)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +79,7 @@ func (fs *DriveFileSystem) Stat(ctx context.Context, name string) (os.FileInfo, 
 	// The drive_items view rule hides unshared items entirely, so answer
 	// not-found rather than permission-denied to avoid confirming that
 	// the path exists.
-	if err := checkReadPermission(fs.app, userOrg.Id, record); err != nil {
+	if err := checkReadPermission(fs.app, user.Id, record); err != nil {
 		return nil, os.ErrNotExist
 	}
 
@@ -124,15 +101,16 @@ func (fs *DriveFileSystem) OpenFile(ctx context.Context, name string, flag int, 
 
 // openForRead handles GET, HEAD and the read side of COPY. A successful
 // open of a file returns a driveFile with rdSeeker primed; a successful
-// open of any directory (root, org root, or folder) returns a driveFile
-// with children pre-populated for Readdir.
+// open of any directory (root or folder) returns a driveFile with
+// children pre-populated for Readdir.
 func (fs *DriveFileSystem) openForRead(ctx context.Context, name string) (webdav.File, error) {
-	if isRootPath(name) {
-		user, err := fs.userFromContext(ctx)
-		if err != nil {
-			return nil, err
-		}
-		children, err := fs.listUserOrgs(user.Id)
+	user, segments, err := fs.resolveContext(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(segments) == 0 {
+		children, err := fs.listChildren("", user.Id)
 		if err != nil {
 			return nil, err
 		}
@@ -142,34 +120,18 @@ func (fs *DriveFileSystem) openForRead(ctx context.Context, name string) (webdav
 		}, nil
 	}
 
-	_, org, userOrg, orgSlug, segments, err := fs.resolveContext(ctx, name)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(segments) == 0 {
-		children, err := fs.listOrgChildren(org.Id, "", userOrg.Id)
-		if err != nil {
-			return nil, err
-		}
-		return &driveFile{
-			info:     &driveFileInfo{name: orgSlug, isDir: true},
-			children: children,
-		}, nil
-	}
-
-	record, err := resolveItemByPath(fs.app, org.Id, segments)
+	record, err := resolveItemByPath(fs.app, segments)
 	if err != nil {
 		return nil, err
 	}
 
 	// Same not-found masking as Stat: unshared items must stay invisible.
-	if err := checkReadPermission(fs.app, userOrg.Id, record); err != nil {
+	if err := checkReadPermission(fs.app, user.Id, record); err != nil {
 		return nil, os.ErrNotExist
 	}
 
 	if record.GetBool("is_folder") {
-		children, err := fs.listOrgChildren(org.Id, record.Id, userOrg.Id)
+		children, err := fs.listChildren(record.Id, user.Id)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +158,7 @@ func (fs *DriveFileSystem) openForRead(ctx context.Context, name string) (webdav
 // Quota and write-permission checks are deferred to Close because that
 // is when the final size is known.
 func (fs *DriveFileSystem) openForWrite(ctx context.Context, name string, flag int) (webdav.File, error) {
-	_, org, userOrg, _, segments, err := fs.resolveContext(ctx, name)
+	user, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -205,12 +167,12 @@ func (fs *DriveFileSystem) openForWrite(ctx context.Context, name string, flag i
 		return nil, os.ErrPermission
 	}
 
-	parentID, itemName, err := resolveParentByPath(fs.app, org.Id, segments)
+	parentID, itemName, err := resolveParentByPath(fs.app, segments)
 	if err != nil {
 		return nil, err
 	}
 
-	existing, _ := resolveItemByPath(fs.app, org.Id, segments)
+	existing, _ := resolveItemByPath(fs.app, segments)
 	if existing != nil && existing.GetBool("is_folder") {
 		return nil, os.ErrPermission
 	}
@@ -230,8 +192,7 @@ func (fs *DriveFileSystem) openForWrite(ctx context.Context, name string, flag i
 		wrBuf:    tmp,
 		wrName:   itemName,
 		parentID: parentID,
-		orgID:    org.Id,
-		userOrg:  userOrg,
+		user:     user,
 		existing: existing,
 	}, nil
 }
@@ -239,7 +200,7 @@ func (fs *DriveFileSystem) openForWrite(ctx context.Context, name string, flag i
 // Mkdir creates a folder drive_items record at the given path. Parent
 // must exist. The handler treats os.ErrExist as 405.
 func (fs *DriveFileSystem) Mkdir(ctx context.Context, name string, _ os.FileMode) error {
-	_, org, userOrg, _, segments, err := fs.resolveContext(ctx, name)
+	user, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -248,12 +209,12 @@ func (fs *DriveFileSystem) Mkdir(ctx context.Context, name string, _ os.FileMode
 		return os.ErrPermission
 	}
 
-	parentID, folderName, err := resolveParentByPath(fs.app, org.Id, segments)
+	parentID, folderName, err := resolveParentByPath(fs.app, segments)
 	if err != nil {
 		return err
 	}
 
-	if existing, _ := resolveItemByPath(fs.app, org.Id, segments); existing != nil {
+	if existing, _ := resolveItemByPath(fs.app, segments); existing != nil {
 		return os.ErrExist
 	}
 
@@ -263,11 +224,10 @@ func (fs *DriveFileSystem) Mkdir(ctx context.Context, name string, _ os.FileMode
 	}
 
 	record := core.NewRecord(collection)
-	record.Set("org", org.Id)
 	record.Set("name", folderName)
 	record.Set("is_folder", true)
 	record.Set("parent", parentID)
-	record.Set("created_by", userOrg.Id)
+	record.Set("created_by", user.Id)
 
 	// The OnRecordCreate("drive_items") hook in register.go creates the
 	// owner drive_shares row in the same transaction; no follow-up call needed.
@@ -281,7 +241,7 @@ func (fs *DriveFileSystem) Mkdir(ctx context.Context, name string, _ os.FileMode
 // RemoveAll deletes the drive_items record at the given path. PocketBase
 // cascade rules handle recursive deletion of folder children.
 func (fs *DriveFileSystem) RemoveAll(ctx context.Context, name string) error {
-	_, org, userOrg, _, segments, err := fs.resolveContext(ctx, name)
+	user, segments, err := fs.resolveContext(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -290,12 +250,12 @@ func (fs *DriveFileSystem) RemoveAll(ctx context.Context, name string) error {
 		return os.ErrPermission
 	}
 
-	record, err := resolveItemByPath(fs.app, org.Id, segments)
+	record, err := resolveItemByPath(fs.app, segments)
 	if err != nil {
 		return err
 	}
 
-	if err := checkDeletePermission(fs.app, userOrg.Id, record.Id); err != nil {
+	if err := checkDeletePermission(fs.app, user.Id, record.Id); err != nil {
 		return err
 	}
 
@@ -306,38 +266,31 @@ func (fs *DriveFileSystem) RemoveAll(ctx context.Context, name string) error {
 // destination only when Overwrite: T is set; otherwise we must report
 // os.ErrExist if the destination is still present.
 func (fs *DriveFileSystem) Rename(ctx context.Context, oldName, newName string) error {
-	_, srcOrg, userOrg, _, srcSegments, err := fs.resolveContext(ctx, oldName)
+	user, srcSegments, err := fs.resolveContext(ctx, oldName)
 	if err != nil {
 		return err
 	}
 
-	_, destOrg, _, _, destSegments, err := fs.resolveContext(ctx, newName)
-	if err != nil {
-		return err
-	}
-
-	if srcOrg.Id != destOrg.Id {
-		return os.ErrPermission
-	}
+	destSegments := parsePath(newName)
 
 	if len(srcSegments) == 0 || len(destSegments) == 0 {
 		return os.ErrPermission
 	}
 
-	srcRecord, err := resolveItemByPath(fs.app, srcOrg.Id, srcSegments)
+	srcRecord, err := resolveItemByPath(fs.app, srcSegments)
 	if err != nil {
 		return err
 	}
 
-	if err := checkWritePermission(fs.app, userOrg.Id, srcRecord.Id); err != nil {
+	if err := checkWritePermission(fs.app, user.Id, srcRecord.Id); err != nil {
 		return err
 	}
 
-	if existing, _ := resolveItemByPath(fs.app, destOrg.Id, destSegments); existing != nil {
+	if existing, _ := resolveItemByPath(fs.app, destSegments); existing != nil {
 		return os.ErrExist
 	}
 
-	destParentID, destName, err := resolveParentByPath(fs.app, destOrg.Id, destSegments)
+	destParentID, destName, err := resolveParentByPath(fs.app, destSegments)
 	if err != nil {
 		return err
 	}
@@ -348,54 +301,18 @@ func (fs *DriveFileSystem) Rename(ctx context.Context, oldName, newName string) 
 	return fs.app.Save(srcRecord)
 }
 
-// listUserOrgs returns one synthetic directory entry per org the user
-// belongs to, for Readdir on the WebDAV root. Folder names use org.slug.
-func (fs *DriveFileSystem) listUserOrgs(userID string) ([]os.FileInfo, error) {
-	userOrgs, err := fs.app.FindRecordsByFilter(
-		"user_org",
-		"user = {:user}",
-		"",
-		100,
-		0,
-		map[string]any{"user": userID},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	infos := make([]os.FileInfo, 0, len(userOrgs))
-	for _, uo := range userOrgs {
-		orgID := uo.GetString("org")
-		if orgID == "" {
-			continue
-		}
-		o, err := fs.app.FindRecordById("orgs", orgID)
-		if err != nil {
-			continue
-		}
-		slug := o.GetString("slug")
-		if slug == "" {
-			continue
-		}
-		infos = append(infos, &driveFileInfo{name: slug, isDir: true})
-	}
-
-	return infos, nil
-}
-
-// listOrgChildren returns the immediate child drive_items of a given
-// parent (or, for empty parentID, of the org root), limited to items the
-// viewer created or holds a drive_shares row for. WebDAV bypasses
-// PocketBase's rule engine, so the drive_items view rule has to be
-// applied here by hand — org membership alone must not expose the whole
-// org's files.
-func (fs *DriveFileSystem) listOrgChildren(orgID, parentID, viewerUserOrgID string) ([]os.FileInfo, error) {
-	filter := "org = {:org}"
-	params := map[string]any{"org": orgID}
+// listChildren returns the immediate child drive_items of a given parent
+// (or, for empty parentID, of the root), limited to items the viewer
+// created or holds a drive_shares row for. WebDAV bypasses PocketBase's
+// rule engine, so the drive_items view rule has to be applied here by
+// hand — being authenticated must not expose every user's files.
+func (fs *DriveFileSystem) listChildren(parentID, viewerUserID string) ([]os.FileInfo, error) {
+	var filter string
+	params := map[string]any{}
 	if parentID == "" {
-		filter += " && parent = ''"
+		filter = "parent = ''"
 	} else {
-		filter += " && parent = {:parent}"
+		filter = "parent = {:parent}"
 		params["parent"] = parentID
 	}
 
@@ -406,7 +323,7 @@ func (fs *DriveFileSystem) listOrgChildren(orgID, parentID, viewerUserOrgID stri
 
 	infos := make([]os.FileInfo, 0, len(records))
 	for _, r := range records {
-		if checkReadPermission(fs.app, viewerUserOrgID, r) != nil {
+		if checkReadPermission(fs.app, viewerUserID, r) != nil {
 			continue
 		}
 		infos = append(infos, recordToFileInfo(r))

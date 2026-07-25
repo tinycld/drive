@@ -23,7 +23,7 @@ import (
 // /api/drive/share-link/{token}/otp-request and otp-verify against the
 // real PB router + DB + OTP primitive. Every Test* func builds a fresh
 // TestApp (PB v0.38.1 panics on duplicate route registration when an
-// app is reused across scenarios), seeds an org + item + share link,
+// app is reused across scenarios), seeds an owner + item + share link,
 // installs the OnServe binding that registers the OTP handlers, then
 // drives an ApiScenario.
 //
@@ -44,9 +44,7 @@ func init() {
 // tests can present the code as the visitor would).
 type otpTestEnv struct {
 	app       *tests.TestApp
-	org       *core.Record
 	ownerUser *core.Record
-	ownerUO   *core.Record
 	item      *core.Record
 	shareLink *core.Record
 
@@ -62,10 +60,13 @@ type otpTestEnv struct {
 }
 
 // setupOTPApp builds a fresh test app, materialises the drive
-// collections this flow touches (orgs, user_org, drive_items,
-// drive_share_links, drive_shares), inserts an owner + item + share
-// link, wires the OTP handlers via OnServe, and installs the OTP-code
-// capture hook.
+// collections this flow touches (drive_items, drive_share_links,
+// drive_shares), inserts an owner + item + share link, wires the OTP
+// handlers via OnServe, and installs the OTP-code capture hook.
+//
+// Single-org: the deployment IS the org, so there are no orgs/user_org
+// collections. Membership is the `users` row itself and its `role`
+// select field; every drive relation points straight at users.
 func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 	t.Helper()
 	// Reset the package-level limiters so the previous test's IP budget
@@ -87,46 +88,26 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 		t.Fatalf("users collection: %v", err)
 	}
 
-	// orgs
-	orgs := core.NewBaseCollection("orgs")
-	orgs.Id = "pbc_orgs_00001"
-	orgs.Fields.Add(&core.TextField{Name: "name", Required: true})
-	orgs.Fields.Add(&core.TextField{Name: "slug", Required: true})
-	if err := app.Save(orgs); err != nil {
-		t.Fatalf("save orgs: %v", err)
-	}
-
-	// user_org (with the guest role enabled to mirror the prod schema)
-	userOrg := core.NewBaseCollection("user_org")
-	userOrg.Id = "pbc_user_org_01"
-	userOrg.Fields.Add(&core.RelationField{
-		Name: "org", Required: true, CollectionId: orgs.Id,
-		CascadeDelete: true, MaxSelect: 1,
-	})
-	userOrg.Fields.Add(&core.RelationField{
-		Name: "user", Required: true, CollectionId: users.Id,
-		CascadeDelete: true, MaxSelect: 1,
-	})
-	userOrg.Fields.Add(&core.SelectField{
-		Name: "role", Required: true, MaxSelect: 1,
+	// Single-org: role lives on the users auth record. The PB test
+	// fixture's stock users collection has no `role`, so add the same
+	// non-required select the prod schema ships — ensureGuestRole keys
+	// off "" meaning "no role yet".
+	users.Fields.Add(&core.SelectField{
+		Name: "role", Required: false, MaxSelect: 1,
 		Values: []string{"owner", "admin", "member", "guest"},
 	})
-	if err := app.Save(userOrg); err != nil {
-		t.Fatalf("save user_org: %v", err)
+	if err := app.Save(users); err != nil {
+		t.Fatalf("add users.role: %v", err)
 	}
 
 	// drive_items
 	items := core.NewBaseCollection("drive_items")
 	items.Id = "pbc_drive_items_01"
-	items.Fields.Add(&core.RelationField{
-		Name: "org", Required: true, CollectionId: orgs.Id,
-		CascadeDelete: true, MaxSelect: 1,
-	})
 	items.Fields.Add(&core.TextField{Name: "name", Required: true})
 	items.Fields.Add(&core.BoolField{Name: "is_folder"})
 	items.Fields.Add(&core.TextField{Name: "mime_type"})
 	items.Fields.Add(&core.RelationField{
-		Name: "created_by", Required: true, CollectionId: userOrg.Id, MaxSelect: 1,
+		Name: "created_by", Required: true, CollectionId: users.Id, MaxSelect: 1,
 	})
 	if err := app.Save(items); err != nil {
 		t.Fatalf("save drive_items: %v", err)
@@ -158,7 +139,7 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 		CascadeDelete: true, MaxSelect: 1,
 	})
 	shares.Fields.Add(&core.RelationField{
-		Name: "user_org", Required: true, CollectionId: userOrg.Id,
+		Name: "user", Required: true, CollectionId: users.Id,
 		CascadeDelete: true, MaxSelect: 1,
 	})
 	shares.Fields.Add(&core.SelectField{
@@ -166,30 +147,24 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 		Values: []string{"owner", "editor", "commentor", "viewer"},
 	})
 	shares.Fields.Add(&core.RelationField{
-		Name: "created_by", Required: true, CollectionId: userOrg.Id, MaxSelect: 1,
+		Name: "created_by", Required: true, CollectionId: users.Id, MaxSelect: 1,
 	})
-	shares.AddIndex("idx_drv_shares_unique", true, "item, user_org", "")
+	shares.AddIndex("idx_drv_shares_unique", true, "item, user", "")
 	if err := app.Save(shares); err != nil {
 		t.Fatalf("save drive_shares: %v", err)
 	}
 
-	// Owner user + membership.
+	// Owner user. Single-org: the role select on the users row IS the
+	// membership.
 	owner := otpTestUser(t, app, "owner@test.local")
-	org := core.NewRecord(orgs)
-	org.Set("name", "Acme")
-	org.Set("slug", "acme")
-	if err := app.Save(org); err != nil {
-		t.Fatalf("save org: %v", err)
-	}
-	ownerUO := otpTestMembership(t, app, owner, org, "owner")
+	otpTestSetRole(t, app, owner, "owner")
 
 	// The shared item.
 	item := core.NewRecord(items)
-	item.Set("org", org.Id)
 	item.Set("name", "Quarterly Report")
 	item.Set("is_folder", false)
 	item.Set("mime_type", "application/pdf")
-	item.Set("created_by", ownerUO.Id)
+	item.Set("created_by", owner.Id)
 	if err := app.Save(item); err != nil {
 		t.Fatalf("save item: %v", err)
 	}
@@ -207,9 +182,7 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 
 	env := &otpTestEnv{
 		app:       app,
-		org:       org,
 		ownerUser: owner,
-		ownerUO:   ownerUO,
 		item:      item,
 		shareLink: link,
 	}
@@ -257,17 +230,15 @@ func otpTestUser(t *testing.T, app core.App, email string) *core.Record {
 	return r
 }
 
-func otpTestMembership(t *testing.T, app core.App, user, org *core.Record, role string) *core.Record {
+// otpTestSetRole stamps a role onto the users row. Single-org: this is
+// what "granting a membership" reduces to — the junction collection is
+// gone, so the role select on the auth record carries it.
+func otpTestSetRole(t *testing.T, app core.App, user *core.Record, role string) {
 	t.Helper()
-	col, _ := app.FindCollectionByNameOrId("user_org")
-	r := core.NewRecord(col)
-	r.Set("user", user.Id)
-	r.Set("org", org.Id)
-	r.Set("role", role)
-	if err := app.Save(r); err != nil {
-		t.Fatalf("save user_org: %v", err)
+	user.Set("role", role)
+	if err := app.Save(user); err != nil {
+		t.Fatalf("set role %q on %s: %v", role, user.Email(), err)
 	}
-	return r
 }
 
 func otpTestRandomToken() string {
@@ -494,8 +465,8 @@ func TestShareOTPVerify_HappyPath_ProvisionsExactlyOnce(t *testing.T) {
 		t.Fatalf("verify response missing record.id: %s", body)
 	}
 
-	// Exactly one user, one user_org (role=guest, org=item.org), one
-	// drive_shares (role=commentor) created.
+	// Exactly one user (role=guest), and exactly one drive_shares row
+	// (role=commentor) scoped to the link's item.
 	userCount := countRecords(t, env.app, "users", "email = {:e}", map[string]any{"e": "guest@example.com"})
 	if userCount != 1 {
 		t.Fatalf("expected 1 guest user row, got %d", userCount)
@@ -505,23 +476,23 @@ func TestShareOTPVerify_HappyPath_ProvisionsExactlyOnce(t *testing.T) {
 	if !users[0].Verified() {
 		t.Fatalf("guest user should be verified after verify; got verified=false")
 	}
-
-	uoCount := countRecords(t, env.app, "user_org", "user = {:uid} && org = {:oid}", map[string]any{"uid": guestUserID, "oid": env.org.Id})
-	if uoCount != 1 {
-		t.Fatalf("expected 1 user_org row, got %d", uoCount)
-	}
-	uos, _ := env.app.FindRecordsByFilter("user_org", "user = {:uid} && org = {:oid}", "", 0, 0, map[string]any{"uid": guestUserID, "oid": env.org.Id})
-	if got := uos[0].GetString("role"); got != "guest" {
-		t.Fatalf("user_org.role = %q, want guest", got)
+	if got := users[0].GetString("role"); got != "guest" {
+		t.Fatalf("users.role = %q, want guest", got)
 	}
 
-	shareCount := countRecords(t, env.app, "drive_shares", "item = {:i} && user_org = {:uo}", map[string]any{"i": env.item.Id, "uo": uos[0].Id})
+	shareCount := countRecords(t, env.app, "drive_shares", "item = {:i} && user = {:u}", map[string]any{"i": env.item.Id, "u": guestUserID})
 	if shareCount != 1 {
 		t.Fatalf("expected 1 drive_shares row, got %d", shareCount)
 	}
-	shares, _ := env.app.FindRecordsByFilter("drive_shares", "item = {:i} && user_org = {:uo}", "", 0, 0, map[string]any{"i": env.item.Id, "uo": uos[0].Id})
+	shares, _ := env.app.FindRecordsByFilter("drive_shares", "item = {:i} && user = {:u}", "", 0, 0, map[string]any{"i": env.item.Id, "u": guestUserID})
 	if got := shares[0].GetString("role"); got != "commentor" {
 		t.Fatalf("drive_shares.role = %q, want commentor", got)
+	}
+
+	// The grant must be scoped to the link's item only — a verified
+	// email must not become a blanket grant across the deployment.
+	if c := countRecords(t, env.app, "drive_shares", "user = {:u}", map[string]any{"u": guestUserID}); c != 1 {
+		t.Fatalf("expected the guest to hold exactly 1 share overall, got %d", c)
 	}
 
 	// The minted token must actually authenticate as the guest user.
@@ -566,31 +537,26 @@ func TestShareOTPVerify_Idempotent_RepeatedFlowsCreateNoDuplicates(t *testing.T)
 	}
 	users, _ := env.app.FindRecordsByFilter("users", "email = {:e}", "", 0, 0, map[string]any{"e": "repeat@example.com"})
 	guestID := users[0].Id
-
-	uoCount := countRecords(t, env.app, "user_org",
-		"user = {:uid} && org = {:oid}", map[string]any{"uid": guestID, "oid": env.org.Id})
-	if uoCount != 1 {
-		t.Fatalf("expected 1 user_org after repeated flows, got %d", uoCount)
+	if got := users[0].GetString("role"); got != "guest" {
+		t.Fatalf("users.role after repeated flows = %q, want guest", got)
 	}
 
-	uos, _ := env.app.FindRecordsByFilter("user_org",
-		"user = {:uid} && org = {:oid}", "", 0, 0, map[string]any{"uid": guestID, "oid": env.org.Id})
 	shareCount := countRecords(t, env.app, "drive_shares",
-		"item = {:i} && user_org = {:uo}", map[string]any{"i": env.item.Id, "uo": uos[0].Id})
+		"item = {:i} && user = {:u}", map[string]any{"i": env.item.Id, "u": guestID})
 	if shareCount != 1 {
 		t.Fatalf("expected 1 drive_shares after repeated flows, got %d", shareCount)
 	}
 }
 
 func TestShareOTPVerify_PreservesExistingMemberRole(t *testing.T) {
-	// A real member (role=admin) of the org visits a share link for
-	// the same org and verifies their email. We must NOT downgrade
-	// their admin membership to guest.
+	// A real member (role=admin) visits a share link and verifies their
+	// email. ensureGuestRole must NOT downgrade their admin role to
+	// guest — it only stamps a role onto a user that has none.
 	env := setupOTPApp(t, "commentor")
 	tok := env.shareLink.GetString("token")
 
 	existing := otpTestUser(t, env.app, "alreadyhere@example.com")
-	preexistingUO := otpTestMembership(t, env.app, existing, env.org, "admin")
+	otpTestSetRole(t, env.app, existing, "admin")
 
 	resp, body := env.doRequest(t, http.MethodPost,
 		"/api/drive/share-link/"+tok+"/otp-request",
@@ -611,16 +577,25 @@ func TestShareOTPVerify_PreservesExistingMemberRole(t *testing.T) {
 		t.Fatalf("otp-verify: %d %s", resp.StatusCode, body)
 	}
 
-	uos, _ := env.app.FindRecordsByFilter("user_org",
-		"user = {:uid} && org = {:oid}", "", 0, 0, map[string]any{"uid": existing.Id, "oid": env.org.Id})
-	if len(uos) != 1 {
-		t.Fatalf("expected exactly 1 user_org, got %d", len(uos))
+	// The membership is the users row itself: it must still be the SAME
+	// record carrying the SAME admin role.
+	fresh, err := env.app.FindRecordById("users", existing.Id)
+	if err != nil {
+		t.Fatalf("re-fetch member: %v", err)
 	}
-	if uos[0].Id != preexistingUO.Id {
-		t.Fatalf("verify replaced the membership row (id changed %s -> %s)", preexistingUO.Id, uos[0].Id)
-	}
-	if got := uos[0].GetString("role"); got != "admin" {
+	if got := fresh.GetString("role"); got != "admin" {
 		t.Fatalf("admin role was downgraded to %q", got)
+	}
+	if c := countRecords(t, env.app, "users", "email = {:e}",
+		map[string]any{"e": "alreadyhere@example.com"}); c != 1 {
+		t.Fatalf("verify duplicated the user row: got %d, want 1", c)
+	}
+
+	// The admin still gains the link's per-item share (the role check is
+	// about not DOWNGRADING them, not about withholding the grant).
+	if c := countRecords(t, env.app, "drive_shares", "item = {:i} && user = {:u}",
+		map[string]any{"i": env.item.Id, "u": existing.Id}); c != 1 {
+		t.Fatalf("expected 1 drive_shares row for the admin, got %d", c)
 	}
 }
 
@@ -648,11 +623,15 @@ func TestShareOTPVerify_WrongCode_Rejected(t *testing.T) {
 		t.Fatalf("expected 400 for wrong code, got %d: %s", resp.StatusCode, body)
 	}
 
-	// No provisioning happened.
-	if c := countRecords(t, env.app, "user_org",
-		"org = {:oid}", map[string]any{"oid": env.org.Id}); c != 1 {
-		// Only the owner membership should exist.
-		t.Fatalf("expected only owner membership in org after failed verify, got %d", c)
+	// No provisioning happened: the otp-request leg creates the users row
+	// (PB OTPs anchor to an auth record) but must leave it role-less and
+	// share-less until a code is actually proven.
+	guests, _ := env.app.FindRecordsByFilter("users", "email = {:e}", "", 0, 0,
+		map[string]any{"e": "wrong@example.com"})
+	if len(guests) == 1 {
+		if got := guests[0].GetString("role"); got != "" {
+			t.Fatalf("failed verify granted role %q; want no role", got)
+		}
 	}
 	if c := countRecords(t, env.app, "drive_shares",
 		"item = {:i}", map[string]any{"i": env.item.Id}); c != 0 {

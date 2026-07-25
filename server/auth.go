@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -22,7 +21,7 @@ var errUnauthorized = errors.New("drive webdav: unauthorized")
 // whether it contains '@'. This mirrors PocketBase's own identityFields
 // = ['username', 'email'] for the users collection (see migration
 // 1820000000_users_username_required.js).
-func authenticateRequest(app *pocketbase.PocketBase, r *http.Request) (*core.Record, error) {
+func authenticateRequest(app core.App, r *http.Request) (*core.Record, error) {
 	identifier, password, ok := r.BasicAuth()
 	if !ok || identifier == "" {
 		return nil, errUnauthorized

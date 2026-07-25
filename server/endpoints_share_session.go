@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/sharelink"
 )
@@ -20,7 +19,7 @@ import (
 // anon_id, so the same visitor always renders the same name everywhere.
 //
 // Public + rate-limited (reuses the share-link IP limiter).
-func handleCreateShareSession(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleCreateShareSession(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
 	if !publicShareLimiter.allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
@@ -58,13 +57,8 @@ func handleCreateShareSession(app *pocketbase.PocketBase, re *core.RequestEvent)
 		return re.InternalServerError("failed to mint session", err)
 	}
 
-	orgName := ""
-	orgSlug := ""
-	if org, err := app.FindRecordById("orgs", item.GetString("org")); err == nil {
-		orgName = org.GetString("name")
-		orgSlug = org.GetString("slug")
-	}
-
+	// Single-org: the deployment IS the org, so its display name comes from
+	// app settings and there is no slug.
 	return re.JSON(http.StatusOK, map[string]any{
 		"session_token": sessionToken,
 		"anon_id":       anonID,
@@ -73,7 +67,6 @@ func handleCreateShareSession(app *pocketbase.PocketBase, re *core.RequestEvent)
 		"item_id":       item.Id,
 		"name":          item.GetString("name"),
 		"mime_type":     item.GetString("mime_type"),
-		"org_name":      orgName,
-		"org_slug":      orgSlug,
+		"org_name":      app.Settings().Meta.AppName,
 	})
 }

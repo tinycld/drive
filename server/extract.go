@@ -1,7 +1,6 @@
 package drive
 
 import (
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
 	"tinycld.org/core/previewqueue"
@@ -15,7 +14,7 @@ import (
 // carrying the already-extracted plaintext, letting us skip the slow re-extract
 // — and skip entirely when the hash is unchanged. Regular uploads leave
 // index_hash empty and take the full read-bytes + extract path.
-func extractAndIndexDriveItem(app *pocketbase.PocketBase, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
+func extractAndIndexDriveItem(app core.App, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
 	if !appIsLive(app) {
 		return
 	}
@@ -80,7 +79,7 @@ func extractAndIndexDriveItem(app *pocketbase.PocketBase, record *core.Record, p
 // extractFileText reads the record's file from storage and runs text
 // extraction. It reports false (with a logged warning) on any read/extract
 // failure so callers can bail without writing FTS content.
-func extractFileText(app *pocketbase.PocketBase, record *core.Record, filename, mimeType string) (string, bool) {
+func extractFileText(app core.App, record *core.Record, filename, mimeType string) (string, bool) {
 	fsys, err := app.NewFilesystem()
 	if err != nil {
 		app.Logger().Warn("Drive FTS: failed to open filesystem",

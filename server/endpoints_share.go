@@ -8,17 +8,16 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/mailer"
 )
 
 type shareRecipient struct {
-	UserOrgID string `json:"user_org_id,omitempty"`
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	Role      string `json:"role"`
+	UserID string `json:"user_id,omitempty"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+	Role   string `json:"role"`
 }
 
 type shareRequest struct {
@@ -27,7 +26,7 @@ type shareRequest struct {
 	Message    string           `json:"message"`
 }
 
-func handleShare(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleShare(app core.App, re *core.RequestEvent) error {
 	userID := re.Auth.Id
 
 	var req shareRequest
@@ -44,14 +43,10 @@ func handleShare(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 		return re.NotFoundError("Item not found", err)
 	}
 
-	creatorUO, err := app.FindRecordById("user_org", item.GetString("created_by"))
-	if err != nil || creatorUO.GetString("user") != userID {
+	// Single-org: created_by holds a users id directly, so this is a
+	// straight comparison rather than a junction hop.
+	if item.GetString("created_by") != userID {
 		return re.ForbiddenError("Only the creator can share this item", nil)
-	}
-
-	org, err := app.FindRecordById("orgs", item.GetString("org"))
-	if err != nil {
-		return re.InternalServerError("Failed to load org", err)
 	}
 
 	senderUser, err := app.FindRecordById("users", userID)
@@ -75,16 +70,16 @@ func handleShare(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 			role = "viewer"
 		}
 
-		if r.UserOrgID != "" {
+		if r.UserID != "" {
 			existing, _ := app.FindFirstRecordByFilter(
 				"drive_shares",
-				"item = {:item} && user_org = {:uo}",
-				map[string]any{"item": req.ItemID, "uo": r.UserOrgID},
+				"item = {:item} && user = {:user}",
+				map[string]any{"item": req.ItemID, "user": r.UserID},
 			)
 			if existing == nil {
 				share := core.NewRecord(shareCol)
 				share.Set("item", req.ItemID)
-				share.Set("user_org", r.UserOrgID)
+				share.Set("user", r.UserID)
 				share.Set("role", role)
 				share.Set("created_by", item.GetString("created_by"))
 				if err := app.Save(share); err != nil {
@@ -96,11 +91,11 @@ func handleShare(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 		}
 
 		if r.Email != "" {
-			if r.UserOrgID == "" {
+			if r.UserID == "" {
 				// External recipient: create a public share link and use /share/<token> URL
-				go sendExternalShareInvite(app, senderName, r, item, org, req.Message, item.GetString("created_by"), userID)
+				go sendExternalShareInvite(app, senderName, r, item, req.Message, item.GetString("created_by"), userID)
 			} else {
-				go sendShareInvite(app, senderName, r, item.GetString("name"), org.GetString("slug"), req.ItemID, req.Message, userID)
+				go sendShareInvite(app, senderName, r, item.GetString("name"), req.ItemID, req.Message, userID)
 			}
 		}
 	}
@@ -112,8 +107,8 @@ func handleShare(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 	})
 }
 
-func sendShareInvite(app *pocketbase.PocketBase, senderName string, r shareRecipient, itemName, orgSlug, itemID, message, senderUserID string) {
-	link := fmt.Sprintf("%s/a/%s/drive?file=%s", app.Settings().Meta.AppURL, orgSlug, itemID)
+func sendShareInvite(app core.App, senderName string, r shareRecipient, itemName, itemID, message, senderUserID string) {
+	link := fmt.Sprintf("%s/drive?file=%s", app.Settings().Meta.AppURL, itemID)
 
 	greeting := "Hi"
 	if r.Name != "" {
@@ -157,7 +152,7 @@ func sendShareInvite(app *pocketbase.PocketBase, senderName string, r shareRecip
 }
 
 // sendExternalShareInvite creates a public share link and sends an email with the /share/<token> URL.
-func sendExternalShareInvite(app *pocketbase.PocketBase, senderName string, r shareRecipient, item *core.Record, org *core.Record, message string, createdByUserOrgID string, senderUserID string) {
+func sendExternalShareInvite(app core.App, senderName string, r shareRecipient, item *core.Record, message string, createdByUserID string, senderUserID string) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		app.Logger().Error("Failed to generate share token", "error", err)
@@ -179,7 +174,7 @@ func sendExternalShareInvite(app *pocketbase.PocketBase, senderName string, r sh
 	record := core.NewRecord(col)
 	record.Set("item", item.Id)
 	record.Set("token", token)
-	record.Set("created_by", createdByUserOrgID)
+	record.Set("created_by", createdByUserID)
 	record.Set("role", role)
 	record.Set("is_active", true)
 	record.Set("download_count", 0)
