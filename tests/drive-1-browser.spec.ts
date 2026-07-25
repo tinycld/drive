@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { login, navigateToPackage, ORG_SLUG } from '@tinycld/core/e2e-helpers'
+import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
     createDriveItem,
     dismissErrorOverlay,
@@ -224,7 +224,7 @@ test.describe('Drive — Mobile', () => {
         // documented CI-flake source). Gate on the seeded "Projects" folder row
         // (sorted first, so it's in view) to confirm the drive screen hydrated.
         await page.getByTestId('nav-drive').click()
-        await page.waitForURL(new RegExp(`/a/${ORG_SLUG}/drive(/|$|\\?)`))
+        await page.waitForURL(/\/drive(\/|$|\?)/)
         await page.getByText('Projects', { exact: true }).first().waitFor({ state: 'visible' })
         await dismissErrorOverlay(page)
     })

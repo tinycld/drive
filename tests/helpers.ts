@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
-import { ORG_SLUG, TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e-helpers'
+import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e-helpers'
 
 // Drive uses FrozenSlideStack inside its package layout, so navigating
 // from /drive → /drive/folder/<id> → another folder keeps every prior
@@ -195,7 +195,7 @@ export async function orderedRowNames(page: Page, among: string[]): Promise<stri
 const PB_URL = 'http://127.0.0.1:7200'
 
 let cachedAuthToken: string | null = null
-let cachedOrgContext: { orgId: string; userOrgId: string } | null = null
+let cachedUserId: string | null = null
 
 async function authAsTestUser(): Promise<string> {
     if (cachedAuthToken) return cachedAuthToken
@@ -212,8 +212,10 @@ async function authAsTestUser(): Promise<string> {
     return token
 }
 
-async function resolveOrgContext(token: string): Promise<{ orgId: string; userOrgId: string }> {
-    if (cachedOrgContext) return cachedOrgContext
+// Single-org: there is no org to resolve — the authenticated user id is the
+// whole context (drive FKs point straight at users).
+async function resolveUserId(token: string): Promise<string> {
+    if (cachedUserId) return cachedUserId
     const me = await fetch(`${PB_URL}/api/collections/users/auth-refresh`, {
         method: 'POST',
         headers: { Authorization: token },
@@ -221,34 +223,17 @@ async function resolveOrgContext(token: string): Promise<{ orgId: string; userOr
     const meBody = (await me.json()) as { record?: { id: string } }
     const userId = meBody.record?.id
     if (!userId) throw new Error(`auth-refresh returned no user record`)
-
-    const orgs = await fetch(
-        `${PB_URL}/api/collections/orgs/records?filter=${encodeURIComponent(`slug='${ORG_SLUG}'`)}`,
-        { headers: { Authorization: token } }
-    )
-    const orgItems = (await orgs.json()) as { items: { id: string }[] }
-    if (!orgItems.items[0]) throw new Error(`Org ${ORG_SLUG} not found`)
-    const orgId = orgItems.items[0].id
-
-    const userOrgs = await fetch(
-        `${PB_URL}/api/collections/user_org/records?filter=${encodeURIComponent(
-            `org='${orgId}' && user='${userId}'`
-        )}`,
-        { headers: { Authorization: token } }
-    )
-    const userOrgItems = (await userOrgs.json()) as { items: { id: string }[] }
-    if (!userOrgItems.items[0]) throw new Error(`user_org for ${ORG_SLUG} not found`)
-    cachedOrgContext = { orgId, userOrgId: userOrgItems.items[0].id }
-    return cachedOrgContext
+    cachedUserId = userId
+    return cachedUserId
 }
 
 export async function authTokenForTestUser(): Promise<string> {
     return authAsTestUser()
 }
 
-export async function testUserOrgContext(): Promise<{ orgId: string; userOrgId: string }> {
+export async function testUserId(): Promise<string> {
     const token = await authAsTestUser()
-    return resolveOrgContext(token)
+    return resolveUserId(token)
 }
 
 // Create a drive_items record via the PB REST API. Tests that need a
@@ -260,13 +245,12 @@ export async function createDriveItem(opts: {
     isFolder?: boolean
 }): Promise<{ id: string; name: string }> {
     const token = await authAsTestUser()
-    const { orgId, userOrgId } = await resolveOrgContext(token)
+    const userId = await resolveUserId(token)
     const res = await fetch(`${PB_URL}/api/collections/drive_items/records`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: token },
         body: JSON.stringify({
-            org: orgId,
-            created_by: userOrgId,
+            created_by: userId,
             parent: opts.parent ?? '',
             name: opts.name,
             is_folder: opts.isFolder ?? false,
@@ -285,8 +269,7 @@ export async function findDriveItemByName(opts: {
     parent?: string
 }): Promise<{ id: string } | null> {
     const token = await authAsTestUser()
-    const { orgId } = await resolveOrgContext(token)
-    const filter = `org='${orgId}' && name='${opts.name}' && parent='${opts.parent ?? ''}'`
+    const filter = `name='${opts.name}' && parent='${opts.parent ?? ''}'`
     const res = await fetch(
         `${PB_URL}/api/collections/drive_items/records?filter=${encodeURIComponent(filter)}`,
         { headers: { Authorization: token } }
@@ -309,15 +292,14 @@ export async function uploadFileAsDriveItem(opts: {
 }): Promise<{ id: string }> {
     const fs = await import('node:fs')
     const token = await authAsTestUser()
-    const { orgId, userOrgId } = await resolveOrgContext(token)
+    const userId = await resolveUserId(token)
     const bytes = fs.readFileSync(opts.fixturePath)
     const form = new FormData()
-    form.append('org', orgId)
     form.append('name', opts.name)
     form.append('is_folder', 'false')
     form.append('mime_type', opts.mimeType)
     form.append('parent', '')
-    form.append('created_by', userOrgId)
+    form.append('created_by', userId)
     form.append('size', String(bytes.length))
     form.append('file', new Blob([new Uint8Array(bytes)], { type: opts.mimeType }), opts.name)
     const res = await fetch(`${PB_URL}/api/collections/drive_items/records`, {
