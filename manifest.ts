@@ -26,9 +26,17 @@ const manifest = {
     // multi-org tenant — which links no feature Go — still serve WebDAV, since
     // the router materializes this block into the tenant's runtime config.
     //
-    // Authorization, quota and versioning are NOT expressible here; they are Go
-    // callbacks in server/register.go. A tenant therefore gets the protocol and
-    // the tree, with core's default (authenticated) access model.
+    // Authorization comes from drive_items' own PocketBase rules and the storage
+    // ceiling from the quota block below, so a tenant enforces both. Only the
+    // version snapshot on overwrite is still a Go callback and absent there.
+
+    // Storage-bearing collections. core/quota binds the enforcement hooks from
+    // this, so the ceiling holds on every write path — and in a multi-org
+    // tenant, which links no feature Go.
+    quota: [
+        { collection: 'drive_items', sizeField: 'size', ownerField: 'created_by' },
+        { collection: 'drive_item_versions', sizeField: 'size', ownerField: 'created_by' },
+    ],
     webdav: {
         prefix: '/drive',
         collection: 'drive_items',
