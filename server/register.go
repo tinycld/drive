@@ -1,7 +1,6 @@
 package drive
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,12 +12,12 @@ import (
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/pocketbase/pocketbase/tools/routine"
-	"golang.org/x/net/webdav"
 	"tinycld.org/core/audit"
 	"tinycld.org/core/notify"
 	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/userorg"
 	"tinycld.org/core/versionhooks"
+	"tinycld.org/core/webdav"
 )
 
 func Register(app *pocketbase.PocketBase) {
@@ -138,6 +137,12 @@ func Register(app *pocketbase.PocketBase) {
 		return e.Next()
 	})
 
+	// WebDAV over /drive, from core/webdav. Mounting is core's job; drive
+	// supplies only the Source above.
+	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}); err != nil {
+		app.Logger().Error("drive: WebDAV registration failed", "error", err)
+	}
+
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// Search API endpoint
 		e.Router.GET("/api/drive/search", func(re *core.RequestEvent) error {
@@ -232,45 +237,49 @@ func Register(app *pocketbase.PocketBase) {
 			return handleStorageUsage(app, re)
 		}).BindFunc(requireAuth)
 
-		// WebDAV handler — golang.org/x/net/webdav, with NewMemLS so we
-		// advertise DAV class 2 (LOCK/UNLOCK) and macOS Finder will
-		// mount us read-write. The auth check happens once per request
-		// here in middleware so we don't bcrypt-per-FS-call inside the
-		// handler.
-		driveFS := &DriveFileSystem{app: app}
-		handler := &webdav.Handler{
-			FileSystem: driveFS,
-			LockSystem: webdav.NewMemLS(),
-			Logger: func(r *http.Request, err error) {
-				if err != nil {
-					app.Logger().Debug("WebDAV", "method", r.Method, "path", r.URL.Path, "error", err)
-				}
-			},
-		}
-
-		serveWebDAV := func(re *core.RequestEvent) error {
-			user, err := authenticateRequest(app, re.Request)
-			if err != nil {
-				re.Response.Header().Set("WWW-Authenticate", `Basic realm="TinyCld WebDAV"`)
-				http.Error(re.Response, "Authentication required", http.StatusUnauthorized)
-				return nil
-			}
-
-			ctx := context.WithValue(re.Request.Context(), userKey, user)
-			handler.ServeHTTP(re.Response, re.Request.WithContext(ctx))
-			return nil
-		}
-
-		e.Router.Any("/drive/{path...}", serveWebDAV)
-		e.Router.Any("/drive", serveWebDAV)
-
-		e.Router.Any("/.well-known/webdav", func(re *core.RequestEvent) error {
-			http.Redirect(re.Response, re.Request, "/drive/", http.StatusMovedPermanently)
-			return nil
-		})
-
 		return e.Next()
 	})
+}
+
+// webDAVSource maps drive_items onto a WebDAV file tree. The protocol server,
+// its path resolution and its blob handling all live in core/webdav; drive
+// contributes the field map plus the few decisions a field map can't express.
+var webDAVSource = webdav.Source{
+	Slug:       "drive",
+	Prefix:     "/drive",
+	Collection: "drive_items",
+	Fields: webdav.FieldMap{
+		Name:     "name",
+		Parent:   "parent",
+		IsFolder: "is_folder",
+		Size:     "size",
+		MimeType: "mime_type",
+		File:     "file",
+		Owner:    "created_by",
+		Updated:  "updated",
+	},
+	Hooks: webdav.Hooks{
+		// WebDAV bypasses PocketBase's rule engine, so the drive_items
+		// access rules are reapplied here by hand.
+		CanRead: func(app core.App, userID string, record *core.Record) error {
+			return checkReadPermission(app, userID, record)
+		},
+		CanWrite: func(app core.App, userID, recordID string) error {
+			return checkWritePermission(app, userID, recordID)
+		},
+		CanDelete: func(app core.App, userID, recordID string) error {
+			return checkDeletePermission(app, userID, recordID)
+		},
+		CheckQuota: func(app core.App, userID string, delta int64) error {
+			return checkUserStorageQuota(app, userID, delta)
+		},
+		// Archive the outgoing blob before an overwrite replaces it, so a
+		// WebDAV PUT gets the same version history as a UI upload.
+		BeforeOverwrite: func(app core.App, userID string, record *core.Record) error {
+			_, err := snapshotCurrentFile(app, record, userID, "upload", "")
+			return err
+		},
+	},
 }
 
 func requireAuth(re *core.RequestEvent) error {
