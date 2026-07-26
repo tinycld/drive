@@ -16,6 +16,7 @@ import (
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/notify"
 	"tinycld.org/core/previewqueue"
+	"tinycld.org/core/quota"
 	"tinycld.org/core/userorg"
 	"tinycld.org/core/versionhooks"
 	"tinycld.org/core/webdav"
@@ -42,8 +43,7 @@ func Register(app *pocketbase.PocketBase) {
 	audit.RegisterCollection(app, "drive_item_state", &audit.CollectionConfig{})
 	audit.RegisterCollection(app, "drive_shares", &audit.CollectionConfig{})
 
-	// drive_items create hook owns three concerns the API path can't do alone:
-	//   - per-user storage quota enforcement using the size field
+	// drive_items create hook owns two concerns the API path can't do alone:
 	//   - auto-rename on (parent, name) unique-index collisions, so
 	//     clients can POST "report.pdf" without first listing the folder
 	//   - owner drive_shares insert, in the same transaction as the item, so
@@ -54,22 +54,19 @@ func Register(app *pocketbase.PocketBase) {
 	// transaction commits a colliding name between probe and INSERT — that
 	// surfaces as a save error to the client, which is acceptable.
 	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
-		// The client-supplied `size` is untrusted: a forged `size=0` (or any
-		// small value) would slip past the quota check below and under-report
-		// in handleStorageUsage. Recompute it from the actual uploaded blob —
-		// mirroring the WebDAV and version-upload paths, which both derive
-		// size from the stored bytes (filesystem.File.Size) rather than the
-		// request field. reconcileDriveItemSize leaves fileless creates
+		// The client-supplied `size` is untrusted: a forged `size=0` would
+		// under-report in handleStorageUsage AND slip past core/quota, whose
+		// hook reads this same field. Recompute it from the actual uploaded
+		// blob — mirroring the WebDAV and version-upload paths, which both
+		// derive size from the stored bytes (filesystem.File.Size) rather than
+		// the request field. reconcileDriveItemSize leaves fileless creates
 		// (folders, blank items) with their as-declared size.
+		//
+		// This hook is bound before core/quota's (drive registers first), so the
+		// corrected size is what the ceiling is checked against.
 		reconcileDriveItemSize(e.Record)
 
-		size := e.Record.GetInt("size")
 		userID := e.Record.GetString("created_by")
-		if size > 0 && userID != "" {
-			if err := checkUserStorageQuota(app, userID, int64(size)); err != nil {
-				return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
-			}
-		}
 		unique, err := chooseUniqueDriveItemName(e.App, e.Record.GetString("parent"), e.Record.GetString("name"))
 		if err != nil {
 			return fmt.Errorf("dedup drive_item name: %w", err)
@@ -145,6 +142,9 @@ func Register(app *pocketbase.PocketBase) {
 	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
 		app.Logger().Error("drive: WebDAV registration failed", "error", err)
 	}
+
+	// Storage ceilings: declare the collections, core binds the enforcement.
+	quota.RegisterSources(quotaSources...)
 
 	// $drive.* JS binding for TS hooks that need Go-backed drive logic.
 	registerJSVMBinding(app)
@@ -247,6 +247,17 @@ func Register(app *pocketbase.PocketBase) {
 	})
 }
 
+// quotaSources are the collections whose bytes count toward the storage
+// ceilings. Versions are included because a restore-able history is real disk;
+// both carry created_by, so they count per-user as well as per-org.
+//
+// core/quota binds the enforcement hooks — drive does not, so no write path
+// (REST, WebDAV, the version endpoints) can route around the limit.
+var quotaSources = []quota.Source{
+	{Slug: "drive", Collection: "drive_items", SizeField: "size", OwnerField: "created_by"},
+	{Slug: "drive", Collection: "drive_item_versions", SizeField: "size", OwnerField: "created_by"},
+}
+
 // webDAVSource maps drive_items onto a WebDAV file tree. The protocol server,
 // its path resolution and its blob handling all live in core/webdav; drive
 // contributes the field map plus the few decisions a field map can't express.
@@ -264,13 +275,11 @@ var webDAVSource = webdav.Source{
 		Owner:    "created_by",
 		Updated:  "updated",
 	},
-	// No permission callbacks: core evaluates drive_items' own List/View/
-	// Update/Delete rules (see 1716200001_creator_access_rules.js), so WebDAV
-	// enforces exactly what the REST API and the web UI do, from one definition.
+	// No permission or quota callbacks: core evaluates drive_items' own
+	// List/View/Update/Delete rules (1716200001_creator_access_rules.js) and
+	// core/quota enforces the ceilings as record hooks, so WebDAV gets both
+	// from the same definitions the REST API and the web UI use.
 	Hooks: webdav.Hooks{
-		CheckQuota: func(app core.App, userID string, delta int64) error {
-			return checkUserStorageQuota(app, userID, delta)
-		},
 		// Archive the outgoing blob before an overwrite replaces it, so a
 		// WebDAV PUT gets the same version history as a UI upload.
 		BeforeOverwrite: func(app core.App, userID string, record *core.Record) error {
@@ -333,7 +342,10 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError("failed to read file", nil)
 	}
 
-	// Check storage quota: new version size minus the current file size (delta)
+	// Pre-flight quota check. core/quota is the authoritative enforcement (a
+	// record hook every write passes through); this rejects early, before the
+	// snapshot and blob write, rather than doing that work only to have the
+	// save refused.
 	sizeDelta := int64(len(data)) - int64(item.GetInt("size"))
 	if sizeDelta > 0 {
 		if err := checkUserStorageQuota(app, userID, sizeDelta); err != nil {
@@ -448,7 +460,8 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError("version does not belong to item", nil)
 	}
 
-	// Check storage quota: restored version size minus current size (delta)
+	// Pre-flight quota check; core/quota is the authoritative one. See
+	// handleUploadVersion.
 	sizeDelta := int64(version.GetInt("size")) - int64(item.GetInt("size"))
 	if sizeDelta > 0 {
 		if err := checkUserStorageQuota(app, userID, sizeDelta); err != nil {
