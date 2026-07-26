@@ -4,7 +4,14 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/core/driveshare"
 )
+
+// The predicates themselves live in core/driveshare and are unit-tested
+// there against synthetic collections. These tests run them against
+// drive's REAL migrated schema, so they catch a drift between the shipped
+// migration and the shape core expects (field names, relation targets)
+// that a synthetic fixture cannot.
 
 // TestCheckReadPermission encodes the drive_items view rule (migration
 // 1716200001) that every Go path bypassing PocketBase's rule engine must
@@ -36,24 +43,25 @@ func TestCheckReadPermission(t *testing.T) {
 
 	// setupOTPApp creates the item without an owner drive_shares row, so
 	// this passes only via the created_by branch.
-	if err := checkReadPermission(env.app, env.ownerUser.Id, env.item); err != nil {
+	if err := driveshare.CheckReadItem(env.app, env.ownerUser.Id, env.item); err != nil {
 		t.Errorf("creator: got %v, want nil", err)
 	}
 
-	if err := checkReadPermission(env.app, grantee.Id, env.item); err != nil {
+	if err := driveshare.CheckReadItem(env.app, grantee.Id, env.item); err != nil {
 		t.Errorf("share grantee: got %v, want nil", err)
 	}
 
-	if err := checkReadPermission(env.app, other.Id, env.item); err == nil {
+	if err := driveshare.CheckReadItem(env.app, other.Id, env.item); err == nil {
 		t.Error("member without share: got nil, want permission error")
 	}
 }
 
 // TestCheckWriteAndDeletePermission pins the role ladder the WebDAV and
 // custom-endpoint paths enforce by hand: viewer may not write, editor
-// may write but not delete, owner may do both. Only drive_shares
-// grants write/delete — being the creator is not consulted by these two
-// checks, so a share is mandatory.
+// may write but not delete, owner may do both. The item's creator may do
+// both without any drive_shares row — the `created_by ?= @request.auth.id`
+// disjunct that the drive_items update and delete rules carry, and that
+// the REST API has always honored.
 func TestCheckWriteAndDeletePermission(t *testing.T) {
 	env := setupOTPApp(t, "viewer")
 
@@ -90,17 +98,20 @@ func TestCheckWriteAndDeletePermission(t *testing.T) {
 		{"editor", editorID, true, false},
 		{"owner", ownerID, true, true},
 		{"no share", unsharedID, false, false},
+		// setupOTPApp creates the item with no owner share row, so this
+		// case passes only via the created_by branch.
+		{"creator (no share row)", env.ownerUser.Id, true, true},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.label, func(t *testing.T) {
-			gotWrite := checkWritePermission(env.app, tc.userID, env.item.Id) == nil
+			gotWrite := driveshare.CheckWrite(env.app, tc.userID, env.item.Id) == nil
 			if gotWrite != tc.wantWrite {
-				t.Errorf("checkWritePermission allowed=%v, want %v", gotWrite, tc.wantWrite)
+				t.Errorf("CheckWrite allowed=%v, want %v", gotWrite, tc.wantWrite)
 			}
-			gotDel := checkDeletePermission(env.app, tc.userID, env.item.Id) == nil
+			gotDel := driveshare.CheckDelete(env.app, tc.userID, env.item.Id) == nil
 			if gotDel != tc.wantDel {
-				t.Errorf("checkDeletePermission allowed=%v, want %v", gotDel, tc.wantDel)
+				t.Errorf("CheckDelete allowed=%v, want %v", gotDel, tc.wantDel)
 			}
 		})
 	}
@@ -125,7 +136,7 @@ func TestCreateOwnerShare(t *testing.T) {
 	if got := rec.GetString("role"); got != "owner" {
 		t.Errorf("role = %q, want owner", got)
 	}
-	if err := checkDeletePermission(env.app, env.ownerUser.Id, env.item.Id); err != nil {
+	if err := driveshare.CheckDelete(env.app, env.ownerUser.Id, env.item.Id); err != nil {
 		t.Errorf("owner share should grant delete: %v", err)
 	}
 }

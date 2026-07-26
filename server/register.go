@@ -14,6 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/routine"
 	"tinycld.org/core/audit"
 	"tinycld.org/core/coreserver"
+	"tinycld.org/core/driveshare"
 	"tinycld.org/core/notify"
 	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/quota"
@@ -309,10 +310,10 @@ func resolveItemAndUser(app core.App, re *core.RequestEvent, itemID string, requ
 	userID := re.Auth.Id
 
 	if requireWrite {
-		if err := checkWritePermission(app, userID, item.Id); err != nil {
+		if err := driveshare.CheckWrite(app, userID, item.Id); err != nil {
 			return nil, "", re.ForbiddenError("editor or owner access required", nil)
 		}
-	} else if err := checkReadPermission(app, userID, item); err != nil {
+	} else if err := driveshare.CheckReadItem(app, userID, item); err != nil {
 		return nil, "", re.ForbiddenError("no access to item", nil)
 	}
 

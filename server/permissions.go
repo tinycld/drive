@@ -1,59 +1,12 @@
 package drive
 
 import (
-	"os"
-
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// checkReadPermission verifies the user may view the item: its creator or
-// the holder of any drive_shares row, mirroring the drive_items view rule
-// from migration 1716200001 (created_by == auth.id || has-share).
-// Go code paths that bypass PocketBase's rule engine (WebDAV, custom
-// endpoints) must apply this per item.
-func checkReadPermission(app core.App, userID string, item *core.Record) error {
-	if item.GetString("created_by") == userID {
-		return nil
-	}
-	records, err := app.FindRecordsByFilter(
-		"drive_shares",
-		"item = {:item} && user = {:user}",
-		"", 1, 0,
-		map[string]any{"item": item.Id, "user": userID},
-	)
-	if err != nil || len(records) == 0 {
-		return os.ErrPermission
-	}
-	return nil
-}
-
-// checkWritePermission verifies the user has editor or owner role on the item via drive_shares.
-func checkWritePermission(app core.App, userID, itemID string) error {
-	records, err := app.FindRecordsByFilter(
-		"drive_shares",
-		"item = {:item} && user = {:user} && role != 'viewer'",
-		"", 1, 0,
-		map[string]any{"item": itemID, "user": userID},
-	)
-	if err != nil || len(records) == 0 {
-		return os.ErrPermission
-	}
-	return nil
-}
-
-// checkDeletePermission verifies the user has owner role on the item via drive_shares.
-func checkDeletePermission(app core.App, userID, itemID string) error {
-	records, err := app.FindRecordsByFilter(
-		"drive_shares",
-		"item = {:item} && user = {:user} && role = 'owner'",
-		"", 1, 0,
-		map[string]any{"item": itemID, "user": userID},
-	)
-	if err != nil || len(records) == 0 {
-		return os.ErrPermission
-	}
-	return nil
-}
+// The read/write/delete predicates that used to live here now come from
+// core's driveshare package, which is the single definition shared with
+// text and calc. See tinycld.org/core/driveshare.
 
 // createOwnerShare creates an owner share record for a newly created item.
 // Takes core.App so it can be called from inside a hook with e.App (the

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/core/driveshare"
 )
 
 // rateLimiter provides simple in-memory IP-based rate limiting for public endpoints.
@@ -263,13 +264,13 @@ func handleCreateShareLink(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError("item_id is required", nil)
 	}
 
-	item, userOrgID, err := resolveItemAndUser(app, re, body.ItemID, false)
+	item, userID, err := resolveItemAndUser(app, re, body.ItemID, false)
 	if err != nil {
 		return err
 	}
 
 	// Verify caller is owner
-	if err := checkDeletePermission(app, userOrgID, item.Id); err != nil {
+	if err := driveshare.CheckDelete(app, userID, item.Id); err != nil {
 		return re.ForbiddenError("only the owner can create share links", nil)
 	}
 
@@ -293,7 +294,7 @@ func handleCreateShareLink(app core.App, re *core.RequestEvent) error {
 	record := core.NewRecord(col)
 	record.Set("item", item.Id)
 	record.Set("token", token)
-	record.Set("created_by", userOrgID)
+	record.Set("created_by", userID)
 	record.Set("role", role)
 	record.Set("is_active", true)
 	record.Set("download_count", 0)
@@ -329,11 +330,11 @@ func handleDeleteShareLink(app core.App, re *core.RequestEvent) error {
 
 	// Verify caller owns the item
 	itemID := link.GetString("item")
-	_, userOrgID, err := resolveItemAndUser(app, re, itemID, false)
+	_, userID, err := resolveItemAndUser(app, re, itemID, false)
 	if err != nil {
 		return err
 	}
-	if err := checkDeletePermission(app, userOrgID, itemID); err != nil {
+	if err := driveshare.CheckDelete(app, userID, itemID); err != nil {
 		return re.ForbiddenError("only the owner can revoke share links", nil)
 	}
 
@@ -352,11 +353,11 @@ func handleListShareLinks(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError("item_id query parameter is required", nil)
 	}
 
-	_, userOrgID, err := resolveItemAndUser(app, re, itemID, false)
+	_, userID, err := resolveItemAndUser(app, re, itemID, false)
 	if err != nil {
 		return err
 	}
-	if err := checkDeletePermission(app, userOrgID, itemID); err != nil {
+	if err := driveshare.CheckDelete(app, userID, itemID); err != nil {
 		return re.ForbiddenError("only the owner can view share links", nil)
 	}
 
