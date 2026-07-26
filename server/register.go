@@ -13,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/pocketbase/pocketbase/tools/routine"
 	"tinycld.org/core/audit"
+	"tinycld.org/core/coreserver"
 	"tinycld.org/core/notify"
 	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/userorg"
@@ -138,10 +139,15 @@ func Register(app *pocketbase.PocketBase) {
 	})
 
 	// WebDAV over /drive, from core/webdav. Mounting is core's job; drive
-	// supplies only the Source above.
-	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}); err != nil {
+	// supplies only the Source above. Passing the host bindings installs the
+	// `webdavHook` binding, so a deployment can drop a .pb.ts into pb-hooks/
+	// to customize behaviour — and pays nothing when it doesn't.
+	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
 		app.Logger().Error("drive: WebDAV registration failed", "error", err)
 	}
+
+	// $drive.* JS binding for TS hooks that need Go-backed drive logic.
+	registerJSVMBinding(app)
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// Search API endpoint

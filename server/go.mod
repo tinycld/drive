@@ -3,10 +3,10 @@ module tinycld.org/packages/drive
 go 1.26.3
 
 require (
+	github.com/grafana/sobek v0.0.0-20260722203707-64fef69693b6
 	github.com/nathanstitt/doctaculous v0.0.4
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.39.8
-	golang.org/x/net v0.57.0
 	modernc.org/sqlite v1.54.0
 	tinycld.org/core v0.0.0
 )

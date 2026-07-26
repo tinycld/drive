@@ -120,29 +120,37 @@ type driveSearchResponse struct {
 }
 
 func handleDriveSearch(app core.App, re *core.RequestEvent) error {
-	userID := re.Auth.Id
-	q := re.Request.URL.Query().Get("q")
-	limitStr := re.Request.URL.Query().Get("limit")
-	offsetStr := re.Request.URL.Query().Get("offset")
-
 	limit := 25
 	offset := 0
-	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+	if l, err := strconv.Atoi(re.Request.URL.Query().Get("limit")); err == nil && l > 0 && l <= 100 {
 		limit = l
 	}
-	if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+	if o, err := strconv.Atoi(re.Request.URL.Query().Get("offset")); err == nil && o >= 0 {
 		offset = o
 	}
 
-	emptyResponse := driveSearchResponse{Items: []driveSearchResultItem{}, Total: 0}
+	resp, err := searchDriveItems(app, re.Auth.Id, re.Request.URL.Query().Get("q"), limit, offset)
+	if err != nil {
+		app.Logger().Warn("FTS: drive search failed", "error", err)
+		return re.JSON(http.StatusOK, driveSearchResponse{Items: []driveSearchResultItem{}, Total: 0})
+	}
+	return re.JSON(http.StatusOK, resp)
+}
+
+// searchDriveItems runs the authorized FTS query. Shared by the HTTP endpoint
+// and the $drive.search JS binding so both enforce the same access scope — a
+// binding that reimplemented the filter could drift out of agreement with the
+// endpoint, which is precisely the class of bug this migration was about.
+func searchDriveItems(app core.App, userID, q string, limit, offset int) (driveSearchResponse, error) {
+	empty := driveSearchResponse{Items: []driveSearchResultItem{}, Total: 0}
 
 	if len(q) < 2 {
-		return re.JSON(http.StatusOK, emptyResponse)
+		return empty, nil
 	}
 
 	ftsQuery := sanitizeFTSQuery(q)
 	if ftsQuery == "" {
-		return re.JSON(http.StatusOK, emptyResponse)
+		return empty, nil
 	}
 
 	// Single-org: authorization is a single drive_shares row keyed by the
@@ -184,10 +192,8 @@ func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 		Highlight   string `db:"highlight"`
 	}
 
-	err := app.DB().NewQuery(searchQuery).Bind(dbx.Params(params)).All(&results)
-	if err != nil {
-		app.Logger().Warn("FTS: drive search query failed", "error", err, "query", q)
-		return re.JSON(http.StatusOK, emptyResponse)
+	if err := app.DB().NewQuery(searchQuery).Bind(dbx.Params(params)).All(&results); err != nil {
+		return empty, err
 	}
 
 	items := make([]driveSearchResultItem, len(results))
@@ -222,5 +228,5 @@ func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 		countResult.Total = len(items)
 	}
 
-	return re.JSON(http.StatusOK, driveSearchResponse{Items: items, Total: countResult.Total})
+	return driveSearchResponse{Items: items, Total: countResult.Total}, nil
 }
