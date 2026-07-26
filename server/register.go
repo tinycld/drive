@@ -264,18 +264,10 @@ var webDAVSource = webdav.Source{
 		Owner:    "created_by",
 		Updated:  "updated",
 	},
+	// No permission callbacks: core evaluates drive_items' own List/View/
+	// Update/Delete rules (see 1716200001_creator_access_rules.js), so WebDAV
+	// enforces exactly what the REST API and the web UI do, from one definition.
 	Hooks: webdav.Hooks{
-		// WebDAV bypasses PocketBase's rule engine, so the drive_items
-		// access rules are reapplied here by hand.
-		CanRead: func(app core.App, userID string, record *core.Record) error {
-			return checkReadPermission(app, userID, record)
-		},
-		CanWrite: func(app core.App, userID, recordID string) error {
-			return checkWritePermission(app, userID, recordID)
-		},
-		CanDelete: func(app core.App, userID, recordID string) error {
-			return checkDeletePermission(app, userID, recordID)
-		},
 		CheckQuota: func(app core.App, userID string, delta int64) error {
 			return checkUserStorageQuota(app, userID, delta)
 		},
