@@ -21,6 +21,28 @@ const manifest = {
     // alongside the Go — including the WebDAV interception points
     // (webdavHook) and the $drive.* bindings the server exposes.
     hooks: { directory: 'pb-hooks' },
+    // WebDAV over /drive, served by core (tinycld.org/core/webdav). This is the
+    // same Source the Go server registers; declaring it here is what lets a
+    // multi-org tenant — which links no feature Go — still serve WebDAV, since
+    // the router materializes this block into the tenant's runtime config.
+    //
+    // Authorization, quota and versioning are NOT expressible here; they are Go
+    // callbacks in server/register.go. A tenant therefore gets the protocol and
+    // the tree, with core's default (authenticated) access model.
+    webdav: {
+        prefix: '/drive',
+        collection: 'drive_items',
+        fields: {
+            name: 'name',
+            parent: 'parent',
+            isFolder: 'is_folder',
+            size: 'size',
+            mimeType: 'mime_type',
+            file: 'file',
+            owner: 'created_by',
+            updated: 'updated',
+        },
+    },
     repository: { url: 'https://github.com/tinycld/drive' },
     peerVersions: { '@tinycld/core': '>=0.4.0 <0.5.0' },
 }

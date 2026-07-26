@@ -1,13 +1,13 @@
 ---
 title: Getting started with Drive
-summary: A quick tour of file storage in your organization
+summary: A quick tour of file storage in TinyCld
 tags: [intro, basics, tour]
 order: 10
 ---
 
 ## What Drive is
 
-Drive is your organization's file storage. Every file you upload — documents, spreadsheets, images, videos, archives — lives here and stays scoped to the org you uploaded it in. From Drive you can share files with people inside or outside the org, restore old versions, find things by full-text search, and even mount the whole thing as a [network folder](help://drive:webdav) on your computer.
+Drive is your file storage. Every file you upload — documents, spreadsheets, images, videos, archives — lives here. From Drive you can share files with other people, restore old versions, find things by full-text search, and even mount the whole thing as a [network folder](help://drive:webdav) on your computer.
 
 Drive is also the storage layer for other packages. When you create a workbook in [Calc](help://calc:getting-started), it's stored as a `.xlsx` file in Drive — the file *is* the spreadsheet.
 
@@ -21,7 +21,7 @@ The Drive sidebar groups files by how you got to them:
 - **Starred** — files you've starred for quick access. See [Files](help://drive:files).
 - **Trash** — soft-deleted files. They stay here until you delete them permanently. See [Trash](help://drive:trash).
 
-A storage bar at the bottom shows how much of your org's quota you've used.
+A storage bar at the bottom shows how much of your quota you've used.
 
 ## Two ways to view files
 

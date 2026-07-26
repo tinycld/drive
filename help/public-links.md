@@ -7,7 +7,7 @@ order: 80
 
 ## What a public link is
 
-A public share link is a tokenized URL — anyone who has it can open the file without signing in. Use this when you need to share with someone outside your org, on a mailing list, or to embed a file in another tool.
+A public share link is a tokenized URL — anyone who has it can open the file without signing in. Use this when you need to share with someone who has no account, on a mailing list, or to embed a file in another tool.
 
 The link looks like `https://&lt;your-instance&gt;/share/&lt;token&gt;`. The token is a long random string — guessing one is computationally infeasible.
 
@@ -47,7 +47,7 @@ Opening a public link takes the recipient to a minimal viewer page at `/share/&l
 - An **Open in &lt;package&gt;** action if the file type has one (e.g. a workbook with an editor-role link opens the Calc editor).
 - No nav rail, no sidebar, no other files from your Drive.
 
-Recipients can't see who else has access, your other files, or your org's name.
+Recipients can't see who else has access or any of your other files.
 
 ## Best practices
 

@@ -1,6 +1,6 @@
 ---
 title: Sharing files with people
-summary: Giving members of your org or other orgs access to specific files
+summary: Giving other people access to specific files
 tags: [share, permissions, collaboration]
 order: 70
 ---
@@ -11,14 +11,14 @@ Right-click a file or folder and choose **Share**. Or select it and click the sh
 
 ## Adding people
 
-Type a name or email in the **Add people** input. As you type, matches from your org show up — pick one. For each person you add, choose a role:
+Type a name or email in the **Add people** input. As you type, matching people show up — pick one. For each person you add, choose a role:
 
 - **Viewer** — can open and download, but not edit, rename, move, or share further.
 - **Editor** — can do everything Viewer can do, plus edit the file's contents (e.g. edit cells in a Calc workbook), rename, move, and re-share.
 
 The file's creator is always the **Owner** — that role isn't assigned via this dialog. Owners can do everything an Editor can plus delete the file and change other people's roles.
 
-Click **Send** to grant access. The other person now sees the file in their **Shared with me** section in their own org's Drive.
+Click **Send** to grant access. The other person now sees the file in their **Shared with me** section.
 
 ## Changing or removing access
 
@@ -41,9 +41,9 @@ The **Shared with me** section of the sidebar lists everything other people have
 
 Removing access is immediate. Their **Shared with me** view updates within seconds, and any tab they had the file open in stops being usable on the next interaction.
 
-## Sharing outside your org
+## Sharing with people without an account
 
-To share with people who don't have an account at all — or who have an account in a different organization — use [public share links](help://drive:public-links) instead.
+To share with people who don't have an account, use [public share links](help://drive:public-links) instead.
 
 ## See also
 

@@ -19,7 +19,7 @@ The WebDAV endpoint is at `/drive/` on your TinyCld instance. For example:
 https://your-instance.tinycld.app/drive/
 ```
 
-At the root, you'll see one folder per organization you belong to. Open an org's folder to see that org's Drive.
+The root of that URL is the root of your Drive — the same files and folders you see under **My Files** in the web UI. You'll only see items you own or that have been shared with you, exactly as in the browser.
 
 ## Signing in
 

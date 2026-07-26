@@ -7,7 +7,7 @@ order: 100
 
 ## To search
 
-The toolbar's search box (top of every Drive view) searches your org's files. Type and matches appear as you type — no Enter required.
+The toolbar's search box (top of every Drive view) searches the files you can see. Type and matches appear as you type — no Enter required.
 
 The search runs across:
 

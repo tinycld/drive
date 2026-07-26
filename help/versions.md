@@ -38,7 +38,7 @@ Click a previous version's row and choose **Download** to save just that version
 
 ## How long versions are kept
 
-Versions are kept indefinitely. They count toward your org's storage quota, so deleting old versions you don't need is a way to free up space — though there's currently no per-version delete UI; the practical lever is whether to upload new versions in the first place.
+Versions are kept indefinitely. They count toward your storage quota, so deleting old versions you don't need is a way to free up space — though there's currently no per-version delete UI; the practical lever is whether to upload new versions in the first place.
 
 ## When the file itself is deleted
 
