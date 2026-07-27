@@ -23,7 +23,38 @@ import (
 	"tinycld.org/core/webdav"
 )
 
+// Register composes the drive server for the SINGLE-ORG app: the shared set
+// plus the host-only tail. The generator's package_extensions.go calls it.
 func Register(app *pocketbase.PocketBase) {
+	registerShared(app)
+
+	// ---- Host-only ----
+	// WebDAV mount. A multi-org tenant mounts /dav/drive itself, from the
+	// materialized manifest `webdav` block (coreserver.RegisterTenant), so
+	// mounting here too would double-bind the routes. The materialized lists
+	// are authoritative for what a tenant serves; this call is the single-org
+	// equivalent. Note the tenant's materialized Source carries no Hooks (a Go
+	// closure cannot cross a process boundary), so the BeforeOverwrite version
+	// snapshot below is single-org-only — history, not safety.
+	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
+		app.Logger().Error("drive: WebDAV registration failed", "error", err)
+	}
+}
+
+// RegisterTenant composes the drive server for a multi-org TENANT process: the
+// shared set only. The router's pinned package menu calls it, gated by the
+// org's resolved package set (multi-org/docs/SCOPE-tenant-feature-go.md).
+//
+// Do NOT hand-pick registrations here — add to registerShared so both
+// compositions get them, or to Register's host-only tail with a reason. A
+// hand-rolled subset is exactly the drift that produced
+// multi-org/docs/FINDING-tenant-composition-gap.md.
+func RegisterTenant(app *pocketbase.PocketBase) {
+	registerShared(app)
+}
+
+// registerShared is the single source of truth for what BOTH compositions run.
+func registerShared(app *pocketbase.PocketBase) {
 	// Reassignable authorship FKs surfaced to the account-offboarding
 	// transaction. All point at users with cascadeDelete:false, so without
 	// reassignment an account with any drive content can't be deleted.
@@ -135,14 +166,6 @@ func Register(app *pocketbase.PocketBase) {
 		go notifyDriveShare(app, e.Record)
 		return e.Next()
 	})
-
-	// WebDAV over /drive, from core/webdav. Mounting is core's job; drive
-	// supplies only the Source above. Passing the host bindings installs the
-	// `webdavHook` binding, so a deployment can drop a .pb.ts into pb-hooks/
-	// to customize behaviour — and pays nothing when it doesn't.
-	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
-		app.Logger().Error("drive: WebDAV registration failed", "error", err)
-	}
 
 	// Storage ceilings: declare the collections, core binds the enforcement.
 	quota.RegisterSources(quotaSources...)

@@ -22,9 +22,11 @@ const manifest = {
     // (webdavHook) and the $drive.* bindings the server exposes.
     hooks: { directory: 'pb-hooks' },
     // WebDAV over /drive, served by core (tinycld.org/core/webdav). This is the
-    // same Source the Go server registers; declaring it here is what lets a
-    // multi-org tenant — which links no feature Go — still serve WebDAV, since
-    // the router materializes this block into the tenant's runtime config.
+    // same Source the Go server registers; a multi-org tenant serves WebDAV
+    // from this block (the router materializes it into the tenant's runtime
+    // config), which is why the Go-side mount is host-only — drive's other Go
+    // links into tenants via RegisterTenant, but the tenant's DAV mounts come
+    // from here.
     //
     // Authorization comes from drive_items' own PocketBase rules and the storage
     // ceiling from the quota block below, so a tenant enforces both. Only the
@@ -32,7 +34,7 @@ const manifest = {
 
     // Storage-bearing collections. core/quota binds the enforcement hooks from
     // this, so the ceiling holds on every write path — and in a multi-org
-    // tenant, which links no feature Go.
+    // tenant, where the router materializes this block into quota.json.
     quota: [
         { collection: 'drive_items', sizeField: 'size', ownerField: 'created_by' },
         { collection: 'drive_item_versions', sizeField: 'size', ownerField: 'created_by' },
