@@ -10,8 +10,18 @@
 //
 // `@request.auth.disabled != true` (rather than `= false`) so a record written
 // before the field existed — where the value is absent rather than false —
-// still passes. Appended to the existing predicates from 1716200001 rather
-// than restated, so the creator/share logic stays defined in one place.
+// still passes.
+//
+// CORRECTION (see 1782100000): this migration cited 1716200001 as the sole
+// predecessor and restated its rules with the new clause appended. That was
+// wrong for `createRule`, whose predecessor was 1781300000 — a security fix
+// adding `@request.auth.role != "guest"`. Restating from the wrong ancestor
+// silently dropped that clause, and every database created afterwards let
+// share-link guests create files until 1782100000 restored it.
+//
+// The lesson is in the shape, not the typo: a migration that RESTATES a rule
+// inherits every clause it fails to remember. Append to the rule as it stands,
+// or read it back and assert what it contains.
 migrate(
     app => {
         const enabled = '@request.auth.disabled != true'

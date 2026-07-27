@@ -7,6 +7,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+	"tinycld.org/core/rlstest"
 )
 
 // guest_rls_test.go proves drive_items' tightened createRule against
@@ -25,16 +26,14 @@ import (
 //
 // Each scenario builds a FRESH TestApp (ApiScenario.Test re-triggers OnServe;
 // reusing one app panics on duplicate route registration under PB v0.38.1).
-
-// The rules below are copied verbatim from the migrations that ship them, so a
-// migration edit that isn't mirrored here surfaces as a failing assertion
-// rather than a test that quietly validates a string only this file believes in.
-
-// driveItemsGuestCreateRule mirrors 1781300000_exclude_guests_from_drive_items_create.js.
-const driveItemsGuestCreateRule = `@request.auth.id != "" && @request.auth.role != "guest"`
-
-// driveItemsViewRule mirrors the canView rule in 1716200001_creator_access_rules.js.
-const driveItemsViewRule = `created_by ?= @request.auth.id || drive_shares_via_item.user ?= @request.auth.id`
+//
+// The rules under test are NOT restated here. They are applied by running
+// drive's real pb-migrations against the test app (see rlstest), because the
+// earlier version of this file did restate them — as constants with a comment
+// promising they were copied verbatim — and then a later migration dropped the
+// guest-exclusion clause from the shipped createRule while this suite went on
+// passing against its own copy of the old rule. A test that declares the thing
+// it is testing cannot fail for the reason it was written.
 
 type driveGuestEnv struct {
 	app         *tests.TestApp
@@ -66,39 +65,12 @@ func setupDriveGuestApp(t *testing.T) *driveGuestEnv {
 		t.Fatalf("add users.role: %v", err)
 	}
 
-	items := core.NewBaseCollection("drive_items")
-	items.Id = "pbc_drive_items_01"
-	items.Fields.Add(&core.TextField{Name: "name", Required: true})
-	items.Fields.Add(&core.BoolField{Name: "is_folder"})
-	items.Fields.Add(&core.RelationField{
-		Name: "created_by", Required: true, CollectionId: users.Id, MaxSelect: 1,
-	})
-	if err := app.Save(items); err != nil {
-		t.Fatal(err)
-	}
-
-	// drive_shares backs the `drive_shares_via_item` back-relation the view
-	// rule walks; without the collection the rule can't even be parsed.
-	shares := core.NewBaseCollection("drive_shares")
-	shares.Id = "pbc_drive_shares_01"
-	shares.Fields.Add(&core.RelationField{
-		Name: "item", Required: true, CollectionId: items.Id,
-		CascadeDelete: true, MaxSelect: 1,
-	})
-	shares.Fields.Add(&core.RelationField{
-		Name: "user", Required: true, CollectionId: users.Id,
-		CascadeDelete: true, MaxSelect: 1,
-	})
-	shares.Fields.Add(&core.SelectField{
-		Name: "role", Required: true, MaxSelect: 1,
-		Values: []string{"owner", "editor", "commentor", "viewer"},
-	})
-	shares.Fields.Add(&core.RelationField{
-		Name: "created_by", Required: true, CollectionId: users.Id, MaxSelect: 1,
-	})
-	shares.AddIndex("idx_drv_shares_unique", true, "item, user", "")
-	if err := app.Save(shares); err != nil {
-		t.Fatal(err)
+	// drive_items, drive_shares and the rest come from drive's own migrations,
+	// applied by applyDriveRules — collection shape and access rules alike, so
+	// neither can drift from what ships.
+	users.Fields.Add(&core.BoolField{Name: "disabled"})
+	if err := app.Save(users); err != nil {
+		t.Fatalf("add users.disabled: %v", err)
 	}
 
 	member := driveGuestUser(t, app, "member@test.local", "member")
@@ -137,36 +109,44 @@ func driveGuestUser(t *testing.T, app core.App, email, role string) *core.Record
 	return r
 }
 
-func setDriveItemsCreateRule(t *testing.T, app core.App) {
+// applyDriveRules stamps drive's SHIPPED rules onto the test collections by
+// running the package's own pb-migrations. Every rule assertion below is
+// therefore made against what the product ships.
+func applyDriveRules(t *testing.T, app core.App) {
 	t.Helper()
-	col, err := app.FindCollectionByNameOrId("drive_items")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rule := driveItemsGuestCreateRule
-	col.CreateRule = &rule
-	if err := app.Save(col); err != nil {
-		t.Fatalf("set drive_items createRule: %v", err)
-	}
+	rlstest.Apply(t, app, rlstest.MigrationsDir(t, "../pb-migrations"))
 }
 
-func setDriveItemsViewRule(t *testing.T, app core.App) {
-	t.Helper()
-	col, err := app.FindCollectionByNameOrId("drive_items")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rule := driveItemsViewRule
-	col.ListRule = &rule
-	col.ViewRule = &rule
-	if err := app.Save(col); err != nil {
-		t.Fatalf("set drive_items view rules: %v", err)
+// The clauses each guard is expected to contribute. Asserting on these names
+// what the deny-tests assert on behaviour: when a migration restates a rule
+// and silently drops a predicate, this says which one went missing and prints
+// the rule as it now ships.
+func TestDriveShippedRules_CarryTheirGuards(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	applyDriveRules(t, env.app)
+
+	for _, c := range []struct{ collection, kind, clause, why string }{
+		{"drive_items", "create", `@request.auth.role != "guest"`,
+			"1781300000 excluded share-link guests from creating files"},
+		{"drive_items", "create", `@request.auth.disabled != true`,
+			"1782000000 excluded suspended users"},
+		{"drive_items", "view", `@request.auth.disabled != true`,
+			"1782000000 excluded suspended users from reading shared content"},
+		{"drive_item_versions", "view", `@request.auth.disabled != true`,
+			"versions carry restorable file content and gate blob access"},
+		{"drive_share_links", "view", `@request.auth.disabled != true`,
+			"a suspended user must not resolve share links"},
+	} {
+		t.Run(c.collection+"."+c.kind+" "+c.clause, func(t *testing.T) {
+			rlstest.RequireRuleContains(t, env.app, c.collection, c.kind, c.clause)
+			t.Logf("guard origin: %s", c.why)
+		})
 	}
 }
 
 func TestDriveGuestRLS_GuestCannotCreateItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	setDriveItemsCreateRule(t, env.app)
+	applyDriveRules(t, env.app)
 
 	scenario := &tests.ApiScenario{
 		Method: http.MethodPost,
@@ -184,7 +164,7 @@ func TestDriveGuestRLS_GuestCannotCreateItem(t *testing.T) {
 
 func TestDriveGuestRLS_MemberCanCreateItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	setDriveItemsCreateRule(t, env.app)
+	applyDriveRules(t, env.app)
 
 	scenario := &tests.ApiScenario{
 		Method: http.MethodPost,
@@ -206,7 +186,7 @@ func TestDriveGuestRLS_MemberCanCreateItem(t *testing.T) {
 // could be over-applied and silently break the share-link flow.
 func TestDriveGuestRLS_GuestCanViewSharedItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	setDriveItemsViewRule(t, env.app)
+	applyDriveRules(t, env.app)
 
 	// The member owns an item and shares it with the guest.
 	itemsCol, err := env.app.FindCollectionByNameOrId("drive_items")
@@ -245,12 +225,118 @@ func TestDriveGuestRLS_GuestCanViewSharedItem(t *testing.T) {
 	scenario.Test(t)
 }
 
+// shareItemWith creates an item owned by the member and shares it with the
+// given user at the given role, returning the item.
+func shareItemWith(t *testing.T, env *driveGuestEnv, name string, user *core.Record, role string) *core.Record {
+	t.Helper()
+	itemsCol, err := env.app.FindCollectionByNameOrId("drive_items")
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := core.NewRecord(itemsCol)
+	item.Set("name", name)
+	item.Set("created_by", env.member.Id)
+	if err := env.app.Save(item); err != nil {
+		t.Fatal(err)
+	}
+
+	sharesCol, err := env.app.FindCollectionByNameOrId("drive_shares")
+	if err != nil {
+		t.Fatal(err)
+	}
+	share := core.NewRecord(sharesCol)
+	share.Set("item", item.Id)
+	share.Set("user", user.Id)
+	share.Set("role", role)
+	share.Set("created_by", env.member.Id)
+	if err := env.app.Save(share); err != nil {
+		t.Fatal(err)
+	}
+	return item
+}
+
+// A commentor reads and comments; it never edits. The update rule used to say
+// `role ?!= "viewer"` — "any role that is not viewer" — which admitted
+// commentor the day the role was added to the schema, letting them rename or
+// replace a shared item over REST PATCH (and, through the same rule, over
+// WebDAV PUT-overwrite and MOVE).
+func TestDriveCommentorRLS_CannotUpdateSharedItem(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	applyDriveRules(t, env.app)
+	item := shareItemWith(t, env, "commentable.txt", env.guest, "commentor")
+
+	scenario := &tests.ApiScenario{
+		Method:                http.MethodPatch,
+		URL:                   "/api/collections/drive_items/records/" + item.Id,
+		Body:                  strings.NewReader(`{"name":"renamed-by-commentor.txt"}`),
+		Headers:               map[string]string{"Authorization": env.guestToken, "Content-Type": "application/json"},
+		ExpectedStatus:        http.StatusNotFound,
+		ExpectedContent:       []string{`"message"`},
+		TestAppFactory:        func(_ testing.TB) *tests.TestApp { return env.app },
+		DisableTestAppCleanup: true,
+		AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+			fresh, err := app.FindRecordById("drive_items", item.Id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fresh.GetString("name") != "commentable.txt" {
+				t.Fatalf("a commentor renamed the item to %q", fresh.GetString("name"))
+			}
+		},
+	}
+	scenario.Test(t)
+}
+
+// The positive control for the rule above: an editor still can. Naming the
+// write-capable roles must not have narrowed the grant to owners.
+func TestDriveEditorRLS_CanUpdateSharedItem(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	applyDriveRules(t, env.app)
+	editor := driveGuestUser(t, env.app, "editor@test.local", "member")
+	editorToken, err := editor.NewAuthToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := shareItemWith(t, env, "editable.txt", editor, "editor")
+
+	scenario := &tests.ApiScenario{
+		Method:                http.MethodPatch,
+		URL:                   "/api/collections/drive_items/records/" + item.Id,
+		Body:                  strings.NewReader(`{"name":"renamed-by-editor.txt"}`),
+		Headers:               map[string]string{"Authorization": editorToken, "Content-Type": "application/json"},
+		ExpectedStatus:        http.StatusOK,
+		ExpectedContent:       []string{`"name":"renamed-by-editor.txt"`},
+		TestAppFactory:        func(_ testing.TB) *tests.TestApp { return env.app },
+		DisableTestAppCleanup: true,
+	}
+	scenario.Test(t)
+}
+
+// And the read half: a commentor must still reach the document, or they cannot
+// do the one thing the role exists for.
+func TestDriveCommentorRLS_CanViewSharedItem(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	applyDriveRules(t, env.app)
+	item := shareItemWith(t, env, "readable.txt", env.guest, "commentor")
+
+	scenario := &tests.ApiScenario{
+		Method:                http.MethodGet,
+		URL:                   "/api/collections/drive_items/records/" + item.Id,
+		Headers:               map[string]string{"Authorization": env.guestToken},
+		ExpectedStatus:        http.StatusOK,
+		ExpectedContent:       []string{`"name":"readable.txt"`},
+		TestAppFactory:        func(_ testing.TB) *tests.TestApp { return env.app },
+		DisableTestAppCleanup: true,
+	}
+	scenario.Test(t)
+}
+
 // TestDriveGuestRLS_GuestCannotViewUnsharedItem is the deny half of the view
 // rule: holding a guest role (or any role) grants nothing on its own — only
 // creator-ship or an explicit drive_shares row does.
 func TestDriveGuestRLS_GuestCannotViewUnsharedItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	setDriveItemsViewRule(t, env.app)
+	applyDriveRules(t, env.app)
 
 	itemsCol, err := env.app.FindCollectionByNameOrId("drive_items")
 	if err != nil {

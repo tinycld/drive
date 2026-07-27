@@ -18,38 +18,14 @@ import (
 // looks perfectly correct in every Go unit test, which is exactly why this
 // file exists.
 
-// driveItemsEnabledViewRule mirrors the canView rule shipped by
-// 1782000000_exclude_disabled_from_drive.js, verbatim, so a migration edit that
-// isn't reflected here fails an assertion rather than quietly validating a
-// string only this file believes in.
-const driveItemsEnabledViewRule = `@request.auth.disabled != true && (created_by ?= @request.auth.id || drive_shares_via_item.user ?= @request.auth.id)`
-
-// setDriveItemsEnabledViewRule installs the rule under test and adds the
-// `disabled` field the rule reads (NewTestApp's stock users collection has no
-// such column).
+// The rule under test is not restated here — it is applied by running drive's
+// real pb-migrations (see applyDriveRules in guest_rls_test.go). The sibling
+// suite learned why the hard way: it kept its own copy of drive_items'
+// createRule, a later migration dropped a clause from the shipped one, and the
+// test that existed to catch that went on passing against its copy.
 func setDriveItemsEnabledViewRule(t *testing.T, app core.App) {
 	t.Helper()
-	users, err := app.FindCollectionByNameOrId("users")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if users.Fields.GetByName("disabled") == nil {
-		users.Fields.Add(&core.BoolField{Name: "disabled"})
-		if err := app.Save(users); err != nil {
-			t.Fatalf("add users.disabled: %v", err)
-		}
-	}
-
-	col, err := app.FindCollectionByNameOrId("drive_items")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rule := driveItemsEnabledViewRule
-	col.ListRule = &rule
-	col.ViewRule = &rule
-	if err := app.Save(col); err != nil {
-		t.Fatalf("set drive_items view rules: %v", err)
-	}
+	applyDriveRules(t, app)
 }
 
 // seedSharedItem creates an item owned by the member and shared with the
