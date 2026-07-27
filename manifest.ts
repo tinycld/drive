@@ -38,7 +38,7 @@ const manifest = {
         { collection: 'drive_item_versions', sizeField: 'size', ownerField: 'created_by' },
     ],
     webdav: {
-        prefix: '/drive',
+        prefix: '/dav/drive',
         collection: 'drive_items',
         fields: {
             name: 'name',

@@ -264,7 +264,7 @@ var quotaSources = []quota.Source{
 // contributes the field map plus the few decisions a field map can't express.
 var webDAVSource = webdav.Source{
 	Slug:       "drive",
-	Prefix:     "/drive",
+	Prefix:     "/dav/drive",
 	Collection: "drive_items",
 	Fields: webdav.FieldMap{
 		Name:     "name",

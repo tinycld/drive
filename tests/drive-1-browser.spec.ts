@@ -286,3 +286,35 @@ test.describe('Drive — Mobile', () => {
         expect(page.url()).toContain('/drive')
     })
 })
+
+// The route collision, which only a HARD navigation exposes.
+//
+// Every other spec in this suite reaches drive by SPA click, and a client-side
+// route change never consults the server — so they all passed while a reload,
+// a pasted link or a bookmark to /drive was landing on the WebDAV handler and
+// producing a browser Basic-Auth prompt instead of the app. WebDAV was mounted
+// at bare /drive, a literal server route beats Expo's catch-all, and the
+// single-org migration is what created the overlap by dropping the
+// /a/<orgSlug> segment the in-app route used to carry.
+//
+// page.goto is the point here, not an oversight: the discipline against it
+// covers IN-APP navigation, and this test exists precisely to exercise the
+// server's routing decision.
+test.describe('Drive — hard navigation', () => {
+    for (const path of ['/drive', '/drive/recent']) {
+        test(`a hard load of ${path} lands in the app, not WebDAV`, async ({ page }) => {
+            await login(page)
+
+            const response = await page.goto(path)
+
+            // A WebDAV mount answers the browser with a Basic-Auth challenge.
+            expect(response?.status()).not.toBe(401)
+            expect(response?.headers()['www-authenticate']).toBeUndefined()
+
+            // And the SPA actually mounted, rather than the browser rendering
+            // a bare XML multistatus body.
+            await expect(page.getByTestId('package-sidebar-mounted')).toBeVisible()
+            expect(page.url()).toContain(path)
+        })
+    }
+})
