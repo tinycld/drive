@@ -12,17 +12,17 @@ import { useAuth } from '@tinycld/core/lib/auth'
 import { useShareEditorMount } from '@tinycld/core/lib/editor/use-share-editor-mount'
 import { useShareLinkVisitorRole } from '@tinycld/core/lib/editor/use-share-visitor-role'
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
-import { OrgSlugProvider } from '@tinycld/core/lib/use-org-slug'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import { Suspense, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
+import { decideShareRoute, type ShareRoutingData } from './share-routing'
 
 const shareLinkUrl = (token: string) => `${PB_SERVER_ADDR}/api/drive/share-link/${token}`
 
 function useShareLinkRouting(token: string) {
     const auth = useAuth({ throwIfAnon: false })
 
-    const query = useQuery<{ org_slug: string; item_id: string }>({
+    const query = useQuery<ShareRoutingData>({
         queryKey: ['share-link-routing', token],
         queryFn: async () => {
             const resp = await fetch(shareLinkUrl(token))
@@ -53,27 +53,18 @@ export default function ShareTokenPage() {
     // workspace).
     const visitor = useShareLinkVisitorRole(token)
 
-    if (auth.isInitializing || visitor.role === 'loading') {
+    const route = decideShareRoute({
+        isInitializing: auth.isInitializing,
+        isLoggedIn: auth.isLoggedIn,
+        role: visitor.role,
+        data,
+    })
+
+    if (route.kind === 'wait') {
         return <FullScreenSpinner />
     }
-
-    // Logged-in MEMBERS with org access bypass the public preview and land
-    // directly on the drive workspace with the file's preview pane open.
-    // Guests (provisioned via OTP for THIS share link) must STAY on the
-    // share route — they have no broader org access and the workspace
-    // would 403 them everywhere else.
-    if (auth.isLoggedIn && visitor.role === 'member' && data?.org_slug && data?.item_id) {
-        return <Redirect href={`/a/${data.org_slug}/drive?file=${data.item_id}&preview=1`} />
-    }
-
-    if (auth.isLoggedIn && visitor.role === 'unknown' && data?.org_slug && data?.item_id) {
-        // No drive_shares row but they're authed — treat as a member who
-        // got here some other way and send them to the workspace.
-        return <Redirect href={`/a/${data.org_slug}/drive?file=${data.item_id}&preview=1`} />
-    }
-
-    if (auth.isLoggedIn && visitor.role === 'member' && !data) {
-        return <FullScreenSpinner />
+    if (route.kind === 'redirect') {
+        return <Redirect href={route.href} />
     }
 
     // Anonymous OR guest visitor: mint a share session and render the
@@ -119,19 +110,11 @@ function ShareView({ token }: { token: string }) {
     // Calc/text (and any doc type with a registered share editor or public
     // preview) → mount the real editor for the visitor.
     //
-    // Wrap in OrgSlugProvider so a signed-in GUEST's downstream hooks
-    // (useOrgInfo → useCurrentRole → useOrgLiveQuery) resolve the share
-    // link's org and find the guest's own user_org — making in-editor
-    // comments queryable for them. For anon visitors the org-scoped
-    // queries safely return empty (useAuth's anon stub has user.id='', so
-    // useCurrentRole's user_org query matches nothing → useOrgLiveQuery's
-    // !userId guard short-circuits).
+    // No OrgSlugProvider wrapper: single-org has no slug to provide, the
+    // provider is a no-op shim that ignores the prop, and the session no
+    // longer carries one.
     if (getShareEditor(session.mimeType)) {
-        return (
-            <OrgSlugProvider slug={session.orgSlug}>
-                <ShareEditorView token={token} session={session} />
-            </OrgSlugProvider>
-        )
+        return <ShareEditorView token={token} session={session} />
     }
 
     // Non-document files (images/pdf/etc): generic download layout.
