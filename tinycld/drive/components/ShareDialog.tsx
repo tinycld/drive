@@ -5,7 +5,7 @@ import {
     type ContactSuggestion,
     ContactSuggestionsProvider,
 } from '@tinycld/core/lib/contacts/use-contact-suggestions'
-import { captureException } from '@tinycld/core/lib/errors'
+import { captureException, errorToString } from '@tinycld/core/lib/errors'
 import { usePackages } from '@tinycld/core/lib/packages/use-packages'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
@@ -93,6 +93,7 @@ export function ShareDialog({
     const [pending, setPending] = useState<PendingShare[]>([])
     const [linkCopied, setLinkCopied] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [saveError, setSaveError] = useState<string | null>(null)
     const [isCreatingPublicLink, setIsCreatingPublicLink] = useState(false)
     const queryClient = useQueryClient()
 
@@ -178,14 +179,24 @@ export function ShareDialog({
                         })),
                     },
                 })
-            } catch {
-                // Shares may have partially succeeded -- close anyway
-            } finally {
+            } catch (err) {
+                // Closing here would report a success the user didn't get —
+                // people they believe they shared with would silently have no
+                // access. Keep the dialog open with the pending list intact
+                // so Done can be retried, and say what happened.
+                captureException('drive.share.save', err, {
+                    itemId,
+                    recipients: pending.length,
+                })
+                setSaveError(errorToString(err))
                 setIsSaving(false)
+                return
             }
+            setIsSaving(false)
         }
         setPending([])
         setSearch('')
+        setSaveError(null)
         onClose()
     }
 
@@ -456,6 +467,8 @@ export function ShareDialog({
                     </View>
                 </ScrollView>
 
+                <SaveErrorBanner message={saveError} />
+
                 <View className="flex-row items-center justify-between px-6 py-4 border-t border-border">
                     <Pressable
                         className="flex-row items-center gap-2 px-4 rounded-full border border-border"
@@ -517,6 +530,15 @@ function buildMemberSuggestions(
             email: m.email,
             source: 'member' as const,
         }))
+}
+
+function SaveErrorBanner({ message }: { message: string | null }) {
+    if (!message) return null
+    return (
+        <View className="mx-6 mb-2 rounded-lg p-2 bg-danger-soft">
+            <Text className="text-xs text-danger">Could not share: {message}</Text>
+        </View>
+    )
 }
 
 function buildContactSuggestions(
