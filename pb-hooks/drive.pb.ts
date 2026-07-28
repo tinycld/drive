@@ -10,7 +10,7 @@
 //
 // ── WebDAV interception ──────────────────────────────────────────────────────
 //
-// webdavHook({...}) registers handlers at four points in the WebDAV request
+// webdavHook({...}) registers handlers at five points in the WebDAV request
 // path. Each is OPT-IN: a point nobody registers costs a single atomic load and
 // never touches the JS runtime, so a deployment that customizes nothing pays
 // nothing. Register one and only that point moves onto the slow path.

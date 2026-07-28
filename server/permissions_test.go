@@ -13,8 +13,9 @@ import (
 // migration and the shape core expects (field names, relation targets)
 // that a synthetic fixture cannot.
 
-// TestCheckReadPermission encodes the drive_items view rule (migration
-// 1716200001) that every Go path bypassing PocketBase's rule engine must
+// TestCheckReadPermission encodes the drive_items view rule (currently
+// restated by migration 1782100000) that every Go path bypassing
+// PocketBase's rule engine must
 // honor: the item's creator and drive_shares holders may read, any other
 // authenticated user may NOT. The deny case is the regression guard for
 // the WebDAV cross-user read hole — merely being a member of the

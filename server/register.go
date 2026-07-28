@@ -300,7 +300,8 @@ var webDAVSource = webdav.Source{
 		Updated:  "updated",
 	},
 	// No permission or quota callbacks: core evaluates drive_items' own
-	// List/View/Update/Delete rules (1716200001_creator_access_rules.js) and
+	// List/View/Update/Delete rules (shipped in the migrations; the current
+	// restatement is 1782100000_restore_guest_clause_and_settle_commentor.js) and
 	// core/quota enforces the ceilings as record hooks, so WebDAV gets both
 	// from the same definitions the REST API and the web UI use.
 	Hooks: webdav.Hooks{
