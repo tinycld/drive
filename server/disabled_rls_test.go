@@ -99,8 +99,8 @@ func TestDriveDisabledRLS_EnabledShareeCanView(t *testing.T) {
 
 // TestDriveDisabledRLS_DisabledShareeDenied is the regression guard: the share
 // row is live and the token is valid, so only the disabled clause can be doing
-// the denying. Neuter that clause in the rule constant above and this test
-// must go red — that is what makes it a guard rather than decoration.
+// the denying. Neuter that clause in the shipped migration and this test must
+// go red — that is what makes it a guard rather than decoration.
 func TestDriveDisabledRLS_DisabledShareeDenied(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	setDriveItemsEnabledViewRule(t, env.app)
