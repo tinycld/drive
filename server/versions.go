@@ -11,7 +11,7 @@ import (
 // Skips silently if the item has no file attached (returns nil, nil).
 // Version number assignment is done inside a transaction to prevent races.
 // Returns the created version record on success so callers can fire post-snapshot hooks.
-func snapshotCurrentFile(app core.App, itemRecord *core.Record, userOrgID, source, label string) (*core.Record, error) {
+func snapshotCurrentFile(app core.App, itemRecord *core.Record, userID, source, label string) (*core.Record, error) {
 	filename := itemRecord.GetString("file")
 	if filename == "" {
 		return nil, nil
@@ -59,7 +59,7 @@ func snapshotCurrentFile(app core.App, itemRecord *core.Record, userOrgID, sourc
 		record.Set("mime_type", itemRecord.GetString("mime_type"))
 		record.Set("source", source)
 		record.Set("label", label)
-		record.Set("created_by", userOrgID)
+		record.Set("created_by", userID)
 
 		if err := txApp.Save(record); err != nil {
 			return err
