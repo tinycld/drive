@@ -18,7 +18,7 @@ import (
 	"tinycld.org/core/notify"
 	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/quota"
-	"tinycld.org/core/userorg"
+	"tinycld.org/core/offboard"
 	"tinycld.org/core/versionhooks"
 	"tinycld.org/core/webdav"
 )
@@ -58,13 +58,13 @@ func registerShared(app *pocketbase.PocketBase) {
 	// Reassignable authorship FKs surfaced to the account-offboarding
 	// transaction. All point at users with cascadeDelete:false, so without
 	// reassignment an account with any drive content can't be deleted.
-	for _, ref := range []userorg.ReassignableRef{
+	for _, ref := range []offboard.ReassignableRef{
 		{Collection: "drive_items", Field: "created_by"},
 		{Collection: "drive_shares", Field: "created_by"},
 		{Collection: "drive_item_versions", Field: "created_by"},
 		{Collection: "drive_share_links", Field: "created_by"},
 	} {
-		userorg.RegisterReassignable(ref)
+		offboard.RegisterReassignable(ref)
 	}
 
 	// Audit logging for drive collections. Single-org: audit rows carry no org,

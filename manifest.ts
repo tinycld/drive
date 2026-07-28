@@ -54,7 +54,7 @@ const manifest = {
         },
     },
     repository: { url: 'https://github.com/tinycld/drive' },
-    peerVersions: { '@tinycld/core': '>=0.4.0 <0.5.0' },
+    peerVersions: { '@tinycld/core': '>=0.0.4 <0.1.0' },
 }
 
 export default manifest
