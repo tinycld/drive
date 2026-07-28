@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decideShareRoute, workspaceHref } from '~/tinycld/drive/public-screens/share/share-routing'
+import { decideShareRoute, workspaceHref } from '~/tinycld/drive/lib/share-routing'
 
 // A signed-in member opening a share link to a file they already have access
 // to should land in the workspace, not on the anonymous public preview. That

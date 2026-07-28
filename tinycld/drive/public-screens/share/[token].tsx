@@ -15,7 +15,7 @@ import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import { Suspense, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
-import { decideShareRoute, type ShareRoutingData } from './share-routing'
+import { decideShareRoute, type ShareRoutingData } from '../../lib/share-routing'
 
 const shareLinkUrl = (token: string) => `${PB_SERVER_ADDR}/api/drive/share-link/${token}`
 
