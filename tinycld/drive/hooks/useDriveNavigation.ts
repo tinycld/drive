@@ -25,27 +25,29 @@ export function parseDrivePath(pathname: string): { section: SidebarSection; fol
 }
 
 interface UseDriveNavigationParams {
-    orgSlug: string
     clearSearch: () => void
     clearSelection: () => void
 }
 
-export function useDriveNavigation({
-    orgSlug,
-    clearSearch,
-    clearSelection,
-}: UseDriveNavigationParams) {
-    const router = useRouter()
-    const driveBase = `/a/${orgSlug}/drive`
+/**
+ * Bare `/drive`, not `/a/<orgSlug>/drive`: routes lost their org segment in the
+ * single-org migration, and the router now gives each org its own host. An
+ * org-prefixed href resolves to +not-found — see workspaceHref in
+ * lib/share-routing.ts, which carries the same note.
+ */
+const driveBase = '/drive'
 
-    const buildDriveHref = (opts?: { section?: SidebarSection; folderId?: string }) => {
-        if (opts?.folderId) return `${driveBase}/folder/${opts.folderId}` as Href
-        if (opts?.section && opts.section !== 'my-drive') {
-            const slug = opts.section === 'shared-with-me' ? 'shared' : opts.section
-            return `${driveBase}/${slug}` as Href
-        }
-        return driveBase as Href
+export function buildDriveHref(opts?: { section?: SidebarSection; folderId?: string }): Href {
+    if (opts?.folderId) return `${driveBase}/folder/${opts.folderId}` as Href
+    if (opts?.section && opts.section !== 'my-drive') {
+        const slug = opts.section === 'shared-with-me' ? 'shared' : opts.section
+        return `${driveBase}/${slug}` as Href
     }
+    return driveBase as Href
+}
+
+export function useDriveNavigation({ clearSearch, clearSelection }: UseDriveNavigationParams) {
+    const router = useRouter()
 
     // Preview state lives in the Zustand store, not the URL. Earlier this
     // used router.push to set ?file=X&preview=1, which made Expo Router's
