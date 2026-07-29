@@ -36,9 +36,32 @@ jobs:
       - uses: actions/checkout@v5
         with:
           path: ws/${{ env.PACKAGE }}
+      - name: Resolve sibling ref
+        id: sibling
+        run: |
+          # Coordinated cross-repo work (e.g. the single-org migration) lives on
+          # the SAME branch name in every repo. Assembling against tinycld's
+          # default branch then typechecks this PR against a core that predates
+          # it — the branch's own APIs are simply absent, so every consumer
+          # fails with errors that look like the PR's fault.
+          #
+          # Prefer a tinycld branch matching this PR's HEAD; fall back to the
+          # default when there is none (the ordinary single-repo PR).
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          if [ -n "$BRANCH" ] && \
+             git ls-remote --exit-code --heads https://github.com/tinycld/tinycld "$BRANCH" >/dev/null 2>&1; then
+            echo "ref=@$BRANCH" >> "$GITHUB_OUTPUT"
+            echo "Assembling against tinycld@$BRANCH"
+          else
+            echo "ref=" >> "$GITHUB_OUTPUT"
+            echo "No tinycld branch named '$BRANCH'; assembling against its default branch"
+          fi
       - name: Assemble workspace (app + core)
         working-directory: ws
-        run: TINYCLD_REPO_BASE=https://github.com/tinycld npx @tinycld/bootstrap@latest --assemble-only
+        run: |
+          TINYCLD_REPO_BASE=https://github.com/tinycld \
+            npx @tinycld/bootstrap@latest --assemble-only \
+            --with "tinycld${{ steps.sibling.outputs.ref }}"
       - uses: actions/setup-node@v5
         with:
           node-version-file: ws/.node-version
@@ -63,9 +86,32 @@ jobs:
       - uses: actions/checkout@v5
         with:
           path: ws/${{ env.PACKAGE }}
+      - name: Resolve sibling ref
+        id: sibling
+        run: |
+          # Coordinated cross-repo work (e.g. the single-org migration) lives on
+          # the SAME branch name in every repo. Assembling against tinycld's
+          # default branch then typechecks this PR against a core that predates
+          # it — the branch's own APIs are simply absent, so every consumer
+          # fails with errors that look like the PR's fault.
+          #
+          # Prefer a tinycld branch matching this PR's HEAD; fall back to the
+          # default when there is none (the ordinary single-repo PR).
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          if [ -n "$BRANCH" ] && \
+             git ls-remote --exit-code --heads https://github.com/tinycld/tinycld "$BRANCH" >/dev/null 2>&1; then
+            echo "ref=@$BRANCH" >> "$GITHUB_OUTPUT"
+            echo "Assembling against tinycld@$BRANCH"
+          else
+            echo "ref=" >> "$GITHUB_OUTPUT"
+            echo "No tinycld branch named '$BRANCH'; assembling against its default branch"
+          fi
       - name: Assemble workspace (app + core)
         working-directory: ws
-        run: TINYCLD_REPO_BASE=https://github.com/tinycld npx @tinycld/bootstrap@latest --assemble-only
+        run: |
+          TINYCLD_REPO_BASE=https://github.com/tinycld \
+            npx @tinycld/bootstrap@latest --assemble-only \
+            --with "tinycld${{ steps.sibling.outputs.ref }}"
       - uses: actions/setup-node@v5
         with:
           node-version-file: ws/.node-version
