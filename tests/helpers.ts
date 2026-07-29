@@ -4,6 +4,12 @@ import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e-helpers'
 
+// Mirrors bucketFor() in core/components/workspace/useBreakpoint.ts: below this
+// width the app renders MobileLayout and drive rows open on a single tap. Keep
+// in sync — a spec that declares a viewport either side of it gets a different
+// open gesture.
+const MOBILE_BREAKPOINT = 768
+
 // Drive uses FrozenSlideStack inside its package layout, so navigating
 // from /drive → /drive/folder/<id> → another folder keeps every prior
 // folder screen mounted in the DOM. A bare `getByText('Projects')` will
@@ -24,7 +30,16 @@ export async function openDriveItem(page: Page, name: string | RegExp) {
     await dismissErrorOverlay(page)
     const item = driveItem(page, name)
     await expect(item).toBeVisible()
-    await item.click()
+    // Desktop opens on double-click, because a single click SELECTS (folders
+    // and files alike) — that's what makes selection-scoped toolbar actions
+    // (Rename, Move, Share) reachable for a folder without a modifier key.
+    //
+    // Touch keeps tap-to-open, the platform convention: there is no second
+    // "click" on a phone, and selection there is a long-press. Mirror the app's
+    // own ctx.isMobile branch by keying off the viewport the spec declares.
+    const width = page.viewportSize()?.width ?? 1280
+    if (width < MOBILE_BREAKPOINT) await item.click()
+    else await item.dblclick()
 }
 
 // Surfaces a drive row by NAME via the search box and returns its (visible)
@@ -50,7 +65,10 @@ export async function revealDriveRow(page: Page, name: string): Promise<Locator>
 // navigated-into folder shows its own listing rather than the filtered results.
 export async function openDriveItemViaSearch(page: Page, name: string) {
     const row = await revealDriveRow(page, name)
-    await row.click()
+    // Double-click to open: a single click SELECTS (folders and files alike),
+    // which is what makes selection-scoped toolbar actions — Rename, Move,
+    // Share — reachable for a folder without a modifier key.
+    await row.dblclick()
     await page.getByPlaceholder('Search in Files').clear()
 }
 
