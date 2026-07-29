@@ -23,11 +23,8 @@ import (
 func TestCheckReadPermission(t *testing.T) {
 	env := setupOTPApp(t, "viewer")
 
-	grantee := otpTestUser(t, env.app, "grantee@test.local")
-	otpTestSetRole(t, env.app, grantee, "member")
-
-	other := otpTestUser(t, env.app, "other@test.local")
-	otpTestSetRole(t, env.app, other, "member")
+	grantee := otpTestUser(t, env.app, "grantee@test.local", "member")
+	other := otpTestUser(t, env.app, "other@test.local", "member")
 
 	sharesCol, err := env.app.FindCollectionByNameOrId("drive_shares")
 	if err != nil {
@@ -72,8 +69,7 @@ func TestCheckWriteAndDeletePermission(t *testing.T) {
 	}
 	grant := func(email, role string) string {
 		t.Helper()
-		u := otpTestUser(t, env.app, email)
-		otpTestSetRole(t, env.app, u, "member")
+		u := otpTestUser(t, env.app, email, "member")
 		share := core.NewRecord(sharesCol)
 		share.Set("item", env.item.Id)
 		share.Set("user", u.Id)
@@ -88,7 +84,7 @@ func TestCheckWriteAndDeletePermission(t *testing.T) {
 	viewerID := grant("viewer@test.local", "viewer")
 	editorID := grant("editor@test.local", "editor")
 	ownerID := grant("shareowner@test.local", "owner")
-	unsharedID := otpTestUser(t, env.app, "unshared@test.local").Id
+	unsharedID := otpTestUser(t, env.app, "unshared@test.local", "member").Id
 
 	cases := []struct {
 		label              string

@@ -88,12 +88,17 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 		t.Fatalf("users collection: %v", err)
 	}
 
-	// Single-org: role lives on the users auth record. The PB test
-	// fixture's stock users collection has no `role`, so add the same
-	// non-required select the prod schema ships — ensureGuestRole keys
-	// off "" meaning "no role yet".
+	// Single-org: role lives on the users auth record. The PB test fixture's
+	// stock users collection has no `role`, so add the same select the prod
+	// schema ships.
+	//
+	// Required, matching migration 1940000000. It was previously registered
+	// non-required "because ensureGuestRole keys off empty" — but that made
+	// the fixture weaker than production and hid a real failure: guest
+	// creation never set `role`, so every share-link sign-in failed
+	// validation in prod while this suite stayed green.
 	users.Fields.Add(&core.SelectField{
-		Name: "role", Required: false, MaxSelect: 1,
+		Name: "role", Required: true, MaxSelect: 1,
 		Values: []string{"owner", "admin", "member", "guest"},
 	})
 	if err := app.Save(users); err != nil {
@@ -156,8 +161,7 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 
 	// Owner user. Single-org: the role select on the users row IS the
 	// membership.
-	owner := otpTestUser(t, app, "owner@test.local")
-	otpTestSetRole(t, app, owner, "owner")
+	owner := otpTestUser(t, app, "owner@test.local", "owner")
 
 	// The shared item.
 	item := core.NewRecord(items)
@@ -216,12 +220,16 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 	return env
 }
 
-func otpTestUser(t *testing.T, app core.App, email string) *core.Record {
+// otpTestUser creates a users row. `role` is required by migration
+// 1940000000, so every caller must supply one — the same constraint the
+// production create paths are under.
+func otpTestUser(t *testing.T, app core.App, email string, role string) *core.Record {
 	t.Helper()
 	col, _ := app.FindCollectionByNameOrId("users")
 	r := core.NewRecord(col)
 	r.SetEmail(email)
 	r.Set("name", strings.Split(email, "@")[0])
+	r.Set("role", role)
 	r.SetVerified(true)
 	r.SetPassword("Password123!")
 	if err := app.Save(r); err != nil {
@@ -555,8 +563,7 @@ func TestShareOTPVerify_PreservesExistingMemberRole(t *testing.T) {
 	env := setupOTPApp(t, "commentor")
 	tok := env.shareLink.GetString("token")
 
-	existing := otpTestUser(t, env.app, "alreadyhere@example.com")
-	otpTestSetRole(t, env.app, existing, "admin")
+	existing := otpTestUser(t, env.app, "alreadyhere@example.com", "admin")
 
 	resp, body := env.doRequest(t, http.MethodPost,
 		"/api/drive/share-link/"+tok+"/otp-request",
@@ -623,14 +630,17 @@ func TestShareOTPVerify_WrongCode_Rejected(t *testing.T) {
 		t.Fatalf("expected 400 for wrong code, got %d: %s", resp.StatusCode, body)
 	}
 
-	// No provisioning happened: the otp-request leg creates the users row
-	// (PB OTPs anchor to an auth record) but must leave it role-less and
-	// share-less until a code is actually proven.
+	// No provisioning happened. The otp-request leg necessarily creates the
+	// users row (PB OTPs anchor to an auth record) and that row carries
+	// role=guest because the field is required — so the role can no longer
+	// stand in for "nothing was granted". What must hold is that the account
+	// is granted no ACCESS: role=guest by itself conveys none, and the share
+	// row below is what would.
 	guests, _ := env.app.FindRecordsByFilter("users", "email = {:e}", "", 0, 0,
 		map[string]any{"e": "wrong@example.com"})
 	if len(guests) == 1 {
-		if got := guests[0].GetString("role"); got != "" {
-			t.Fatalf("failed verify granted role %q; want no role", got)
+		if got := guests[0].GetString("role"); got != guestRole {
+			t.Fatalf("failed verify left role %q; a provisional account must be a guest", got)
 		}
 	}
 	if c := countRecords(t, env.app, "drive_shares",

@@ -341,6 +341,13 @@ func findOrCreateGuestUser(app core.App, email string) (*core.Record, error) {
 	rec.Set("emailVisibility", true)
 	rec.Set("name", displayName)
 	rec.Set("username", username)
+	// `role` is required (migration 1940000000), so it must be set here rather
+	// than left to ensureGuestRole further down the flow — the save below
+	// fails validation otherwise and no share-link visitor can ever sign in.
+	// guest is correct for a brand-new account reached through a share link;
+	// ensureGuestRole's job is the different one of never DOWNGRADING an
+	// existing member who happens to share the email.
+	rec.Set("role", guestRole)
 	rec.SetVerified(false)
 	rec.SetPassword(password)
 	if err := app.Save(rec); err != nil {
@@ -392,16 +399,23 @@ func pickAvailableUsername(app core.App, base string) (string, error) {
 	return "", fmt.Errorf("could not find free username for %q", base)
 }
 
+// guestRole is the role a share-link visitor's account carries.
+const guestRole = "guest"
+
 // ensureGuestRole stamps role=guest on a user that has no role yet.
 // Single-org: membership is the users row itself, so there is no junction
 // to find-or-create — but the "never downgrade a real member" rule still
 // holds: a user who already carries any role keeps it, so an owner/admin/
 // member visiting a share link is never demoted to guest.
+//
+// Accounts this flow creates already carry the role (findOrCreateGuestUser
+// sets it, because the field is required). This remains for the other path:
+// a pre-existing row with an empty role, which predates that requirement.
 func ensureGuestRole(app core.App, user *core.Record) error {
 	if user.GetString("role") != "" {
 		return nil
 	}
-	user.Set("role", "guest")
+	user.Set("role", guestRole)
 	if err := app.Save(user); err != nil {
 		return fmt.Errorf("set guest role: %w", err)
 	}
