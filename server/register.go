@@ -33,9 +33,10 @@ func Register(app *pocketbase.PocketBase) {
 	// materialized manifest `webdav` block (coreserver.RegisterTenant), so
 	// mounting here too would double-bind the routes. The materialized lists
 	// are authoritative for what a tenant serves; this call is the single-org
-	// equivalent. Note the tenant's materialized Source carries no Hooks (a Go
-	// closure cannot cross a process boundary), so the BeforeOverwrite version
-	// snapshot below is single-org-only — history, not safety.
+	// equivalent. The materialized Source carries no Go closures, so
+	// RegisterTenant hands driveWebDAVHooks to core's registry
+	// (webdav.RegisterSourceHooks) and the tenant mount adopts them — both
+	// compositions snapshot versions on overwrite (R7).
 	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
 		app.Logger().Error("drive: WebDAV registration failed", "error", err)
 	}
@@ -51,6 +52,11 @@ func Register(app *pocketbase.PocketBase) {
 // multi-org/docs/FINDING-tenant-composition-gap.md.
 func RegisterTenant(app *pocketbase.PocketBase) {
 	registerShared(app)
+	// The tenant's WebDAV mount comes from the materialized manifest (core
+	// mounts it after RegisterExtras), whose Source carries no Go closures.
+	// Register drive's hooks by slug so that mount adopts them — before this,
+	// a tenant-served overwrite skipped the version snapshot (R7).
+	webdav.RegisterSourceHooks(app, "drive", driveWebDAVHooks)
 }
 
 // registerShared is the single source of truth for what BOTH compositions run.
@@ -304,13 +310,19 @@ var webDAVSource = webdav.Source{
 	// restatement is 1782100000_restore_guest_clause_and_settle_commentor.js) and
 	// core/quota enforces the ceilings as record hooks, so WebDAV gets both
 	// from the same definitions the REST API and the web UI use.
-	Hooks: webdav.Hooks{
-		// Archive the outgoing blob before an overwrite replaces it, so a
-		// WebDAV PUT gets the same version history as a UI upload.
-		BeforeOverwrite: func(app core.App, userID string, record *core.Record) error {
-			_, err := snapshotCurrentFile(app, record, userID, "upload", "")
-			return err
-		},
+	Hooks: driveWebDAVHooks,
+}
+
+// driveWebDAVHooks are drive's Go side effects on the WebDAV tree, shared by
+// both compositions: the host mounts them on webDAVSource above; a tenant's
+// materialized source carries no Go closures, so RegisterTenant registers
+// them by slug for core's mount to adopt (webdav.RegisterSourceHooks, R7).
+var driveWebDAVHooks = webdav.Hooks{
+	// Archive the outgoing blob before an overwrite replaces it, so a
+	// WebDAV PUT gets the same version history as a UI upload.
+	BeforeOverwrite: func(app core.App, userID string, record *core.Record) error {
+		_, err := snapshotCurrentFile(app, record, userID, "upload", "")
+		return err
 	},
 }
 

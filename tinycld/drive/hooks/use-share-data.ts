@@ -25,7 +25,7 @@ export interface ShareData {
     shares: ShareEntry[]
     /** The current user's id, used by ShareDialog to suppress
      *  self-rows and stamp `created_by`. */
-    currentUserOrgId: string
+    currentUserId: string
     /** Delete a row from drive_shares by share id. */
     removeShare: (shareId: string) => void
 }
@@ -95,7 +95,7 @@ export function useShareData(itemId: string): ShareData {
     return {
         orgMembers,
         shares,
-        currentUserOrgId: userId,
+        currentUserId: userId,
         removeShare,
     }
 }

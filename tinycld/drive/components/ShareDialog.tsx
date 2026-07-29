@@ -66,7 +66,7 @@ interface ShareDialogProps {
     itemName: string
     shares: ShareEntry[]
     orgMembers: OrgMember[]
-    currentUserOrgId: string
+    currentUserId: string
     onRemoveShare: (shareId: string) => void
     onClose: () => void
 }
@@ -82,7 +82,7 @@ export function ShareDialog({
     itemName,
     shares,
     orgMembers,
-    currentUserOrgId,
+    currentUserId,
     onRemoveShare,
     onClose,
 }: ShareDialogProps) {
@@ -200,8 +200,8 @@ export function ShareDialog({
         onClose()
     }
 
-    const currentUserShare = shares.find(s => s.userId === currentUserOrgId)
-    const otherShares = shares.filter(s => s.userId !== currentUserOrgId)
+    const currentUserShare = shares.find(s => s.userId === currentUserId)
+    const otherShares = shares.filter(s => s.userId !== currentUserId)
 
     return (
         <Modal isOpen={open} onClose={onClose}>
@@ -260,7 +260,7 @@ export function ShareDialog({
                         orgMembers={orgMembers}
                         alreadySharedIds={alreadySharedIds}
                         pendingEmails={pendingEmails}
-                        currentUserOrgId={currentUserOrgId}
+                        currentUserId={currentUserId}
                         onSelect={handleSelect}
                     />
                 </View>
@@ -512,7 +512,7 @@ function buildMemberSuggestions(
     orgMembers: OrgMember[],
     alreadySharedIds: Set<string>,
     pendingEmails: Set<string>,
-    currentUserOrgId: string
+    currentUserId: string
 ): SuggestionEntry[] {
     const q = search.toLowerCase()
     return orgMembers
@@ -520,7 +520,7 @@ function buildMemberSuggestions(
             m =>
                 !alreadySharedIds.has(m.userId) &&
                 !pendingEmails.has(m.email.toLowerCase()) &&
-                m.userId !== currentUserOrgId &&
+                m.userId !== currentUserId &&
                 (m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
         )
         .map(m => ({
@@ -572,7 +572,7 @@ interface SuggestionsDropdownProps {
     orgMembers: OrgMember[]
     alreadySharedIds: Set<string>
     pendingEmails: Set<string>
-    currentUserOrgId: string
+    currentUserId: string
     onSelect: (s: SuggestionEntry) => void
 }
 
@@ -585,7 +585,7 @@ function SuggestionsDropdown({
     orgMembers,
     alreadySharedIds,
     pendingEmails,
-    currentUserOrgId,
+    currentUserId,
     onSelect,
 }: SuggestionsDropdownProps) {
     // The optional contacts package supplies extra suggestions; without it we
@@ -602,7 +602,7 @@ function SuggestionsDropdown({
         orgMembers,
         alreadySharedIds,
         pendingEmails,
-        currentUserOrgId
+        currentUserId
     )
 
     if (!contactsLinked) {

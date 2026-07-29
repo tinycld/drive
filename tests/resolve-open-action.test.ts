@@ -11,7 +11,7 @@ function item(id: string, opts: Partial<DriveItemView> = {}): DriveItemView {
         mimeType: 'text/plain',
         parentId: '',
         owner: 'me',
-        ownerUserOrgId: 'uo1',
+        ownerUserId: 'u1',
         updated: '',
         size: 0,
         shared: false,
