@@ -16,22 +16,22 @@ This is the same data you see in the web UI. Edits made through WebDAV show up i
 The WebDAV endpoint is at `/dav/drive/` on your TinyCld instance. For example:
 
 ```
-https://your-instance.tinycld.app/dav/drive/
+https://{{server-host}}/dav/drive/
 ```
 
 The root of that URL is the root of your Drive — the same files and folders you see under **My Files** in the web UI. You'll only see items you own or that have been shared with you, exactly as in the browser.
 
 ## Signing in
 
-WebDAV uses HTTP Basic auth. When your file manager prompts for credentials, use your TinyCld email and password — the same ones you use to sign in on the web.
+WebDAV uses HTTP Basic auth. When your file manager prompts for credentials, use your TinyCld username or email, and your password — the same ones you use to sign in on the web.
 
 ## Mounting on macOS
 
 1. Open **Finder**.
 2. Choose **Go → Connect to Server…** (or press **⌘K**).
-3. Enter the WebDAV URL (e.g. `https://your-instance.tinycld.app/dav/drive/`).
+3. Enter the WebDAV URL (e.g. `https://{{server-host}}/dav/drive/`).
 4. Click **Connect**.
-5. Choose **Registered User** and enter your email and password.
+5. Choose **Registered User** and enter your username (or email) and password.
 
 The Drive appears under **Locations** in the Finder sidebar. macOS remembers the connection so you can reconnect from the same dialog.
 
@@ -42,7 +42,7 @@ The Drive appears under **Locations** in the Finder sidebar. macOS remembers the
 3. Pick a drive letter.
 4. Enter the WebDAV URL.
 5. Tick **Connect using different credentials** and click **Finish**.
-6. Enter your email and password.
+6. Enter your username (or email) and password.
 
 The Drive appears as a mapped network drive and reconnects on every login.
 
@@ -52,7 +52,7 @@ The Drive appears as a mapped network drive and reconnects on every login.
 2. Click **Other Locations** in the sidebar.
 3. In the **Connect to Server** box at the bottom, enter the URL using the `davs://` scheme:
    ```
-   davs://your-instance.tinycld.app/dav/drive/
+   davs://{{server-host}}/dav/drive/
    ```
 4. Click **Connect** and enter your credentials.
 
@@ -78,7 +78,7 @@ KDE's Dolphin works similarly via **Network → Add Network Folder → WebFolder
 ## Troubleshooting
 
 - **"Cannot connect" / connection times out** — verify you can reach the instance over HTTPS in a web browser. WebDAV uses the same domain and port (443).
-- **"Authentication failed"** — double-check you're using your email (not username) and that your password isn't out of date.
+- **"Authentication failed"** — sign in with your TinyCld username or email and your current password.
 - **macOS: very slow first listing** — macOS pre-fetches metadata for every file on the first listing of a folder. Subsequent listings are cached and fast.
 - **Files appear with `.DS_Store` or `Thumbs.db`** — these are OS-generated metadata files that get written into the mount. They take real storage and count toward your quota; consider configuring your OS to skip them on network drives.
 

@@ -9,7 +9,7 @@ order: 80
 
 A public share link is a tokenized URL — anyone who has it can open the file without signing in. Use this when you need to share with someone who has no account, on a mailing list, or to embed a file in another tool.
 
-The link looks like `https://&lt;your-instance&gt;/share/&lt;token&gt;`. The token is a long random string — guessing one is computationally infeasible.
+The link looks like `https://{{server-host}}/share/<token>`. The token is a long random string — guessing one is computationally infeasible.
 
 ## Who can create one
 

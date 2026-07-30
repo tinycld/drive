@@ -305,6 +305,15 @@ var webDAVSource = webdav.Source{
 		Owner:    "created_by",
 		Updated:  "updated",
 	},
+	// Mirrors the manifest's `webdav.trash` block: DAV DELETE stamps the
+	// per-user trash state (restorable from the Trash screen) instead of
+	// destroying the record.
+	Trash: &webdav.TrashConfig{
+		Collection:     "drive_item_state",
+		ItemField:      "item",
+		UserField:      "user",
+		TrashedAtField: "trashed_at",
+	},
 	// No permission or quota callbacks: core evaluates drive_items' own
 	// List/View/Update/Delete rules (shipped in the migrations; the current
 	// restatement is 1782100000_restore_guest_clause_and_settle_commentor.js) and

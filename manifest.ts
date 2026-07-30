@@ -52,6 +52,15 @@ const manifest = {
             owner: 'created_by',
             updated: 'updated',
         },
+        // DAV DELETE stamps the per-user trash state (restorable from the
+        // Trash screen) instead of destroying the record — Finder's "Move to
+        // Trash" must behave like the web UI's.
+        trash: {
+            collection: 'drive_item_state',
+            itemField: 'item',
+            userField: 'user',
+            trashedAtField: 'trashed_at',
+        },
     },
     repository: { url: 'https://github.com/tinycld/drive' },
     peerVersions: { '@tinycld/core': '>=0.0.4 <0.1.0' },
