@@ -8,6 +8,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/core/driveshare"
 )
 
 var fts5SpecialChars = regexp.MustCompile(`[":*^{}()\[\]~\-]`)
@@ -150,6 +151,16 @@ func searchDriveItems(app core.App, userID, q string, limit, offset int) (driveS
 
 	ftsQuery := sanitizeFTSQuery(q)
 	if ftsQuery == "" {
+		return empty, nil
+	}
+
+	// A suspended account reaches nothing. This path authorizes a whole query
+	// in raw SQL, so neither the collection rules (which cover REST) nor
+	// driveshare.ResolveRoleForItem (which covers WebDAV, downloads and
+	// realtime) apply to it — without this check, search kept returning names,
+	// sizes and content highlights of everything shared with the user for as
+	// long as their token lived.
+	if driveshare.IsSuspended(app, userID) {
 		return empty, nil
 	}
 
