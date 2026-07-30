@@ -187,8 +187,9 @@ export function useCreateBlankDriveItem() {
             })
             return { itemId }
         },
-        onError: err => {
-            captureException('useCreateBlankDriveItem', err)
-        },
+        // No explicit onError: the wrapper's default toasts AND reports. The
+        // previous capture-only handler replaced the default, so a failed
+        // create (e.g. a name collision the server refused) left the "New
+        // sheet" button silently dead — no toast, no navigation, no clue.
     })
 }

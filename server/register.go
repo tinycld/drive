@@ -81,45 +81,7 @@ func registerShared(app *pocketbase.PocketBase) {
 	audit.RegisterCollection(app, "drive_item_state", &audit.CollectionConfig{})
 	audit.RegisterCollection(app, "drive_shares", &audit.CollectionConfig{})
 
-	// drive_items create hook owns two concerns the API path can't do alone:
-	//   - auto-rename on (parent, name) unique-index collisions, so
-	//     clients can POST "report.pdf" without first listing the folder
-	//   - owner drive_shares insert, in the same transaction as the item, so
-	//     no drive_item ever exists without an owner share
-	//
-	// Dedup is a pre-flight probe of the unique index. The DB index remains
-	// the ultimate safety net for the narrow race where a concurrent
-	// transaction commits a colliding name between probe and INSERT — that
-	// surfaces as a save error to the client, which is acceptable.
-	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
-		// The client-supplied `size` is untrusted: a forged `size=0` would
-		// under-report in handleStorageUsage AND slip past core/quota, whose
-		// hook reads this same field. Recompute it from the actual uploaded
-		// blob — mirroring the WebDAV and version-upload paths, which both
-		// derive size from the stored bytes (filesystem.File.Size) rather than
-		// the request field. reconcileDriveItemSize leaves fileless creates
-		// (folders, blank items) with their as-declared size.
-		//
-		// This hook is bound before core/quota's (drive registers first), so the
-		// corrected size is what the ceiling is checked against.
-		reconcileDriveItemSize(e.Record)
-
-		userID := e.Record.GetString("created_by")
-		unique, err := chooseUniqueDriveItemName(e.App, e.Record.GetString("parent"), e.Record.GetString("name"))
-		if err != nil {
-			return fmt.Errorf("dedup drive_item name: %w", err)
-		}
-		if unique != e.Record.GetString("name") {
-			e.Record.Set("name", unique)
-		}
-		if err := e.Next(); err != nil {
-			return err
-		}
-		if userID == "" {
-			return nil
-		}
-		return createOwnerShare(e.App, e.Record.Id, userID)
-	})
+	registerDriveItemCreateHook(app)
 
 	// Reject reparenting that would create a folder cycle. Move-cycle
 	// prevention is otherwise client-only (dnd.ts), so a direct PATCH of
