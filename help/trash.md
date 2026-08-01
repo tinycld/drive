@@ -14,7 +14,7 @@ Trashed items disappear from their original location but aren't gone yet. They:
 - Move to the **Trash** section in the sidebar.
 - Are excluded from search results.
 - Stop appearing in **Shared with me** for anyone who had access (their links return a 404 until you restore).
-- Still count toward your org's storage quota.
+- Still count toward your storage quota.
 
 ## Restoring
 

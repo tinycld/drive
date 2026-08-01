@@ -42,7 +42,7 @@ interface UseDriveItemFileActionsParams {
 //
 // `rename` writes the new name through pbtsdb. `moveToTrash` mirrors
 // drive's `trashMutation` flow — writes a `trashed_at` timestamp onto
-// a `drive_item_state` row keyed by (item, user_org), upserting if
+// a `drive_item_state` row keyed by (item, user), upserting if
 // needed, then calls onTrashed so the caller can navigate away.
 //
 // `makeCopy` doesn't mutate immediately — it stashes the desired
@@ -60,26 +60,24 @@ export function useDriveItemFileActions(
     )
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug)
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
     const orgHref = useOrgHref()
     const openCopyDialog = useCopyDialogStore(s => s.openCopyDialog)
 
     const { data: existingStateRows = [] } = useOrgLiveQuery(
-        (query, scope) =>
+        (query, { userId }) =>
             query
                 .from({ state: driveItemStateCollection })
-                .where(({ state }) =>
-                    and(eq(state.item, itemId), eq(state.user_org, scope.userOrgId))
-                ),
+                .where(({ state }) => and(eq(state.item, itemId), eq(state.user, userId))),
         [itemId]
     )
     const existingState = existingStateRows[0]
 
     const { data: itemRows = [] } = useOrgLiveQuery(
-        (query, scope) =>
+        query =>
             query
                 .from({ item: driveItemsCollection })
-                .where(({ item }) => and(eq(item.org, scope.orgId), eq(item.id, itemId)))
+                .where(({ item }) => eq(item.id, itemId))
                 .select(({ item }) => ({ parent: item.parent })),
         [itemId]
     )
@@ -132,7 +130,7 @@ export function useDriveItemFileActions(
                 yield driveItemStateCollection.insert({
                     id: newRecordId(),
                     item: itemId,
-                    user_org: userOrgId,
+                    user: userId,
                     is_starred: false,
                     trashed_at: trashedAt,
                     last_viewed_at: '',

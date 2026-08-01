@@ -1,11 +1,10 @@
 import type { FileCategory } from '@tinycld/core/file-viewer/file-icons'
-import type { CommentMentions, Orgs, UserOrg } from '@tinycld/core/types/pbSchema'
+import type { CommentMentions, Users } from '@tinycld/core/types/pbSchema'
 
 export type { FileCategory }
 
 export interface DriveItems {
     id: string
-    org: string
     name: string
     is_folder: boolean
     mime_type: string
@@ -30,7 +29,7 @@ export type DriveShareRole = 'owner' | ShareLinkRole
 export interface DriveShares {
     id: string
     item: string
-    user_org: string
+    user: string
     role: DriveShareRole
     created_by: string
     created: string
@@ -40,7 +39,7 @@ export interface DriveShares {
 export interface DriveItemState {
     id: string
     item: string
-    user_org: string
+    user: string
     is_starred: boolean
     trashed_at: string
     last_viewed_at: string
@@ -55,7 +54,7 @@ export interface DriveItemView {
     mimeType: string
     parentId: string
     owner: string
-    ownerUserOrgId: string
+    ownerUserId: string
     updated: string
     size: number
     shared: boolean
@@ -114,45 +113,44 @@ export type DriveSchema = {
     drive_items: {
         type: DriveItems
         relations: {
-            org: Orgs
             parent: DriveItems
-            created_by: UserOrg
+            created_by: Users
         }
     }
     drive_shares: {
         type: DriveShares
         relations: {
             item: DriveItems
-            user_org: UserOrg
-            created_by: UserOrg
+            user: Users
+            created_by: Users
         }
     }
     drive_item_state: {
         type: DriveItemState
         relations: {
             item: DriveItems
-            user_org: UserOrg
+            user: Users
         }
     }
     drive_item_versions: {
         type: DriveItemVersions
         relations: {
             item: DriveItems
-            created_by: UserOrg
+            created_by: Users
         }
     }
     drive_share_links: {
         type: DriveShareLinks
         relations: {
             item: DriveItems
-            created_by: UserOrg
+            created_by: Users
         }
     }
     comment_mentions: {
         type: CommentMentions
         relations: {
             drive_item: DriveItems
-            mentioned_user_org: UserOrg
+            mentioned_user: Users
         }
     }
 }

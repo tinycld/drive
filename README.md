@@ -1,45 +1,45 @@
 # drive
 
-Cloud file storage for your organization.
+Cloud file storage, with WebDAV.
 
 A feature package for the [tinycld](https://tinycld.org/) ecosystem. Lives as a standalone git repo alongside the [`tinycld`](https://tinycld.org/) app shell and other sibling feature packages (`contacts`, `mail`, `calendar`, `calc`, `text`, `google-takeout-import`). `@tinycld/core` is the shared runtime/UI library, nested inside the `tinycld` shell repo at `tinycld/core/` and imported as `@tinycld/core`.
 
 ## What it does
 
-Stores files for an organization, with per-user folders, sharing, versioning, public links, server-rendered thumbnails, and a native WebDAV mount endpoint at `/drive/` so any OS can mount the drive as a network folder.
+Stores files for a TinyCld deployment, with per-user folders, sharing, versioning, public links, server-rendered thumbnails, and a native WebDAV mount endpoint at `/dav/drive/` so any OS can mount the drive as a network folder.
 
 User-facing features:
 
-- **Folders and files** — nested hierarchy, org-scoped. Create, rename, move, copy, trash.
+- **Folders and files** — nested hierarchy. Create, rename, move, copy, trash.
 - **Versioning** — every replacement of a file's bytes creates a `drive_item_versions` row with `version_number` (monotonic per-item), size, mime type, source (`upload` | `user` | `system`), and an optional label. Other packages (calc, text) call `POST /api/drive/versions/snapshot` to tag the current bytes as a labeled checkpoint without re-uploading. Restore or download any prior version.
-- **Role-based sharing** — per-item shares with `owner` / `editor` / `viewer` roles. "Shared with me" lists everything other people have given you access to.
-- **Public share links** — 64-hex-character tokenized URLs at `/share/<token>` with viewer or editor role, optional expiry, download counters, last-accessed timestamps, and an enable / disable toggle that reuses the same token. Served by a public route so recipients don't need an account.
+- **Role-based sharing** — per-item shares with `owner` / `editor` / `commentor` / `viewer` roles (a commentor reads and comments but never edits). "Shared with me" lists everything other people have given you access to.
+- **Public share links** — 64-hex-character tokenized URLs at `/share/<token>` with viewer, commentor, or editor role, optional expiry, download counters, last-accessed timestamps, and an enable / disable toggle that reuses the same token. Served by a public route so recipients don't need an account.
 - **Server-side thumbnails** — generated asynchronously on upload. PDFs, EPUBs, and OOXML Office documents render through the pure-Go `doctaculous` library (via `tinycld.org/core/thumbnails`); HEIC/HEIF photos through `goheif`. Plain image types use PocketBase's built-in `?thumb=` query parameter.
 - **In-app previews** — the preview modal and its viewers (PDF canvas renderer, image / video / audio players, text and code viewers) live in `@tinycld/core/file-viewer/`. Drive consumes them and lets other packages register custom previewers (e.g. Calc registers itself for `.xlsx`, surfaced as the "Open in Calc" file action).
 - **Smart categories** — files are classified into `document`, `spreadsheet`, `pdf`, `image`, `presentation`, `drawing`, `video`, `audio`, `archive`, or `code` (mapping lives in `@tinycld/core/file-viewer/file-icons.ts`).
 - **Starred / Recent / Trash** — per-user state. Soft-delete with restore; trashed items still count toward the storage quota until permanently deleted.
-- **Per-user storage quotas** — limit is per-user-within-org, sourced from the core `settings` table at key `storage_limit_bytes` (0 = unlimited). Enforced on every create and on version uploads, aggregated across `drive_items` + `drive_item_versions`.
+- **Storage quotas** — a per-user ceiling from the core `settings` table at key `storage_limit_bytes` and a deployment-wide ceiling at `org_storage_limit_bytes` (0 = unlimited). Drive declares its storage-bearing collections (`drive_items` + `drive_item_versions`, both sized by `size` and owned by `created_by`) via `quota.RegisterSources`; `core/quota` binds the enforcement hooks, so no write path — REST, WebDAV, or the version endpoints — can route around the limit.
 - **Drag-and-drop uploads** — web-only; walks `webkitGetAsEntry` trees so dropping a folder preserves its structure. A persistent upload status bar tracks pending / uploading / done / error per file.
 - **Search** — SQLite FTS5 across file name, description, and extracted text content. Document text extraction (PDF, Office, plain text) runs asynchronously via `core/textextract` and updates the FTS row when finished.
-- **WebDAV mount** — native `/drive/` endpoint. Mount from macOS Finder, Windows Explorer, or Linux GNOME / KDE; the drive becomes a network folder with one synthetic folder per org you belong to at the root. See the in-app help topic `drive:webdav` for per-OS connection steps.
+- **WebDAV mount** — native `/dav/drive/` endpoint. Mount from macOS Finder, Windows Explorer, or Linux GNOME / KDE; the drive becomes a network folder with your Drive tree directly at the root. See the in-app help topic `drive:webdav` for per-OS connection steps.
 - **Realtime updates** — uploads, renames, and share changes propagate immediately through PocketBase's collection-realtime subscriptions (consumed via `pbtsdb`'s `useLiveQuery`). No custom WebSocket layer.
 - **Single-item download** — web-only. Individual files stream directly from PocketBase; folders are zipped on demand via a short-lived (60 s) per-folder download token, capped at 10,000 files and 5 GB per archive.
 - **Notifications** — when a `drive_shares` row is created and the recipient isn't the creator (i.e. real share, not the bookkeeping owner self-share), the recipient receives a `drive_file_shared` notification through `core/notify`.
-- **Audit logging** — every mutation on `drive_items`, `drive_item_state`, and `drive_shares` is recorded by `core/audit`. The latter two resolve their org via the linked `drive_items.org`.
+- **Audit logging** — every mutation on `drive_items`, `drive_item_state`, and `drive_shares` is recorded by `core/audit`. `drive_items` rows are labeled by their `name` field.
 
 ## Mounting via WebDAV
 
-The WebDAV endpoint is at **`https://<your-instance>/drive/`** (port 443, same domain as the web UI). Authentication is HTTP Basic using your TinyCld email and password.
+The WebDAV endpoint is at **`https://<your-instance>/dav/drive/`** (port 443, same domain as the web UI). Authentication is HTTP Basic using your TinyCld email (or username) and password.
 
-At the WebDAV root, you'll see one folder per organization you belong to. Open an org folder to see that org's Drive.
+At the WebDAV root, you'll see your Drive's folder tree directly — the root is a synthetic directory over your top-level items.
 
-The handler is `golang.org/x/net/webdav` with `webdav.NewMemLS()`, which advertises DAV class 2 (LOCK / UNLOCK) so macOS Finder mounts read-write. There is also a `/.well-known/webdav` route that 301-redirects to `/drive/` to help clients that auto-discover.
+The handler is `golang.org/x/net/webdav` with `webdav.NewMemLS()`, which advertises DAV class 2 (LOCK / UNLOCK) so macOS Finder mounts read-write. There is also a `/.well-known/webdav` route that 301-redirects to `/dav/drive/` to help clients that auto-discover.
 
-For step-by-step connection instructions on macOS Finder, Windows Explorer, and Linux file managers, see the **`drive:webdav`** help topic inside the app (`/a/<org>/help/drive/webdav`, or click any `<HelpIcon topic="drive:webdav" />`). They live there rather than in this README so they update in lockstep with what users actually see in the UI.
+For step-by-step connection instructions on macOS Finder, Windows Explorer, and Linux file managers, see the **`drive:webdav`** help topic inside the app (`/help/drive/webdav`, or click any `<HelpIcon topic="drive:webdav" />`). They live there rather than in this README so they update in lockstep with what users actually see in the UI.
 
 ## Theory of operations
 
-The short version: every file is a row in `drive_items` with a PocketBase-managed blob attached. Sharing, public links, version history, and per-user state are sibling collections that reference the item by id. A handful of Go hooks on the item collection enforce quota, dedup names, create the owner-share row, and trigger asynchronous text extraction and thumbnail generation. The WebDAV handler is a thin adapter over the same collections.
+The short version: every file is a row in `drive_items` with a PocketBase-managed blob attached. Sharing, public links, version history, and per-user state are sibling collections that reference the item by id. A handful of Go hooks on the item collection reconcile the declared size, dedup names, create the owner-share row, and trigger asynchronous text extraction and thumbnail generation; storage ceilings are enforced by `core/quota`'s hooks over the collections drive declares. The WebDAV handler lives in core (`tinycld.org/core/webdav`) and is driven by a `webdav.Source` config drive contributes.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -64,20 +64,22 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 │   Collections                                                        │
 │     drive_items            ── item rows, with `file` blob            │
 │     drive_item_versions    ── snapshots, monotonic version_number    │
-│     drive_shares           ── per-user-org access; role enum         │
+│     drive_shares           ── per-user access; role enum         │
 │     drive_share_links      ── public links; 64-hex token             │
 │     drive_item_state       ── per-user starred / last-viewed         │
 │     comment_mentions       ── @-mentions; shared with text/calc      │
 │     fts_drive_items        ── SQLite FTS5 virtual table              │
 │                                                                      │
 │   Hooks (register.go)                                                │
-│     OnRecordCreate(drive_items):  quota → dedup name →               │
+│     OnRecordCreate(drive_items):  reconcile size → dedup name →      │
 │                                   create owner drive_shares (txn)    │
+│     OnRecordUpdate(drive_items):  reject moves that form a cycle     │
 │     OnRecordAfterCreate(drive_items):  syncFTS, extractText (async), │
 │                                        generateThumbnail (async)     │
 │     OnRecordAfterUpdate(drive_items):  same                          │
 │     OnRecordAfterDelete(drive_items):  remove FTS row                │
 │     OnRecordAfterCreate(drive_shares): notify recipient              │
+│     (storage ceilings: core/quota binds the enforcement hooks)       │
 │                                                                      │
 │   API endpoints (register.go)                                        │
 │     GET    /api/drive/search                                         │
@@ -96,11 +98,13 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 │     POST   /api/drive/share-link/{token}/otp-verify  ── public       │
 │     POST   /api/drive/download-token                                 │
 │     GET    /api/drive/download-folder?token=...                      │
+│     POST   /api/drive/export-token                                   │
+│     GET    /api/drive/export?token=...                               │
 │     GET    /api/drive/storage-usage                                  │
 │                                                                      │
-│   WebDAV                                                             │
-│     ANY    /drive  /  /drive/{path...}                               │
-│     GET    /.well-known/webdav → 301 /drive/                         │
+│   WebDAV (served by core/webdav from drive's Source)                 │
+│     ANY    /dav/drive  /  /dav/drive/{path...}                       │
+│     ANY    /.well-known/webdav → 301 /dav/drive/                     │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -108,8 +112,8 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 
 `OnRecordCreate("drive_items")` runs three things in order before delegating to `e.Next()`, then a fourth after:
 
-1. **Quota probe** — if `size > 0` and we have an `org` + `created_by`, `checkUserStorageQuota` reads the per-org limit and the user's current usage and rejects with `413 Request Entity Too Large` if the new bytes would push them over. The limit lives in core's `settings` table at `(app='core', key='storage_limit_bytes', org=<orgID>)`; 0 / unset means unlimited.
-2. **Name dedup** — `chooseUniqueDriveItemName` probes the `(org, parent, name)` unique index and, on collision, appends `(1)`, `(2)`, … until it finds a free name. The probe is best-effort: the DB index is still the ultimate safety net, and a concurrent transaction committing a colliding name between probe and INSERT surfaces as a save error to the client, which is acceptable.
+1. **Size reconciliation** — the client-supplied `size` is untrusted (a forged `size=0` would under-report usage and slip past the quota hooks), so `reconcileDriveItemSize` overwrites it with the true byte length of the staged blob. Fileless creates (folders, blank items) keep their declared size. Drive's hook is bound before `core/quota`'s, so the ceiling is checked against the corrected size — the quota enforcement itself lives in `core/quota`, driven by the sources drive registers (limits come from the `settings` keys `storage_limit_bytes` per user and `org_storage_limit_bytes` deployment-wide; 0 / unset means unlimited).
+2. **Name dedup** — `chooseUniqueDriveItemName` probes the `(parent, name)` unique index and, on collision, appends `(1)`, `(2)`, … until it finds a free name. The probe is best-effort: the DB index is still the ultimate safety net, and a concurrent transaction committing a colliding name between probe and INSERT surfaces as a save error to the client, which is acceptable.
 3. **Persist via `e.Next()`** — the actual INSERT.
 4. **Owner share** — `createOwnerShare` inserts a `drive_shares` row with role `owner` in the same transaction. This is a load-bearing invariant: every `drive_item` has at least one `drive_shares` row, and the entire permission system (including the WebDAV adapter) assumes it. Self-shares like this are filtered out of recipient notifications because the recipient is the creator.
 
@@ -124,15 +128,16 @@ Both effectively run as eventual consistency: clients see the item appear immedi
 
 ### Sharing model
 
-`drive_shares` has columns `(item, user_org, role, created_by)`. Roles are exactly:
+`drive_shares` has columns `(item, user, role, created_by)` — both `user` and `created_by` are relations straight to `users`. Roles are exactly:
 
-- **`owner`** — full control, including delete. Created automatically by the item-create hook.
-- **`editor`** — write access (rename, move, upload new version, share further). Enforced by `checkWritePermission`.
+- **`owner`** — full control. Created automatically by the item-create hook.
+- **`editor`** — write access (rename, move, upload new version).
+- **`commentor`** — read and comment, never edit.
 - **`viewer`** — read-only.
 
-Owners are not assignable through the share dialog UI — the only way to become an owner is to be the row's `created_by`. Editors can re-share but cannot promote anyone to owner.
+Owners are not assignable through the share dialog UI — the only way to become an owner is to create the item. The Go-side read/write/delete predicates live once in core's `driveshare` package (`tinycld.org/core/driveshare`), shared with text and calc: `Role.CanWrite()` is true for owner and editor only, and every error path fails closed.
 
-The collection's PocketBase access rules let any participant with role `owner` or `editor` insert new `drive_shares` rows for the item, and only `owner` can delete shares. Server endpoints that mutate items (`upload-version`, `restore-version`, the folder-download token) go through `resolveItemAndUserOrg`, which validates the calling user has a `user_org` in the item's org and then checks `drive_shares` for the required role.
+The collections' PocketBase access rules (settled by migration `1782100000_restore_guest_clause_and_settle_commentor.js`) let the item's creator or any share-holder read an item, restrict updates to the creator or a share-holder with role `editor` / `owner`, and restrict delete to the creator. `drive_shares` rows themselves are managed by the item's creator (recipients may delete — i.e. leave — their own share). Server endpoints that mutate items (`upload-version`, `restore-version`, the folder-download token) go through `resolveItemAndUser`, which loads the item and checks the caller's access via `driveshare.CheckWrite` / `driveshare.CheckReadItem`.
 
 ### Public share links
 
@@ -144,7 +149,7 @@ Public endpoints (`/api/drive/share-link/{token}`, `.../file`, `.../thumbnail`) 
 
 `fts_drive_items` is a SQLite FTS5 virtual table with columns `(record_id, name, description, content)`. The first three are synced eagerly from the corresponding `drive_items` columns inside the after-create / after-update hook (via `syncDriveItemToFTS`). `content` is filled asynchronously by `extractAndIndexDriveItem` once the extractor finishes.
 
-`handleDriveSearch` builds a parameterized FTS5 `MATCH` query, joins through `drive_shares` to enforce per-user access (the user's `user_org` IDs must appear in `drive_shares.user_org` for the row to be returned), optionally filters by `org`, and returns `snippet(..., '<mark>', '</mark>', '...', 30)` for client-side highlighting. Special FTS5 syntax characters (`:`, `*`, `^`, etc.) are stripped from user input before the MATCH so users can't accidentally write invalid queries.
+`handleDriveSearch` builds a parameterized FTS5 `MATCH` query, joins through `drive_shares` to enforce per-user access (a `drive_shares` row with `user` equal to the caller's id must exist for the row to be returned — the owner self-share covers the creator's own items), and returns `snippet(..., '<mark>', '</mark>', '...', 30)` for client-side highlighting. Special FTS5 syntax characters (`:`, `*`, `^`, etc.) are stripped from user input before the MATCH so users can't accidentally write invalid queries.
 
 ### Thumbnails
 
@@ -163,17 +168,17 @@ The thumbnail field is set on a *re-fetched* `drive_items` record (not the one t
 
 ### WebDAV
 
-`DriveFileSystem` implements `webdav.FileSystem`. The path layout is `/drive/<orgSlug>/<segments...>` — the root and each org's root are *synthetic* directories that have no `drive_items` row. Underneath, every segment maps to a `drive_items` record by `(org, parent, name)`.
+The protocol server lives in core (`tinycld.org/core/webdav`): its `FileSystem` implements `webdav.FileSystem` over any PocketBase collection shaped as a tree, and drive contributes a `webdav.Source` (register.go's `webDAVSource`) mapping `drive_items`' fields plus a `BeforeOverwrite` hook that snapshots the outgoing blob so a WebDAV PUT gets the same version history as a UI upload. The path layout is `/dav/drive/<segments...>` — the root is a *synthetic* directory with no `drive_items` row. Underneath, every segment maps to a `drive_items` record by `(parent, name)`.
 
 The flow per request:
 
-1. `serveWebDAV` middleware calls `authenticateRequest` (HTTP Basic, email + password), which `bcrypt`-compares against the `users` collection. Failure returns 401 with `WWW-Authenticate: Basic realm="TinyCld WebDAV"`.
+1. The route middleware calls `davauth.Authenticate` (HTTP Basic, email or username + password), which `bcrypt`-compares against the `users` collection. Failure returns 401 with `WWW-Authenticate: Basic realm="TinyCld WebDAV"`, and repeated failures from one source are refused before spending bcrypt (`davauth.TooManyFailures`).
 2. The authenticated user is stashed in the request context under `userKey`. FileSystem methods retrieve it via `userFromContext` — they never re-authenticate.
-3. `resolveContext` parses the path into `(orgSlug, segments)`, looks up the org, and resolves the caller's `user_org` for that org. If the caller has no membership, every FS operation fails with `os.ErrPermission`.
+3. `resolveContext` reads the user off the context and parses the path into segments; per-operation authorization then evaluates `drive_items`' own PocketBase collection rules (list/view/create/update/delete), so WebDAV grants exactly what the REST API and the web UI grant. A denied read is masked as "not found" rather than 403, so an unreadable path's existence doesn't leak.
 
 `webdav.NewMemLS()` is used for the lock system, which is enough to advertise DAV class 2; macOS Finder requires class 2 to mount read-write. Locks are in-memory and per-process, which is fine for a single-instance deployment — clustered deployments would need a shared lock backend.
 
-WebDAV deletes go through `MoveToTrash` semantics: removing a file via Finder moves the underlying `drive_items` row into trash, not permanent delete.
+WebDAV deletes are real deletes: `RemoveAll` deletes the `drive_items` row (permitted only where the collection's delete rule allows it — the creator), and PocketBase cascade rules remove the dependent shares, versions, and state rows with it.
 
 ### Versioning
 
@@ -181,7 +186,7 @@ WebDAV deletes go through `MoveToTrash` semantics: removing a file via Finder mo
 
 1. Reads the *current* file's bytes off the `drive_items` record's attached file.
 2. Inside an `app.RunInTransaction`, queries `MAX(version_number) FROM drive_item_versions WHERE item = ?` and assigns `result.Max + 1`.
-3. Inserts the `drive_item_versions` row with the current bytes, size, mime type, the calling user_org as `created_by`, a caller-supplied `label`, and a `source` of `upload`, `user`, or `system`.
+3. Inserts the `drive_item_versions` row with the current bytes, size, mime type, the calling user's id as `created_by`, a caller-supplied `label`, and a `source` of `upload`, `user`, or `system`.
 
 The three `source` values let the UI distinguish how a version came into being:
 
@@ -191,9 +196,9 @@ The three `source` values let the UI distinguish how a version came into being:
 
 Version-number assignment in a transaction guarantees monotonicity even under concurrent uploads; the upper layer doesn't need to retry.
 
-`handleSnapshotVersion` is the cheap path used by packages whose content already lives in the `drive_items` file (calc spreadsheets, text documents). It takes JSON `{item, label}`, validates write access via `resolveItemAndUserOrg`, refuses items with no attached file (`422`, "nothing to snapshot — file is empty"), and snapshots in place. No file payload crosses the wire and no edit racing with autosave is possible because no bytes are written to `drive_items.file`.
+`handleSnapshotVersion` is the cheap path used by packages whose content already lives in the `drive_items` file (calc spreadsheets, text documents). It takes JSON `{item, label}`, validates write access via `resolveItemAndUser`, refuses items with no attached file (`422`, "nothing to snapshot — file is empty"), and snapshots in place. No file payload crosses the wire and no edit racing with autosave is possible because no bytes are written to `drive_items.file`.
 
-`handleRestoreVersion` first snapshots the current file (with `source = "system"`) so restore is itself reversible, then copies the chosen version's bytes back onto `drive_items.file` and updates the item's size and mime type accordingly. Storage quota is re-checked on the size delta before the restore proceeds.
+`handleRestoreVersion` first snapshots the current file (with `source = "system"`) so restore is itself reversible, then copies the chosen version's bytes back onto `drive_items.file` and updates the item's size and mime type accordingly. Storage quota is pre-checked on the size delta before the restore proceeds (`core/quota`'s record hooks remain the authoritative enforcement).
 
 PocketBase renames the on-disk blob to a fresh hash on every save, so the prior version of `drive_items.file` is still on disk until PB's cleanup pass — even if a flush goes wrong, the bytes are recoverable. Permanent delete of an item removes every version row with it.
 
@@ -205,15 +210,15 @@ The save-to-drive action (allowing other packages to push a generated file into 
 
 ### Folder download
 
-Folder downloads work via a two-step token flow because a streaming zip response wants to be a `GET` (so browsers download it natively) but the authorization wants to be a `POST` (so credentials don't end up in URL bars and history). `POST /api/drive/download-token` validates access through `resolveItemAndUserOrg`, generates a 32-byte hex token, stores `(folderID, orgID, expiresAt)` in an in-process map with a 60-second TTL, and returns the token + URL. The client immediately requests `GET /api/drive/download-folder?token=...`, which looks the token up, walks the folder tree, and streams a zip of every file underneath, capped at 10,000 files and 5 GB total.
+Folder downloads work via a two-step token flow because a streaming zip response wants to be a `GET` (so browsers download it natively) but the authorization wants to be a `POST` (so credentials don't end up in URL bars and history). `POST /api/drive/download-token` validates access through `resolveItemAndUser`, generates a 32-byte hex token, stores `(folderID, expiresAt)` in an in-process map with a 60-second TTL, and returns the token + URL. The client immediately requests `GET /api/drive/download-folder?token=...`, which looks the token up (single-use — it's deleted on first fetch), walks the folder tree, and streams a zip of every file underneath, capped at 10,000 files and 5 GB total.
 
 The token map is in-process and uses a background goroutine that runs every 5 minutes to evict expired entries. Restarting the server invalidates all in-flight download tokens; the client gracefully re-requests a new one on next click.
 
 ### Notifications and audit
 
-`OnRecordAfterCreateSuccess("drive_shares")` fires a `drive_file_shared` notification through `core/notify` when the recipient (`user_org`) differs from the creator (`created_by`). Owner self-shares — created by the item-create hook — match `userOrgID == createdBy` and are skipped, so users don't get a notification every time they upload one of their own files.
+`OnRecordAfterCreateSuccess("drive_shares")` fires a `drive_file_shared` notification through `core/notify` when the recipient (`user`) differs from the creator (`created_by`) — both are user ids. Owner self-shares — created by the item-create hook — match `userID == createdBy` and are skipped, so users don't get a notification every time they upload one of their own files.
 
-`audit.RegisterCollection` is called for `drive_items`, `drive_item_state`, and `drive_shares`. The latter two register a `ResolveOrg` callback that walks back through the linked `drive_items` to find the org, so audit log queries scoped to an org pick them up. Labels for `drive_items` use the `name` field.
+`audit.RegisterCollection` is called for `drive_items`, `drive_item_state`, and `drive_shares`. Labels for `drive_items` use the `name` field; the other two need no customization.
 
 ## Platform support
 
@@ -226,7 +231,7 @@ The token map is in-process and uses a background goroutine that runs every 5 mi
 | Folder drag-and-drop                 | ✅  | n/a  |
 | Download (file or folder zip)        | ✅  | n/a  |
 | Rename / move / copy / trash         | ✅  | ✅   |
-| Share with org members               | ✅  | ✅   |
+| Share with other users               | ✅  | ✅   |
 | Public share links                   | ✅  | ✅   |
 | Version history (view / restore)     | ✅  | ✅   |
 | Search                               | ✅  | ✅   |
@@ -239,27 +244,31 @@ iPhone (small phone screens) isn't supported yet.
 
 ```
 server/
-    register.go                Register(app) — hooks, API endpoints, WebDAV
-    permissions.go             checkWritePermission / checkDeletePermission /
-                               createOwnerShare / getUserOrgForOrg
-    dedup_name.go              (org, parent, name) collision → "name (N)"
-    storage_limits.go          per-user-within-org quota; settings table lookup
-    storage.go                 internal storage helpers
-    auth.go                    WebDAV HTTP Basic authentication
-    paths.go                   /drive/<orgSlug>/<segments> parsing
+    register.go                Register / RegisterTenant — hooks, API endpoints,
+                               quota sources, the core/webdav Source
+    permissions.go             createOwnerShare (the read/write/delete predicates
+                               live in core/driveshare)
+    dedup_name.go              (parent, name) collision → "name (N)"
+    storage_limits.go          per-user / deployment usage queries + settings
+                               limit lookup (pre-flight checks; core/quota enforces)
+    storage.go                 blob read/write helpers, size reconciliation
+    items.go                   folder-depth bound + move-cycle check
     extract.go                 textextract → fts_drive_items.content
     thumbnails.go              core/thumbnails → drive_items.thumbnail
     search.go                  /api/drive/search (FTS5)
     versions.go                snapshotCurrentFile (txn, monotonic version_number)
     endpoints_share.go         /api/drive/share + invite emails
     endpoints_public_share.go  share-link create/list/delete + public token endpoints
+    endpoints_share_session.go anonymous share sessions for public links
+    endpoints_share_otp.go     email-verified guest provisioning (OTP) for links
     endpoints_download.go      folder-download token flow (POST then GET)
-    webdav.go                  DriveFileSystem (webdav.FileSystem implementation)
-    webdav_file.go             webdav.File implementation
-    webdav_fileinfo.go         webdav.FileInfo for synthetic + real entries
+    endpoints_export.go        convert-and-download token flow
+    bindings.go                $drive.* JS binding for server-side TS hooks
 ```
 
-Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,notify,textextract,thumbnails}` via the standard go.mod replace directive the app shell installs.
+The WebDAV protocol server itself (FileSystem, auth, path parsing) lives in core at `tinycld/core/server/webdav/`; drive only supplies its `webdav.Source`.
+
+Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,coreserver,driveshare,notify,previewqueue,quota,textextract,thumbnails,userorg,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs.
 
 ## Client package layout
 
@@ -274,6 +283,7 @@ tinycld/drive/
     seed.ts            sample data
     screens/
         index.tsx              section view (My Files / Shared / Recent / Starred / Trash)
+        recent.tsx             recent-files view
         [...path].tsx          deep-link folder view by path
     public-screens/
         share/[token].tsx      public-share landing page (/share/<token>)

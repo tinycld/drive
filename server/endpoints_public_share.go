@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/core/driveshare"
 )
 
 // rateLimiter provides simple in-memory IP-based rate limiting for public endpoints.
@@ -85,7 +85,7 @@ func getClientIP(r *http.Request) string {
 
 // findShareLinkByToken loads and validates a share link record.
 // Returns the share link record and the associated drive_items record.
-func findShareLinkByToken(app *pocketbase.PocketBase, token string) (*core.Record, *core.Record, int, string) {
+func findShareLinkByToken(app core.App, token string) (*core.Record, *core.Record, int, string) {
 	if len(token) != 64 {
 		return nil, nil, http.StatusNotFound, "invalid token"
 	}
@@ -133,7 +133,7 @@ func categorizeFromMime(mimeType string) string {
 }
 
 // handleGetShareLinkMetadata returns JSON metadata for a public share link.
-func handleGetShareLinkMetadata(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
 	if !publicShareLimiter.allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
@@ -149,18 +149,12 @@ func handleGetShareLinkMetadata(app *pocketbase.PocketBase, re *core.RequestEven
 	link.Set("last_accessed_at", time.Now().UTC().Format(time.RFC3339))
 	_ = app.Save(link)
 
-	// Look up org name and slug for display and deep linking
-	orgName := ""
-	orgSlug := ""
-	org, err := app.FindRecordById("orgs", item.GetString("org"))
-	if err == nil {
-		orgName = org.GetString("name")
-		orgSlug = org.GetString("slug")
-	}
-
 	// Build proxy URLs
 	baseURL := fmt.Sprintf("%s/api/drive/share-link/%s", app.Settings().Meta.AppURL, token)
 
+	// Single-org: the deployment IS the org, so its display name comes from
+	// app settings rather than an orgs row, and there is no slug to deep-link
+	// through — in-app links are bare /drive.
 	response := map[string]any{
 		"name":          item.GetString("name"),
 		"mime_type":     item.GetString("mime_type"),
@@ -169,8 +163,7 @@ func handleGetShareLinkMetadata(app *pocketbase.PocketBase, re *core.RequestEven
 		"file_url":      baseURL + "/file",
 		"thumbnail_url": baseURL + "/thumbnail",
 		"updated":       item.GetString("updated"),
-		"org_name":      orgName,
-		"org_slug":      orgSlug,
+		"org_name":      app.Settings().Meta.AppName,
 		"item_id":       item.Id,
 	}
 
@@ -178,7 +171,7 @@ func handleGetShareLinkMetadata(app *pocketbase.PocketBase, re *core.RequestEven
 }
 
 // handleGetShareLinkFile streams the file content for a public share link.
-func handleGetShareLinkFile(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
 	if !publicShareLimiter.allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
@@ -220,7 +213,7 @@ func handleGetShareLinkFile(app *pocketbase.PocketBase, re *core.RequestEvent) e
 }
 
 // handleGetShareLinkThumbnail streams the thumbnail for a public share link.
-func handleGetShareLinkThumbnail(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleGetShareLinkThumbnail(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
 	if !publicShareLimiter.allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
@@ -257,7 +250,7 @@ func handleGetShareLinkThumbnail(app *pocketbase.PocketBase, re *core.RequestEve
 }
 
 // handleCreateShareLink creates a new public share link for a drive item.
-func handleCreateShareLink(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleCreateShareLink(app core.App, re *core.RequestEvent) error {
 	var body struct {
 		ItemID    string `json:"item_id"`
 		Role      string `json:"role"`
@@ -271,13 +264,13 @@ func handleCreateShareLink(app *pocketbase.PocketBase, re *core.RequestEvent) er
 		return re.BadRequestError("item_id is required", nil)
 	}
 
-	item, userOrgID, err := resolveItemAndUserOrg(app, re, body.ItemID, false)
+	item, userID, err := resolveItemAndUser(app, re, body.ItemID, false)
 	if err != nil {
 		return err
 	}
 
 	// Verify caller is owner
-	if err := checkDeletePermission(app, userOrgID, item.Id); err != nil {
+	if err := driveshare.CheckDelete(app, userID, item.Id); err != nil {
 		return re.ForbiddenError("only the owner can create share links", nil)
 	}
 
@@ -301,7 +294,7 @@ func handleCreateShareLink(app *pocketbase.PocketBase, re *core.RequestEvent) er
 	record := core.NewRecord(col)
 	record.Set("item", item.Id)
 	record.Set("token", token)
-	record.Set("created_by", userOrgID)
+	record.Set("created_by", userID)
 	record.Set("role", role)
 	record.Set("is_active", true)
 	record.Set("download_count", 0)
@@ -324,7 +317,7 @@ func handleCreateShareLink(app *pocketbase.PocketBase, re *core.RequestEvent) er
 }
 
 // handleDeleteShareLink revokes a share link by setting is_active to false.
-func handleDeleteShareLink(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleDeleteShareLink(app core.App, re *core.RequestEvent) error {
 	linkID := re.Request.PathValue("id")
 	if linkID == "" {
 		return re.BadRequestError("missing share link id", nil)
@@ -337,11 +330,11 @@ func handleDeleteShareLink(app *pocketbase.PocketBase, re *core.RequestEvent) er
 
 	// Verify caller owns the item
 	itemID := link.GetString("item")
-	_, userOrgID, err := resolveItemAndUserOrg(app, re, itemID, false)
+	_, userID, err := resolveItemAndUser(app, re, itemID, false)
 	if err != nil {
 		return err
 	}
-	if err := checkDeletePermission(app, userOrgID, itemID); err != nil {
+	if err := driveshare.CheckDelete(app, userID, itemID); err != nil {
 		return re.ForbiddenError("only the owner can revoke share links", nil)
 	}
 
@@ -354,17 +347,17 @@ func handleDeleteShareLink(app *pocketbase.PocketBase, re *core.RequestEvent) er
 }
 
 // handleListShareLinks returns all share links for a given item.
-func handleListShareLinks(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleListShareLinks(app core.App, re *core.RequestEvent) error {
 	itemID := re.Request.URL.Query().Get("item_id")
 	if itemID == "" {
 		return re.BadRequestError("item_id query parameter is required", nil)
 	}
 
-	_, userOrgID, err := resolveItemAndUserOrg(app, re, itemID, false)
+	_, userID, err := resolveItemAndUser(app, re, itemID, false)
 	if err != nil {
 		return err
 	}
-	if err := checkDeletePermission(app, userOrgID, itemID); err != nil {
+	if err := driveshare.CheckDelete(app, userID, itemID); err != nil {
 		return re.ForbiddenError("only the owner can view share links", nil)
 	}
 

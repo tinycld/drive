@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { pb } from '@tinycld/core/lib/pocketbase'
-import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 
 interface StorageUsageResponse {
     user_used_bytes?: number
@@ -23,11 +22,9 @@ export interface StorageUsage {
  * that doesn't work once we stop fetching the whole org.
  */
 export function useTotalStorage(): StorageUsage {
-    const { orgId } = useOrgInfo()
     const { data } = useQuery<StorageUsageResponse>({
-        queryKey: ['storage-usage', orgId],
-        queryFn: () => pb.send('/api/drive/storage-usage', { query: { org: orgId } }),
-        enabled: !!orgId,
+        queryKey: ['storage-usage'],
+        queryFn: () => pb.send('/api/drive/storage-usage', {}),
     })
     return {
         usedBytes: data?.user_used_bytes ?? 0,

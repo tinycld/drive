@@ -5,7 +5,7 @@ import {
     type ContactSuggestion,
     ContactSuggestionsProvider,
 } from '@tinycld/core/lib/contacts/use-contact-suggestions'
-import { captureException } from '@tinycld/core/lib/errors'
+import { captureException, errorToString } from '@tinycld/core/lib/errors'
 import { usePackages } from '@tinycld/core/lib/packages/use-packages'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
@@ -20,21 +20,21 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from '
 // it came from (an org member vs. a contact from the optional contacts pkg).
 interface SuggestionEntry {
     key: string
-    userOrgId: string
+    userId: string
     name: string
     email: string
     source: 'member' | 'contact'
 }
 
 interface OrgMember {
-    userOrgId: string
+    userId: string
     name: string
     email: string
 }
 
 interface ShareEntry {
     id: string
-    userOrgId: string
+    userId: string
     name: string
     email: string
     role: string
@@ -54,7 +54,7 @@ interface ShareLinkEntry {
 
 interface PendingShare {
     key: string
-    userOrgId: string
+    userId: string
     name: string
     email: string
     role: 'editor' | 'viewer'
@@ -66,7 +66,7 @@ interface ShareDialogProps {
     itemName: string
     shares: ShareEntry[]
     orgMembers: OrgMember[]
-    currentUserOrgId: string
+    currentUserId: string
     onRemoveShare: (shareId: string) => void
     onClose: () => void
 }
@@ -82,7 +82,7 @@ export function ShareDialog({
     itemName,
     shares,
     orgMembers,
-    currentUserOrgId,
+    currentUserId,
     onRemoveShare,
     onClose,
 }: ShareDialogProps) {
@@ -93,6 +93,7 @@ export function ShareDialog({
     const [pending, setPending] = useState<PendingShare[]>([])
     const [linkCopied, setLinkCopied] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [saveError, setSaveError] = useState<string | null>(null)
     const [isCreatingPublicLink, setIsCreatingPublicLink] = useState(false)
     const queryClient = useQueryClient()
 
@@ -137,7 +138,7 @@ export function ShareDialog({
         setTimeout(() => setLinkCopied(false), 2000)
     }, [publicShareUrl, itemId, queryClient])
 
-    const alreadySharedIds = useMemo(() => new Set(shares.map(s => s.userOrgId)), [shares])
+    const alreadySharedIds = useMemo(() => new Set(shares.map(s => s.userId)), [shares])
     const pendingEmails = useMemo(() => new Set(pending.map(p => p.email.toLowerCase())), [pending])
 
     const handleSelect = (s: SuggestionEntry) => {
@@ -145,7 +146,7 @@ export function ShareDialog({
             ...prev,
             {
                 key: s.key,
-                userOrgId: s.userOrgId,
+                userId: s.userId,
                 name: s.name,
                 email: s.email,
                 role: defaultRole,
@@ -171,26 +172,36 @@ export function ShareDialog({
                     body: {
                         item_id: itemId,
                         recipients: pending.map(p => ({
-                            user_org_id: p.userOrgId || undefined,
+                            user_id: p.userId || undefined,
                             email: p.email,
                             name: p.name,
                             role: p.role,
                         })),
                     },
                 })
-            } catch {
-                // Shares may have partially succeeded -- close anyway
-            } finally {
+            } catch (err) {
+                // Closing here would report a success the user didn't get —
+                // people they believe they shared with would silently have no
+                // access. Keep the dialog open with the pending list intact
+                // so Done can be retried, and say what happened.
+                captureException('drive.share.save', err, {
+                    itemId,
+                    recipients: pending.length,
+                })
+                setSaveError(errorToString(err))
                 setIsSaving(false)
+                return
             }
+            setIsSaving(false)
         }
         setPending([])
         setSearch('')
+        setSaveError(null)
         onClose()
     }
 
-    const currentUserShare = shares.find(s => s.userOrgId === currentUserOrgId)
-    const otherShares = shares.filter(s => s.userOrgId !== currentUserOrgId)
+    const currentUserShare = shares.find(s => s.userId === currentUserId)
+    const otherShares = shares.filter(s => s.userId !== currentUserId)
 
     return (
         <Modal isOpen={open} onClose={onClose}>
@@ -249,7 +260,7 @@ export function ShareDialog({
                         orgMembers={orgMembers}
                         alreadySharedIds={alreadySharedIds}
                         pendingEmails={pendingEmails}
-                        currentUserOrgId={currentUserOrgId}
+                        currentUserId={currentUserId}
                         onSelect={handleSelect}
                     />
                 </View>
@@ -456,6 +467,8 @@ export function ShareDialog({
                     </View>
                 </ScrollView>
 
+                <SaveErrorBanner message={saveError} />
+
                 <View className="flex-row items-center justify-between px-6 py-4 border-t border-border">
                     <Pressable
                         className="flex-row items-center gap-2 px-4 rounded-full border border-border"
@@ -499,24 +512,33 @@ function buildMemberSuggestions(
     orgMembers: OrgMember[],
     alreadySharedIds: Set<string>,
     pendingEmails: Set<string>,
-    currentUserOrgId: string
+    currentUserId: string
 ): SuggestionEntry[] {
     const q = search.toLowerCase()
     return orgMembers
         .filter(
             m =>
-                !alreadySharedIds.has(m.userOrgId) &&
+                !alreadySharedIds.has(m.userId) &&
                 !pendingEmails.has(m.email.toLowerCase()) &&
-                m.userOrgId !== currentUserOrgId &&
+                m.userId !== currentUserId &&
                 (m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
         )
         .map(m => ({
-            key: `member:${m.userOrgId}`,
-            userOrgId: m.userOrgId,
+            key: `member:${m.userId}`,
+            userId: m.userId,
             name: m.name,
             email: m.email,
             source: 'member' as const,
         }))
+}
+
+function SaveErrorBanner({ message }: { message: string | null }) {
+    if (!message) return null
+    return (
+        <View className="mx-6 mb-2 rounded-lg p-2 bg-danger-soft">
+            <Text className="text-xs text-danger">Could not share: {message}</Text>
+        </View>
+    )
 }
 
 function buildContactSuggestions(
@@ -538,7 +560,7 @@ function buildContactSuggestions(
         .slice(0, 5)
         .map(c => ({
             key: `contact:${c.id}`,
-            userOrgId: '',
+            userId: '',
             name: `${c.first_name} ${c.last_name}`.trim(),
             email: c.email,
             source: 'contact' as const,
@@ -550,7 +572,7 @@ interface SuggestionsDropdownProps {
     orgMembers: OrgMember[]
     alreadySharedIds: Set<string>
     pendingEmails: Set<string>
-    currentUserOrgId: string
+    currentUserId: string
     onSelect: (s: SuggestionEntry) => void
 }
 
@@ -563,7 +585,7 @@ function SuggestionsDropdown({
     orgMembers,
     alreadySharedIds,
     pendingEmails,
-    currentUserOrgId,
+    currentUserId,
     onSelect,
 }: SuggestionsDropdownProps) {
     // The optional contacts package supplies extra suggestions; without it we
@@ -580,7 +602,7 @@ function SuggestionsDropdown({
         orgMembers,
         alreadySharedIds,
         pendingEmails,
-        currentUserOrgId
+        currentUserId
     )
 
     if (!contactsLinked) {

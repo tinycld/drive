@@ -20,8 +20,8 @@ interface DriveSearchResponse {
 const extractResults = (response: unknown) => (response as DriveSearchResponse).items
 const extractTotal = (response: unknown) => (response as DriveSearchResponse).total
 
-export function useDriveSearch(query: string, orgId: string) {
-    const buildQueryParams = useMemo(() => (q: string) => ({ q, org: orgId }), [orgId])
+export function useDriveSearch(query: string) {
+    const buildQueryParams = useMemo(() => (q: string) => ({ q }), [])
 
     const options = useMemo(
         () => ({

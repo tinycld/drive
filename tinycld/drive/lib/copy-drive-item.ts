@@ -6,7 +6,6 @@ import {
     readCollectionCached,
 } from '@tinycld/core/lib/read-collection-cached'
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
-import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
@@ -45,16 +44,15 @@ export interface CopyDriveItemResult {
 // + per-descendant blob copy. Throws if `sourceItemId` resolves to a
 // folder.
 export function useCopyDriveItem() {
-    const { orgId } = useOrgInfo()
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
     const [itemsCollection] = useStore('drive_items')
 
     return useMutation({
         mutationFn: async (input: CopyDriveItemInput): Promise<CopyDriveItemResult> => {
-            if (!orgId || !userOrgId) {
-                throw new Error('Organization context not ready')
+            if (!userId) {
+                throw new Error('User context not ready')
             }
 
             // Read the source from the pbtsdb store — the item the user chose to
@@ -87,21 +85,17 @@ export function useCopyDriveItem() {
             // thing, but the client doesn't see the server-rewritten name).
             // Read siblings from the pbtsdb store; the server re-dedupes
             // authoritatively, so a stale store only risks a cosmetic name diff.
-            const siblings = await readCollectionCached(
-                itemsCollection,
-                i => i.org === orgId && i.parent === parentId
-            )
+            const siblings = await readCollectionCached(itemsCollection, i => i.parent === parentId)
             const finalName = deduplicateName(upload.name, new Set(siblings.map(s => s.name)))
 
             const itemId = newRecordId()
             const formData = new FormData()
             formData.append('id', itemId)
-            formData.append('org', orgId)
             formData.append('name', finalName)
             formData.append('is_folder', 'false')
             formData.append('mime_type', mimeType)
             formData.append('parent', parentId)
-            formData.append('created_by', userOrgId)
+            formData.append('created_by', userId)
             formData.append('size', String(upload.size))
             // RN's FormData accepts a `{ uri, name, type }` object literal; on
             // web the `file` field is a real File. We cast to satisfy TS.
@@ -109,7 +103,7 @@ export function useCopyDriveItem() {
             formData.append('description', '')
             // The drive_items create hook (server/register.go) inserts the
             // owner drive_shares row in the same transaction, so the client
-            // must not also insert one — the unique (item, user_org) index
+            // must not also insert one — the unique (item, user) index
             // would reject it.
             // biome-ignore lint/plugin/pbtsdb-no-raw-pb-access: multipart FormData file upload — pbtsdb's optimistic transaction can't carry a file blob.
             await pb.collection('drive_items').create(formData)

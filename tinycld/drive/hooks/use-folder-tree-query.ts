@@ -29,27 +29,21 @@ interface FolderRow {
 // self-contained source. Returns the same FolderTreeNode[] shape so
 // the dialog renderer is unchanged.
 //
-// Filters: folders only, owned by the current user_org. Trash state
+// Filters: folders only, owned by the current user. Trash state
 // is intentionally not joined — moving/copying into a trashed folder
 // would surface as a server-side error and is not a real flow.
 export function useFolderTreeQuery(_: UseFolderTreeQueryArgs = {}): FolderTreeNode[] {
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug)
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
 
     const [itemsCollection] = useStore('drive_items')
 
     const { data: folders = [] } = useOrgLiveQuery(
-        (query, scope) =>
+        (query, { userId }) =>
             query
                 .from({ item: itemsCollection })
-                .where(({ item }) =>
-                    and(
-                        eq(item.org, scope.orgId),
-                        eq(item.is_folder, true),
-                        eq(item.created_by, scope.userOrgId)
-                    )
-                )
+                .where(({ item }) => and(eq(item.is_folder, true), eq(item.created_by, userId)))
                 .select(({ item }) => ({
                     id: item.id,
                     name: item.name,
@@ -58,22 +52,22 @@ export function useFolderTreeQuery(_: UseFolderTreeQueryArgs = {}): FolderTreeNo
         []
     )
 
-    return useMemo(() => buildFolderTree(folders, userOrgId), [folders, userOrgId])
+    return useMemo(() => buildFolderTree(folders, userId), [folders, userId])
 }
 
-function buildFolderTree(folders: FolderRow[], userOrgId: string): FolderTreeNode[] {
+function buildFolderTree(folders: FolderRow[], userId: string): FolderTreeNode[] {
     function build(parentId: string): FolderTreeNode[] {
         return folders
             .filter(f => f.parent === parentId)
             .map(f => ({
-                item: toView(f, userOrgId),
+                item: toView(f, userId),
                 children: build(f.id),
             }))
     }
     return build('')
 }
 
-function toView(row: FolderRow, userOrgId: string) {
+function toView(row: FolderRow, userId: string) {
     // Shape-compatible with DriveItemView for the fields
     // ChooseFolderDialog actually reads (id, name). Other fields default
     // — the dialog never inspects them.
@@ -83,8 +77,8 @@ function toView(row: FolderRow, userOrgId: string) {
         isFolder: true,
         mimeType: '',
         parentId: row.parent,
-        owner: userOrgId,
-        ownerUserOrgId: userOrgId,
+        owner: userId,
+        ownerUserId: userId,
         updated: '',
         size: 0,
         shared: false,

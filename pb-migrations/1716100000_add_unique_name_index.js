@@ -3,7 +3,7 @@ migrate(
     app => {
         const collection = app.findCollectionByNameOrId('drive_items')
         collection.indexes = collection.indexes.concat([
-            'CREATE UNIQUE INDEX `idx_drv_items_unique_name` ON `drive_items` (`org`, `parent`, `name`)',
+            'CREATE UNIQUE INDEX `idx_drv_items_unique_name` ON `drive_items` (`parent`, `name`)',
         ])
         app.save(collection)
     },

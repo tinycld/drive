@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/nathanstitt/doctaculous/pkg/doctaculous"
@@ -37,7 +36,6 @@ const (
 
 type exportToken struct {
 	itemID    string
-	orgID     string
 	to        doctaculous.Format
 	expiresAt time.Time
 }
@@ -83,7 +81,7 @@ func exportInputFormat(mimeType string, to doctaculous.Format) (doctaculous.Form
 
 // handleCreateExportToken validates read access + convertibility and returns a
 // single-use token URL the client hands to downloadFromUrl.
-func handleCreateExportToken(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleCreateExportToken(app core.App, re *core.RequestEvent) error {
 	var body struct {
 		Item string `json:"item"`
 		To   string `json:"to"`
@@ -101,7 +99,7 @@ func handleCreateExportToken(app *pocketbase.PocketBase, re *core.RequestEvent) 
 		return re.BadRequestError("unsupported export target", nil)
 	}
 
-	item, _, err := resolveItemAndUserOrg(app, re, body.Item, false)
+	item, _, err := resolveItemAndUser(app, re, body.Item, false)
 	if err != nil {
 		return err
 	}
@@ -128,7 +126,6 @@ func handleCreateExportToken(app *pocketbase.PocketBase, re *core.RequestEvent) 
 	exportTokensMu.Lock()
 	exportTokens[token] = exportToken{
 		itemID:    item.Id,
-		orgID:     item.GetString("org"),
 		to:        to,
 		expiresAt: time.Now().Add(exportTokenTTL),
 	}
@@ -141,7 +138,7 @@ func handleCreateExportToken(app *pocketbase.PocketBase, re *core.RequestEvent) 
 }
 
 // handleExport consumes an export token, converts the item, and streams the PDF.
-func handleExport(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleExport(app core.App, re *core.RequestEvent) error {
 	token := re.Request.URL.Query().Get("token")
 	if token == "" {
 		return re.UnauthorizedError("missing token", nil)
@@ -161,7 +158,7 @@ func handleExport(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 	// Re-fetch the record and re-check the org so a token can't outlive a move
 	// between orgs (the access check already ran at mint time).
 	item, err := app.FindRecordById("drive_items", et.itemID)
-	if err != nil || item.GetString("org") != et.orgID {
+	if err != nil {
 		return re.NotFoundError("item not found", nil)
 	}
 
@@ -201,7 +198,7 @@ func handleExport(app *pocketbase.PocketBase, re *core.RequestEvent) error {
 // readItemBytesCapped reads a drive item's file into memory, erroring if it
 // exceeds max. doctaculous parses the whole input in memory, so this bounds
 // worst-case allocation per export.
-func readItemBytesCapped(app *pocketbase.PocketBase, item *core.Record, max int64) ([]byte, error) {
+func readItemBytesCapped(app core.App, item *core.Record, max int64) ([]byte, error) {
 	reader, err := readFileContent(app, item)
 	if err != nil {
 		return nil, err

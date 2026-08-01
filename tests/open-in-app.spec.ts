@@ -70,6 +70,10 @@ test.describe('Drive — Open in App', () => {
             // The stub opener's onPress fired iff the URL carries its beacon
             // param keyed to this item — proving drive resolved the action and
             // called it, not that it fell back to the preview modal.
+            //
+            // A URL wait is correct here, unlike elsewhere in the suite: the
+            // param IS the observable under test (the stub writes it to signal
+            // it ran), not a stand-in for "did the screen render".
             await page.waitForURL(new RegExp(`[?&]${STUB_OPEN_PARAM}=${fixture.id}(?:&|$)`))
             await expect(page.getByTestId('file-preview-modal')).not.toBeVisible()
         })

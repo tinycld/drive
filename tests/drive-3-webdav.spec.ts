@@ -1,11 +1,5 @@
 import { expect, test } from '@playwright/test'
-import {
-    login,
-    navigateToPackage,
-    ORG_SLUG,
-    TEST_USER_EMAIL,
-    TEST_USER_PASSWORD,
-} from '@tinycld/core/e2e-helpers'
+import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import {
     deleteResource,
     mkcol,
@@ -15,67 +9,16 @@ import {
     rawWebdavRequest,
 } from './webdav-helpers'
 
-// PB sits behind the dev.ts proxy on the test Expo port. /api/* routes
-// through to PB transparently — see scripts/dev.ts::isPbPath.
-const PB_URL = 'http://127.0.0.1:7200'
-
-// Authenticate against PocketBase as the test user and return the auth token.
-// Used to mutate drive_items through the REST API — the same path the web UI
-// takes via pbtsdb — so we can assert that UI-side mutations propagate to the
-// WebDAV view without depending on flaky UI interactions.
-async function authAsTestUser(): Promise<string> {
-    const res = await fetch(`${PB_URL}/api/collections/users/auth-with-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identity: TEST_USER_EMAIL, password: TEST_USER_PASSWORD }),
-    })
-    if (!res.ok) {
-        throw new Error(`PB auth failed: ${res.status} ${await res.text()}`)
-    }
-    const { token } = (await res.json()) as { token: string }
-    return token
-}
-
-// Resolve the org and user_org records for the test user. The drive_items
-// schema requires both — `org` for partitioning and `created_by` for
-// quota / share-permission tracking.
-//
-// The user_org filter must scope to the *current* user — without that scope,
-// a multi-membership test user could pull the wrong user_org row, and any
-// record created with that mismatched `created_by` immediately fails the
-// `created_by.user ?= @request.auth.id` rule on subsequent PATCH/DELETE
-// (PocketBase masks unauthorized writes as 404).
-async function resolveOrgContext(token: string): Promise<{ orgId: string; userOrgId: string }> {
-    const me = await fetch(`${PB_URL}/api/collections/users/auth-refresh`, {
-        method: 'POST',
-        headers: { Authorization: token },
-    })
-    const meBody = (await me.json()) as { record?: { id: string } }
-    const userId = meBody.record?.id
-    if (!userId) throw new Error(`auth-refresh returned no user record`)
-
-    const orgs = await fetch(
-        `${PB_URL}/api/collections/orgs/records?filter=${encodeURIComponent(`slug='${ORG_SLUG}'`)}`,
-        { headers: { Authorization: token } }
-    )
-    const orgItems = (await orgs.json()) as { items: { id: string }[] }
-    if (!orgItems.items[0]) throw new Error(`Org ${ORG_SLUG} not found`)
-    const orgId = orgItems.items[0].id
-
-    const userOrgs = await fetch(
-        `${PB_URL}/api/collections/user_org/records?filter=${encodeURIComponent(
-            `org='${orgId}' && user='${userId}'`
-        )}`,
-        { headers: { Authorization: token } }
-    )
-    const userOrgItems = (await userOrgs.json()) as { items: { id: string }[] }
-    if (!userOrgItems.items[0]) throw new Error(`user_org for ${ORG_SLUG} not found`)
-    return { orgId, userOrgId: userOrgItems.items[0].id }
-}
+// Single-org: the WebDAV tree hangs directly off the mount — there is no
+// /<orgSlug>/ segment any more (the router gives each org its own process
+// instead). The mount is /dav/drive, NOT /drive: bare /drive is the in-app
+// SPA route, and a literal server route beats the SPA catch-all.
+const DAV_ROOT = '/'
+const DAV_ROOT_HREF = '/dav/drive/'
 
 test.describe('Drive — WebDAV', () => {
-    test('org PROPFIND matches the names visible in the web UI', async ({ page }) => {
-        // Snapshot folder names visible in the web UI at the org's drive root.
+    test('root PROPFIND matches the names visible in the web UI', async ({ page }) => {
+        // Snapshot folder names visible in the web UI at the drive root.
         await login(page)
         await navigateToPackage(page, 'drive', {
             waitFor: page.getByTestId('package-sidebar-mounted'),
@@ -88,11 +31,11 @@ test.describe('Drive — WebDAV', () => {
             await expect(page.getByText(name).first()).toBeVisible()
         }
 
-        // PROPFIND the same org root over WebDAV.
-        const responses = await propfind(`/${ORG_SLUG}/`, '1')
+        // PROPFIND the same root over WebDAV.
+        const responses = await propfind(DAV_ROOT, '1')
         const hrefs = responses.map(r => r.href)
         const webdavNames = new Set(
-            responses.filter(r => r.href !== `/drive/${ORG_SLUG}/`).map(r => nameFromHref(r.href))
+            responses.filter(r => r.href !== DAV_ROOT_HREF).map(r => nameFromHref(r.href))
         )
 
         for (const name of expectedRootNames) {
@@ -108,7 +51,7 @@ test.describe('Drive — WebDAV', () => {
         const body = 'sync test file body'
 
         try {
-            await putFile(`/${ORG_SLUG}/${fileName}`, body, 'text/plain')
+            await putFile(`/${fileName}`, body, 'text/plain')
 
             await login(page)
             await navigateToPackage(page, 'drive', {
@@ -126,7 +69,7 @@ test.describe('Drive — WebDAV', () => {
                 page.getByLabel(new RegExp(`^${escapeRegex(fileName)} `)).filter({ visible: true })
             ).toBeVisible()
         } finally {
-            await deleteResource(`/${ORG_SLUG}/${fileName}`)
+            await deleteResource(`/${fileName}`)
         }
     })
 
@@ -134,7 +77,7 @@ test.describe('Drive — WebDAV', () => {
         const folderName = `webdav-mkcol-${Date.now()}`
 
         try {
-            await mkcol(`/${ORG_SLUG}/${folderName}/`)
+            await mkcol(`/${folderName}/`)
 
             await login(page)
             await navigateToPackage(page, 'drive', {
@@ -150,85 +93,81 @@ test.describe('Drive — WebDAV', () => {
                     .filter({ visible: true })
             ).toBeVisible()
         } finally {
-            await deleteResource(`/${ORG_SLUG}/${folderName}/`)
+            await deleteResource(`/${folderName}/`)
         }
     })
 
-    test('UI-side create + rename via PB REST is visible in WebDAV', async () => {
-        // The web UI mutates drive_items through pbtsdb, which talks to the
-        // PocketBase REST API under the hood. Driving the same REST endpoints
-        // here exercises the UI's write path without touching the (flaky)
-        // rename modal. We then assert via PROPFIND that both the created
-        // and renamed states are reflected in the WebDAV view.
-        const token = await authAsTestUser()
-        const { orgId, userOrgId } = await resolveOrgContext(token)
+    test('UI-side create + rename is visible in WebDAV', async ({ page }) => {
+        // Drive the real UI (New folder dialog, then the rename prompt) so the
+        // write goes through useMutation/pbtsdb exactly as a user's would, then
+        // assert via PROPFIND that both states reach the WebDAV view.
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const original = `webdav-roundtrip-src-${stamp}`
+        const renamed = `webdav-roundtrip-dst-${stamp}`
 
-        const original = `webdav-roundtrip-src-${Date.now()}`
-        const renamed = `webdav-roundtrip-dst-${Date.now()}`
-
-        // Create folder via PB REST.
-        const createRes = await fetch(`${PB_URL}/api/collections/drive_items/records`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: token },
-            body: JSON.stringify({
-                org: orgId,
-                created_by: userOrgId,
-                parent: '',
-                name: original,
-                is_folder: true,
-                size: 0,
-            }),
+        await login(page)
+        await navigateToPackage(page, 'drive', {
+            waitFor: page.getByTestId('package-sidebar-mounted'),
         })
-        if (!createRes.ok) {
-            throw new Error(`Create item failed: ${createRes.status} ${await createRes.text()}`)
-        }
-        const created = (await createRes.json()) as { id: string }
+
+        await page.getByRole('button', { name: 'New folder' }).click()
+        const nameInput = page.getByPlaceholder('Untitled folder')
+        await expect(nameInput).toBeVisible()
+        await nameInput.fill(original)
+        await page.getByRole('button', { name: 'Create' }).click()
+
+        // Surface the new row: at the seeded root it can sort off-screen and be
+        // virtualized out of the listing even though it's in the data.
+        const search = page.getByPlaceholder('Search in Files')
+        await search.fill(original)
+        const row = page.getByLabel(new RegExp(`^${escapeRegex(original)} `)).filter({
+            visible: true,
+        })
+        await expect(row).toBeVisible()
 
         try {
-            // Assert the created folder is in the WebDAV org-root listing.
-            const before = await propfind(`/${ORG_SLUG}/`, '1')
+            // Assert the created folder is in the WebDAV root listing.
+            const before = await propfind(DAV_ROOT, '1')
             const beforeNames = new Set(
-                before.filter(r => r.href !== `/drive/${ORG_SLUG}/`).map(r => nameFromHref(r.href))
+                before.filter(r => r.href !== DAV_ROOT_HREF).map(r => nameFromHref(r.href))
             )
             expect(beforeNames.has(original), `WebDAV missing newly-created "${original}"`).toBe(
                 true
             )
 
-            // Rename via PB REST (the same path the UI's rename modal takes).
-            const renameRes = await fetch(
-                `${PB_URL}/api/collections/drive_items/records/${created.id}`,
-                {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', Authorization: token },
-                    body: JSON.stringify({ name: renamed }),
-                }
-            )
-            if (!renameRes.ok) {
-                throw new Error(`Rename item failed: ${renameRes.status} ${await renameRes.text()}`)
-            }
+            // Rename through the toolbar prompt.
+            await row.click()
+            await page.getByLabel('Rename', { exact: true }).click()
+            const renameInput = page.getByTestId('drive-name-prompt-input')
+            await expect(renameInput).toBeVisible()
+            await renameInput.clear()
+            await renameInput.fill(renamed)
+            await page.getByRole('dialog').getByRole('button', { name: 'Rename' }).click()
+
+            await search.fill(renamed)
+            await expect(
+                page.getByLabel(new RegExp(`^${escapeRegex(renamed)} `)).filter({ visible: true })
+            ).toBeVisible()
 
             // PROPFIND again: new name visible, old name gone.
-            const after = await propfind(`/${ORG_SLUG}/`, '1')
+            const after = await propfind(DAV_ROOT, '1')
             const afterNames = new Set(
-                after.filter(r => r.href !== `/drive/${ORG_SLUG}/`).map(r => nameFromHref(r.href))
+                after.filter(r => r.href !== DAV_ROOT_HREF).map(r => nameFromHref(r.href))
             )
             expect(afterNames.has(renamed), `WebDAV missing renamed "${renamed}"`).toBe(true)
             expect(afterNames.has(original), `WebDAV still has stale "${original}"`).toBe(false)
         } finally {
-            await fetch(`${PB_URL}/api/collections/drive_items/records/${created.id}`, {
-                method: 'DELETE',
-                headers: { Authorization: token },
-            })
+            await deleteResource(`/${renamed}/`)
         }
     })
 
     test('old /webdav prefix no longer routes to WebDAV', async () => {
-        // /webdav/<slug>/ used to return a 207 Multistatus PROPFIND response.
-        // After the rename, the route is unbound; the request falls through
-        // to the static handler and is served either 404 or 200 (SPA shell).
-        // Either way it's NOT WebDAV — assert by status, since 207 would
-        // mean the old route is still alive.
-        const status = await rawWebdavRequest('PROPFIND', `/webdav/${ORG_SLUG}/`)
+        // /webdav/ used to return a 207 Multistatus PROPFIND response. After
+        // the rename, the route is unbound; the request falls through to the
+        // static handler and is served either 404 or 200 (SPA shell). Either
+        // way it's NOT WebDAV — assert by status, since 207 would mean the old
+        // route is still alive.
+        const status = await rawWebdavRequest('PROPFIND', '/webdav/')
         expect(status).not.toBe(207)
     })
 })

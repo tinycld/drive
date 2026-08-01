@@ -12,7 +12,7 @@ interface ChooseFolderDialogProps {
     excludeId: string
     /**
      * Folder tree to render. When omitted the dialog runs its own live
-     * query for folders owned by the current user_org — use that path
+     * query for folders owned by the current user — use that path
      * from packages that don't already have the drive state tree in
      * hand (e.g. @tinycld/calc's File menu).
      */

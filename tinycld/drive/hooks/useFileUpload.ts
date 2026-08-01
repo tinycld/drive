@@ -15,8 +15,7 @@ export interface DroppedEntry {
 }
 
 interface UseFileUploadOptions {
-    orgId: string
-    userOrgId: string
+    userId: string
     currentFolderId: string
 }
 
@@ -94,7 +93,7 @@ function uploadFormDataWithProgress(params: {
     })
 }
 
-export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUploadOptions) {
+export function useFileUpload({ userId, currentFolderId }: UseFileUploadOptions) {
     // Intentionally NOT subscribing to uploadingFiles here. useFileUpload runs
     // inside useDriveState, so any reactive read of upload progress would force
     // every useDrive() consumer (toolbar, dialogs, layout, sidebar) to re-render
@@ -143,12 +142,11 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
 
             const formData = new FormData()
             formData.append('id', id)
-            formData.append('org', orgId)
             formData.append('name', name)
             formData.append('is_folder', 'false')
             formData.append('mime_type', mimeForUpload(file))
             formData.append('parent', parentId)
-            formData.append('created_by', userOrgId)
+            formData.append('created_by', userId)
             formData.append('size', String(file.size))
             formData.append('file', file)
             formData.append('description', '')
@@ -170,7 +168,7 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
             updateFile(id, { status: 'done', loaded: file.size, name: finalName })
             scheduleClearDone(id)
         },
-        [orgId, userOrgId, makeProgressHandler, updateFile, scheduleClearDone]
+        [userId, makeProgressHandler, updateFile, scheduleClearDone]
     )
 
     const uploadMutation = useMutation({
@@ -259,12 +257,11 @@ export function useFileUpload({ orgId, userOrgId, currentFolderId }: UseFileUplo
                     await performMutations(function* () {
                         yield itemsCollection.insert({
                             id: folderId,
-                            org: orgId,
                             name,
                             is_folder: true,
                             mime_type: '',
                             parent: localParentId,
-                            created_by: userOrgId,
+                            created_by: userId,
                             size: 0,
                             file: '',
                             description: '',

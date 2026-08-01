@@ -95,18 +95,18 @@ export interface DriveContextValue {
     renameItem: (itemId: string, name: string) => void
     downloadItem: (itemId: string) => void
     moveItem: (itemId: string, newParentId: string) => void
-    shareItem: (itemId: string, userOrgId: string, role: 'editor' | 'viewer') => void
+    shareItem: (itemId: string, userId: string, role: 'editor' | 'viewer') => void
     removeShare: (shareId: string) => void
     getSharesForItem: (
         itemId: string
-    ) => { id: string; userOrgId: string; name: string; email: string; role: string }[]
-    orgMembers: { userOrgId: string; name: string; email: string }[]
+    ) => { id: string; userId: string; name: string; email: string; role: string }[]
+    orgMembers: { userId: string; name: string; email: string }[]
     /** itemsById feeds useUploadPlaceholders so completed uploads stop
      *  rendering as placeholders once the real record arrives. */
     itemsById: Map<string, DriveItemView>
-    /** Current user_org id; needed by useUploadPlaceholders to stamp the
+    /** Current user id; needed by useUploadPlaceholders to stamp the
      *  owner field on optimistic upload rows. */
-    userOrgId: string
+    userId: string
     // Upload action handles are stable (constructed once and held by ref).
     // Reactive upload progress is NOT exposed here on purpose — that lives
     // in useUploadStore so progress ticks don't churn DriveContextValue.
@@ -234,9 +234,9 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         () => (layoutAnimationRef ? () => layoutAnimationRef.current?.() : undefined),
         [layoutAnimationRef]
     )
-    const { orgSlug, orgId } = useOrgInfo()
+    const { orgSlug } = useOrgInfo()
     const userOrg = useCurrentUserOrg(orgSlug)
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
 
     const pathname = usePathname()
     const { section: activeSection, folderId: currentFolderId } = parseDrivePath(pathname)
@@ -341,18 +341,16 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
 
     const isSearchActive = searchQuery.length >= 2
     const { results: searchResults, isSearching } = useDriveSearch(
-        isSearchActive ? searchQuery : '',
-        orgId
+        isSearchActive ? searchQuery : ''
     )
 
     const upload = useFileUpload({
-        orgId,
-        userOrgId,
+        userId,
         currentFolderId,
     })
 
     const items = useDriveItems({
-        userOrgId,
+        userId,
         activeSection,
         currentFolderId,
         selectedItemId,
@@ -365,19 +363,17 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
     const storageUsage = useTotalStorage()
 
     const mutations = useDriveMutations({
-        orgId,
-        userOrgId,
+        userId,
         currentFolderId,
         stateByItem: items.stateByItem,
         itemsById: items.itemsById,
-        userOrgNames: items.userOrgNames,
-        userOrgEmails: items.userOrgEmails,
+        userNames: items.userNames,
+        userEmails: items.userEmails,
         sharesByItem: items.sharesByItem,
         prepareLayoutAnimation,
     })
 
     const nav = useDriveNavigation({
-        orgSlug,
         clearSearch: () => setSearchQuery(''),
         clearSelection,
     })
@@ -476,7 +472,7 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         getSharesForItem: mutations.getSharesForItem,
         orgMembers: items.orgMembers,
         itemsById: items.itemsById,
-        userOrgId,
+        userId,
         uploadFiles: upload.uploadFiles,
         uploadTree: upload.uploadTree,
         triggerFilePicker: upload.triggerFilePicker,

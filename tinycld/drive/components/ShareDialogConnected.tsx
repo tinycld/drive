@@ -20,7 +20,7 @@ export function ShareDialogConnected({
     itemName,
     onClose,
 }: ShareDialogConnectedProps) {
-    const { shares, orgMembers, currentUserOrgId, removeShare } = useShareData(itemId)
+    const { shares, orgMembers, currentUserId, removeShare } = useShareData(itemId)
 
     return (
         <ShareDialog
@@ -29,7 +29,7 @@ export function ShareDialogConnected({
             itemName={itemName}
             shares={shares}
             orgMembers={orgMembers}
-            currentUserOrgId={currentUserOrgId}
+            currentUserId={currentUserId}
             onRemoveShare={removeShare}
             onClose={onClose}
         />

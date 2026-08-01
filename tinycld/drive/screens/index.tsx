@@ -182,7 +182,7 @@ export default function DriveScreen() {
         openPrompt,
         actions,
         itemsById,
-        userOrgId,
+        userId,
         sortField,
         sortDirection,
         setSort,
@@ -194,7 +194,7 @@ export default function DriveScreen() {
     // Subscribe to upload progress here (not via DriveContextValue) so the
     // toolbar/dialogs/sidebar/preview don't re-render on every progress tick.
     const uploadPlaceholders = useUploadPlaceholders({
-        userOrgId,
+        userId,
         activeSection,
         currentFolderId,
         isSearchActive,
@@ -613,46 +613,40 @@ function FilesListRowImpl({
     // a fast scroll.
     const [isHovered, setIsHovered] = useRecyclingState(false, [item.id])
 
-    // Select on press-down (onPressIn) for instant highlight — but ONLY for a
-    // plain (unmodified) press on a file. Modifier (toggle/range) selection is
-    // resolved on the click instead, because the modifier flag isn't reliable on
-    // pointerdown under load (handleSelect/pressDownAction no-op on a modified
-    // press). A plain press on a folder is a navigate, so it must not select.
+    // Select on press-down (onPressIn) for instant highlight. Applies to
+    // folders and files alike: a single click selects, a double click opens.
+    // Modifier (toggle/range) selection is resolved on the click instead,
+    // because the modifier flag isn't reliable on pointerdown under load
+    // (handleSelect/pressDownAction no-op on a modified press).
     const handleSelectIn = useCallback(
         (event: GestureResponderEvent) => {
             const native = event.nativeEvent as unknown as MouseEvent
             const hasModifier = native.metaKey || native.ctrlKey || native.shiftKey
             if (hasModifier) return // resolved on click (reliable modifier)
-            if (item.isFolder) return // plain press on a folder navigates
             ctx.handleSelect(item.id, event)
         },
-        [item.id, item.isFolder, ctx]
+        [item.id, ctx]
     )
-    // Open on click: files open the preview on double-click; folders navigate on
-    // a plain single-click. The single-click slot also resolves the deferred
-    // modifier selection (toggle/range) and collapses a preserved multi-selection
-    // to this row (handleSelect keeps the set on press-down so a grab can drag
-    // it). Runs only on a real click since a drag consumes the pointer.
+    // Open on double-click, select on single — the same contract for folders and
+    // files, and the one every desktop file manager uses. A folder opens into
+    // itself; a file opens its preview (or its registered app).
+    //
+    // Folders used to navigate on a plain single click, which made them
+    // impossible to select without a modifier: any toolbar action scoped to a
+    // selection (Rename, Move, Share) was unreachable for a folder by mouse.
+    //
+    // The single-click slot also resolves the deferred modifier selection
+    // (toggle/range) and collapses a preserved multi-selection to this row
+    // (handleSelect keeps the set on press-down so a grab can drag it). Runs
+    // only on a real click since a drag consumes the pointer.
     const handleRowClickSelect = useCallback(
         (event: GestureResponderEvent) => ctx.handleSelectClick(item.id, event),
         [item.id, ctx]
     )
-    const handleFileOpenAction = useCallback(() => ctx.openFile(item), [item, ctx])
-    const handleFileOpen = useDoubleClick(handleRowClickSelect, handleFileOpenAction)
-    const handleFolderWebPress = useCallback(
-        (event: GestureResponderEvent) => {
-            const native = event.nativeEvent as unknown as MouseEvent
-            // Modifier click selects (toggle/range) via the shared click path;
-            // a plain click navigates into the folder.
-            if (native.metaKey || native.ctrlKey || native.shiftKey) {
-                ctx.handleSelectClick(item.id, event)
-                return
-            }
-            actions.navigateToFolder(item.id)
-        },
-        [item.id, ctx, actions]
-    )
-    const handlePress = item.isFolder ? handleFolderWebPress : handleFileOpen
+    // ctx.openFile IS the shared opener (useOpenDriveItem): folders navigate,
+    // files hand off to a registered app (calc/text) or fall back to preview.
+    const handleOpenAction = useCallback(() => ctx.openFile(item), [item, ctx])
+    const handlePress = useDoubleClick(handleRowClickSelect, handleOpenAction)
 
     const handleMobilePress = useCallback(() => {
         // A long-press opened the context menu; ignore the tap that fires when
@@ -1050,30 +1044,33 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
     const isSelectedRow = ctx.isSelected(item.id)
 
     const handleNavigate = useCallback(() => actions.navigateToFolder(item.id), [item.id, actions])
-    // Single-click navigates on both platforms. On web, modifier keys
-    // (cmd/ctrl/shift) still build a multi-select for bulk operations.
-    const handlePress = useCallback(
+
+    // Desktop: single click selects, double click opens — the same contract as
+    // a file card, so a folder can be selected for Rename/Move/Share without a
+    // modifier. Touch keeps tap-to-open, which is the platform convention (and
+    // where a long-press, not a second tap, is how you select).
+    const handleSelectIn = useCallback(
         (event: GestureResponderEvent) => {
-            if (ctx.isMobile) {
-                if (consumeContextMenuPressSuppression(Date.now())) return
-                handleNavigate()
-                return
-            }
             const native = event.nativeEvent as unknown as MouseEvent
-            if (native.metaKey || native.ctrlKey || native.shiftKey) {
-                // Modifier select on the click (reliable modifier) via the
-                // click path — toggle/range, not the press-down single.
-                ctx.handleSelectClick(item.id, event)
-                return
-            }
-            handleNavigate()
+            if (native.metaKey || native.ctrlKey || native.shiftKey) return
+            ctx.handleSelect(item.id, event)
         },
-        [ctx, item.id, handleNavigate]
+        [item.id, ctx]
     )
+    const handleClickSelect = useCallback(
+        (event: GestureResponderEvent) => ctx.handleSelectClick(item.id, event),
+        [item.id, ctx]
+    )
+    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleNavigate)
+    const handleMobilePress = useCallback(() => {
+        if (consumeContextMenuPressSuppression(Date.now())) return
+        handleNavigate()
+    }, [handleNavigate])
 
     return (
         <Pressable
-            onPress={handlePress}
+            onPressIn={ctx.isMobile ? undefined : handleSelectIn}
+            onPress={ctx.isMobile ? handleMobilePress : handleDesktopOpen}
             testID={`drive-item-${item.name}`}
             // No "button" role — the card hosts its own buttons (⋯ menu);
             // nesting <button> in <button> is invalid on web.

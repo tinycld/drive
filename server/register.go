@@ -1,7 +1,6 @@
 package drive
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,90 +12,54 @@ import (
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/pocketbase/pocketbase/tools/routine"
-	"golang.org/x/net/webdav"
 	"tinycld.org/core/audit"
+	"tinycld.org/core/coreserver"
+	"tinycld.org/core/driveshare"
 	"tinycld.org/core/notify"
+	"tinycld.org/core/offboard"
 	"tinycld.org/core/previewqueue"
-	"tinycld.org/core/userorg"
+	"tinycld.org/core/quota"
 	"tinycld.org/core/versionhooks"
+	"tinycld.org/core/webdav"
 )
 
+// Register composes the drive server — the package's single entry point,
+// called by the generator's package_extensions.go in BOTH the single-org app
+// and a multi-org tenant. The WebDAV mount runs in both: a per-org tenant
+// build links exactly the org's features, so the artifact is the gate, and
+// the self-mounted Source carries driveWebDAVHooks directly — the old
+// materialized-mount hook bridge (webdav.RegisterSourceHooks) is gone with
+// the mechanism that needed it.
 func Register(app *pocketbase.PocketBase) {
-	// Reassignable authorship FKs surfaced to the leave-org transaction.
-	// All five point at user_org with cascadeDelete:false, so without
-	// reassignment a user with any drive content can't leave the org.
-	for _, ref := range []userorg.ReassignableRef{
+	registerShared(app)
+	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
+		app.Logger().Error("drive: WebDAV registration failed", "error", err)
+	}
+}
+
+// registerShared is the single source of truth for what BOTH compositions run.
+func registerShared(app *pocketbase.PocketBase) {
+	// Reassignable authorship FKs surfaced to the account-offboarding
+	// transaction. All point at users with cascadeDelete:false, so without
+	// reassignment an account with any drive content can't be deleted.
+	for _, ref := range []offboard.ReassignableRef{
 		{Collection: "drive_items", Field: "created_by"},
 		{Collection: "drive_shares", Field: "created_by"},
 		{Collection: "drive_item_versions", Field: "created_by"},
 		{Collection: "drive_share_links", Field: "created_by"},
-		{Collection: "drive_preview_comments", Field: "author_user_org"},
 	} {
-		userorg.RegisterReassignable(ref)
+		offboard.RegisterReassignable(ref)
 	}
 
-	// Audit logging for drive collections
+	// Audit logging for drive collections. Single-org: audit rows carry no org,
+	// so only drive_items customizes anything (its display label).
 	audit.RegisterCollection(app, "drive_items", &audit.CollectionConfig{
 		ExtractLabel: audit.LabelFromField("name"),
 	})
-	driveItemOrgResolver := &audit.CollectionConfig{
-		ResolveOrg: func(a core.App, record *core.Record) string {
-			itemID := record.GetString("item")
-			if itemID == "" {
-				return ""
-			}
-			return audit.ResolveViaRelation(a, "drive_items", itemID, "org")
-		},
-	}
-	audit.RegisterCollection(app, "drive_item_state", driveItemOrgResolver)
-	audit.RegisterCollection(app, "drive_shares", driveItemOrgResolver)
+	audit.RegisterCollection(app, "drive_item_state", &audit.CollectionConfig{})
+	audit.RegisterCollection(app, "drive_shares", &audit.CollectionConfig{})
 
-	// drive_items create hook owns three concerns the API path can't do alone:
-	//   - per-user storage quota enforcement using the size field
-	//   - auto-rename on (org, parent, name) unique-index collisions, so
-	//     clients can POST "report.pdf" without first listing the folder
-	//   - owner drive_shares insert, in the same transaction as the item, so
-	//     no drive_item ever exists without an owner share
-	//
-	// Dedup is a pre-flight probe of the unique index. The DB index remains
-	// the ultimate safety net for the narrow race where a concurrent
-	// transaction commits a colliding name between probe and INSERT — that
-	// surfaces as a save error to the client, which is acceptable.
-	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
-		// The client-supplied `size` is untrusted: a forged `size=0` (or any
-		// small value) would slip past the quota check below and under-report
-		// in handleStorageUsage. Recompute it from the actual uploaded blob —
-		// mirroring the WebDAV and version-upload paths, which both derive
-		// size from the stored bytes (filesystem.File.Size) rather than the
-		// request field. reconcileDriveItemSize leaves fileless creates
-		// (folders, blank items) with their as-declared size.
-		reconcileDriveItemSize(e.Record)
-
-		size := e.Record.GetInt("size")
-		orgID := e.Record.GetString("org")
-		userOrgID := e.Record.GetString("created_by")
-		if size > 0 && orgID != "" && userOrgID != "" {
-			if err := checkUserStorageQuota(app, userOrgID, orgID, int64(size)); err != nil {
-				return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
-			}
-		}
-		if orgID != "" {
-			unique, err := chooseUniqueDriveItemName(e.App, orgID, e.Record.GetString("parent"), e.Record.GetString("name"))
-			if err != nil {
-				return fmt.Errorf("dedup drive_item name: %w", err)
-			}
-			if unique != e.Record.GetString("name") {
-				e.Record.Set("name", unique)
-			}
-		}
-		if err := e.Next(); err != nil {
-			return err
-		}
-		if userOrgID == "" {
-			return nil
-		}
-		return createOwnerShare(e.App, e.Record.Id, userOrgID)
-	})
+	registerDriveItemCreateHook(app)
 
 	// Reject reparenting that would create a folder cycle. Move-cycle
 	// prevention is otherwise client-only (dnd.ts), so a direct PATCH of
@@ -150,6 +113,12 @@ func Register(app *pocketbase.PocketBase) {
 		return e.Next()
 	})
 
+	// Storage ceilings: declare the collections, core binds the enforcement.
+	quota.RegisterSources(quotaSources...)
+
+	// $drive.* JS binding for TS hooks that need Go-backed drive logic.
+	registerJSVMBinding(app)
+
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// Search API endpoint
 		e.Router.GET("/api/drive/search", func(re *core.RequestEvent) error {
@@ -196,7 +165,7 @@ func Register(app *pocketbase.PocketBase) {
 
 		// Email-verified guest provisioning for commentor/editor share
 		// links. otp-request mints a single-use code and emails it; the
-		// guest user_org + drive_shares row are created only at
+		// guest user + drive_shares row are created only at
 		// otp-verify, after the recipient proves they control the email.
 		// viewer links don't need this — they grant anonymous read.
 		e.Router.POST("/api/drive/share-link/{token}/otp-request", func(re *core.RequestEvent) error {
@@ -244,45 +213,65 @@ func Register(app *pocketbase.PocketBase) {
 			return handleStorageUsage(app, re)
 		}).BindFunc(requireAuth)
 
-		// WebDAV handler — golang.org/x/net/webdav, with NewMemLS so we
-		// advertise DAV class 2 (LOCK/UNLOCK) and macOS Finder will
-		// mount us read-write. The auth check happens once per request
-		// here in middleware so we don't bcrypt-per-FS-call inside the
-		// handler.
-		driveFS := &DriveFileSystem{app: app}
-		handler := &webdav.Handler{
-			FileSystem: driveFS,
-			LockSystem: webdav.NewMemLS(),
-			Logger: func(r *http.Request, err error) {
-				if err != nil {
-					app.Logger().Debug("WebDAV", "method", r.Method, "path", r.URL.Path, "error", err)
-				}
-			},
-		}
-
-		serveWebDAV := func(re *core.RequestEvent) error {
-			user, err := authenticateRequest(app, re.Request)
-			if err != nil {
-				re.Response.Header().Set("WWW-Authenticate", `Basic realm="TinyCld WebDAV"`)
-				http.Error(re.Response, "Authentication required", http.StatusUnauthorized)
-				return nil
-			}
-
-			ctx := context.WithValue(re.Request.Context(), userKey, user)
-			handler.ServeHTTP(re.Response, re.Request.WithContext(ctx))
-			return nil
-		}
-
-		e.Router.Any("/drive/{path...}", serveWebDAV)
-		e.Router.Any("/drive", serveWebDAV)
-
-		e.Router.Any("/.well-known/webdav", func(re *core.RequestEvent) error {
-			http.Redirect(re.Response, re.Request, "/drive/", http.StatusMovedPermanently)
-			return nil
-		})
-
 		return e.Next()
 	})
+}
+
+// quotaSources are the collections whose bytes count toward the storage
+// ceilings. Versions are included because a restore-able history is real disk;
+// both carry created_by, so they count per-user as well as per-org.
+//
+// core/quota binds the enforcement hooks — drive does not, so no write path
+// (REST, WebDAV, the version endpoints) can route around the limit.
+var quotaSources = []quota.Source{
+	{Slug: "drive", Collection: "drive_items", SizeField: "size", OwnerField: "created_by"},
+	{Slug: "drive", Collection: "drive_item_versions", SizeField: "size", OwnerField: "created_by"},
+}
+
+// webDAVSource maps drive_items onto a WebDAV file tree. The protocol server,
+// its path resolution and its blob handling all live in core/webdav; drive
+// contributes the field map plus the few decisions a field map can't express.
+var webDAVSource = webdav.Source{
+	Slug:       "drive",
+	Prefix:     "/dav/drive",
+	Collection: "drive_items",
+	Fields: webdav.FieldMap{
+		Name:     "name",
+		Parent:   "parent",
+		IsFolder: "is_folder",
+		Size:     "size",
+		MimeType: "mime_type",
+		File:     "file",
+		Owner:    "created_by",
+		Updated:  "updated",
+	},
+	// Mirrors the manifest's `webdav.trash` block: DAV DELETE stamps the
+	// per-user trash state (restorable from the Trash screen) instead of
+	// destroying the record.
+	Trash: &webdav.TrashConfig{
+		Collection:     "drive_item_state",
+		ItemField:      "item",
+		UserField:      "user",
+		TrashedAtField: "trashed_at",
+	},
+	// No permission or quota callbacks: core evaluates drive_items' own
+	// List/View/Update/Delete rules (shipped in the migrations; the current
+	// restatement is 1782100000_restore_guest_clause_and_settle_commentor.js) and
+	// core/quota enforces the ceilings as record hooks, so WebDAV gets both
+	// from the same definitions the REST API and the web UI use.
+	Hooks: driveWebDAVHooks,
+}
+
+// driveWebDAVHooks are drive's Go side effects on the WebDAV tree. They ride
+// on webDAVSource directly — Register self-mounts the source in both
+// compositions, so the closures need no side channel (R7).
+var driveWebDAVHooks = webdav.Hooks{
+	// Archive the outgoing blob before an overwrite replaces it, so a
+	// WebDAV PUT gets the same version history as a UI upload.
+	BeforeOverwrite: func(app core.App, userID string, record *core.Record) error {
+		_, err := snapshotCurrentFile(app, record, userID, "upload", "")
+		return err
+	},
 }
 
 func requireAuth(re *core.RequestEvent) error {
@@ -292,54 +281,37 @@ func requireAuth(re *core.RequestEvent) error {
 	return re.Next()
 }
 
-// resolveItemAndUserOrg loads the item, validates the user has an org membership matching
-// the item's org, and returns the item plus the matching user_org ID.
-// If requireWrite is true, also validates editor/owner share permission.
-func resolveItemAndUserOrg(app *pocketbase.PocketBase, re *core.RequestEvent, itemID string, requireWrite bool) (*core.Record, string, error) {
+// resolveItemAndUser loads the item and validates the caller's share access to
+// it, returning the item plus the caller's user id. Single-org: there is no org
+// membership to match, so the authenticated user id IS the access key.
+// If requireWrite is true, validates editor/owner share permission.
+func resolveItemAndUser(app core.App, re *core.RequestEvent, itemID string, requireWrite bool) (*core.Record, string, error) {
 	item, err := app.FindRecordById("drive_items", itemID)
 	if err != nil {
 		return nil, "", re.NotFoundError("item not found", nil)
 	}
 
-	itemOrgID := item.GetString("org")
-
-	userOrgIDs, err := getUserOrgIDs(app, re.Auth.Id)
-	if err != nil || len(userOrgIDs) == 0 {
-		return nil, "", re.ForbiddenError("no access", nil)
-	}
-
-	// Build a set of user_org IDs that belong to the item's org
-	orgUserOrgs, err := app.FindRecordsByFilter(
-		"user_org",
-		"user = {:user} && org = {:org}",
-		"", 1, 0,
-		map[string]any{"user": re.Auth.Id, "org": itemOrgID},
-	)
-	if err != nil || len(orgUserOrgs) == 0 {
-		return nil, "", re.ForbiddenError("no org membership for this item", nil)
-	}
-
-	matchedUserOrgID := orgUserOrgs[0].Id
+	userID := re.Auth.Id
 
 	if requireWrite {
-		if err := checkWritePermission(app, matchedUserOrgID, item.Id); err != nil {
+		if err := driveshare.CheckWrite(app, userID, item.Id); err != nil {
 			return nil, "", re.ForbiddenError("editor or owner access required", nil)
 		}
-	} else if err := checkReadPermission(app, matchedUserOrgID, item); err != nil {
+	} else if err := driveshare.CheckReadItem(app, userID, item); err != nil {
 		return nil, "", re.ForbiddenError("no access to item", nil)
 	}
 
-	return item, matchedUserOrgID, nil
+	return item, userID, nil
 }
 
 // handleUploadVersion snapshots the current file and replaces it with the uploaded one.
-func handleUploadVersion(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 	itemID := re.Request.FormValue("item")
 	if itemID == "" {
 		return re.BadRequestError("missing item parameter", nil)
 	}
 
-	item, userOrgID, err := resolveItemAndUserOrg(app, re, itemID, true)
+	item, userID, err := resolveItemAndUser(app, re, itemID, true)
 	if err != nil {
 		return err
 	}
@@ -355,15 +327,18 @@ func handleUploadVersion(app *pocketbase.PocketBase, re *core.RequestEvent) erro
 		return re.BadRequestError("failed to read file", nil)
 	}
 
-	// Check storage quota: new version size minus the current file size (delta)
+	// Pre-flight quota check. core/quota is the authoritative enforcement (a
+	// record hook every write passes through); this rejects early, before the
+	// snapshot and blob write, rather than doing that work only to have the
+	// save refused.
 	sizeDelta := int64(len(data)) - int64(item.GetInt("size"))
 	if sizeDelta > 0 {
-		if err := checkUserStorageQuota(app, userOrgID, item.GetString("org"), sizeDelta); err != nil {
+		if err := checkUserStorageQuota(app, userID, sizeDelta); err != nil {
 			return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
 		}
 	}
 
-	if _, err := snapshotCurrentFile(app, item, userOrgID, "upload", ""); err != nil {
+	if _, err := snapshotCurrentFile(app, item, userID, "upload", ""); err != nil {
 		app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
 	}
 
@@ -396,7 +371,7 @@ func handleUploadVersion(app *pocketbase.PocketBase, re *core.RequestEvent) erro
 
 // handleSnapshotVersion snapshots the current file on a drive_item as a labeled
 // version without uploading any new bytes. Used by calc/text "Save version".
-func handleSnapshotVersion(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 	var body struct {
 		Item  string `json:"item"`
 		Label string `json:"label"`
@@ -413,7 +388,7 @@ func handleSnapshotVersion(app *pocketbase.PocketBase, re *core.RequestEvent) er
 		label = label[:500]
 	}
 
-	item, userOrgID, err := resolveItemAndUserOrg(app, re, body.Item, true)
+	item, userID, err := resolveItemAndUser(app, re, body.Item, true)
 	if err != nil {
 		return err
 	}
@@ -422,7 +397,7 @@ func handleSnapshotVersion(app *pocketbase.PocketBase, re *core.RequestEvent) er
 		return router.NewApiError(http.StatusUnprocessableEntity, "nothing to snapshot — file is empty", nil)
 	}
 
-	version, err := snapshotCurrentFile(app, item, userOrgID, "user", label)
+	version, err := snapshotCurrentFile(app, item, userID, "user", label)
 	if err != nil {
 		app.Logger().Warn("version snapshot failed", "id", item.Id, "error", err)
 		return re.InternalServerError("failed to save version", nil)
@@ -443,7 +418,7 @@ func handleSnapshotVersion(app *pocketbase.PocketBase, re *core.RequestEvent) er
 }
 
 // handleRestoreVersion restores a previous version as the current file.
-func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) error {
+func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 	var body struct {
 		Item    string `json:"item"`
 		Version string `json:"version"`
@@ -456,7 +431,7 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 		return re.BadRequestError("missing item or version", nil)
 	}
 
-	item, userOrgID, err := resolveItemAndUserOrg(app, re, body.Item, true)
+	item, userID, err := resolveItemAndUser(app, re, body.Item, true)
 	if err != nil {
 		return err
 	}
@@ -470,16 +445,17 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 		return re.BadRequestError("version does not belong to item", nil)
 	}
 
-	// Check storage quota: restored version size minus current size (delta)
+	// Pre-flight quota check; core/quota is the authoritative one. See
+	// handleUploadVersion.
 	sizeDelta := int64(version.GetInt("size")) - int64(item.GetInt("size"))
 	if sizeDelta > 0 {
-		if err := checkUserStorageQuota(app, userOrgID, item.GetString("org"), sizeDelta); err != nil {
+		if err := checkUserStorageQuota(app, userID, sizeDelta); err != nil {
 			return router.NewApiError(http.StatusRequestEntityTooLarge, err.Error(), nil)
 		}
 	}
 
 	// Snapshot the current file before restoring (system-generated, hidden from UI)
-	if _, err := snapshotCurrentFile(app, item, userOrgID, "system", ""); err != nil {
+	if _, err := snapshotCurrentFile(app, item, userID, "system", ""); err != nil {
 		app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
 	}
 
@@ -541,29 +517,21 @@ func handleRestoreVersion(app *pocketbase.PocketBase, re *core.RequestEvent) err
 	})
 }
 
-// handleStorageUsage returns storage usage info for the requesting user and their org.
-func handleStorageUsage(app *pocketbase.PocketBase, re *core.RequestEvent) error {
-	orgID := re.Request.URL.Query().Get("org")
-	if orgID == "" {
-		return re.BadRequestError("missing org parameter", nil)
-	}
-
-	userOrg, err := getUserOrgForOrg(app, re.Auth.Id, orgID)
-	if err != nil {
-		return re.ForbiddenError("no org membership", nil)
-	}
-
-	userUsed, err := getUserStorageUsed(app, userOrg.Id)
+// handleStorageUsage returns storage usage info for the requesting user and the
+// deployment. Single-org: the deployment IS the org, so there is no org
+// parameter and the caller's role comes off their auth record.
+func handleStorageUsage(app core.App, re *core.RequestEvent) error {
+	userUsed, err := getUserStorageUsed(app, re.Auth.Id)
 	if err != nil {
 		return re.InternalServerError("failed to get user storage", nil)
 	}
 
-	orgDriveBytes, orgMailBytes, err := getOrgStorageUsed(app, orgID)
+	orgDriveBytes, orgMailBytes, err := getDeploymentStorageUsed(app)
 	if err != nil {
-		return re.InternalServerError("failed to get org storage", nil)
+		return re.InternalServerError("failed to get deployment storage", nil)
 	}
 
-	limitBytes := getStorageLimitBytes(app, orgID)
+	limitBytes := getStorageLimitBytes(app)
 
 	result := map[string]any{
 		"user_used_bytes": userUsed,
@@ -574,9 +542,8 @@ func handleStorageUsage(app *pocketbase.PocketBase, re *core.RequestEvent) error
 	}
 
 	if re.Request.URL.Query().Get("breakdown") == "users" {
-		role := userOrg.GetString("role")
-		if role == "owner" || role == "admin" {
-			breakdown, err := getUsersStorageBreakdown(app, orgID)
+		if role := re.Auth.GetString("role"); role == "owner" || role == "admin" {
+			breakdown, err := getUsersStorageBreakdown(app)
 			if err != nil {
 				return re.InternalServerError("failed to get breakdown", nil)
 			}
@@ -587,47 +554,32 @@ func handleStorageUsage(app *pocketbase.PocketBase, re *core.RequestEvent) error
 	return re.JSON(http.StatusOK, result)
 }
 
-func notifyDriveShare(app *pocketbase.PocketBase, shareRecord *core.Record) {
-	userOrgID := shareRecord.GetString("user_org")
+func notifyDriveShare(app core.App, shareRecord *core.Record) {
+	userID := shareRecord.GetString("user")
 	itemID := shareRecord.GetString("item")
 	createdBy := shareRecord.GetString("created_by")
 
-	if userOrgID == "" || itemID == "" {
+	if userID == "" || itemID == "" {
 		return
 	}
 
 	// Self-shares (owner/author sharing with themselves) aren't real notifications
 	// for the recipient — they're the bookkeeping rows created alongside every
 	// upload/folder so the author retains access after rule changes.
-	if userOrgID == createdBy {
+	if userID == createdBy {
 		return
 	}
-
-	userOrgRecord, err := app.FindRecordById("user_org", userOrgID)
-	if err != nil {
-		return
-	}
-	userID := userOrgRecord.GetString("user")
-	orgID := userOrgRecord.GetString("org")
 
 	item, err := app.FindRecordById("drive_items", itemID)
 	if err != nil {
 		return
 	}
-	itemName := item.GetString("name")
-
-	orgRecord, err := app.FindRecordById("orgs", orgID)
-	if err != nil {
-		return
-	}
-	orgSlug := orgRecord.GetString("slug")
 
 	notify.NotifyUser(app, notify.NotifyParams{
 		UserID:  userID,
-		OrgID:   orgID,
 		Type:    "drive_file_shared",
 		Package: "drive",
-		Title:   fmt.Sprintf("File shared with you: %s", itemName),
-		URL:     fmt.Sprintf("/a/%s/drive", orgSlug),
+		Title:   fmt.Sprintf("File shared with you: %s", item.GetString("name")),
+		URL:     "/drive",
 	})
 }

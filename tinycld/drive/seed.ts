@@ -9,8 +9,6 @@ function log(...args: unknown[]) {
 
 interface SeedContext {
     user: { id: string; email: string; name: string }
-    org: { id: string }
-    userOrg: { id: string }
 }
 
 const ASSETS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../tests/assets')
@@ -511,7 +509,7 @@ const FILES: {
     },
 ]
 
-async function seedFolders(pb: PocketBase, orgId: string, userOrgId: string) {
+async function seedFolders(pb: PocketBase, userId: string) {
     const folderIds: Record<string, string> = {}
 
     for (const folder of FOLDERS) {
@@ -520,12 +518,11 @@ async function seedFolders(pb: PocketBase, orgId: string, userOrgId: string) {
         // OnRecordCreate("drive_items") hook in drive/server/register.go;
         // no explicit follow-up share insert here.
         const record = await pb.collection('drive_items').create({
-            org: orgId,
             name: folder.name,
             is_folder: true,
             mime_type: '',
             parent: folder.parent ? folderIds[folder.parent] : '',
-            created_by: userOrgId,
+            created_by: userId,
             size: 0,
             description: '',
         })
@@ -537,10 +534,9 @@ async function seedFolders(pb: PocketBase, orgId: string, userOrgId: string) {
 
 async function seedFiles(
     pb: PocketBase,
-    orgId: string,
-    userOrgId: string,
+    userId: string,
     folderIds: Record<string, string>,
-    otherMembers: { id: string }[]
+    otherUsers: { id: string }[]
 ) {
     for (const file of FILES) {
         log(`Uploading file: ${file.name}`)
@@ -553,12 +549,11 @@ async function seedFiles(
         if (file.asset) {
             const asset = loadAsset(file.asset)
             const formData = new FormData()
-            formData.append('org', orgId)
             formData.append('name', file.name)
             formData.append('is_folder', 'false')
             formData.append('mime_type', asset.mime)
             formData.append('parent', parentId)
-            formData.append('created_by', userOrgId)
+            formData.append('created_by', userId)
             formData.append('size', String(asset.size))
             formData.append('description', file.description)
             formData.append('file', asset.blob, file.name)
@@ -567,25 +562,24 @@ async function seedFiles(
             // Metadata-only seed file: no blob backing. Mime is derived
             // from the extension so the icon renders correctly.
             record = await pb.collection('drive_items').create({
-                org: orgId,
                 name: file.name,
                 is_folder: false,
                 mime_type: mimeForName(file.name),
                 parent: parentId,
-                created_by: userOrgId,
+                created_by: userId,
                 size: 0,
                 description: file.description,
             })
         }
 
-        // Share with a team member if marked as shared
-        if (file.shared && otherMembers.length > 0) {
-            const sharedWith = otherMembers[Math.floor(Math.random() * otherMembers.length)]
+        // Share with another user if marked as shared
+        if (file.shared && otherUsers.length > 0) {
+            const sharedWith = otherUsers[Math.floor(Math.random() * otherUsers.length)]
             await pb.collection('drive_shares').create({
                 item: record.id,
-                user_org: sharedWith.id,
+                user: sharedWith.id,
                 role: 'editor',
-                created_by: userOrgId,
+                created_by: userId,
             })
         }
 
@@ -593,7 +587,7 @@ async function seedFiles(
         if (file.starred) {
             await pb.collection('drive_item_state').create({
                 item: record.id,
-                user_org: userOrgId,
+                user: userId,
                 is_starred: true,
                 trashed_at: '',
                 last_viewed_at: new Date().toISOString(),
@@ -602,18 +596,14 @@ async function seedFiles(
     }
 }
 
-async function seedFolderStars(
-    pb: PocketBase,
-    userOrgId: string,
-    folderIds: Record<string, string>
-) {
+async function seedFolderStars(pb: PocketBase, userId: string, folderIds: Record<string, string>) {
     // Star the Projects and Engineering folders
     const starredFolders = ['projects', 'engineering']
     for (const key of starredFolders) {
         if (folderIds[key]) {
             await pb.collection('drive_item_state').create({
                 item: folderIds[key],
-                user_org: userOrgId,
+                user: userId,
                 is_starred: true,
                 trashed_at: '',
                 last_viewed_at: new Date().toISOString(),
@@ -622,25 +612,26 @@ async function seedFolderStars(
     }
 }
 
-export default async function seed(pb: PocketBase, { org, userOrg }: SeedContext) {
-    const existingItems = await pb.collection('drive_items').getList(1, 1, {
-        filter: `org = "${org.id}"`,
-    })
+export default async function seed(pb: PocketBase, { user }: SeedContext) {
+    // Single-org: the deployment IS the org, so an unfiltered count is the
+    // whole Drive.
+    const existingItems = await pb.collection('drive_items').getList(1, 1)
     if (existingItems.totalItems > 0) {
         log(`Skipping (${existingItems.totalItems} items already exist)`)
         return
     }
 
-    const otherMembers = await pb.collection('user_org').getFullList({
-        filter: `org = "${org.id}" && id != "${userOrg.id}"`,
+    // Every other user in the database is someone the seed can share with.
+    const otherUsers = await pb.collection('users').getFullList({
+        filter: `id != "${user.id}"`,
     })
 
-    const folderIds = await seedFolders(pb, org.id, userOrg.id)
+    const folderIds = await seedFolders(pb, user.id)
 
     log(`Uploading ${FILES.length} files...`)
-    await seedFiles(pb, org.id, userOrg.id, folderIds, otherMembers)
+    await seedFiles(pb, user.id, folderIds, otherUsers)
 
-    await seedFolderStars(pb, userOrg.id, folderIds)
+    await seedFolderStars(pb, user.id, folderIds)
 
     log(`Created ${FOLDERS.length} folders and uploaded ${FILES.length} files`)
 }

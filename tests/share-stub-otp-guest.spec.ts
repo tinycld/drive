@@ -3,12 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
 import { readLatestOtpEmail } from './email-log-helper'
-import {
-    authTokenForTestUser,
-    shareStubInstalled,
-    testUserOrgContext,
-    uploadFileAsDriveItem,
-} from './helpers'
+import { authTokenForTestUser, shareStubInstalled, uploadFileAsDriveItem } from './helpers'
 
 // Drive — OTP guest onboarding flow against the stub package.
 //
@@ -20,10 +15,10 @@ import {
 //     1. The share route mounts the share-editor with the right mount
 //        object BEFORE sign-in (anon, role-determined-by-link).
 //     2. After successful OTP verify, the route REMOUNTS with a guest
-//        mount whose identity.kind='member' (real PB user_org) and
+//        mount whose identity.kind='member' (real PB user) and
 //        capabilities derived from the link's role.
 //     3. Re-using a verified email on a NEW link doesn't double-
-//        provision users/user_org rows (idempotency).
+//        provision users rows + roles (idempotency).
 //   Drawer access, edit-persistence, cell-input behavior — all owned
 //   by the package that ships the real editor; they belong in that
 //   package's e2e suite.
@@ -157,15 +152,30 @@ async function findUsersByEmail(email: string): Promise<{ id: string; email: str
     return body.items
 }
 
-async function countUserOrgs(userId: string, orgId: string): Promise<number> {
+// Single-org: membership is the users row itself, so "provisioned once"
+// is now "one users row still carrying role=guest" plus one drive_shares
+// row per shared item (asserted separately below).
+async function guestRoleOf(userId: string): Promise<string> {
     const token = await authTokenForTestUser()
-    const filter = `user='${userId}' && org='${orgId}'`
+    const res = await fetch(`${PB_URL}/api/collections/users/records/${userId}`, {
+        headers: { Authorization: token },
+    })
+    if (!res.ok) {
+        throw new Error(`users lookup failed: ${res.status} ${await res.text()}`)
+    }
+    const body = (await res.json()) as { role?: string }
+    return body.role ?? ''
+}
+
+async function countSharesForUser(userId: string): Promise<number> {
+    const token = await authTokenForTestUser()
+    const filter = `user='${userId}'`
     const res = await fetch(
-        `${PB_URL}/api/collections/user_org/records?filter=${encodeURIComponent(filter)}&perPage=200`,
+        `${PB_URL}/api/collections/drive_shares/records?filter=${encodeURIComponent(filter)}&perPage=200`,
         { headers: { Authorization: token } }
     )
     if (!res.ok) {
-        throw new Error(`user_org lookup failed: ${res.status} ${await res.text()}`)
+        throw new Error(`drive_shares lookup failed: ${res.status} ${await res.text()}`)
     }
     const body = (await res.json()) as { items: unknown[] }
     return body.items.length
@@ -211,7 +221,7 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
             ).not.toBeVisible()
 
             // Mount must now be a guest commentor:
-            //   identity.kind == 'guest' (OTP-provisioned guest user_org)
+            //   identity.kind == 'guest' (OTP-provisioned guest user)
             //   role          == 'commentor'  (from the link)
             //   canComment    == true
             //   canEdit       == false (commentor can't edit the doc)
@@ -279,7 +289,6 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         browser,
     }) => {
         const sharedEmail = uniqueGuestEmail('commentor')
-        const orgCtx = await testUserOrgContext()
 
         // First visit: sign in via OTP on link #1.
         const firstDoc = await uploadStubFixture(`stub-otp-idem-1-${uniqueSuffix()}`)
@@ -293,7 +302,7 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
             await signInAsGuest(firstPage, sharedEmail)
             // CTA gone means auth state really persisted; without this
             // assert, the second visit's OTP request could race the
-            // first's user_org commit.
+            // first's provisioning commit.
             await expect(
                 firstPage.getByText('Sign in to comment on this document', { exact: true })
             ).not.toBeVisible()
@@ -301,15 +310,16 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
             await firstContext.close()
         }
 
-        // Snapshot: exactly 1 user, 1 user_org for the new email.
+        // Snapshot: exactly 1 user, stamped role=guest, holding 1 share.
         const usersAfterFirst = await findUsersByEmail(sharedEmail)
         expect(usersAfterFirst.length).toBe(1)
         const guestUserId = usersAfterFirst[0].id
-        expect(await countUserOrgs(guestUserId, orgCtx.orgId)).toBe(1)
+        expect(await guestRoleOf(guestUserId)).toBe('guest')
+        expect(await countSharesForUser(guestUserId)).toBe(1)
 
         // Second visit: NEW link on NEW doc, same email. OTP-verify must
-        // re-use the existing users + user_org rows and only create the
-        // ONE new drive_shares row for the new item.
+        // re-use the existing users row and only create the ONE new
+        // drive_shares row for the new item.
         const secondDoc = await uploadStubFixture(`stub-otp-idem-2-${uniqueSuffix()}`)
         const secondLink = await createShareLink(secondDoc.id, 'commentor')
 
@@ -329,6 +339,9 @@ test.describe('Drive — OTP guest onboarding (stub)', () => {
         // Counts unchanged after second verify.
         const usersFinal = await findUsersByEmail(sharedEmail)
         expect(usersFinal.length).toBe(1)
-        expect(await countUserOrgs(guestUserId, orgCtx.orgId)).toBe(1)
+        // Still one user, still role=guest — and exactly one MORE share (the
+        // new item), never a duplicate for the item already granted.
+        expect(await guestRoleOf(guestUserId)).toBe('guest')
+        expect(await countSharesForUser(guestUserId)).toBe(2)
     })
 })

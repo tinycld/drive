@@ -2,7 +2,6 @@ import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
-import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
@@ -54,15 +53,14 @@ export interface CreateDriveItemResult {
  * Returns a mutation-style object with `mutate`, `mutateAsync`, `isPending`.
  */
 export function useCreateDriveItem() {
-    const { orgId } = useOrgInfo()
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
 
     return useMutation({
         mutationFn: async (input: CreateDriveItemInput): Promise<CreateDriveItemResult> => {
-            if (!orgId || !userOrgId) {
-                throw new Error('Organization context not ready')
+            if (!userId) {
+                throw new Error('User context not ready')
             }
 
             const parentId = input.parentId ?? ''
@@ -84,8 +82,7 @@ export function useCreateDriveItem() {
                 // the conflict detection, so readCollectionCached is wrong here.
                 // biome-ignore lint/plugin/pbtsdb-no-raw-pb-access: deliberate fresh read for concurrent-create detection in the dedup retry loop.
                 const siblings = await pb.collection('drive_items').getFullList({
-                    filter: pb.filter('org = {:org} && parent = {:parent}', {
-                        org: orgId,
+                    filter: pb.filter('parent = {:parent}', {
                         parent: parentId,
                     }),
                     fields: 'name',
@@ -98,12 +95,11 @@ export function useCreateDriveItem() {
 
                 const formData = new FormData()
                 formData.append('id', itemId)
-                formData.append('org', orgId)
                 formData.append('name', finalName)
                 formData.append('is_folder', 'false')
                 formData.append('mime_type', input.mimeType || 'application/octet-stream')
                 formData.append('parent', parentId)
-                formData.append('created_by', userOrgId)
+                formData.append('created_by', userId)
                 formData.append('size', String(size))
                 // RN's FormData accepts a `{ uri, name, type }` object literal; on
                 // web the `file` field is a real Blob/File. We cast to satisfy TS.
@@ -112,7 +108,7 @@ export function useCreateDriveItem() {
                 try {
                     // The drive_items create hook (server/register.go) inserts the
                     // owner drive_shares row in the same transaction, so the client
-                    // must not also insert one — the unique (item, user_org) index
+                    // must not also insert one — the unique (item, user) index
                     // would reject it.
                     const record = await pb
                         .collection('drive_items')
@@ -165,15 +161,14 @@ export interface CreateBlankDriveItemInput {
  * works uniformly across web/iOS/Android (RN Android can't upload a Blob part).
  */
 export function useCreateBlankDriveItem() {
-    const { orgId } = useOrgInfo()
     const orgSlug = useOrgSlug()
     const userOrg = useCurrentUserOrg(orgSlug ?? '')
-    const userOrgId = userOrg?.id ?? ''
+    const userId = userOrg?.id ?? ''
 
     return useMutation({
         mutationFn: async (input: CreateBlankDriveItemInput): Promise<{ itemId: string }> => {
-            if (!orgId || !userOrgId) {
-                throw new Error('Organization context not ready')
+            if (!userId) {
+                throw new Error('User context not ready')
             }
             const itemId = newRecordId()
             // The server create hook (drive/server/register.go) re-dedupes the
@@ -183,18 +178,18 @@ export function useCreateBlankDriveItem() {
             // biome-ignore lint/plugin/pbtsdb-no-raw-pb-access: create hook attaches a server-side file the optimistic store can't carry; the row is read back via realtime.
             await pb.collection('drive_items').create({
                 id: itemId,
-                org: orgId,
                 name: input.name,
                 is_folder: false,
                 mime_type: input.mimeType,
                 parent: input.parentId ?? '',
-                created_by: userOrgId,
+                created_by: userId,
                 description: input.description ?? '',
             })
             return { itemId }
         },
-        onError: err => {
-            captureException('useCreateBlankDriveItem', err)
-        },
+        // No explicit onError: the wrapper's default toasts AND reports. The
+        // previous capture-only handler replaced the default, so a failed
+        // create (e.g. a name collision the server refused) left the "New
+        // sheet" button silently dead — no toast, no navigation, no clue.
     })
 }

@@ -8,25 +8,23 @@ import { driveItemToSource } from '../lib/file-url'
 import type { DriveItemView } from '../types'
 
 interface UseDriveMutationsParams {
-    orgId: string
-    userOrgId: string
+    userId: string
     currentFolderId: string
     stateByItem: Map<string, { id: string; is_starred: boolean; trashed_at: string }>
     itemsById: Map<string, DriveItemView>
-    userOrgNames: Map<string, string>
-    userOrgEmails: Map<string, string>
-    sharesByItem: Map<string, { id: string; item: string; user_org: string; role: string }[]>
+    userNames: Map<string, string>
+    userEmails: Map<string, string>
+    sharesByItem: Map<string, { id: string; item: string; user: string; role: string }[]>
     prepareLayoutAnimation?: () => void
 }
 
 export function useDriveMutations({
-    orgId,
-    userOrgId,
+    userId,
     currentFolderId,
     stateByItem,
     itemsById,
-    userOrgNames,
-    userOrgEmails,
+    userNames,
+    userEmails,
     sharesByItem,
     prepareLayoutAnimation,
 }: UseDriveMutationsParams) {
@@ -45,7 +43,7 @@ export function useDriveMutations({
                 yield stateCollection.insert({
                     id: newRecordId(),
                     item: itemId,
-                    user_org: userOrgId,
+                    user: userId,
                     is_starred: true,
                     trashed_at: '',
                     last_viewed_at: '',
@@ -65,7 +63,7 @@ export function useDriveMutations({
                 yield stateCollection.insert({
                     id: newRecordId(),
                     item: itemId,
-                    user_org: userOrgId,
+                    user: userId,
                     is_starred: false,
                     trashed_at: new Date().toISOString(),
                     last_viewed_at: '',
@@ -88,12 +86,11 @@ export function useDriveMutations({
         mutationFn: mutation(function* (name: string) {
             yield itemsCollection.insert({
                 id: newRecordId(),
-                org: orgId,
                 name,
                 is_folder: true,
                 mime_type: '',
                 parent: currentFolderId || '',
-                created_by: userOrgId,
+                created_by: userId,
                 size: 0,
                 file: '',
                 description: '',
@@ -112,19 +109,19 @@ export function useDriveMutations({
     const shareMutation = useMutation({
         mutationFn: mutation(function* ({
             itemId,
-            targetUserOrgId,
+            targetUserId,
             role,
         }: {
             itemId: string
-            targetUserOrgId: string
+            targetUserId: string
             role: 'editor' | 'viewer'
         }) {
             yield sharesCollection.insert({
                 id: newRecordId(),
                 item: itemId,
-                user_org: targetUserOrgId,
+                user: targetUserId,
                 role,
-                created_by: userOrgId,
+                created_by: userId,
             })
         }),
     })
@@ -183,8 +180,8 @@ export function useDriveMutations({
     const createFolder = (name: string) => createFolderMutation.mutate(name)
     const renameItem = (itemId: string, name: string) => renameMutation.mutate({ itemId, name })
 
-    const shareItem = (itemId: string, targetUserOrgId: string, role: 'editor' | 'viewer') =>
-        shareMutation.mutate({ itemId, targetUserOrgId, role })
+    const shareItem = (itemId: string, targetUserId: string, role: 'editor' | 'viewer') =>
+        shareMutation.mutate({ itemId, targetUserId, role })
 
     const removeShare = (shareId: string) => unshareMutation.mutate(shareId)
 
@@ -235,9 +232,9 @@ export function useDriveMutations({
         const shares = sharesByItem.get(itemId) ?? []
         return shares.map(s => ({
             id: s.id,
-            userOrgId: s.user_org,
-            name: userOrgNames.get(s.user_org) ?? '',
-            email: userOrgEmails.get(s.user_org) ?? '',
+            userId: s.user,
+            name: userNames.get(s.user) ?? '',
+            email: userEmails.get(s.user) ?? '',
             role: s.role,
         }))
     }

@@ -1,8 +1,8 @@
 import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e-helpers'
 
-// PB owns /drive (WebDAV handler); dev.ts's proxy fans /drive to PB,
+// PB owns /dav (protocol mounts); dev.ts's proxy fans /dav to PB,
 // so we can hit the public proxy port instead of PB directly.
-const WEBDAV_BASE = 'http://127.0.0.1:7200/drive'
+const WEBDAV_BASE = 'http://127.0.0.1:7200/dav/drive'
 
 export interface WebDAVResponse {
     href: string
@@ -128,7 +128,7 @@ export async function rawWebdavRequest(
     path: string,
     auth?: string
 ): Promise<number> {
-    const res = await fetch(`${WEBDAV_BASE.replace(/\/drive$/, '')}${path}`, {
+    const res = await fetch(`${WEBDAV_BASE.replace(/\/dav\/drive$/, '')}${path}`, {
         method,
         headers: auth ? { Authorization: auth } : { Authorization: authHeader() },
     })

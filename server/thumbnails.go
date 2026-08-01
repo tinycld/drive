@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 
@@ -28,7 +27,7 @@ const thumbnailTimeout = 60 * time.Second
 // in flight. Once the app is torn down, ConcurrentDB() is nil and any record
 // query (PocketBase v0.38 RecordQuery) panics on the nil DB instead of
 // returning an error. Bail out instead of touching the DB in that window.
-func appIsLive(app *pocketbase.PocketBase) bool {
+func appIsLive(app core.App) bool {
 	return app != nil && app.ConcurrentDB() != nil
 }
 
@@ -39,7 +38,7 @@ func appIsLive(app *pocketbase.PocketBase) bool {
 // PageModel payload; we render a lightweight text preview and skip entirely
 // when the region is unchanged. Regular uploads leave thumb_region_hash empty
 // and take the doctaculous/HEIC document-render path.
-func generateThumbnail(app *pocketbase.PocketBase, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
+func generateThumbnail(app core.App, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
 	if !appIsLive(app) {
 		return
 	}
@@ -64,7 +63,7 @@ func generateThumbnail(app *pocketbase.PocketBase, record *core.Record, payload 
 // generateEditorThumbnail renders the lightweight pure-Go text preview for an
 // editor doc and saves it to the thumbnail field.
 func generateEditorThumbnail(
-	app *pocketbase.PocketBase,
+	app core.App,
 	record *core.Record,
 	filename string,
 	payload previewqueue.Payload,
@@ -102,7 +101,7 @@ func generateEditorThumbnail(
 // generateUploadThumbnail renders the first page of a regular upload via
 // doctaculous (HEIC via goheif), streaming straight from storage — no temp
 // files.
-func generateUploadThumbnail(app *pocketbase.PocketBase, record *core.Record, filename string) {
+func generateUploadThumbnail(app core.App, record *core.Record, filename string) {
 	mimeType := record.GetString("mime_type")
 	if !thumbnails.CanGenerate(mimeType) {
 		app.Logger().Debug("Thumbnail: skipping unsupported mime type",
@@ -148,7 +147,7 @@ func generateUploadThumbnail(app *pocketbase.PocketBase, record *core.Record, fi
 }
 
 // renderTextPreview renders model to a JPEG and returns its bytes.
-func renderTextPreview(app *pocketbase.PocketBase, record *core.Record, model textpreview.PageModel) ([]byte, error) {
+func renderTextPreview(app core.App, record *core.Record, model textpreview.PageModel) ([]byte, error) {
 	outputFile, err := os.CreateTemp(os.TempDir(), "thumb-out-*.jpg")
 	if err != nil {
 		app.Logger().Warn("Thumbnail: failed to create temp output",
@@ -178,7 +177,7 @@ func renderTextPreview(app *pocketbase.PocketBase, record *core.Record, model te
 // field, re-fetching the record and re-checking liveness (the generation above
 // is slow and the app/DB can be reset out from under this goroutine in that
 // window).
-func saveThumbnail(app *pocketbase.PocketBase, record *core.Record, filename string, thumbData []byte) {
+func saveThumbnail(app core.App, record *core.Record, filename string, thumbData []byte) {
 	thumbFilename := strings.TrimSuffix(filename, filepath.Ext(filename)) + "_thumb.jpg"
 	f, err := filesystem.NewFileFromBytes(thumbData, thumbFilename)
 	if err != nil {

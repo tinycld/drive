@@ -34,3 +34,31 @@ describe('drive manifest', () => {
         expect(manifest.server?.module).toBe('tinycld.org/packages/drive')
     })
 })
+
+// The WebDAV mount and the in-app route must not occupy the same path.
+//
+// They did. WebDAV was mounted at /drive and the SPA route is also /drive, and
+// a literal server route beats the SPA catch-all — so a hard navigation
+// (reload, pasted link, bookmark) to /drive, /drive/recent or /drive/<path>
+// reached the Basic-Auth WebDAV handler and produced a browser credential
+// prompt instead of the app. Only in-app SPA clicks worked, which is why every
+// existing e2e passed: they navigate by click and never hard-load the route.
+//
+// The collision was created by the single-org migration. The old in-app path
+// was /a/<orgSlug>/drive, which never overlapped.
+describe('drive WebDAV prefix', () => {
+    it('does not shadow the in-app /drive route', () => {
+        const prefix = manifest.webdav?.prefix
+        expect(prefix).toBeDefined()
+        expect(prefix).not.toBe('/drive')
+        // Nor may it be a prefix OF the app route, which would swallow
+        // /drive/* the same way.
+        expect('/drive'.startsWith(`${prefix}/`)).toBe(false)
+    })
+
+    it('mounts under the reserved /dav namespace', () => {
+        // /dav is reserved for protocol mounts, so no package slug can ever
+        // claim it and re-create this collision.
+        expect(manifest.webdav?.prefix).toBe('/dav/drive')
+    })
+})
