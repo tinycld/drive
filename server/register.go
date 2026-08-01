@@ -23,40 +23,18 @@ import (
 	"tinycld.org/core/webdav"
 )
 
-// Register composes the drive server for the SINGLE-ORG app: the shared set
-// plus the host-only tail. The generator's package_extensions.go calls it.
+// Register composes the drive server — the package's single entry point,
+// called by the generator's package_extensions.go in BOTH the single-org app
+// and a multi-org tenant. The WebDAV mount runs in both: a per-org tenant
+// build links exactly the org's features, so the artifact is the gate, and
+// the self-mounted Source carries driveWebDAVHooks directly — the old
+// materialized-mount hook bridge (webdav.RegisterSourceHooks) is gone with
+// the mechanism that needed it.
 func Register(app *pocketbase.PocketBase) {
 	registerShared(app)
-
-	// ---- Host-only ----
-	// WebDAV mount. A multi-org tenant mounts /dav/drive itself, from the
-	// materialized manifest `webdav` block (coreserver.RegisterTenant), so
-	// mounting here too would double-bind the routes. The materialized lists
-	// are authoritative for what a tenant serves; this call is the single-org
-	// equivalent. The materialized Source carries no Go closures, so
-	// RegisterTenant hands driveWebDAVHooks to core's registry
-	// (webdav.RegisterSourceHooks) and the tenant mount adopts them — both
-	// compositions snapshot versions on overwrite (R7).
 	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
 		app.Logger().Error("drive: WebDAV registration failed", "error", err)
 	}
-}
-
-// RegisterTenant composes the drive server for a multi-org TENANT process: the
-// shared set only. The router's pinned package menu calls it, gated by the
-// org's resolved package set (multi-org/docs/SCOPE-tenant-feature-go.md).
-//
-// Do NOT hand-pick registrations here — add to registerShared so both
-// compositions get them, or to Register's host-only tail with a reason. A
-// hand-rolled subset is exactly the drift that produced
-// multi-org/docs/FINDING-tenant-composition-gap.md.
-func RegisterTenant(app *pocketbase.PocketBase) {
-	registerShared(app)
-	// The tenant's WebDAV mount comes from the materialized manifest (core
-	// mounts it after RegisterExtras), whose Source carries no Go closures.
-	// Register drive's hooks by slug so that mount adopts them — before this,
-	// a tenant-served overwrite skipped the version snapshot (R7).
-	webdav.RegisterSourceHooks(app, "drive", driveWebDAVHooks)
 }
 
 // registerShared is the single source of truth for what BOTH compositions run.
@@ -284,10 +262,9 @@ var webDAVSource = webdav.Source{
 	Hooks: driveWebDAVHooks,
 }
 
-// driveWebDAVHooks are drive's Go side effects on the WebDAV tree, shared by
-// both compositions: the host mounts them on webDAVSource above; a tenant's
-// materialized source carries no Go closures, so RegisterTenant registers
-// them by slug for core's mount to adopt (webdav.RegisterSourceHooks, R7).
+// driveWebDAVHooks are drive's Go side effects on the WebDAV tree. They ride
+// on webDAVSource directly — Register self-mounts the source in both
+// compositions, so the closures need no side channel (R7).
 var driveWebDAVHooks = webdav.Hooks{
 	// Archive the outgoing blob before an overwrite replaces it, so a
 	// WebDAV PUT gets the same version history as a UI upload.
