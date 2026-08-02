@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
+import { authStorageKey } from '@tinycld/core/e2e-helpers'
 import { readLatestOtpEmail } from './email-log-helper'
 import { authTokenForTestUser, shareStubInstalled, uploadFileAsDriveItem } from './helpers'
 
@@ -73,10 +74,13 @@ async function createShareLink(
 // AsyncStorage.setItem, so without this, a reload() that races the write
 // would boot the next page as anon.
 async function waitForAuthStoreFlush(page: Page): Promise<void> {
-    await page.waitForFunction(() => {
-        const v = window.localStorage.getItem('pb_auth')
+    // The key is scoped per server (`pb_auth:<serverKey>`), so it is derived
+    // rather than literal — see tinycld/tests/e2e/auth-key-helpers.ts.
+    const key = await authStorageKey(page)
+    await page.waitForFunction(k => {
+        const v = window.localStorage.getItem(k)
         return typeof v === 'string' && v.length > 0
-    })
+    }, key)
 }
 
 // Drives the email → code → verify path. Returns the captured OTP so a
