@@ -74,6 +74,26 @@ jobs:
       - name: Typecheck + unit
         working-directory: ws/${{ env.PACKAGE }}
         run: pnpm exec tinycld-pkg check
+      # drive/server carries the security-critical Go: the storage-quota gate,
+      # the share-link OTP flow and its throttle, the RLS/permission rules, and
+      # the upload size reconciliation that stops a forged `size` from bypassing
+      # quota. `tinycld-pkg check` is biome + tsc + vitest and has no Go runner,
+      # so without this step none of it is exercised on CI.
+      #
+      # go mod download is not optional: in workspace mode the transitive
+      # /go.mod hashes live in go.work.sum, not go.sum, and `go test` fails with
+      # "missing go.sum entry for go.mod file" without it. The go.work itself
+      # was written by the generator during `pnpm install` above.
+      - name: Go build
+        working-directory: ws/${{ env.PACKAGE }}/server
+        run: |
+          go mod download
+          go build ./...
+      # -count=1 defeats the test cache so a green run always reflects this
+      # commit's code rather than a cached result keyed on unchanged inputs.
+      - name: Go tests
+        working-directory: ws/${{ env.PACKAGE }}/server
+        run: go test -count=1 ./...
       # cli/ is a second Go module (tinycld.org/packages/drive/cli) that
       # tinycld-pkg does not cover. Its go.work — which resolves
       # tinycld.org/cli against the assembled app shell — is emitted by the
