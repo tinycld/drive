@@ -1,3 +1,4 @@
+import type { DownloadTokenRequest, TokenResponse } from '@tinycld/app-generated/drive-api'
 import { downloadFile, downloadFromUrl } from '@tinycld/core/file-viewer/file-url'
 import { captureException, errorToString } from '@tinycld/core/lib/errors'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
@@ -247,9 +248,9 @@ export function useDriveMutations({
             // Folders download as a server-zipped archive behind a one-shot
             // token URL. downloadFromUrl handles both web (anchor download) and
             // native (cache + share sheet).
-            const response = await pb.send('/api/drive/download-token', {
+            const response: TokenResponse = await pb.send('/api/drive/download-token', {
                 method: 'POST',
-                body: { item: itemId },
+                body: { item: itemId } satisfies DownloadTokenRequest,
             })
             downloadFromUrl(`${pb.baseURL}${response.url}`, `${item.name}.zip`, 'application/zip')
             return

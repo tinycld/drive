@@ -17,6 +17,11 @@ const manifest = {
     // move-cycle guard), FTS + /api/drive/search, share links, versions, and the
     // webdav.Source that core's WebDAV server is driven by.
     server: { package: 'server', module: 'tinycld.org/packages/drive' },
+    // The API payload contract (server/api) generated into
+    // @tinycld/app-generated/drive-api — the client imports those types, so
+    // the peerVersions floor below must stay >= the core that ships the
+    // emitter.
+    payloads: { package: 'server/api' },
     // Server-side TS hooks: drop a *.pb.ts into pb-hooks/ to extend drive
     // alongside the Go — including the WebDAV interception points
     // (webdavHook) and the $drive.* bindings the server exposes.
@@ -63,7 +68,7 @@ const manifest = {
         },
     },
     repository: { url: 'https://github.com/tinycld/drive' },
-    peerVersions: { '@tinycld/core': '>=0.0.4 <0.1.0' },
+    peerVersions: { '@tinycld/core': '>=0.0.5 <0.1.0' },
 }
 
 export default manifest

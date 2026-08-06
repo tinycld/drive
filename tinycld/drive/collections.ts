@@ -4,7 +4,10 @@ import type { createCollection } from 'pbtsdb/core'
 import { BasicIndex } from 'pbtsdb/core'
 import type { DriveSchema } from './types'
 
-type MergedSchema = Schema & DriveSchema
+// Replace (not intersect) the generated entries for drive's own collections —
+// a plain intersection would merge each overlapping entry field-wise, letting
+// a generated `any` absorb any typed override (see mail's collections.ts).
+type MergedSchema = Omit<Schema, keyof DriveSchema> & DriveSchema
 
 export function registerCollections(
     newCollection: ReturnType<typeof createCollection<MergedSchema>>,

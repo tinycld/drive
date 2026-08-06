@@ -10,10 +10,13 @@
  * to. The redirect target was a dead `/a/<org>/` route anyway.
  */
 
-/** What the share-link routing endpoint returns. Single-org: no slug. */
-export type ShareRoutingData = {
-    item_id?: string
-}
+import type { ShareLinkMetadataResponse } from '@tinycld/app-generated/drive-api'
+
+/**
+ * The slice of the share-link metadata response the routing decision reads.
+ * Partial because the endpoint's error shape carries no item_id.
+ */
+export type ShareRoutingData = Partial<Pick<ShareLinkMetadataResponse, 'item_id'>>
 
 export type VisitorRole = 'loading' | 'anon' | 'guest' | 'member' | 'unknown'
 

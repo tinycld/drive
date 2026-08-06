@@ -1,51 +1,34 @@
 import type { FileCategory } from '@tinycld/core/file-viewer/file-icons'
-import type { CommentMentions, Users } from '@tinycld/core/types/pbSchema'
+import type {
+    CommentMentions,
+    DriveItemState,
+    DriveItems,
+    DriveItemVersions,
+    DriveShareLinks,
+    DriveShares,
+    Users,
+} from '@tinycld/core/types/pbSchema'
 
-export type { FileCategory }
-
-export interface DriveItems {
-    id: string
-    name: string
-    is_folder: boolean
-    mime_type: string
-    parent: string
-    created_by: string
-    size: number
-    file: string
-    thumbnail: string
-    description: string
-    created: string
-    updated: string
+// The generated pbSchema interfaces are the source of truth for collection
+// fields (the migrations already carry the role literal unions), so they are
+// re-exported rather than hand-duplicated — a migration-driven field change
+// flows through on the next install instead of drifting from a local copy.
+export type {
+    DriveItemState,
+    DriveItems,
+    DriveItemVersions,
+    DriveShareLinks,
+    DriveShares,
+    FileCategory,
 }
 
 // Roles a public share link can grant. `commentor` = read + comment, no
 // edit. `viewer` links are also commentable (the read default).
-export type ShareLinkRole = 'viewer' | 'commentor' | 'editor'
+export type ShareLinkRole = DriveShareLinks['role']
 
 // Roles a direct drive_shares grant can carry. Adds `owner` (full
 // control) on top of the link roles.
-export type DriveShareRole = 'owner' | ShareLinkRole
-
-export interface DriveShares {
-    id: string
-    item: string
-    user: string
-    role: DriveShareRole
-    created_by: string
-    created: string
-    updated: string
-}
-
-export interface DriveItemState {
-    id: string
-    item: string
-    user: string
-    is_starred: boolean
-    trashed_at: string
-    last_viewed_at: string
-    created: string
-    updated: string
-}
+export type DriveShareRole = DriveShares['role']
 
 export interface DriveItemView {
     id: string
@@ -80,34 +63,6 @@ export type SortField = 'name' | 'owner' | 'updated' | 'size' | 'trashedAt'
 export type SortDirection = 'asc' | 'desc'
 
 export type SidebarSection = 'my-drive' | 'shared-with-me' | 'recent' | 'starred' | 'trash'
-
-export interface DriveItemVersions {
-    id: string
-    item: string
-    version_number: number
-    file: string
-    size: number
-    mime_type: string
-    source: 'upload' | 'system' | 'user'
-    label: string
-    created_by: string
-    created: string
-    updated: string
-}
-
-export interface DriveShareLinks {
-    id: string
-    item: string
-    token: string
-    created_by: string
-    role: ShareLinkRole
-    expires_at: string
-    is_active: boolean
-    download_count: number
-    last_accessed_at: string
-    created: string
-    updated: string
-}
 
 export type DriveSchema = {
     drive_items: {

@@ -1,4 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type {
+    CreateShareLinkRequest,
+    ShareLinkEntry,
+    ShareLinkListResponse,
+    ShareLinkResponse,
+    ShareRequest,
+} from '@tinycld/app-generated/drive-api'
 import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
 import { NameAvatar } from '@tinycld/core/components/NameAvatar'
 import {
@@ -38,18 +45,6 @@ interface ShareEntry {
     name: string
     email: string
     role: string
-}
-
-interface ShareLinkEntry {
-    id: string
-    token: string
-    url: string
-    role: string
-    is_active: boolean
-    expires_at: string
-    download_count: number
-    last_accessed_at: string
-    created: string
 }
 
 interface PendingShare {
@@ -97,7 +92,7 @@ export function ShareDialog({
     const [isCreatingPublicLink, setIsCreatingPublicLink] = useState(false)
     const queryClient = useQueryClient()
 
-    const { data: shareLinksData } = useQuery<{ links: ShareLinkEntry[] }>({
+    const { data: shareLinksData } = useQuery<ShareLinkListResponse>({
         queryKey: ['share-links', itemId],
         queryFn: async () => {
             const resp = await pb.send(`/api/drive/share-links?item_id=${itemId}`, {
@@ -120,9 +115,9 @@ export function ShareDialog({
         if (!url) {
             try {
                 setIsCreatingPublicLink(true)
-                const resp = await pb.send('/api/drive/share-link', {
+                const resp: ShareLinkResponse = await pb.send('/api/drive/share-link', {
                     method: 'POST',
-                    body: { item_id: itemId, role: 'viewer' },
+                    body: { item_id: itemId, role: 'viewer' } satisfies CreateShareLinkRequest,
                 })
                 url = `${window.location.origin}/p/drive/share/${resp.token}`
                 queryClient.invalidateQueries({ queryKey: ['share-links', itemId] })
@@ -177,7 +172,7 @@ export function ShareDialog({
                             name: p.name,
                             role: p.role,
                         })),
-                    },
+                    } satisfies ShareRequest,
                 })
             } catch (err) {
                 // Closing here would report a success the user didn't get —
@@ -443,7 +438,10 @@ export function ShareDialog({
                                     try {
                                         await pb.send('/api/drive/share-link', {
                                             method: 'POST',
-                                            body: { item_id: itemId, role: 'viewer' },
+                                            body: {
+                                                item_id: itemId,
+                                                role: 'viewer',
+                                            } satisfies CreateShareLinkRequest,
                                         })
                                         queryClient.invalidateQueries({
                                             queryKey: ['share-links', itemId],
