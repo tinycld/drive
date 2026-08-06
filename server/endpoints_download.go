@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/packages/drive/api"
 )
 
 const (
@@ -49,9 +50,7 @@ func init() {
 }
 
 func handleCreateDownloadToken(app core.App, re *core.RequestEvent) error {
-	var body struct {
-		Item string `json:"item"`
-	}
+	var body api.DownloadTokenRequest
 	if err := json.NewDecoder(re.Request.Body).Decode(&body); err != nil {
 		return re.BadRequestError("invalid request body", nil)
 	}
@@ -81,9 +80,9 @@ func handleCreateDownloadToken(app core.App, re *core.RequestEvent) error {
 	}
 	downloadTokensMu.Unlock()
 
-	return re.JSON(http.StatusOK, map[string]any{
-		"token": token,
-		"url":   "/api/drive/download-folder?token=" + token,
+	return re.JSON(http.StatusOK, api.TokenResponse{
+		Token: token,
+		URL:   "/api/drive/download-folder?token=" + token,
 	})
 }
 

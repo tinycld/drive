@@ -21,6 +21,7 @@ import (
 	"tinycld.org/core/quota"
 	"tinycld.org/core/versionhooks"
 	"tinycld.org/core/webdav"
+	"tinycld.org/packages/drive/api"
 )
 
 // Register composes the drive server — the package's single entry point,
@@ -360,22 +361,19 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError("failed to save item", nil)
 	}
 
-	return re.JSON(http.StatusOK, map[string]any{
-		"id":        item.Id,
-		"name":      item.GetString("name"),
-		"file":      item.GetString("file"),
-		"size":      item.GetInt("size"),
-		"mime_type": item.GetString("mime_type"),
+	return re.JSON(http.StatusOK, api.VersionFileResponse{
+		ID:       item.Id,
+		Name:     item.GetString("name"),
+		File:     item.GetString("file"),
+		Size:     int64(item.GetInt("size")),
+		MimeType: item.GetString("mime_type"),
 	})
 }
 
 // handleSnapshotVersion snapshots the current file on a drive_item as a labeled
 // version without uploading any new bytes. Used by calc/text "Save version".
 func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
-	var body struct {
-		Item  string `json:"item"`
-		Label string `json:"label"`
-	}
+	var body api.SnapshotVersionRequest
 	if err := json.NewDecoder(re.Request.Body).Decode(&body); err != nil {
 		return re.BadRequestError("invalid request body", nil)
 	}
@@ -414,15 +412,12 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	return re.JSON(http.StatusOK, map[string]any{"item": item.Id})
+	return re.JSON(http.StatusOK, api.SnapshotVersionResponse{Item: item.Id})
 }
 
 // handleRestoreVersion restores a previous version as the current file.
 func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
-	var body struct {
-		Item    string `json:"item"`
-		Version string `json:"version"`
-	}
+	var body api.RestoreVersionRequest
 	if err := json.NewDecoder(re.Request.Body).Decode(&body); err != nil {
 		return re.BadRequestError("invalid request body", nil)
 	}
@@ -508,12 +503,12 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	return re.JSON(http.StatusOK, map[string]any{
-		"id":        item.Id,
-		"name":      item.GetString("name"),
-		"file":      item.GetString("file"),
-		"size":      item.GetInt("size"),
-		"mime_type": item.GetString("mime_type"),
+	return re.JSON(http.StatusOK, api.VersionFileResponse{
+		ID:       item.Id,
+		Name:     item.GetString("name"),
+		File:     item.GetString("file"),
+		Size:     int64(item.GetInt("size")),
+		MimeType: item.GetString("mime_type"),
 	})
 }
 
@@ -533,12 +528,12 @@ func handleStorageUsage(app core.App, re *core.RequestEvent) error {
 
 	limitBytes := getStorageLimitBytes(app)
 
-	result := map[string]any{
-		"user_used_bytes": userUsed,
-		"org_drive_bytes": orgDriveBytes,
-		"org_mail_bytes":  orgMailBytes,
-		"limit_bytes":     limitBytes,
-		"has_limit":       limitBytes > 0,
+	result := api.StorageUsageResponse{
+		UserUsedBytes: userUsed,
+		OrgDriveBytes: orgDriveBytes,
+		OrgMailBytes:  orgMailBytes,
+		LimitBytes:    limitBytes,
+		HasLimit:      limitBytes > 0,
 	}
 
 	if re.Request.URL.Query().Get("breakdown") == "users" {
@@ -547,7 +542,7 @@ func handleStorageUsage(app core.App, re *core.RequestEvent) error {
 			if err != nil {
 				return re.InternalServerError("failed to get breakdown", nil)
 			}
-			result["users"] = breakdown
+			result.Users = breakdown
 		}
 	}
 

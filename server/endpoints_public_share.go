@@ -12,6 +12,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/driveshare"
+	"tinycld.org/packages/drive/api"
 )
 
 // rateLimiter provides simple in-memory IP-based rate limiting for public endpoints.
@@ -136,13 +137,13 @@ func categorizeFromMime(mimeType string) string {
 func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
 	if !publicShareLimiter.allow(ip) {
-		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
+		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
 	token := re.Request.PathValue("token")
 	link, item, statusCode, errMsg := findShareLinkByToken(app, token)
 	if link == nil {
-		return re.JSON(statusCode, map[string]string{"error": errMsg})
+		return re.JSON(statusCode, api.ErrorResponse{Error: errMsg})
 	}
 
 	// Update last_accessed_at
@@ -155,16 +156,16 @@ func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 	// Single-org: the deployment IS the org, so its display name comes from
 	// app settings rather than an orgs row, and there is no slug to deep-link
 	// through — in-app links are bare /drive.
-	response := map[string]any{
-		"name":          item.GetString("name"),
-		"mime_type":     item.GetString("mime_type"),
-		"size":          item.GetInt("size"),
-		"category":      categorizeFromMime(item.GetString("mime_type")),
-		"file_url":      baseURL + "/file",
-		"thumbnail_url": baseURL + "/thumbnail",
-		"updated":       item.GetString("updated"),
-		"org_name":      app.Settings().Meta.AppName,
-		"item_id":       item.Id,
+	response := api.ShareLinkMetadataResponse{
+		Name:         item.GetString("name"),
+		MimeType:     item.GetString("mime_type"),
+		Size:         int64(item.GetInt("size")),
+		Category:     categorizeFromMime(item.GetString("mime_type")),
+		FileURL:      baseURL + "/file",
+		ThumbnailURL: baseURL + "/thumbnail",
+		Updated:      item.GetString("updated"),
+		OrgName:      app.Settings().Meta.AppName,
+		ItemID:       item.Id,
 	}
 
 	return re.JSON(http.StatusOK, response)
@@ -174,13 +175,13 @@ func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
 	if !publicShareLimiter.allow(ip) {
-		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
+		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
 	token := re.Request.PathValue("token")
 	link, item, statusCode, errMsg := findShareLinkByToken(app, token)
 	if link == nil {
-		return re.JSON(statusCode, map[string]string{"error": errMsg})
+		return re.JSON(statusCode, api.ErrorResponse{Error: errMsg})
 	}
 
 	// Increment download_count
@@ -190,7 +191,7 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 
 	reader, err := readFileContent(app, item)
 	if err != nil {
-		return re.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to read file"})
+		return re.JSON(http.StatusInternalServerError, api.ErrorResponse{Error: "failed to read file"})
 	}
 	defer reader.Close()
 
@@ -216,30 +217,30 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 func handleGetShareLinkThumbnail(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
 	if !publicShareLimiter.allow(ip) {
-		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
+		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
 	token := re.Request.PathValue("token")
 	link, item, statusCode, errMsg := findShareLinkByToken(app, token)
 	if link == nil {
-		return re.JSON(statusCode, map[string]string{"error": errMsg})
+		return re.JSON(statusCode, api.ErrorResponse{Error: errMsg})
 	}
 
 	thumbnail := item.GetString("thumbnail")
 	if thumbnail == "" {
-		return re.JSON(http.StatusNotFound, map[string]string{"error": "no thumbnail available"})
+		return re.JSON(http.StatusNotFound, api.ErrorResponse{Error: "no thumbnail available"})
 	}
 
 	fsys, err := app.NewFilesystem()
 	if err != nil {
-		return re.JSON(http.StatusInternalServerError, map[string]string{"error": "filesystem error"})
+		return re.JSON(http.StatusInternalServerError, api.ErrorResponse{Error: "filesystem error"})
 	}
 	defer fsys.Close()
 
 	key := item.BaseFilesPath() + "/" + thumbnail
 	reader, err := fsys.GetReader(key)
 	if err != nil {
-		return re.JSON(http.StatusNotFound, map[string]string{"error": "thumbnail not found"})
+		return re.JSON(http.StatusNotFound, api.ErrorResponse{Error: "thumbnail not found"})
 	}
 	defer reader.Close()
 
@@ -251,11 +252,7 @@ func handleGetShareLinkThumbnail(app core.App, re *core.RequestEvent) error {
 
 // handleCreateShareLink creates a new public share link for a drive item.
 func handleCreateShareLink(app core.App, re *core.RequestEvent) error {
-	var body struct {
-		ItemID    string `json:"item_id"`
-		Role      string `json:"role"`
-		ExpiresAt string `json:"expires_at"`
-	}
+	var body api.CreateShareLinkRequest
 	if err := json.NewDecoder(re.Request.Body).Decode(&body); err != nil {
 		return re.BadRequestError("invalid request body", nil)
 	}
@@ -309,10 +306,10 @@ func handleCreateShareLink(app core.App, re *core.RequestEvent) error {
 
 	shareURL := fmt.Sprintf("%s/share/%s", app.Settings().Meta.AppURL, token)
 
-	return re.JSON(http.StatusOK, map[string]any{
-		"id":    record.Id,
-		"token": token,
-		"url":   shareURL,
+	return re.JSON(http.StatusOK, api.ShareLinkResponse{
+		ID:    record.Id,
+		Token: token,
+		URL:   shareURL,
 	})
 }
 
@@ -343,7 +340,7 @@ func handleDeleteShareLink(app core.App, re *core.RequestEvent) error {
 		return re.InternalServerError("failed to revoke share link", err)
 	}
 
-	return re.JSON(http.StatusOK, map[string]any{"success": true})
+	return re.JSON(http.StatusOK, api.SuccessResponse{Success: true})
 }
 
 // handleListShareLinks returns all share links for a given item.
@@ -371,21 +368,21 @@ func handleListShareLinks(app core.App, re *core.RequestEvent) error {
 		return re.InternalServerError("failed to load share links", err)
 	}
 
-	result := make([]map[string]any, 0, len(links))
+	result := make([]api.ShareLinkEntry, 0, len(links))
 	for _, l := range links {
 		shareURL := fmt.Sprintf("%s/share/%s", app.Settings().Meta.AppURL, l.GetString("token"))
-		result = append(result, map[string]any{
-			"id":               l.Id,
-			"token":            l.GetString("token"),
-			"url":              shareURL,
-			"role":             l.GetString("role"),
-			"is_active":        l.GetBool("is_active"),
-			"expires_at":       l.GetString("expires_at"),
-			"download_count":   l.GetInt("download_count"),
-			"last_accessed_at": l.GetString("last_accessed_at"),
-			"created":          l.GetString("created"),
+		result = append(result, api.ShareLinkEntry{
+			ID:             l.Id,
+			Token:          l.GetString("token"),
+			URL:            shareURL,
+			Role:           l.GetString("role"),
+			IsActive:       l.GetBool("is_active"),
+			ExpiresAt:      l.GetString("expires_at"),
+			DownloadCount:  l.GetInt("download_count"),
+			LastAccessedAt: l.GetString("last_accessed_at"),
+			Created:        l.GetString("created"),
 		})
 	}
 
-	return re.JSON(http.StatusOK, map[string]any{"links": result})
+	return re.JSON(http.StatusOK, api.ShareLinkListResponse{Links: result})
 }
