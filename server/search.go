@@ -14,15 +14,24 @@ import (
 
 var fts5SpecialChars = regexp.MustCompile(`[":*^{}()\[\]~\-]`)
 
+// quoteTerms strips FTS5 operator characters and returns each remaining word
+// as a quoted prefix term. Shared by the include and exclude paths so their
+// escaping cannot drift apart — this is the trust boundary: everything past
+// this function is validated FTS5 syntax, so both callers must go through it.
+func quoteTerms(input string) []string {
+	cleaned := fts5SpecialChars.ReplaceAllString(input, " ")
+	terms := strings.Fields(cleaned)
+	quoted := make([]string, len(terms))
+	for i, term := range terms {
+		term = strings.ReplaceAll(term, `"`, `""`)
+		quoted[i] = `"` + term + `"*`
+	}
+	return quoted
+}
+
 func sanitizeFTSQuery(input string) string {
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return ""
-	}
-
-	cleaned := fts5SpecialChars.ReplaceAllString(input, " ")
-	terms := strings.Fields(cleaned)
-	if len(terms) == 0 {
 		return ""
 	}
 
@@ -32,13 +41,22 @@ func sanitizeFTSQuery(input string) string {
 	// returns zero rows until the last full word is typed. Mail and contacts
 	// search already do this (see mail/contacts server sanitizeFTSQuery); Drive
 	// was the outlier.
-	quoted := make([]string, len(terms))
-	for i, term := range terms {
-		term = strings.ReplaceAll(term, `"`, `""`)
-		quoted[i] = `"` + term + `"*`
+	return strings.Join(quoteTerms(input), " ")
+}
+
+// sanitizeFTSQueryWithExclusions builds a MATCH expression that requires the
+// include terms and rejects the excluded ones. Returns "" for an exclude-only
+// query: FTS5 rejects a bare NOT, and there is no result set to subtract from.
+func sanitizeFTSQueryWithExclusions(include, exclude string) string {
+	base := sanitizeFTSQuery(include)
+	if base == "" {
+		return ""
 	}
 
-	return strings.Join(quoted, " ")
+	for _, term := range quoteTerms(exclude) {
+		base += " NOT " + term
+	}
+	return base
 }
 
 func syncDriveItemToFTS(app core.App, record *core.Record, op string) {
@@ -115,7 +133,9 @@ func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 		offset = o
 	}
 
-	resp, err := searchDriveItems(app, re.Auth.Id, re.Request.URL.Query().Get("q"), limit, offset)
+	q := re.Request.URL.Query().Get("q")
+	exclude := re.Request.URL.Query().Get("not")
+	resp, err := searchDriveItems(app, re.Auth.Id, q, exclude, limit, offset)
 	if err != nil {
 		app.Logger().Warn("FTS: drive search failed", "error", err)
 		return re.JSON(http.StatusOK, api.SearchResponse{Items: []api.SearchResultItem{}, Total: 0})
@@ -127,14 +147,14 @@ func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 // and the $drive.search JS binding so both enforce the same access scope — a
 // binding that reimplemented the filter could drift out of agreement with the
 // endpoint, which is precisely the class of bug this migration was about.
-func searchDriveItems(app core.App, userID, q string, limit, offset int) (api.SearchResponse, error) {
+func searchDriveItems(app core.App, userID, q, exclude string, limit, offset int) (api.SearchResponse, error) {
 	empty := api.SearchResponse{Items: []api.SearchResultItem{}, Total: 0}
 
 	if len(q) < 2 {
 		return empty, nil
 	}
 
-	ftsQuery := sanitizeFTSQuery(q)
+	ftsQuery := sanitizeFTSQueryWithExclusions(q, exclude)
 	if ftsQuery == "" {
 		return empty, nil
 	}
