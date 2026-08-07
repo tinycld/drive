@@ -65,15 +65,51 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: ws/.node-version
+      # cache-dependency-path matters more than it looks: the install below runs a
+      # postinstall that regenerates the PB schema, which shells out to Go and
+      # pulls core's module graph. That download — not package fetching — is the
+      # bulk of the install step's runtime.
       - uses: actions/setup-go@v6
         with:
           go-version-file: ws/.go-version
+          cache-dependency-path: |
+            ws/drive/server/go.sum
+            ws/drive/cli/go.sum
+      # Cache pnpm's content-addressable store. setup-node's built-in `cache: pnpm`
+      # can't be used: it keys on a lockfile hash, and the workspace root here is
+      # bootstrap-GENERATED, so no lockfile exists until the install produces one.
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ws/.pnpm-store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('ws/package.json', 'ws/pnpm-workspace.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
       - name: Install (workspace root)
         working-directory: ws
-        run: corepack enable && pnpm install --no-frozen-lockfile
+        run: corepack enable && pnpm install --no-frozen-lockfile --store-dir=.pnpm-store
       - name: Typecheck + unit
         working-directory: ws/${{ env.PACKAGE }}
         run: pnpm exec tinycld-pkg check
+      # drive/server carries the security-critical Go: the storage-quota gate,
+      # the share-link OTP flow and its throttle, the RLS/permission rules, and
+      # the upload size reconciliation that stops a forged `size` from bypassing
+      # quota. `tinycld-pkg check` is biome + tsc + vitest and has no Go runner,
+      # so without this step none of it is exercised on CI.
+      #
+      # go mod download is not optional: in workspace mode the transitive
+      # /go.mod hashes live in go.work.sum, not go.sum, and `go test` fails with
+      # "missing go.sum entry for go.mod file" without it. The go.work itself
+      # was written by the generator during `pnpm install` above.
+      - name: Go build
+        working-directory: ws/${{ env.PACKAGE }}/server
+        run: |
+          go mod download
+          go build ./...
+      # -count=1 defeats the test cache so a green run always reflects this
+      # commit's code rather than a cached result keyed on unchanged inputs.
+      - name: Go tests
+        working-directory: ws/${{ env.PACKAGE }}/server
+        run: go test -count=1 ./...
       # cli/ is a second Go module (tinycld.org/packages/drive/cli) that
       # tinycld-pkg does not cover. Its go.work — which resolves
       # tinycld.org/cli against the assembled app shell — is emitted by the
@@ -129,12 +165,28 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: ws/.node-version
+      # cache-dependency-path matters more than it looks: the install below runs a
+      # postinstall that regenerates the PB schema, which shells out to Go and
+      # pulls core's module graph. That download — not package fetching — is the
+      # bulk of the install step's runtime.
       - uses: actions/setup-go@v6
         with:
           go-version-file: ws/.go-version
+          cache-dependency-path: |
+            ws/drive/server/go.sum
+            ws/drive/cli/go.sum
+      # Cache pnpm's content-addressable store. setup-node's built-in `cache: pnpm`
+      # can't be used: it keys on a lockfile hash, and the workspace root here is
+      # bootstrap-GENERATED, so no lockfile exists until the install produces one.
+      - name: Cache pnpm store
+        uses: actions/cache@v6
+        with:
+          path: ws/.pnpm-store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('ws/package.json', 'ws/pnpm-workspace.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
       - name: Install (workspace root)
         working-directory: ws
-        run: corepack enable && pnpm install --no-frozen-lockfile
+        run: corepack enable && pnpm install --no-frozen-lockfile --store-dir=.pnpm-store
       # Drive's share-link E2E mounts an editor for a doc, but the editor
       # itself is contributed by a package OTHER than drive (text, calc,
       # etc.). To avoid coupling drive's CI to those packages' internals,
