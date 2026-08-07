@@ -507,10 +507,13 @@ func TestLinkCreateListRevoke(t *testing.T) {
 		t.Fatalf("link list:\n%s", out)
 	}
 
-	if _, _, err := runCmd(t, c, "drive", "link", "revoke", "link001"); err != nil {
+	// Take the id from the link the fake actually issued: its counter is
+	// shared with item creation, so it is not a fixed value.
+	linkID := f.links[0].ID
+	if _, _, err := runCmd(t, c, "drive", "link", "revoke", linkID); err != nil {
 		t.Fatal(err)
 	}
-	if f.revokedLinkID != "link001" || f.links[0].IsActive {
+	if f.revokedLinkID != linkID || f.links[0].IsActive {
 		t.Fatalf("revoke did not soft-revoke: %+v", f.links)
 	}
 }
