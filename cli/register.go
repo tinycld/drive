@@ -17,6 +17,7 @@ func Register(root *cobra.Command, c *client.Client) {
 	}
 	drive.AddCommand(
 		newLsCmd(c),
+		newTreeCmd(c),
 		newSearchCmd(c),
 		newCatCmd(c),
 		newGetCmd(c),
@@ -25,6 +26,12 @@ func Register(root *cobra.Command, c *client.Client) {
 		newMvCmd(c),
 		newCpCmd(c),
 		newRmCmd(c),
+		newTrashCmd(c),
+		newRestoreCmd(c),
+		newShareCmd(c),
+		newLinkCmd(c),
+		newVersionsCmd(c),
+		newExportCmd(c),
 		newUsageCmd(c),
 	)
 	root.AddCommand(drive)

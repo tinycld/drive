@@ -23,23 +23,11 @@ const manifest = {
     // emitter.
     payloads: { package: 'server/api' },
     // `tinycld drive ...` commands, compiled into the per-org CLI binary by
-    // gen-cli.ts. commands is display metadata (Cobra owns --help); scopes
-    // feed the OAuth scope registry and consent screen.
+    // gen-cli.ts. scopes feed the OAuth scope registry and consent screen;
+    // Cobra is the source of truth for the command list and --help.
     cli: {
         package: 'cli',
         module: 'tinycld.org/packages/drive/cli',
-        commands: [
-            { name: 'ls', summary: 'List a folder' },
-            { name: 'search', summary: 'Full-text search files' },
-            { name: 'cat', summary: 'Print file contents' },
-            { name: 'get', summary: 'Download a file or folder' },
-            { name: 'put', summary: 'Upload a file' },
-            { name: 'mkdir', summary: 'Create a folder' },
-            { name: 'mv', summary: 'Move or rename' },
-            { name: 'cp', summary: 'Copy a file' },
-            { name: 'rm', summary: 'Trash or delete' },
-            { name: 'usage', summary: 'Show storage usage' },
-        ],
         scopes: ['drive:read', 'drive:write'],
     },
     // Server-side TS hooks: drop a *.pb.ts into pb-hooks/ to extend drive

@@ -38,12 +38,27 @@ type fakeDrive struct {
 	searchResponse  api.SearchResponse
 	usageResponse   api.StorageUsageResponse
 	lastSearchQuery url.Values
+
+	// users keyed by email, for share recipient resolution.
+	users    map[string]map[string]string
+	versions []version
+	links    []api.ShareLinkEntry
+
+	lastShareRequest    api.ShareRequest
+	lastLinkRequest     api.CreateShareLinkRequest
+	revokedLinkID       string
+	lastRestoreRequest  api.RestoreVersionRequest
+	lastSnapshotRequest api.SnapshotVersionRequest
+	lastExportRequest   api.ExportTokenRequest
 }
+
+const exportedPDF = "%PDF-1.7 exported bytes"
 
 func newFakeDrive(t *testing.T) *fakeDrive {
 	return &fakeDrive{
 		t: t, items: map[string]*item{}, state: map[string]*stateRow{},
 		contents: map[string]string{},
+		users:    map[string]map[string]string{},
 	}
 }
 
@@ -75,6 +90,10 @@ var (
 	reParentOnly   = regexp.MustCompile(`^parent = "((?:[^"\\]|\\.)*)"$`)
 	reUserTrashed  = regexp.MustCompile(`^user = "((?:[^"\\]|\\.)*)" && trashed_at != ''$`)
 	reItemUser     = regexp.MustCompile(`^item = "((?:[^"\\]|\\.)*)" && user = "((?:[^"\\]|\\.)*)"$`)
+	reIDList       = regexp.MustCompile(`^id = "((?:[^"\\]|\\.)*)"( \|\| id = "(?:(?:[^"\\]|\\.)*)")*$`)
+	reIDTerm       = regexp.MustCompile(`id = "((?:[^"\\]|\\.)*)"`)
+	reEmailEq      = regexp.MustCompile(`^email = "((?:[^"\\]|\\.)*)"$`)
+	reVersionItem  = regexp.MustCompile(`^item = "((?:[^"\\]|\\.)*)" && source != "system"$`)
 	reUnquoteSlash = strings.NewReplacer(`\"`, `"`, `\\`, `\`)
 )
 
@@ -93,6 +112,18 @@ func (f *fakeDrive) listItems(filter string) []item {
 	if m := reParentOnly.FindStringSubmatch(filter); m != nil {
 		for _, it := range f.items {
 			if it.Parent == unquote(m[1]) {
+				out = append(out, *it)
+			}
+		}
+		return out
+	}
+	if reIDList.MatchString(filter) {
+		want := map[string]bool{}
+		for _, m := range reIDTerm.FindAllStringSubmatch(filter, -1) {
+			want[unquote(m[1])] = true
+		}
+		for _, it := range f.items {
+			if want[it.ID] {
 				out = append(out, *it)
 			}
 		}
@@ -263,6 +294,109 @@ func (f *fakeDrive) serve() (*httptest.Server, *client.Client) {
 		f.createdShares++
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"message": "owner share is server-created"})
+	})
+
+	mux.HandleFunc("GET /api/collections/users/records", func(w http.ResponseWriter, r *http.Request) {
+		m := reEmailEq.FindStringSubmatch(r.URL.Query().Get("filter"))
+		if m == nil {
+			f.t.Errorf("unsupported users filter: %q", r.URL.Query().Get("filter"))
+		}
+		var out []map[string]string
+		if u, ok := f.users[unquote(m[1])]; ok {
+			out = append(out, u)
+		}
+		listResponse(w, out)
+	})
+	mux.HandleFunc("GET /api/collections/drive_item_versions/records", func(w http.ResponseWriter, r *http.Request) {
+		m := reVersionItem.FindStringSubmatch(r.URL.Query().Get("filter"))
+		if m == nil {
+			f.t.Errorf("unsupported versions filter: %q", r.URL.Query().Get("filter"))
+		}
+		var out []version
+		for _, v := range f.versions {
+			if v.Item == unquote(m[1]) && v.Source != "system" {
+				out = append(out, v)
+			}
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].VersionNumber > out[j].VersionNumber })
+		listResponse(w, out)
+	})
+
+	mux.HandleFunc("POST /api/drive/share", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&f.lastShareRequest)
+		created := 0
+		for _, rec := range f.lastShareRequest.Recipients {
+			if rec.UserID != "" {
+				created++
+			}
+		}
+		json.NewEncoder(w).Encode(api.ShareResponse{SharesCreated: created})
+	})
+	mux.HandleFunc("POST /api/drive/share-link", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&f.lastLinkRequest)
+		f.seq++
+		id := fmt.Sprintf("link%03d", f.seq)
+		token := fmt.Sprintf("token%03d", f.seq)
+		entry := api.ShareLinkEntry{
+			ID: id, Token: token, URL: "/share/" + token,
+			Role: f.lastLinkRequest.Role, IsActive: true,
+			ExpiresAt: f.lastLinkRequest.ExpiresAt,
+		}
+		f.links = append(f.links, entry)
+		json.NewEncoder(w).Encode(api.ShareLinkResponse{ID: id, Token: token, URL: entry.URL})
+	})
+	mux.HandleFunc("GET /api/drive/share-links", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("item_id") == "" {
+			f.t.Error("share-links requires item_id")
+		}
+		json.NewEncoder(w).Encode(api.ShareLinkListResponse{Links: f.links})
+	})
+	mux.HandleFunc("DELETE /api/drive/share-link/{id}", func(w http.ResponseWriter, r *http.Request) {
+		for i := range f.links {
+			if f.links[i].ID == r.PathValue("id") {
+				f.links[i].IsActive = false // soft revoke, as the server does
+			}
+		}
+		f.revokedLinkID = r.PathValue("id")
+		json.NewEncoder(w).Encode(api.SuccessResponse{Success: true})
+	})
+
+	mux.HandleFunc("POST /api/drive/versions/restore", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&f.lastRestoreRequest)
+		it := f.items[f.lastRestoreRequest.Item]
+		json.NewEncoder(w).Encode(api.VersionFileResponse{
+			ID: it.ID, Name: it.Name, File: it.File, Size: it.Size, MimeType: it.MimeType,
+		})
+	})
+	mux.HandleFunc("POST /api/drive/versions/snapshot", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&f.lastSnapshotRequest)
+		next := 1
+		for _, v := range f.versions {
+			if v.Item == f.lastSnapshotRequest.Item && v.VersionNumber >= next {
+				next = v.VersionNumber + 1
+			}
+		}
+		f.seq++
+		f.versions = append(f.versions, version{
+			ID: fmt.Sprintf("ver%03d", f.seq), Item: f.lastSnapshotRequest.Item,
+			VersionNumber: next, Source: "user", Label: f.lastSnapshotRequest.Label,
+		})
+		json.NewEncoder(w).Encode(api.SnapshotVersionResponse{Item: f.lastSnapshotRequest.Item})
+	})
+
+	mux.HandleFunc("POST /api/drive/export-token", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&f.lastExportRequest)
+		json.NewEncoder(w).Encode(api.TokenResponse{
+			Token: "exp123", URL: "/api/drive/export?token=exp123",
+		})
+	})
+	mux.HandleFunc("GET /api/drive/export", func(w http.ResponseWriter, r *http.Request) {
+		// Credential-less by design: the single-use token IS the credential.
+		if r.Header.Get("Authorization") != "" {
+			f.t.Error("export download must not carry a bearer token")
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(len(exportedPDF)))
+		w.Write([]byte(exportedPDF))
 	})
 
 	mux.HandleFunc("GET /api/drive/search", func(w http.ResponseWriter, r *http.Request) {

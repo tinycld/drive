@@ -53,25 +53,31 @@ func newLsCmd(c *client.Client) *cobra.Command {
 	return cmd
 }
 
-// withoutTrashed drops items the CALLING user has trashed — trash state is
-// per-user (drive_item_state), not a column on the item.
-func withoutTrashed(ctx context.Context, c *client.Client, items []item) ([]item, error) {
+// trashedItemIDs is the set of items the CALLING user has trashed — trash
+// state is per-user (drive_item_state), not a column on the item. Callers that
+// walk more than one folder should fetch this once rather than per level.
+func trashedItemIDs(ctx context.Context, c *client.Client) (map[string]bool, error) {
 	userID, err := c.UserID(ctx)
 	if err != nil {
 		return nil, err
-	}
-	type stateRow struct {
-		Item      string `json:"item"`
-		TrashedAt string `json:"trashed_at"`
 	}
 	states, err := client.ListAll[stateRow](ctx, c, "drive_item_state",
 		client.Filter("user = {:u} && trashed_at != ''", map[string]any{"u": userID}), "")
 	if err != nil {
 		return nil, err
 	}
-	trashed := map[string]bool{}
+	trashed := make(map[string]bool, len(states))
 	for _, s := range states {
 		trashed[s.Item] = true
+	}
+	return trashed, nil
+}
+
+// withoutTrashed drops the caller's trashed items from one listing.
+func withoutTrashed(ctx context.Context, c *client.Client, items []item) ([]item, error) {
+	trashed, err := trashedItemIDs(ctx, c)
+	if err != nil {
+		return nil, err
 	}
 	kept := items[:0]
 	for _, it := range items {
