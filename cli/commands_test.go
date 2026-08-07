@@ -367,3 +367,269 @@ func TestUsageRendersHumanSizes(t *testing.T) {
 		t.Fatalf("no-limit deployments must say unlimited:\n%s", out)
 	}
 }
+
+func TestTreeRespectsDepthAndTrash(t *testing.T) {
+	f := tree(t)
+	f.addFile("filDeep", "fldNotes", "deep.txt", "deep_ab12cd34ef.txt", "deep")
+	_, c := f.serve()
+
+	out, _, err := runCmd(t, c, "drive", "tree", "/docs", "--depth", "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "notes/") || strings.Contains(out, "deep.txt") {
+		t.Fatalf("--depth 1 must stop below the first level:\n%s", out)
+	}
+
+	out, _, err = runCmd(t, c, "drive", "tree", "/docs", "--depth", "2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "deep.txt") {
+		t.Fatalf("--depth 2 must reach the nested file:\n%s", out)
+	}
+
+	// A trashed item is hidden unless --all, and one trash lookup covers the
+	// whole walk.
+	f.state["s1"] = &stateRow{ID: "s1", Item: "filDeep", User: "user1", TrashedAt: "2026-08-06 00:00:00Z"}
+	out, _, err = runCmd(t, c, "drive", "tree", "/docs", "--depth", "2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "deep.txt") {
+		t.Fatalf("trashed item must be hidden:\n%s", out)
+	}
+
+	if _, _, err := runCmd(t, c, "drive", "tree", "/docs/report.pdf"); err == nil {
+		t.Fatal("tree on a file must error")
+	}
+	if _, _, err := runCmd(t, c, "drive", "tree", "/docs", "--depth", "0"); err == nil {
+		t.Fatal("--depth 0 must error")
+	}
+}
+
+func TestTrashListsAndRestores(t *testing.T) {
+	f := tree(t)
+	f.state["s1"] = &stateRow{ID: "s1", Item: "filLoose", User: "user1", TrashedAt: "2026-08-06 00:00:00Z"}
+	_, c := f.serve()
+
+	out, _, err := runCmd(t, c, "drive", "trash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "loose.txt") {
+		t.Fatalf("trash listing missing the trashed item:\n%s", out)
+	}
+	if strings.Contains(out, "report.pdf") {
+		t.Fatalf("trash listing must not include untrashed items:\n%s", out)
+	}
+
+	if _, _, err := runCmd(t, c, "drive", "restore", "id:filLoose"); err != nil {
+		t.Fatal(err)
+	}
+	if f.state["s1"].TrashedAt != "" {
+		t.Fatalf("restore must clear trashed_at, got %q", f.state["s1"].TrashedAt)
+	}
+
+	// Restoring something that isn't trashed is a no-op, not an error.
+	if _, _, err := runCmd(t, c, "drive", "restore", "/docs/report.pdf"); err != nil {
+		t.Fatalf("restore of an untrashed item must not error: %v", err)
+	}
+}
+
+func TestShareResolvesEmailToUser(t *testing.T) {
+	f := tree(t)
+	f.users["ada@acme.test"] = map[string]string{
+		"id": "usrAda", "email": "ada@acme.test", "name": "Ada",
+	}
+	_, c := f.serve()
+
+	_, stderr, err := runCmd(t, c, "drive", "share", "/docs/report.pdf",
+		"--user", "ada@acme.test", "--role", "editor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := f.lastShareRequest
+	if req.ItemID != "filReport" || len(req.Recipients) != 1 {
+		t.Fatalf("share request = %+v", req)
+	}
+	// user_id is what actually creates the grant — an email-only recipient
+	// would silently become an emailed public link instead.
+	if req.Recipients[0].UserID != "usrAda" || req.Recipients[0].Role != "editor" {
+		t.Fatalf("recipient = %+v", req.Recipients[0])
+	}
+	if !strings.Contains(stderr, "1 new grant") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+	if f.createdShares != 0 {
+		t.Fatal("share must go through the endpoint, never the drive_shares collection")
+	}
+
+	if _, _, err := runCmd(t, c, "drive", "share", "/docs/report.pdf", "--user", "nobody@acme.test"); err == nil {
+		t.Fatal("an email with no account must error rather than silently create a link")
+	}
+	// commentor is silently downgraded by this endpoint, so it must be refused.
+	if _, _, err := runCmd(t, c, "drive", "share", "/docs/report.pdf",
+		"--user", "ada@acme.test", "--role", "commentor"); err == nil {
+		t.Fatal("--role commentor must be refused on share")
+	}
+}
+
+func TestLinkCreateListRevoke(t *testing.T) {
+	f := tree(t)
+	_, c := f.serve()
+
+	out, _, err := runCmd(t, c, "drive", "link", "create", "/docs/report.pdf",
+		"--role", "commentor", "--expires", "2026-12-31T23:59:59Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.lastLinkRequest.ItemID != "filReport" || f.lastLinkRequest.Role != "commentor" {
+		t.Fatalf("link request = %+v", f.lastLinkRequest)
+	}
+	if !strings.Contains(out, "/share/") {
+		t.Fatalf("create must print the link URL:\n%s", out)
+	}
+
+	// The server 500s on a malformed date, so it is rejected client-side.
+	if _, _, err := runCmd(t, c, "drive", "link", "create", "/docs/report.pdf", "--expires", "next tuesday"); err == nil {
+		t.Fatal("a malformed --expires must be refused")
+	}
+	if _, _, err := runCmd(t, c, "drive", "link", "create", "/docs/report.pdf", "--role", "boss"); err == nil {
+		t.Fatal("an unknown --role must be refused")
+	}
+
+	out, _, err = runCmd(t, c, "drive", "link", "list", "/docs/report.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "commentor") || !strings.Contains(out, "yes") {
+		t.Fatalf("link list:\n%s", out)
+	}
+
+	if _, _, err := runCmd(t, c, "drive", "link", "revoke", "link001"); err != nil {
+		t.Fatal(err)
+	}
+	if f.revokedLinkID != "link001" || f.links[0].IsActive {
+		t.Fatalf("revoke did not soft-revoke: %+v", f.links)
+	}
+}
+
+func TestVersionsListRestoreSnapshot(t *testing.T) {
+	f := tree(t)
+	f.versions = []version{
+		{ID: "ver1", Item: "filReport", VersionNumber: 1, Size: 10, Source: "upload", Created: "2026-08-01 00:00:00Z"},
+		{ID: "ver2", Item: "filReport", VersionNumber: 2, Size: 20, Source: "user", Label: "before edit", Created: "2026-08-02 00:00:00Z"},
+		// The pre-restore snapshot the server writes is hidden from listings.
+		{ID: "ver3", Item: "filReport", VersionNumber: 3, Size: 30, Source: "system", Created: "2026-08-03 00:00:00Z"},
+	}
+	_, c := f.serve()
+
+	out, _, err := runCmd(t, c, "drive", "versions", "/docs/report.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "before edit") {
+		t.Fatalf("versions list:\n%s", out)
+	}
+	if strings.Contains(out, "system") {
+		t.Fatalf("system versions must be hidden:\n%s", out)
+	}
+	// Newest first.
+	if strings.Index(out, "before edit") > strings.Index(out, "upload") {
+		t.Fatalf("versions must list newest first:\n%s", out)
+	}
+
+	if _, _, err := runCmd(t, c, "drive", "versions", "/docs/report.pdf", "--restore", "1"); err != nil {
+		t.Fatal(err)
+	}
+	// The request carries the version RECORD id, resolved from the number.
+	if f.lastRestoreRequest.Version != "ver1" || f.lastRestoreRequest.Item != "filReport" {
+		t.Fatalf("restore request = %+v", f.lastRestoreRequest)
+	}
+	if _, _, err := runCmd(t, c, "drive", "versions", "/docs/report.pdf", "--restore", "99"); err == nil {
+		t.Fatal("restoring an unknown version number must error")
+	}
+
+	_, stderr, err := runCmd(t, c, "drive", "versions", "/docs/report.pdf", "--snapshot", "--label", "checkpoint")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.lastSnapshotRequest.Label != "checkpoint" {
+		t.Fatalf("snapshot request = %+v", f.lastSnapshotRequest)
+	}
+	// The snapshot response carries only the item id, so the number comes from
+	// a follow-up listing.
+	if !strings.Contains(stderr, "version 4") {
+		t.Fatalf("snapshot must report the new version number, got %q", stderr)
+	}
+
+	if _, _, err := runCmd(t, c, "drive", "versions", "/docs", "--snapshot"); err == nil {
+		t.Fatal("versions on a folder must error")
+	}
+	if _, _, err := runCmd(t, c, "drive", "versions", "/docs/report.pdf", "--restore", "1", "--snapshot"); err == nil {
+		t.Fatal("--restore with --snapshot must error")
+	}
+}
+
+func TestExportDownloadsPDF(t *testing.T) {
+	f := tree(t)
+	_, c := f.serve()
+	dir := t.TempDir()
+
+	dest := filepath.Join(dir, "out.pdf")
+	if _, _, err := runCmd(t, c, "drive", "export", "/docs/report.pdf", dest); err != nil {
+		t.Fatal(err)
+	}
+	if f.lastExportRequest.Item != "filReport" || f.lastExportRequest.To != "pdf" {
+		t.Fatalf("export request = %+v", f.lastExportRequest)
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != exportedPDF {
+		t.Fatalf("content = %q", got)
+	}
+
+	if _, _, err := runCmd(t, c, "drive", "export", "/docs/report.pdf", "--to", "docx"); err == nil {
+		t.Fatal("--to other than pdf must error")
+	}
+}
+
+func TestPutRecursiveMirrorsTree(t *testing.T) {
+	f := tree(t)
+	_, c := f.serve()
+
+	local := t.TempDir()
+	os.MkdirAll(filepath.Join(local, "src", "nested"), 0o755)
+	os.WriteFile(filepath.Join(local, "top.txt"), []byte("top"), 0o600)
+	os.WriteFile(filepath.Join(local, "src", "a.txt"), []byte("aaa"), 0o600)
+	os.WriteFile(filepath.Join(local, "src", "nested", "b.txt"), []byte("bb"), 0o600)
+
+	// A directory without --recursive is refused rather than half-handled.
+	if _, _, err := runCmd(t, c, "drive", "put", local, "/docs"); err == nil {
+		t.Fatal("a directory without --recursive must error")
+	}
+
+	_, stderr, err := runCmd(t, c, "drive", "put", local, "/docs", "--recursive")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr, "3 file(s)") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+	base := filepath.Base(local)
+	for _, p := range []string{
+		"/docs/" + base + "/top.txt",
+		"/docs/" + base + "/src/a.txt",
+		"/docs/" + base + "/src/nested/b.txt",
+	} {
+		if _, err := resolvePath(t.Context(), c, p); err != nil {
+			t.Errorf("%s not uploaded: %v", p, err)
+		}
+	}
+	if f.createdShares != 0 {
+		t.Fatal("recursive upload must not create drive_shares rows")
+	}
+}
