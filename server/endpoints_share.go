@@ -11,25 +11,13 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/mailer"
+	"tinycld.org/packages/drive/api"
 )
-
-type shareRecipient struct {
-	UserID string `json:"user_id,omitempty"`
-	Email  string `json:"email"`
-	Name   string `json:"name"`
-	Role   string `json:"role"`
-}
-
-type shareRequest struct {
-	ItemID     string           `json:"item_id"`
-	Recipients []shareRecipient `json:"recipients"`
-	Message    string           `json:"message"`
-}
 
 func handleShare(app core.App, re *core.RequestEvent) error {
 	userID := re.Auth.Id
 
-	var req shareRequest
+	var req api.ShareRequest
 	if err := json.NewDecoder(re.Request.Body).Decode(&req); err != nil {
 		return re.BadRequestError("Invalid request", err)
 	}
@@ -100,14 +88,10 @@ func handleShare(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	re.Response.Header().Set("Content-Type", "application/json")
-	re.Response.WriteHeader(http.StatusOK)
-	return json.NewEncoder(re.Response).Encode(map[string]any{
-		"shares_created": created,
-	})
+	return re.JSON(http.StatusOK, api.ShareResponse{SharesCreated: created})
 }
 
-func sendShareInvite(app core.App, senderName string, r shareRecipient, itemName, itemID, message, senderUserID string) {
+func sendShareInvite(app core.App, senderName string, r api.ShareRecipient, itemName, itemID, message, senderUserID string) {
 	link := fmt.Sprintf("%s/drive?file=%s", app.Settings().Meta.AppURL, itemID)
 
 	greeting := "Hi"
@@ -152,7 +136,7 @@ func sendShareInvite(app core.App, senderName string, r shareRecipient, itemName
 }
 
 // sendExternalShareInvite creates a public share link and sends an email with the /share/<token> URL.
-func sendExternalShareInvite(app core.App, senderName string, r shareRecipient, item *core.Record, message string, createdByUserID string, senderUserID string) {
+func sendExternalShareInvite(app core.App, senderName string, r api.ShareRecipient, item *core.Record, message string, createdByUserID string, senderUserID string) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		app.Logger().Error("Failed to generate share token", "error", err)

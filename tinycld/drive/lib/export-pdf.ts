@@ -1,3 +1,4 @@
+import type { ExportTokenRequest, TokenResponse } from '@tinycld/app-generated/drive-api'
 import { downloadFromUrl } from '@tinycld/core/file-viewer/file-url'
 import { captureException } from '@tinycld/core/lib/errors'
 import { notify } from '@tinycld/core/lib/notify'
@@ -42,9 +43,9 @@ export function canExportToPdf(mimeType: string): boolean {
 export function exportItemToPdf(itemId: string, displayName: string) {
     void (async () => {
         try {
-            const response = await pb.send('/api/drive/export-token', {
+            const response: TokenResponse = await pb.send('/api/drive/export-token', {
                 method: 'POST',
-                body: { item: itemId, to: 'pdf' },
+                body: { item: itemId, to: 'pdf' } satisfies ExportTokenRequest,
             })
             const fileName = `${stripExtension(displayName)}.pdf`
             downloadFromUrl(`${pb.baseURL}${response.url}`, fileName, 'application/pdf')

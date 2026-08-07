@@ -1,13 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
+import type { StorageUsageResponse } from '@tinycld/app-generated/drive-api'
 import { pb } from '@tinycld/core/lib/pocketbase'
-
-interface StorageUsageResponse {
-    user_used_bytes?: number
-    org_drive_bytes?: number
-    org_mail_bytes?: number
-    limit_bytes?: number
-    has_limit?: boolean
-}
 
 export interface StorageUsage {
     usedBytes: number

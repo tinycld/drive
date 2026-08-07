@@ -17,6 +17,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/nathanstitt/doctaculous/pkg/doctaculous"
+	"tinycld.org/packages/drive/api"
 )
 
 // Export converts a drive item to another format on the server and streams the
@@ -82,10 +83,7 @@ func exportInputFormat(mimeType string, to doctaculous.Format) (doctaculous.Form
 // handleCreateExportToken validates read access + convertibility and returns a
 // single-use token URL the client hands to downloadFromUrl.
 func handleCreateExportToken(app core.App, re *core.RequestEvent) error {
-	var body struct {
-		Item string `json:"item"`
-		To   string `json:"to"`
-	}
+	var body api.ExportTokenRequest
 	if err := json.NewDecoder(re.Request.Body).Decode(&body); err != nil {
 		return re.BadRequestError("invalid request body", nil)
 	}
@@ -131,9 +129,9 @@ func handleCreateExportToken(app core.App, re *core.RequestEvent) error {
 	}
 	exportTokensMu.Unlock()
 
-	return re.JSON(http.StatusOK, map[string]any{
-		"token": token,
-		"url":   "/api/drive/export?token=" + token,
+	return re.JSON(http.StatusOK, api.TokenResponse{
+		Token: token,
+		URL:   "/api/drive/export?token=" + token,
 	})
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/driveshare"
+	"tinycld.org/packages/drive/api"
 )
 
 var fts5SpecialChars = regexp.MustCompile(`[":*^{}()\[\]~\-]`)
@@ -104,22 +105,6 @@ func updateFTSContent(app core.App, recordID, content string) {
 	}
 }
 
-type driveSearchResultItem struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	IsFolder    bool   `json:"is_folder"`
-	MimeType    string `json:"mime_type"`
-	Size        int64  `json:"size"`
-	Description string `json:"description"`
-	Updated     string `json:"updated"`
-	Highlight   string `json:"highlight"`
-}
-
-type driveSearchResponse struct {
-	Items []driveSearchResultItem `json:"items"`
-	Total int                     `json:"total"`
-}
-
 func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 	limit := 25
 	offset := 0
@@ -133,7 +118,7 @@ func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 	resp, err := searchDriveItems(app, re.Auth.Id, re.Request.URL.Query().Get("q"), limit, offset)
 	if err != nil {
 		app.Logger().Warn("FTS: drive search failed", "error", err)
-		return re.JSON(http.StatusOK, driveSearchResponse{Items: []driveSearchResultItem{}, Total: 0})
+		return re.JSON(http.StatusOK, api.SearchResponse{Items: []api.SearchResultItem{}, Total: 0})
 	}
 	return re.JSON(http.StatusOK, resp)
 }
@@ -142,8 +127,8 @@ func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 // and the $drive.search JS binding so both enforce the same access scope — a
 // binding that reimplemented the filter could drift out of agreement with the
 // endpoint, which is precisely the class of bug this migration was about.
-func searchDriveItems(app core.App, userID, q string, limit, offset int) (driveSearchResponse, error) {
-	empty := driveSearchResponse{Items: []driveSearchResultItem{}, Total: 0}
+func searchDriveItems(app core.App, userID, q string, limit, offset int) (api.SearchResponse, error) {
+	empty := api.SearchResponse{Items: []api.SearchResultItem{}, Total: 0}
 
 	if len(q) < 2 {
 		return empty, nil
@@ -207,9 +192,9 @@ func searchDriveItems(app core.App, userID, q string, limit, offset int) (driveS
 		return empty, err
 	}
 
-	items := make([]driveSearchResultItem, len(results))
+	items := make([]api.SearchResultItem, len(results))
 	for i, r := range results {
-		items[i] = driveSearchResultItem{
+		items[i] = api.SearchResultItem{
 			ID:          r.ID,
 			Name:        r.Name,
 			IsFolder:    r.IsFolder,
@@ -239,5 +224,5 @@ func searchDriveItems(app core.App, userID, q string, limit, offset int) (driveS
 		countResult.Total = len(items)
 	}
 
-	return driveSearchResponse{Items: items, Total: countResult.Total}, nil
+	return api.SearchResponse{Items: items, Total: countResult.Total}, nil
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/packages/drive/api"
 )
 
 // getUserStorageUsed returns total bytes for a user across drive_items + drive_item_versions.
@@ -151,7 +152,7 @@ func checkUserStorageQuotaWebDAV(app core.App, userID string, additionalBytes in
 }
 
 // getUsersStorageBreakdown returns per-user storage usage across the deployment.
-func getUsersStorageBreakdown(app core.App) ([]map[string]any, error) {
+func getUsersStorageBreakdown(app core.App) ([]api.UserStorageBreakdown, error) {
 	type row struct {
 		UserID    string `db:"user_id"`
 		UserName  string `db:"user_name"`
@@ -183,13 +184,13 @@ func getUsersStorageBreakdown(app core.App) ([]map[string]any, error) {
 		return nil, err
 	}
 
-	result := make([]map[string]any, len(rows))
+	result := make([]api.UserStorageBreakdown, len(rows))
 	for i, r := range rows {
-		result[i] = map[string]any{
-			"user_id":    r.UserID,
-			"user_name":  r.UserName,
-			"user_email": r.UserEmail,
-			"drive_used": r.DriveUsed,
+		result[i] = api.UserStorageBreakdown{
+			UserID:    r.UserID,
+			UserName:  r.UserName,
+			UserEmail: r.UserEmail,
+			DriveUsed: r.DriveUsed,
 		}
 	}
 	return result, nil

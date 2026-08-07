@@ -1,4 +1,5 @@
 import { and, eq, not } from '@tanstack/db'
+import type { RestoreVersionRequest } from '@tinycld/app-generated/drive-api'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
@@ -19,7 +20,10 @@ export function useVersionHistory(itemId: string) {
         mutationFn: async (versionId: string) => {
             await pb.send('/api/drive/versions/restore', {
                 method: 'POST',
-                body: JSON.stringify({ item: itemId, version: versionId }),
+                body: JSON.stringify({
+                    item: itemId,
+                    version: versionId,
+                } satisfies RestoreVersionRequest),
                 headers: { 'Content-Type': 'application/json' },
             })
         },

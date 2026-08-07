@@ -4,6 +4,7 @@ import (
 	"github.com/grafana/sobek"
 	"github.com/pocketbase/pocketbase"
 
+	"encoding/json"
 	"tinycld.org/core/coreserver"
 )
 
@@ -42,20 +43,17 @@ func registerJSVMBinding(_ *pocketbase.PocketBase) {
 				return nil, err
 			}
 
-			items := make([]any, len(resp.Items))
-			for i, r := range resp.Items {
-				items[i] = map[string]any{
-					"id":          r.ID,
-					"name":        r.Name,
-					"is_folder":   r.IsFolder,
-					"mime_type":   r.MimeType,
-					"size":        r.Size,
-					"description": r.Description,
-					"updated":     r.Updated,
-					"highlight":   r.Highlight,
-				}
+			// Round-trip through JSON so the JS-facing keys come from the
+			// api struct tags — one source of truth, no hand-spelled copy.
+			marshaled, err := json.Marshal(resp)
+			if err != nil {
+				return nil, err
 			}
-			return map[string]any{"items": items, "total": resp.Total}, nil
+			var out map[string]any
+			if err := json.Unmarshal(marshaled, &out); err != nil {
+				return nil, err
+			}
+			return out, nil
 		}
 
 		obj, err := coreserver.NewBindNamespace(vm, map[string]any{"search": search})

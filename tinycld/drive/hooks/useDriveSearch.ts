@@ -1,24 +1,11 @@
+import type { SearchResponse, SearchResultItem } from '@tinycld/app-generated/drive-api'
 import { useApiSearch } from '@tinycld/core/lib/use-api-search'
 import { useMemo } from 'react'
 
-export interface DriveSearchResult {
-    id: string
-    name: string
-    is_folder: boolean
-    mime_type: string
-    size: number
-    description: string
-    updated: string
-    highlight: string
-}
+export type DriveSearchResult = SearchResultItem
 
-interface DriveSearchResponse {
-    items: DriveSearchResult[]
-    total: number
-}
-
-const extractResults = (response: unknown) => (response as DriveSearchResponse).items
-const extractTotal = (response: unknown) => (response as DriveSearchResponse).total
+const extractResults = (response: unknown) => (response as SearchResponse).items
+const extractTotal = (response: unknown) => (response as SearchResponse).total
 
 export function useDriveSearch(query: string) {
     const buildQueryParams = useMemo(() => (q: string) => ({ q }), [])
