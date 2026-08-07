@@ -22,7 +22,8 @@
         "./lib/save-to-drive-action": "./tinycld/drive/lib/save-to-drive-action.tsx",
         "./lib/template-naming": "./tinycld/drive/lib/template-naming.ts",
         "./lib/upload-to-drive": "./tinycld/drive/lib/upload-to-drive.ts",
-        "./public-screens/*": "./tinycld/drive/public-screens/*.tsx"
+        "./public-screens/*": "./tinycld/drive/public-screens/*.tsx",
+        "./search-adapter": "./tinycld/drive/search-adapter.ts"
     },
     "scripts": {
         "typecheck": "tinycld-pkg typecheck",

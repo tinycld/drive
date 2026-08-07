@@ -10,6 +10,7 @@ const manifest = {
     slots: ['sidebar.after-tree'],
     provider: { component: 'provider' },
     help: { directory: 'help' },
+    search: { endpoint: '/api/drive/search', adapter: 'search-adapter' },
     migrations: { directory: 'pb-migrations' },
     collections: { register: 'collections', types: 'types' },
     seed: { script: 'seed' },
