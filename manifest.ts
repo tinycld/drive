@@ -10,6 +10,7 @@ const manifest = {
     slots: ['sidebar.after-tree'],
     provider: { component: 'provider' },
     help: { directory: 'help' },
+    search: { endpoint: '/api/drive/search', adapter: 'search-adapter' },
     migrations: { directory: 'pb-migrations' },
     collections: { register: 'collections', types: 'types' },
     seed: { script: 'seed' },
@@ -76,7 +77,7 @@ const manifest = {
         },
     },
     repository: { url: 'https://github.com/tinycld/drive' },
-    peerVersions: { '@tinycld/core': '>=0.0.5 <0.1.0' },
+    peerVersions: { '@tinycld/core': '>=0.0.6 <0.1.0' },
 }
 
 export default manifest

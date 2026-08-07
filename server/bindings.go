@@ -22,14 +22,18 @@ import (
 //
 // Today it exposes:
 //
-//	$drive.search(userId, { q, limit, offset }) -> { items, total }
+//	$drive.search(userId, { q, not, limit, offset }) -> { items, total }
 func registerJSVMBinding(_ *pocketbase.PocketBase) {
 	coreserver.RegisterJSVMBinder(func(vm *sobek.Runtime, app *pocketbase.PocketBase) error {
 		search := func(userID string, opts map[string]any) (map[string]any, error) {
 			limit, offset := 25, 0
 			q := ""
+			exclude := ""
 			if v, ok := opts["q"].(string); ok {
 				q = v
+			}
+			if v, ok := opts["not"].(string); ok {
+				exclude = v
 			}
 			if v, ok := opts["limit"].(int64); ok && v > 0 && v <= 100 {
 				limit = int(v)
@@ -38,7 +42,7 @@ func registerJSVMBinding(_ *pocketbase.PocketBase) {
 				offset = int(v)
 			}
 
-			resp, err := searchDriveItems(app, userID, q, limit, offset)
+			resp, err := searchDriveItems(app, userID, q, exclude, limit, offset)
 			if err != nil {
 				return nil, err
 			}
