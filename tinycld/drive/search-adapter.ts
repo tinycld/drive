@@ -23,7 +23,12 @@ export function useSearchActions() {
     const orgHref = useOrgHref()
     return {
         onSelect: (row: SearchRow) => {
-            router.push(orgHref('drive', { item: row.id }))
+            // `file` + `preview: '1'` is the URL contract usePreviewUrlSync
+            // (useDrive.tsx) hydrates from on mount to open the preview
+            // modal — there is no `item` param consumer anywhere in drive,
+            // so pushing `{ item: row.id }` navigated to the plain Drive
+            // root and never revealed the selected file.
+            router.push(orgHref('drive', { file: row.id, preview: '1' }))
         },
     }
 }
