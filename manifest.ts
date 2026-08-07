@@ -10,7 +10,11 @@ const manifest = {
     slots: ['sidebar.after-tree'],
     provider: { component: 'provider' },
     help: { directory: 'help' },
-    search: { endpoint: '/api/drive/search', adapter: 'search-adapter' },
+    // Drive is searchable through core's federated /api/search, which reads the
+    // Go source registered in server/. The in-app search box keeps its own
+    // /api/drive/search route: it filters the grid in place and needs
+    // drive-shaped fields the normalized row does not carry.
+    search: { adapter: 'search-adapter' },
     migrations: { directory: 'pb-migrations' },
     collections: { register: 'collections', types: 'types' },
     seed: { script: 'seed' },
