@@ -2,7 +2,6 @@ package cli
 
 import (
 	"net/url"
-	"regexp"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -38,7 +37,7 @@ func newSearchCmd(c *client.Client) *cobra.Command {
 			for i, it := range resp.Items {
 				rows[i] = []string{
 					it.Name, searchKind(it), searchSize(it),
-					stripMarks(it.Highlight), it.ID,
+					output.StripMarks(it.Highlight), it.ID,
 				}
 			}
 			if err := o.Write(cmd.OutOrStdout(),
@@ -52,14 +51,6 @@ func newSearchCmd(c *client.Client) *cobra.Command {
 	cmd.Flags().IntVar(&limit, "limit", 0, "maximum results (server caps at 100)")
 	cmd.Flags().IntVar(&offset, "offset", 0, "skip this many results")
 	return cmd
-}
-
-// stripMarks removes the server's <mark> highlight tags for terminal output;
-// --json keeps the raw response, tags included.
-var markTags = regexp.MustCompile(`</?mark>`)
-
-func stripMarks(s string) string {
-	return markTags.ReplaceAllString(s, "")
 }
 
 func searchKind(it api.SearchResultItem) string {
