@@ -354,15 +354,11 @@ func TestGetUsersStorageBreakdown_PerUserTotals(t *testing.T) {
 		t.Fatalf("getUsersStorageBreakdown: %v", err)
 	}
 
+	// getUsersStorageBreakdown returns typed api.UserStorageBreakdown rows; this
+	// read the untyped map shape it had before the payload package landed.
 	byID := map[string]int64{}
 	for _, r := range rows {
-		id, _ := r["user_id"].(string)
-		switch v := r["drive_used"].(type) {
-		case int64:
-			byID[id] = v
-		case int:
-			byID[id] = int64(v)
-		}
+		byID[r.UserID] = r.DriveUsed
 	}
 
 	if byID[heavy] != 1000 {

@@ -19,6 +19,7 @@ import (
 	"tinycld.org/core/offboard"
 	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/quota"
+	"tinycld.org/core/search"
 	"tinycld.org/core/versionhooks"
 	"tinycld.org/core/webdav"
 	"tinycld.org/packages/drive/api"
@@ -116,6 +117,9 @@ func registerShared(app *pocketbase.PocketBase) {
 
 	// Storage ceilings: declare the collections, core binds the enforcement.
 	quota.RegisterSources(quotaSources...)
+
+	// Drive's contribution to the federated GET /api/search.
+	search.RegisterSources(searchSource())
 
 	// $drive.* JS binding for TS hooks that need Go-backed drive logic.
 	registerJSVMBinding(app)
