@@ -74,8 +74,8 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 	// RemoteAddr (192.0.2.1:1234), so every test that doesn't override
 	// X-Forwarded-For shares a single budget; without this reset, the
 	// 10/min/IP otpLimiter eventually starves later tests in a run.
-	otpLimiter.reset()
-	publicShareLimiter.reset()
+	otpLimiter.Reset()
+	publicShareLimiter.Reset()
 
 	app, err := tests.NewTestApp()
 	if err != nil {

@@ -21,7 +21,7 @@ import (
 // Public + rate-limited (reuses the share-link IP limiter).
 func handleCreateShareSession(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.allow(ip) {
+	if !publicShareLimiter.Allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 	}
 
