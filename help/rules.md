@@ -31,6 +31,17 @@ on.
 
 Pair it with a notification, or with an action from another package.
 
+## When something is shared
+
+**A file is shared with me** fires when someone gives you access to a file or
+folder. You can filter on which file, what level of access, and who shared it.
+
+**A public link is created** fires when someone creates a share link. This one
+is mostly useful as an organization rule: a link works for anyone holding the
+URL, so an admin rule watching for them is how you notice something being
+published outside the organization. As a personal rule it means "when *I*
+create a link", which is rarely what you want.
+
 ## Filing things away
 
 The action **Move to folder** moves the file that started the rule into a

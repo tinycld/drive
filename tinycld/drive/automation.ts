@@ -37,6 +37,42 @@ const automation = {
                 { key: 'target_collection', label: 'Comment type' },
             ],
         },
+        {
+            // `user` is the RECIPIENT of the share, and it's a relation to
+            // users — so auto-detection finds it and this fires for the person
+            // gaining access, which is exactly who wants to know.
+            id: 'file-shared',
+            label: 'A file is shared with me',
+            collection: 'drive_shares',
+            on: 'create',
+            fields: [
+                { key: 'item', label: 'File' },
+                { key: 'role', label: 'Access level' },
+                { key: 'created_by', label: 'Shared by' },
+            ],
+        },
+        {
+            // Compliance, not convenience: a share LINK is public to anyone
+            // holding the URL, unlike drive_shares which names a user. An
+            // admin rule watching this is how an organization notices
+            // something being published outside it.
+            //
+            // created_by is the person who made the link — the only user this
+            // row names, so auto-detection resolves to them and a personal
+            // rule means "when I create a link". The org-scoped rule is the
+            // useful one here.
+            id: 'share-link-created',
+            label: 'A public link is created',
+            collection: 'drive_share_links',
+            on: 'create',
+            ownerField: 'created_by',
+            fields: [
+                { key: 'item', label: 'File' },
+                { key: 'role', label: 'Access level' },
+                { key: 'expires_at', label: 'Expires' },
+                { key: 'created_by', label: 'Created by' },
+            ],
+        },
     ],
     actions: [
         {
