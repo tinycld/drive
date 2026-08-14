@@ -26,7 +26,7 @@ export function useDriveShortcuts({
     const setFocusedIndex = useDriveUIStore(s => s.setFocusedIndex)
     const clearFocus = useDriveUIStore(s => s.clearFocus)
 
-    useShortcutScope('list')
+    const scopeOwner = useShortcutScope('list')
 
     // Reset focus when we navigate into a different folder/section. Done in
     // an effect so the store update doesn't fire during render.
@@ -110,7 +110,7 @@ export function useDriveShortcuts({
         setFocusedIndex,
     ])
 
-    useRegisterShortcuts(shortcuts)
+    useRegisterShortcuts(shortcuts, scopeOwner)
 
     return { focusedIndex, focusedId: focused?.id ?? null }
 }

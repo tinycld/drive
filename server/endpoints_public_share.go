@@ -7,66 +7,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/driveshare"
+	"tinycld.org/core/ratelimit"
 	"tinycld.org/packages/drive/api"
 )
 
-// rateLimiter provides simple in-memory IP-based rate limiting for public endpoints.
-type rateLimiter struct {
-	mu       sync.Mutex
-	requests map[string][]time.Time
-	limit    int
-	window   time.Duration
-}
+// The limiter itself now lives in tinycld.org/core/ratelimit — promoted from
+// here when cards' public boards needed the same thing and a second copy in a
+// second member was the alternative. Its caveats (in-memory, per-process, does
+// not hold across instances) are documented there.
 
-func newRateLimiter(limit int, window time.Duration) *rateLimiter {
-	return &rateLimiter{
-		requests: make(map[string][]time.Time),
-		limit:    limit,
-		window:   window,
-	}
-}
-
-// reset clears the per-IP request log. Intended for test isolation —
-// the package-level limiters are singletons whose in-memory state
-// otherwise leaks across test cases that share the httptest default
-// RemoteAddr.
-func (rl *rateLimiter) reset() {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-	rl.requests = make(map[string][]time.Time)
-}
-
-func (rl *rateLimiter) allow(ip string) bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	now := time.Now()
-	cutoff := now.Add(-rl.window)
-
-	// Remove expired entries
-	entries := rl.requests[ip]
-	valid := entries[:0]
-	for _, t := range entries {
-		if t.After(cutoff) {
-			valid = append(valid, t)
-		}
-	}
-
-	if len(valid) >= rl.limit {
-		rl.requests[ip] = valid
-		return false
-	}
-
-	rl.requests[ip] = append(valid, now)
-	return true
-}
-
-var publicShareLimiter = newRateLimiter(60, time.Minute)
+var publicShareLimiter = ratelimit.New(60, time.Minute)
 
 // otpLimiter is a stricter per-IP limiter used by the share-link OTP
 // request and verify endpoints. The OTP code is 6 digits (~10^6 keyspace);
@@ -75,13 +29,10 @@ var publicShareLimiter = newRateLimiter(60, time.Minute)
 // gives ~150 guesses per TTL — still generous for legitimate humans
 // (request + a handful of code attempts) but materially tightens the
 // brute-force surface.
-var otpLimiter = newRateLimiter(10, time.Minute)
+var otpLimiter = ratelimit.New(10, time.Minute)
 
 func getClientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		return fwd
-	}
-	return r.RemoteAddr
+	return ratelimit.ClientIP(r)
 }
 
 // findShareLinkByToken loads and validates a share link record.
@@ -136,7 +87,7 @@ func categorizeFromMime(mimeType string) string {
 // handleGetShareLinkMetadata returns JSON metadata for a public share link.
 func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.allow(ip) {
+	if !publicShareLimiter.Allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
@@ -174,7 +125,7 @@ func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 // handleGetShareLinkFile streams the file content for a public share link.
 func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.allow(ip) {
+	if !publicShareLimiter.Allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
@@ -216,7 +167,7 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 // handleGetShareLinkThumbnail streams the thumbnail for a public share link.
 func handleGetShareLinkThumbnail(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.allow(ip) {
+	if !publicShareLimiter.Allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 

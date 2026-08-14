@@ -64,7 +64,7 @@ type otpVerifyBody struct {
 //     request-but-never-verify is harmless.
 func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !otpLimiter.allow(ip) {
+	if !otpLimiter.Allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 	}
 
@@ -153,7 +153,7 @@ func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 //     client can drop {token, record} directly into pb.authStore.
 func handleShareOTPVerify(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !otpLimiter.allow(ip) {
+	if !otpLimiter.Allow(ip) {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 	}
 

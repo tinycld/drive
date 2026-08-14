@@ -50,6 +50,11 @@ function mimeForUpload(file: File): string {
 // SDK uses fetch() under the hood, which doesn't expose upload progress.
 // React Native's XMLHttpRequest polyfill supports upload progress as well, so
 // the same code path works on web and native.
+//
+// This now also lives in core as `@tinycld/core/file-viewer/upload-file`
+// (cards and mail both use it). New callers should import that rather than
+// copy this; drive keeps its own only because rewriting a shipped upload path
+// buys nothing today.
 function uploadFormDataWithProgress(params: {
     url: string
     formData: FormData
