@@ -1,11 +1,21 @@
 import type { AutomationDefinitions } from '@tinycld/core/lib/automation/types'
 import type { DriveSchema } from './types'
 
-// No package Go for automation. Both triggers name their owner column
-// explicitly (neither collection has a user/owner/author relation for the
-// engine's auto-detection to find), and move-to-folder is a record-op the
-// engine executes generically — which also means it inherits the pkgaccess
-// check that native handlers have to make for themselves.
+// Owner resolution differs per trigger, and the difference matters:
+//
+//   - `file-added` names created_by but ALSO registers a Go owner resolver
+//     (server/automation.go) that widens the audience to the destination
+//     folder's participants. Without it a personal rule means "when I add a
+//     file", when what people want on a shared folder is "when someone adds a
+//     file to my folder" — and the owner is exactly the person who didn't
+//     upload it. calc and text resolve comment triggers the same way.
+//   - `mentioned-in-comment` and `file-shared` need no resolver: the mentioned
+//     user and the share recipient ARE the person who wants to know, so the
+//     named column is already the right audience.
+//
+// move-to-folder is a record-op the engine executes generically, which means
+// it inherits the pkgaccess check that native handlers have to make for
+// themselves.
 const automation = {
     triggers: [
         {
