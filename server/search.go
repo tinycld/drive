@@ -8,7 +8,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"tinycld.org/core/driveshare"
+	"tinycld.org/core/useraccount"
 	"tinycld.org/packages/drive/api"
 )
 
@@ -165,7 +165,7 @@ func searchDriveItems(app core.App, userID, q, exclude string, limit, offset int
 	// realtime) apply to it — without this check, search kept returning names,
 	// sizes and content highlights of everything shared with the user for as
 	// long as their token lived.
-	if driveshare.IsSuspended(app, userID) {
+	if useraccount.IsSuspended(app, userID) {
 		return empty, nil
 	}
 

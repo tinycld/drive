@@ -8,6 +8,7 @@
         "./manifest": "./manifest.ts",
         "./types": "./tinycld/drive/types.ts",
         "./collections": "./tinycld/drive/collections.ts",
+        "./automation": "./tinycld/drive/automation.ts",
         "./screens/*": "./tinycld/drive/screens/*.tsx",
         "./sidebar": "./tinycld/drive/sidebar.tsx",
         "./provider": "./tinycld/drive/provider.tsx",

@@ -63,6 +63,8 @@ func registerShared(app *pocketbase.PocketBase) {
 
 	registerDriveItemCreateHook(app)
 
+	registerAutomation()
+
 	// Reject reparenting that would create a folder cycle. Move-cycle
 	// prevention is otherwise client-only (dnd.ts), so a direct PATCH of
 	// `parent` — e.g. making A a child of its own descendant — could form a
