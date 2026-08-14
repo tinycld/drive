@@ -17,6 +17,10 @@ const manifest = {
     search: { adapter: 'search-adapter' },
     migrations: { directory: 'pb-migrations' },
     collections: { register: 'collections', types: 'types' },
+    // Trigger + action catalog for workflow rules. Pure data — both triggers
+    // declare their owner column and move-to-folder is a record-op, so drive
+    // needs no automation Go.
+    automation: { definitions: 'automation' },
     seed: { script: 'seed' },
     // Go server extension: the drive_items hooks (quota, dedup, owner share,
     // move-cycle guard), FTS + /api/drive/search, share links, versions, and the
