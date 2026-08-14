@@ -201,6 +201,7 @@ function ShareEditorView({ token, session }: { token: string; session: ShareSess
             <View className="flex-1 overflow-hidden">
                 {showSignInPanel ? (
                     <ShareLinkSignIn
+                        slug="drive"
                         token={token}
                         role={session.role === 'editor' ? 'editor' : 'commentor'}
                         onSuccess={() => setSignInOpen(false)}
