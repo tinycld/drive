@@ -1,3 +1,4 @@
+import { getFileToken } from '@tinycld/core/file-viewer/use-authed-file-url'
 import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
@@ -74,9 +75,16 @@ export function useCopyDriveItem() {
             const parentId = input.parentId ?? source.parent ?? ''
             const mimeType = source.mime_type || 'application/octet-stream'
 
+            // ?token=: drive_items files sit behind the record's viewRule, and
+            // fetchForUpload uses a bare fetch/download that carries no auth —
+            // the SDK only attaches credentials to its own requests. Without
+            // it the source read 404s and the copy fails with "Could not fetch
+            // source file (404)".
+            const fileToken = await getFileToken()
             const sourceUrl = pb.files.getURL(
                 { collectionId: 'drive_items', id: source.id },
-                source.file
+                source.file,
+                fileToken ? { token: fileToken } : undefined
             )
             const upload = await fetchForUpload(sourceUrl, input.newName, mimeType)
 
