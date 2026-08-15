@@ -1,4 +1,5 @@
 import type { FilePreviewSource } from '@tinycld/core/file-viewer/types'
+import { getFileToken } from '@tinycld/core/file-viewer/use-authed-file-url'
 import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { notify } from '@tinycld/core/lib/notify'
@@ -46,9 +47,15 @@ export function useSaveToDrive() {
             // RN's FormData polyfill expects a `{ uri, name, type }` literal
             // instead — so we stream the bytes to a cache URI via
             // expo-file-system and hand that URI to FormData.
+            // ?token=: the source may be a drive_items file behind the
+            // record's viewRule, and fetchForUpload uses a bare fetch/download
+            // that carries no auth — the SDK only attaches credentials to its
+            // own requests. Same failure as copy-drive-item's.
+            const fileToken = await getFileToken()
             const sourceUrl = pb.files.getURL(
                 { collectionId: source.collectionId, id: source.recordId },
-                source.fileName
+                source.fileName,
+                fileToken ? { token: fileToken } : undefined
             )
             const mimeType = source.mimeType || 'application/octet-stream'
             const upload = await fetchForUpload(sourceUrl, source.displayName, mimeType)
