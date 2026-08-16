@@ -72,9 +72,14 @@ export function registerCollections(
         },
     })
 
-    // Drive owns the comment_mentions migration. Registering the store
-    // here makes `useStore('comment_mentions')` available to any package
-    // that depends on drive (text, calc-comments, …).
+    // The shared mentions table is CORE's now (its 1985000003 creates it,
+    // and core registers a store for it unconditionally) — this registration
+    // is drive's RICHER instance, expanded over drive_items for the
+    // document packages (text, calc). Package stores spread after core's in
+    // the map, so this one wins whenever drive is assembled; core's serves
+    // everyone else. Historical note: the table began life in this package
+    // (pb-migrations/1781000000, now create-or-adapt) back when every
+    // mention was a drive-document mention.
     const comment_mentions = newCollection('comment_mentions', {
         omitOnInsert: ['created'] as const,
         expand: {
