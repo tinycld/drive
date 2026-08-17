@@ -7,6 +7,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+	"tinycld.org/core/automation"
 	"tinycld.org/core/rlstest"
 )
 
@@ -22,6 +23,7 @@ type fileAddedEnv struct {
 	app      *tests.TestApp
 	owner    *core.Record
 	sharee   *core.Record
+	viewer   *core.Record
 	outsider *core.Record
 	folder   *core.Record
 }
@@ -49,6 +51,7 @@ func setupFileAddedApp(t *testing.T) *fileAddedEnv {
 
 	owner := fileAddedUser(t, app, "owner@test.local")
 	sharee := fileAddedUser(t, app, "sharee@test.local")
+	viewer := fileAddedUser(t, app, "viewer@test.local")
 	outsider := fileAddedUser(t, app, "outsider@test.local")
 
 	items, err := app.FindCollectionByNameOrId("drive_items")
@@ -75,8 +78,16 @@ func setupFileAddedApp(t *testing.T) *fileAddedEnv {
 	if err := app.Save(share); err != nil {
 		t.Fatal(err)
 	}
+	viewShare := core.NewRecord(shares)
+	viewShare.Set("item", folder.Id)
+	viewShare.Set("user", viewer.Id)
+	viewShare.Set("role", "viewer")
+	viewShare.Set("created_by", owner.Id)
+	if err := app.Save(viewShare); err != nil {
+		t.Fatal(err)
+	}
 
-	return &fileAddedEnv{app: app, owner: owner, sharee: sharee, outsider: outsider, folder: folder}
+	return &fileAddedEnv{app: app, owner: owner, sharee: sharee, viewer: viewer, outsider: outsider, folder: folder}
 }
 
 func fileAddedUser(t *testing.T, app core.App, email string) *core.Record {
@@ -165,5 +176,46 @@ func TestFileAddedOwnerResolver_MalformedRecordsResolveNil(t *testing.T) {
 	}
 	if got := fileAddedOwnerResolver(env.app, env.newFile("nonexistent_folder", "")); len(got) != 0 {
 		t.Errorf("record naming an absent parent resolved %v, want empty", got)
+	}
+}
+
+// moveDestinationAuthorizer is the write-level half of the relation-param
+// gates: the engine's floor already proved the rule owner can VIEW the
+// destination, so what these pin down is the view-but-not-write distinction —
+// the calendar rollout's shipped bug shape.
+func TestMoveDestinationAuthorizer(t *testing.T) {
+	env := setupFileAddedApp(t)
+	authorize := func(userID, destID string) error {
+		return moveDestinationAuthorizer(env.app, automation.ActionRequest{OwnerID: userID}, destID)
+	}
+
+	if err := authorize(env.owner.Id, env.folder.Id); err != nil {
+		t.Errorf("creator must be able to file into their own folder: %v", err)
+	}
+	if err := authorize(env.sharee.Id, env.folder.Id); err != nil {
+		t.Errorf("editor-role sharee must be able to file into the folder: %v", err)
+	}
+	if err := authorize(env.viewer.Id, env.folder.Id); err == nil {
+		t.Error("viewer-role sharee can SEE the folder but must not file into it")
+	}
+	if err := authorize(env.outsider.Id, env.folder.Id); err == nil {
+		t.Error("outsider must not file into a folder they have no share on")
+	}
+}
+
+func TestMoveDestinationAuthorizer_RejectsNonFolders(t *testing.T) {
+	env := setupFileAddedApp(t)
+
+	file := env.newFile(env.folder.Id, env.owner.Id)
+	if err := env.app.Save(file); err != nil {
+		t.Fatal(err)
+	}
+	err := moveDestinationAuthorizer(env.app, automation.ActionRequest{OwnerID: env.owner.Id}, file.Id)
+	if err == nil || !strings.Contains(err.Error(), "not a folder") {
+		t.Fatalf("a plain file as destination must be rejected, got %v", err)
+	}
+
+	if err := moveDestinationAuthorizer(env.app, automation.ActionRequest{OwnerID: env.owner.Id}, "missing123"); err == nil {
+		t.Fatal("an absent destination must be rejected")
 	}
 }

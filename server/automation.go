@@ -1,15 +1,43 @@
 package drive
 
 import (
+	"fmt"
+
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/automation"
 	"tinycld.org/core/driveshare"
 )
 
-// registerAutomation installs drive's owner resolver. Called from
-// registerShared before hooks load.
+// registerAutomation installs drive's owner resolver and the move-to-folder
+// destination authorizer. Called from registerShared before hooks load.
 func registerAutomation() {
 	automation.RegisterOwnerResolver("drive:file-added", fileAddedOwnerResolver)
+	automation.RegisterRelationAuthorizer("drive:move-to-folder", "parent", moveDestinationAuthorizer)
+}
+
+// moveDestinationAuthorizer answers the which-record question for
+// drive:move-to-folder's `parent` param: the destination must be a folder the
+// RULE OWNER can write into.
+//
+// The engine's floor has already proven the owner can VIEW the destination,
+// which is not enough: a viewer-role share makes a folder visible but not
+// writable, and the engine's superuser Save would otherwise file records into
+// it anyway (the calendar rollout shipped exactly this bug shape — rule
+// events created on a calendar their owner could only view).
+// driveshare.CheckWrite is the same authority every interactive move goes
+// through; a local copy of the role rules would drift from it.
+//
+// The folder-cycle backstop is NOT re-checked here — the OnRecordUpdate hook
+// on drive_items fires for engine writes too and stays authoritative.
+func moveDestinationAuthorizer(app core.App, req automation.ActionRequest, destID string) error {
+	dest, err := app.FindRecordById("drive_items", destID)
+	if err != nil {
+		return fmt.Errorf("destination folder %s: %w", destID, err)
+	}
+	if !dest.GetBool("is_folder") {
+		return fmt.Errorf("destination %s is a file, not a folder", destID)
+	}
+	return driveshare.CheckWrite(app, req.OwnerID, destID)
 }
 
 // fileAddedOwnerResolver maps a new drive_items row to the users a file
