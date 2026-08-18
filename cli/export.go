@@ -23,7 +23,7 @@ func newExportCmd(c *client.Client) *cobra.Command {
 			"already PDFs, and types it cannot convert.",
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			o, _, err := output.FromCommand(cmd)
+			o, yes, err := output.FromCommand(cmd)
 			if err != nil {
 				return err
 			}
@@ -43,6 +43,9 @@ func newExportCmd(c *client.Client) *cobra.Command {
 				return err
 			}
 			dest := destFor(args, pdfName(it.Name))
+			if err := ui.ConfirmOverwrite(o, yes, cmd.InOrStdin(), cmd.OutOrStdout(), dest); err != nil {
+				return err
+			}
 			prog := ui.NewProgress(o, cmd.ErrOrStderr(), "exporting")
 			defer prog.Done()
 			// The token in the URL IS the credential (single use, 60s) — the
