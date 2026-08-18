@@ -27,6 +27,23 @@ User-facing features:
 - **Notifications** — when a `drive_shares` row is created and the recipient isn't the creator (i.e. real share, not the bookkeeping owner self-share), the recipient receives a `drive_file_shared` notification through `core/notify`.
 - **Audit logging** — every mutation on `drive_items`, `drive_item_state`, and `drive_shares` is recorded by `core/audit`. `drive_items` rows are labeled by their `name` field.
 
+## Automation rules
+
+Drive contributes triggers and an action to the workflow-rules engine, so users can build "when this happens, do that" rules without writing code. Definitions live in `tinycld/drive/automation.ts`, declared via `automation: { definitions: 'automation' }` in `manifest.ts` plus a `"./automation"` entry in the package's exports map; the Go-side trigger filters, owner resolvers, and action handlers live in `server/automation.go`.
+
+**Triggers**
+
+- **`drive:file-added`** — "A file is added". A `drive_items` create, with `ownerField` `created_by`. Exposed fields: `name`, `mime_type` (labelled "Type"), `size`, `is_folder`, `parent` (labelled "Folder").
+- **`drive:mentioned-in-comment`** — "I'm mentioned in a comment". A `comment_mentions` create, with `ownerField` `mentioned_user`. This one is deliberately cross-cutting: `comment_mentions` is shared, so the trigger covers documents, spreadsheets, *and* files in a single rule — which is why text and calc contribute no mention trigger of their own.
+- **`drive:file-shared`** — "A file is shared with me". A `drive_shares` create; the owner is auto-detected from the `user` (recipient) relation.
+- **`drive:share-link-created`** — "A public link is created". A `drive_share_links` create, with `ownerField` `created_by`. Compliance-oriented, and most useful as an org rule — as a personal rule it means "when *I* create a link".
+
+**Action**
+
+- **`drive:move-to-folder`** — "Move to folder". `kind: 'record-op'`: an update targeting the trigger record that sets `parent` from a `parent` param. `drive/server/automation.go` registers a RelationAuthorizer for that param (required — the engine refuses a relation param with no authorizer, so a rule can't move a file into a folder its owner can't write), alongside `fileAddedOwnerResolver`.
+
+The user-facing help topic is `help/rules.md`; see [Automation rules](https://tinycld.org/docs/automation-rules) for the end-user guide, and [package automation](https://tinycld.org/docs/anatomy/automation) for the package-author contract.
+
 ## Mounting via WebDAV
 
 The WebDAV endpoint is at **`https://<your-instance>/dav/drive/`** (port 443, same domain as the web UI). Authentication is HTTP Basic using your TinyCld email (or username) and password.
@@ -326,6 +343,22 @@ tinycld/drive/
         drive-ui-store.ts      zustand: shared UI state (dialogs, view mode)
 ```
 
+## Command line
+
+Drive contributes a `drive` command group to the `tinycld` binary — a Go CLI the server cross-compiles and hands out from **Settings → Personal → About**. The source lives in this repo at `cli/`, declared through a `cli` block in `manifest.ts` naming the Go module and the OAuth scopes it requests: `drive:read` and `drive:write`.
+
+| Group | Commands |
+|-------|----------|
+| Browsing | `ls`, `tree`, `search`, `cat` |
+| Transfer | `get`, `put`, `export` |
+| Organizing | `mkdir`, `mv`, `cp`, `rm`, `trash`, `restore` |
+| Sharing | `share`, `link create`, `link list`, `link revoke` |
+| History and usage | `versions`, `usage` |
+
+Every path argument also accepts `id:<record-id>`, so a script that already holds a record id doesn't have to reconstruct its path. A `get` on a folder downloads it as a zip.
+
+See [the command line tool](https://tinycld.org/docs/command-line-tool) for setup and authentication, the [full CLI reference](https://tinycld.org/docs/reference/cli-reference) for every flag, and the in-app help topic `help/command-line.md`.
+
 ## Development
 
 ```sh
@@ -377,6 +410,8 @@ Other packages can target this slot via `sidebarContributions` in their manifest
 - `tsconfig.json` — typecheck config (lint config lives in the app shell's `biome.json`)
 - `pb-migrations/` — PocketBase migrations (symlinked into the app shell's server on `packages:generate`)
 - `server/` — Go server module, registered by the generator
+- `server/automation.go` — Go trigger filters, owner resolvers, and action handlers for the workflow-rules engine
+- `cli/` — Go module contributing this package's `tinycld` command group
 - `help/` — in-app help topics (markdown + frontmatter)
 - `tests/` — vitest unit tests (sibling tests run from the app shell)
-- `tinycld/drive/` — TypeScript source
+- `tinycld/drive/` — TypeScript source, including `automation.ts` (workflow-rules trigger and action definitions)
