@@ -174,6 +174,81 @@ func TestGetDownloadsToDest(t *testing.T) {
 	}
 }
 
+// TestGetConfinesRemoteNameToDest is the path-traversal regression. The remote
+// name is server-side data, so a malicious or compromised server (or a shared
+// folder someone else named) must not be able to steer the write outside the
+// directory the user chose — the classic case being an item called
+// "../../.ssh/authorized_keys".
+func TestGetConfinesRemoteNameToDest(t *testing.T) {
+	evil := "../../escaped.txt"
+
+	t.Run("explicit dest directory", func(t *testing.T) {
+		f := newFakeDrive(t)
+		f.addFile("filEvil", "", evil, "evil_ab12cd34ef.txt", "evil-bytes")
+		_, c := f.serve()
+
+		outer := t.TempDir()
+		dir := filepath.Join(outer, "a", "b")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// id: form: the remote NAME carries the traversal, which is the real
+		// vector — a path argument containing ".." would be the user's own doing.
+		if _, _, err := runCmd(t, c, "drive", "get", "id:filEvil", dir); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(outer, "escaped.txt")); err == nil {
+			t.Fatal("the remote name escaped the chosen directory")
+		}
+		got, err := os.ReadFile(filepath.Join(dir, "escaped.txt"))
+		if err != nil {
+			t.Fatalf("the file must land inside the chosen directory: %v", err)
+		}
+		if string(got) != "evil-bytes" {
+			t.Fatalf("content = %q", got)
+		}
+	})
+
+	t.Run("no dest argument writes into the cwd", func(t *testing.T) {
+		f := newFakeDrive(t)
+		f.addFile("filEvil", "", evil, "evil_ab12cd34ef.txt", "evil-bytes")
+		_, c := f.serve()
+
+		outer := t.TempDir()
+		cwd := filepath.Join(outer, "work")
+		if err := os.MkdirAll(cwd, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Chdir(cwd)
+
+		if _, _, err := runCmd(t, c, "drive", "get", "id:filEvil"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(outer, "escaped.txt")); err == nil {
+			t.Fatal("the remote name escaped the cwd")
+		}
+		if _, err := os.Stat(filepath.Join(cwd, "escaped.txt")); err != nil {
+			t.Fatalf("the file must land in the cwd: %v", err)
+		}
+	})
+
+	t.Run("an explicit dest file path is still honored verbatim", func(t *testing.T) {
+		f := tree(t)
+		_, c := f.serve()
+
+		// The user's own second argument is theirs to choose — only the remote
+		// name is untrusted. A relative dest must keep working.
+		dir := t.TempDir()
+		t.Chdir(dir)
+		if _, _, err := runCmd(t, c, "drive", "get", "/docs/report.pdf", "out.pdf"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "out.pdf")); err != nil {
+			t.Fatalf("explicit dest must be honored: %v", err)
+		}
+	})
+}
+
 func TestPutUploadsAndReportsServerName(t *testing.T) {
 	f := tree(t)
 	_, c := f.serve()
@@ -634,5 +709,52 @@ func TestPutRecursiveMirrorsTree(t *testing.T) {
 	}
 	if f.createdShares != 0 {
 		t.Fatal("recursive upload must not create drive_shares rows")
+	}
+}
+
+// A download used to clobber an existing local file without a word. It now
+// asks, with --yes as the scripted escape hatch. Tests run non-TTY, where
+// ui.Confirm refuses rather than hanging — so "no --yes" is the refusal case.
+func TestGetRefusesToOverwriteWithoutConsent(t *testing.T) {
+	f := tree(t)
+	_, c := f.serve()
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "saved.pdf")
+	if err := os.WriteFile(dest, []byte("precious"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := runCmd(t, c, "drive", "get", "/docs/report.pdf", dest); err == nil {
+		t.Fatal("an existing destination must not be overwritten silently")
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "precious" {
+		t.Fatalf("the existing file was clobbered: %q", got)
+	}
+
+	// --yes is the scripted opt-in.
+	if _, _, err := runCmd(t, c, "drive", "get", "/docs/report.pdf", dest, "--yes"); err != nil {
+		t.Fatalf("--yes must allow the overwrite: %v", err)
+	}
+	got, _ = os.ReadFile(dest)
+	if string(got) != "report-bytes" {
+		t.Fatalf("--yes did not overwrite: %q", got)
+	}
+}
+
+// A fresh path must not prompt at all — the common case stays non-interactive.
+func TestGetDoesNotPromptForANewFile(t *testing.T) {
+	f := tree(t)
+	_, c := f.serve()
+	dest := filepath.Join(t.TempDir(), "brand-new.pdf")
+
+	if _, _, err := runCmd(t, c, "drive", "get", "/docs/report.pdf", dest); err != nil {
+		t.Fatalf("a new destination must download without asking: %v", err)
+	}
+	if got, _ := os.ReadFile(dest); string(got) != "report-bytes" {
+		t.Fatalf("content = %q", got)
 	}
 }
