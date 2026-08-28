@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { appHref } from '@tinycld/core/lib/org-routes'
 import {
     createDriveItem,
     dismissErrorOverlay,
@@ -291,17 +292,23 @@ test.describe('Drive — Mobile', () => {
 //
 // Every other spec in this suite reaches drive by SPA click, and a client-side
 // route change never consults the server — so they all passed while a reload,
-// a pasted link or a bookmark to /drive was landing on the WebDAV handler and
-// producing a browser Basic-Auth prompt instead of the app. WebDAV was mounted
-// at bare /drive, a literal server route beats Expo's catch-all, and the
-// single-org migration is what created the overlap by dropping the
+// a pasted link or a bookmark to the drive route was landing on the WebDAV
+// handler and producing a browser Basic-Auth prompt instead of the app. WebDAV
+// was mounted at bare /drive, a literal server route beats Expo's catch-all,
+// and the single-org migration created the overlap by dropping the
 // /a/<orgSlug> segment the in-app route used to carry.
+//
+// The app route now lives under the constant /a prefix and protocol mounts are
+// confined to the reserved /dav namespace (isDavPath in
+// core/server/coreserver/server.go), so the two can no longer overlap by
+// construction. This spec keeps guarding the property that regressed: a hard
+// load of the drive route mounts the SPA rather than a protocol handler.
 //
 // page.goto is the point here, not an oversight: the discipline against it
 // covers IN-APP navigation, and this test exists precisely to exercise the
 // server's routing decision.
 test.describe('Drive — hard navigation', () => {
-    for (const path of ['/drive', '/drive/recent']) {
+    for (const path of [appHref('drive'), `${appHref('drive')}/recent`]) {
         test(`a hard load of ${path} lands in the app, not WebDAV`, async ({ page }) => {
             await login(page)
 
@@ -317,4 +324,16 @@ test.describe('Drive — hard navigation', () => {
             expect(page.url()).toContain(path)
         })
     }
+
+    // Bare /drive belongs to WebDAV alone now. It is deliberately absent from
+    // legacyAppSegments (core/server/coreserver/static.go): redirecting it onto
+    // the app would hand the protocol mount's own path back to the SPA and
+    // recreate the collision above from the other direction.
+    test('bare /drive stays with the protocol mount, not the app', async ({ page }) => {
+        await login(page)
+
+        const response = await page.goto('/drive')
+
+        expect(response?.url()).not.toContain(appHref('drive'))
+    })
 })
