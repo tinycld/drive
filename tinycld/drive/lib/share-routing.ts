@@ -1,3 +1,4 @@
+import { appHref } from '@tinycld/core/lib/org-routes'
 /**
  * Where a visitor arriving on a share link should end up.
  *
@@ -73,9 +74,10 @@ export function decideShareRoute(args: {
 /**
  * workspaceHref builds the drive URL that opens a file's preview.
  *
- * Bare `/drive`, not `/a/<orgSlug>/drive`: routes lost their org segment in
- * the single-org migration, and the router now gives each org its own host.
+ * `/a` is a constant app-route segment, NOT an org slug: routes lost their org
+ * segment in the single-org migration, and the router gives each org its own
+ * host. Built from appHref so the prefix has one definition.
  */
 export function workspaceHref(itemId: string): string {
-    return `/drive?file=${encodeURIComponent(itemId)}&preview=1`
+    return `${appHref('drive')}?file=${encodeURIComponent(itemId)}&preview=1`
 }

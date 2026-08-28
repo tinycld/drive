@@ -14,7 +14,7 @@ describe('decideShareRoute', () => {
     it('sends a signed-in member to the workspace with the preview open', () => {
         expect(decideShareRoute({ ...base, role: 'member' })).toEqual({
             kind: 'redirect',
-            href: '/drive?file=itm1&preview=1',
+            href: '/a/drive?file=itm1&preview=1',
         })
     })
 
@@ -23,7 +23,7 @@ describe('decideShareRoute', () => {
         // decide what they can see; the share route would show them less.
         expect(decideShareRoute({ ...base, role: 'unknown' })).toEqual({
             kind: 'redirect',
-            href: '/drive?file=itm1&preview=1',
+            href: '/a/drive?file=itm1&preview=1',
         })
     })
 
@@ -56,14 +56,14 @@ describe('decideShareRoute', () => {
 })
 
 describe('workspaceHref', () => {
-    it('targets the bare /drive route', () => {
-        // Not `/a/<orgSlug>/drive`: routes lost their org segment in the
-        // single-org migration, so the old target 404s.
-        expect(workspaceHref('itm1')).toBe('/drive?file=itm1&preview=1')
-        expect(workspaceHref('itm1')).not.toContain('/a/')
+    it('targets the prefixed /a/drive route', () => {
+        // `/a` is a CONSTANT app-route segment, not an interpolated org slug —
+        // an empty interpolation ('/a//drive') was the original 404 bug.
+        expect(workspaceHref('itm1')).toBe('/a/drive?file=itm1&preview=1')
+        expect(workspaceHref('itm1')).not.toContain('//')
     })
 
     it('encodes the item id', () => {
-        expect(workspaceHref('a b&c')).toBe('/drive?file=a%20b%26c&preview=1')
+        expect(workspaceHref('a b&c')).toBe('/a/drive?file=a%20b%26c&preview=1')
     })
 })
