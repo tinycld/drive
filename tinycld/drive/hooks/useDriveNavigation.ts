@@ -1,3 +1,4 @@
+import { appHref } from '@tinycld/core/lib/org-routes'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { useDriveUIStore } from '../stores/drive-ui-store'
@@ -30,12 +31,12 @@ interface UseDriveNavigationParams {
 }
 
 /**
- * Bare `/drive`, not `/a/<orgSlug>/drive`: routes lost their org segment in the
- * single-org migration, and the router now gives each org its own host. An
- * org-prefixed href resolves to +not-found — see workspaceHref in
- * lib/share-routing.ts, which carries the same note.
+ * `/a/drive`. The `/a` prefix is a constant app-route segment, NOT an org slug —
+ * routes lost their org segment in the single-org migration and the router gives
+ * each org its own host. Built from appHref so the prefix has one definition;
+ * see workspaceHref in lib/share-routing.ts, which carries the same note.
  */
-const driveBase = '/drive'
+const driveBase = appHref('drive')
 
 export function buildDriveHref(opts?: { section?: SidebarSection; folderId?: string }): Href {
     if (opts?.folderId) return `${driveBase}/folder/${opts.folderId}` as Href
