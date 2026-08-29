@@ -68,8 +68,9 @@ test.describe('Drive — Rules', () => {
             'drive:file-added'
         )
 
-        await page.getByText('add OR group', { exact: true }).click()
-        await page.getByText('add condition', { exact: true }).click()
+        // Choosing a record trigger offers a ready condition row, so the field
+        // picker is there immediately — no "add OR group" then "add condition".
+        //
         // By column key, not label: "Name" is also drive's file-list column
         // header and the destination folder's own text, so matching on the
         // word alone lands somewhere other than the menu.
