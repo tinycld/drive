@@ -7,8 +7,12 @@ function log(...args: unknown[]) {
     process.stdout.write(`[seed:drive] ${args.join(' ')}\n`)
 }
 
+// Structural mirror of core's SeedContext (core/lib/packages/config-types.ts).
+// Declared locally rather than imported so this package stays decoupled.
 interface SeedContext {
     user: { id: string; email: string; name: string }
+    // The seeded collaborator — the recipient of the shared files.
+    companion?: { id: string; email: string; name: string }
 }
 
 const ASSETS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../tests/assets')
@@ -536,7 +540,7 @@ async function seedFiles(
     pb: PocketBase,
     userId: string,
     folderIds: Record<string, string>,
-    otherUsers: { id: string }[]
+    shareTargets: { id: string }[]
 ) {
     for (const file of FILES) {
         log(`Uploading file: ${file.name}`)
@@ -572,12 +576,13 @@ async function seedFiles(
             })
         }
 
-        // Share with another user if marked as shared
-        if (file.shared && otherUsers.length > 0) {
-            const sharedWith = otherUsers[Math.floor(Math.random() * otherUsers.length)]
+        // Share with the companion if marked as shared. A single deterministic
+        // recipient (rather than a random pick from every account) keeps the
+        // seeded set reproducible and reclaimable by the demo reset.
+        if (file.shared && shareTargets.length > 0) {
             await pb.collection('drive_shares').create({
                 item: record.id,
-                user: sharedWith.id,
+                user: shareTargets[0].id,
                 role: 'editor',
                 created_by: userId,
             })
@@ -612,24 +617,27 @@ async function seedFolderStars(pb: PocketBase, userId: string, folderIds: Record
     }
 }
 
-export default async function seed(pb: PocketBase, { user }: SeedContext) {
-    // Single-org: the deployment IS the org, so an unfiltered count is the
-    // whole Drive.
-    const existingItems = await pb.collection('drive_items').getList(1, 1)
+export default async function seed(pb: PocketBase, { user, companion }: SeedContext) {
+    // Scoped to this user's items, NOT an unfiltered count of the whole Drive.
+    // The demo reset wipes one user and re-seeds; an unfiltered guard sees any
+    // other account's leftover file and skips, so the demo comes back empty.
+    const existingItems = await pb.collection('drive_items').getList(1, 1, {
+        filter: pb.filter('created_by = {:uid}', { uid: user.id }),
+    })
     if (existingItems.totalItems > 0) {
-        log(`Skipping (${existingItems.totalItems} items already exist)`)
+        log(`Skipping (${existingItems.totalItems} items already exist for this user)`)
         return
     }
 
-    // Every other user in the database is someone the seed can share with.
-    const otherUsers = await pb.collection('users').getFullList({
-        filter: `id != "${user.id}"`,
-    })
+    // The seeded companion is the one person the shared files are shared with.
+    // Resolving this from "any other user in the database" would attach demo
+    // rows to real accounts, which a user-scoped reset can never reclaim.
+    const shareTargets = companion ? [companion] : []
 
     const folderIds = await seedFolders(pb, user.id)
 
     log(`Uploading ${FILES.length} files...`)
-    await seedFiles(pb, user.id, folderIds, otherUsers)
+    await seedFiles(pb, user.id, folderIds, shareTargets)
 
     await seedFolderStars(pb, user.id, folderIds)
 
