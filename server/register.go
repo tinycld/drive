@@ -27,7 +27,7 @@ import (
 
 // Register composes the drive server — the package's single entry point,
 // called by the generator's package_extensions.go in BOTH the single-org app
-// and a multi-org tenant. The WebDAV mount runs in both: a per-org tenant
+// and a hosting tenant. The WebDAV mount runs in both: a per-org tenant
 // build links exactly the org's features, so the artifact is the gate, and
 // the self-mounted Source carries driveWebDAVHooks directly — the old
 // materialized-mount hook bridge (webdav.RegisterSourceHooks) is gone with

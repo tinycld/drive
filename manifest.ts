@@ -44,7 +44,7 @@ const manifest = {
     // (webdavHook) and the $drive.* bindings the server exposes.
     hooks: { directory: 'pb-hooks' },
     // WebDAV over /drive, served by core (tinycld.org/core/webdav). This is the
-    // same Source the Go server registers; a multi-org tenant serves WebDAV
+    // same Source the Go server registers; a hosting tenant serves WebDAV
     // from this block (the router materializes it into the tenant's runtime
     // config), which is why the Go-side mount is host-only — drive's other Go
     // links into tenants via RegisterTenant, but the tenant's DAV mounts come
@@ -55,7 +55,7 @@ const manifest = {
     // version snapshot on overwrite is still a Go callback and absent there.
 
     // Storage-bearing collections. core/quota binds the enforcement hooks from
-    // this, so the ceiling holds on every write path — and in a multi-org
+    // this, so the ceiling holds on every write path — and in a hosting
     // tenant, where the router materializes this block into quota.json.
     quota: [
         { collection: 'drive_items', sizeField: 'size', ownerField: 'created_by' },

@@ -1,7 +1,7 @@
 /// <reference path="../../tinycld/server/pb_data/types.d.ts" />
 
 // Drive server-side TS hooks (runs on the sobek jsvm in both the single-tenant
-// app and multi-org tenants).
+// app and hosting tenants).
 //
 // This is the customization seam: drive's core behavior — the WebDAV server,
 // per-item authorization, quota, versioning, full-text search, thumbnails —
