@@ -16,7 +16,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"github.com/nathanstitt/doctaculous/pkg/doctaculous"
+	"github.com/nathanstitt/omnidoc/pkg/omnidoc"
 	"tinycld.org/packages/drive/api"
 )
 
@@ -37,7 +37,7 @@ const (
 
 type exportToken struct {
 	itemID    string
-	to        doctaculous.Format
+	to        omnidoc.Format
 	expiresAt time.Time
 }
 
@@ -62,20 +62,20 @@ func init() {
 	}()
 }
 
-// exportInputFormat resolves a drive item's MIME type to a doctaculous input
+// exportInputFormat resolves a drive item's MIME type to a omnidoc input
 // format, or reports why the item can't be exported. Already-PDF items are
 // refused because a PDF->PDF conversion is a no-op (ErrSameFormat). Images are
-// refused too: doctaculous can wrap a PNG/JPEG in a PDF page, but "export image
+// refused too: omnidoc can wrap a PNG/JPEG in a PDF page, but "export image
 // to PDF" is not a document workflow — drive already previews and downloads
 // images directly, and the client hides the action for them, so we keep the
 // server contract aligned (documents only).
-func exportInputFormat(mimeType string, to doctaculous.Format) (doctaculous.Format, error) {
-	from := doctaculous.FormatFromMIME(mimeType)
-	if from == doctaculous.FormatPNG || from == doctaculous.FormatJPEG {
-		return doctaculous.FormatUnknown, doctaculous.ErrUnsupportedFormat
+func exportInputFormat(mimeType string, to omnidoc.Format) (omnidoc.Format, error) {
+	from := omnidoc.FormatFromMIME(mimeType)
+	if from == omnidoc.FormatPNG || from == omnidoc.FormatJPEG {
+		return omnidoc.FormatUnknown, omnidoc.ErrUnsupportedFormat
 	}
-	if err := doctaculous.CanConvert(from, to); err != nil {
-		return doctaculous.FormatUnknown, err
+	if err := omnidoc.CanConvert(from, to); err != nil {
+		return omnidoc.FormatUnknown, err
 	}
 	return from, nil
 }
@@ -91,10 +91,18 @@ func handleCreateExportToken(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError("missing item", nil)
 	}
 
-	// v1 only exports to PDF. Default an empty `to` to PDF so callers can omit it.
-	to := doctaculous.FormatPDF
-	if body.To != "" && body.To != string(doctaculous.FormatPDF) {
-		return re.BadRequestError("unsupported export target", nil)
+	// PDF is the default target so callers can omit `to`; SVG is the one other
+	// supported target (omnidoc renders vector output for every input).
+	to := omnidoc.FormatPDF
+	if body.To != "" {
+		switch body.To {
+		case string(omnidoc.FormatPDF):
+			to = omnidoc.FormatPDF
+		case string(omnidoc.FormatSVG):
+			to = omnidoc.FormatSVG
+		default:
+			return re.BadRequestError("unsupported export target", nil)
+		}
 	}
 
 	item, _, err := resolveItemAndUser(app, re, body.Item, false)
@@ -109,10 +117,10 @@ func handleCreateExportToken(app core.App, re *core.RequestEvent) error {
 	}
 
 	if _, err := exportInputFormat(item.GetString("mime_type"), to); err != nil {
-		if errors.Is(err, doctaculous.ErrSameFormat) {
-			return re.BadRequestError("item is already a PDF", nil)
+		if errors.Is(err, omnidoc.ErrSameFormat) {
+			return re.BadRequestError(fmt.Sprintf("item is already a %s", strings.ToUpper(string(to))), nil)
 		}
-		return re.BadRequestError("this file type can't be exported to PDF", nil)
+		return re.BadRequestError(fmt.Sprintf("this file type can't be exported to %s", strings.ToUpper(string(to))), nil)
 	}
 
 	tokenBytes := make([]byte, 32)
@@ -170,7 +178,7 @@ func handleExport(app core.App, re *core.RequestEvent) error {
 		return re.InternalServerError("failed to read file", nil)
 	}
 
-	doc, err := doctaculous.OpenBytesAs(from, data)
+	doc, err := omnidoc.OpenBytesAs(from, data)
 	if err != nil {
 		return re.InternalServerError("failed to open document", nil)
 	}
@@ -178,23 +186,38 @@ func handleExport(app core.App, re *core.RequestEvent) error {
 	ctx, cancel := context.WithTimeout(re.Request.Context(), exportRenderWait)
 	defer cancel()
 
+	logf := func(format string, args ...any) { app.Logger().Debug("drive.export: " + fmt.Sprintf(format, args...)) }
+
 	var buf bytes.Buffer
-	if err := doc.WritePDF(ctx, &buf, doctaculous.PDFOptions{
-		Title: item.GetString("name"),
-		Logf:  func(format string, args ...any) { app.Logger().Debug("drive.export: " + fmt.Sprintf(format, args...)) },
-	}); err != nil {
-		return re.InternalServerError("failed to render PDF", nil)
+	switch et.to {
+	case omnidoc.FormatSVG:
+		// Page 0: a multi-page input exports its first page, since a single
+		// SVG file has no notion of pagination.
+		if err := doc.WriteSVG(ctx, &buf, 0, omnidoc.SVGOptions{
+			Title: item.GetString("name"),
+			Logf:  logf,
+		}); err != nil {
+			return re.InternalServerError("failed to render SVG", nil)
+		}
+	default:
+		if err := doc.WritePDF(ctx, &buf, omnidoc.PDFOptions{
+			Title: item.GetString("name"),
+			Logf:  logf,
+		}); err != nil {
+			return re.InternalServerError("failed to render PDF", nil)
+		}
 	}
 
-	re.Response.Header().Set("Content-Type", "application/pdf")
+	re.Response.Header().Set("Content-Type", et.to.MIME())
 	re.Response.Header().Set("Content-Disposition",
-		fmt.Sprintf(`attachment; filename="%s.pdf"`, sanitizeFilename(pdfBaseName(item.GetString("name")))))
+		fmt.Sprintf(`attachment; filename="%s.%s"`,
+			sanitizeFilename(exportBaseName(item.GetString("name"))), et.to))
 	_, err = io.Copy(re.Response, &buf)
 	return err
 }
 
 // readItemBytesCapped reads a drive item's file into memory, erroring if it
-// exceeds max. doctaculous parses the whole input in memory, so this bounds
+// exceeds max. omnidoc parses the whole input in memory, so this bounds
 // worst-case allocation per export.
 func readItemBytesCapped(app core.App, item *core.Record, max int64) ([]byte, error) {
 	reader, err := readFileContent(app, item)
@@ -213,9 +236,9 @@ func readItemBytesCapped(app core.App, item *core.Record, max int64) ([]byte, er
 	return data, nil
 }
 
-// pdfBaseName strips a known document extension from name so the download is
+// exportBaseName strips a known document extension from name so the download is
 // "report.pdf", not "report.docx.pdf".
-func pdfBaseName(name string) string {
+func exportBaseName(name string) string {
 	if i := strings.LastIndexByte(name, '.'); i > 0 {
 		return name[:i]
 	}

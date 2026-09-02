@@ -94,7 +94,7 @@ type DownloadTokenRequest struct {
 }
 
 // ExportTokenRequest is the body of POST /api/drive/export-token. To names
-// the target format; empty defaults to "pdf" (the only supported target).
+// the target format — "pdf" or "svg"; empty defaults to "pdf".
 type ExportTokenRequest struct {
 	Item string `json:"item"`
 	To   string `json:"to,omitempty"`

@@ -17,18 +17,19 @@ func newExportCmd(c *client.Client) *cobra.Command {
 	var to string
 	cmd := &cobra.Command{
 		Use:   "export <path> [dest]",
-		Short: "Export a document to PDF",
+		Short: "Export a document to PDF or SVG",
 		Long: "Converts a document (docx, xlsx, pptx, csv, markdown, html, rtf, " +
-			"epub, plain text) to PDF. The server rejects folders, files that are " +
-			"already PDFs, and types it cannot convert.",
+			"epub, plain text) to PDF or SVG. The server rejects folders, files " +
+			"already in the target format, and types it cannot convert. SVG " +
+			"exports the first page, since one SVG file has no pagination.",
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o, yes, err := output.FromCommand(cmd)
 			if err != nil {
 				return err
 			}
-			if to != "pdf" {
-				return fmt.Errorf("--to currently supports only pdf")
+			if to != "pdf" && to != "svg" {
+				return fmt.Errorf("--to supports pdf and svg, got %q", to)
 			}
 			ctx := cmd.Context()
 			it, err := resolvePath(ctx, c, args[0])
@@ -42,7 +43,7 @@ func newExportCmd(c *client.Client) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			dest := destFor(args, pdfName(it.Name))
+			dest := destFor(args, exportName(it.Name, to))
 			if err := ui.ConfirmOverwrite(o, yes, cmd.InOrStdin(), cmd.OutOrStdout(), dest); err != nil {
 				return err
 			}
@@ -57,12 +58,12 @@ func newExportCmd(c *client.Client) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&to, "to", "pdf", "export format")
+	cmd.Flags().StringVar(&to, "to", "pdf", "export format (pdf or svg)")
 	return cmd
 }
 
-// pdfName swaps one trailing extension for .pdf, matching the filename the
+// exportName swaps one trailing extension for the target format, matching the filename the
 // server sets in Content-Disposition.
-func pdfName(name string) string {
-	return strings.TrimSuffix(name, filepath.Ext(name)) + ".pdf"
+func exportName(name, to string) string {
+	return strings.TrimSuffix(name, filepath.Ext(name)) + "." + to
 }
