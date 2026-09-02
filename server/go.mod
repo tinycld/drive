@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/grafana/sobek v0.0.0-20260722203707-64fef69693b6
-	github.com/nathanstitt/doctaculous v0.1.0
+	github.com/nathanstitt/omnidoc v1.0.0
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.39.8
 	modernc.org/sqlite v1.54.0
@@ -41,7 +41,6 @@ require (
 	github.com/google/pprof v0.0.0-20260604005048-7023385849c0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/jdeng/goheif v0.0.0-20260407171156-9bf5264f67af // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.23 // indirect
 	github.com/mrz1836/postmark v1.9.0 // indirect

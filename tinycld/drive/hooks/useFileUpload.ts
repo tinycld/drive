@@ -27,7 +27,7 @@ const PROGRESS_THROTTLE_MS = 60
 // arrives with no type — and the server keys document features (thumbnail,
 // full-text index, in-app preview/open) off the stored mime, so an
 // octet-stream upload silently loses all of them. Only the document types
-// doctaculous can process need this; images/media are handled elsewhere.
+// omnidoc can process need this; images/media are handled elsewhere.
 const UPLOAD_MIME_BY_EXT: Record<string, string> = {
     rtf: 'application/rtf',
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
