@@ -16,6 +16,7 @@ import (
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/driveshare"
 	"tinycld.org/core/notify"
+	"tinycld.org/core/oauth"
 	"tinycld.org/core/offboard"
 	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/quota"
@@ -41,6 +42,10 @@ func Register(app *pocketbase.PocketBase) {
 
 // registerShared is the single source of truth for what BOTH compositions run.
 func registerShared(app *pocketbase.PocketBase) {
+	// What an OAuth token may reach in this package. Core knows nothing about
+	// it until this runs; see oauth.Package for the shape.
+	oauth.RegisterPackage(oauthPackage())
+
 	// Reassignable authorship FKs surfaced to the account-offboarding
 	// transaction. All point at users with cascadeDelete:false, so without
 	// reassignment an account with any drive content can't be deleted.
