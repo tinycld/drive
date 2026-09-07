@@ -3,7 +3,6 @@ import { ResponsiveToolbar, type ToolbarItem } from '@tinycld/core/components/Re
 import { ScreenHeader } from '@tinycld/core/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '@tinycld/core/components/SuretyGuard'
 import { ToolbarIconButton } from '@tinycld/core/components/ToolbarIconButton'
-import { ToolbarSeparator } from '@tinycld/core/components/ToolbarSeparator'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { captureException } from '@tinycld/core/lib/errors'
 import type { HelpTopicId } from '@tinycld/core/lib/help/types'
@@ -254,6 +253,76 @@ export function DriveToolbar() {
         )
     })()
 
+    // The desktop row on the shared toolbar: the title block and the search
+    // field are pinned, the folder actions fold into a More menu as the
+    // window narrows. The mobile layout below stacks the search on its own
+    // line instead — a designed layout, not an overflow accident.
+    const headerItems: ToolbarItem[] = [
+        // The breadcrumbs truncate down to a floor before any action folds.
+        { type: 'custom', key: 'title', element: titleContent, minWidth: 160 },
+        { type: 'separator' },
+        {
+            type: 'custom',
+            key: 'upload',
+            element: <UploadButton onMobilePress={openUploadSheet} />,
+        },
+        {
+            type: 'button',
+            key: 'new-folder',
+            icon: FolderPlus,
+            label: 'New folder',
+            onPress: () => openPrompt({ type: 'new-folder' }),
+        },
+    ]
+    if (hasSingleSelection && handleRenameSelected) {
+        headerItems.push({
+            type: 'button',
+            key: 'rename',
+            icon: Pencil,
+            label: 'Rename',
+            onPress: handleRenameSelected,
+        })
+    }
+    if (hasSingleSelection && handleTrashSelected && selectedItem) {
+        headerItems.push({
+            type: 'custom',
+            key: 'delete',
+            element: (
+                <ConfirmTrash itemName={selectedItem.name} onConfirmed={handleTrashSelected}>
+                    {onOpen => <ToolbarIconButton icon={Trash2} label="Delete" onPress={onOpen} />}
+                </ConfirmTrash>
+            ),
+        })
+    }
+    headerItems.push({ type: 'spacer' })
+    const headerRightItems: ToolbarItem[] = [
+        {
+            type: 'custom',
+            key: 'search',
+            element: (
+                <SearchInput
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    mutedColor={mutedColor}
+                    fgColor={fgColor}
+                />
+            ),
+        },
+        {
+            type: 'custom',
+            key: 'view-toggle',
+            element: (
+                <ViewToggle
+                    viewMode={viewMode}
+                    onSetViewMode={setViewMode}
+                    mutedColor={mutedColor}
+                    activeIndicator={activeIndicator}
+                />
+            ),
+        },
+        { type: 'custom', key: 'help', element: <HelpIcon topic={helpTopic} size={18} /> },
+    ]
+
     return (
         <ScreenHeader>
             {isMobile ? (
@@ -278,30 +347,13 @@ export function DriveToolbar() {
                     />
                 </View>
             ) : (
-                <View
-                    className="flex-row items-center justify-between px-4 gap-3"
-                    style={{ paddingVertical: 10 }}
-                >
-                    {titleContent}
-                    <ToolbarSeparator />
-                    {folderActions}
-                    <ToolbarSeparator />
-                    <View className="flex-row items-center gap-2 shrink-0">
-                        <SearchInput
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            mutedColor={mutedColor}
-                            fgColor={fgColor}
-                        />
-                        <ViewToggle
-                            viewMode={viewMode}
-                            onSetViewMode={setViewMode}
-                            mutedColor={mutedColor}
-                            activeIndicator={activeIndicator}
-                        />
-                        <HelpIcon topic={helpTopic} size={18} />
-                    </View>
-                </View>
+                <ResponsiveToolbar
+                    items={headerItems}
+                    rightItems={headerRightItems}
+                    height={40}
+                    gap={12}
+                    className="px-4 py-[10px]"
+                />
             )}
         </ScreenHeader>
     )
@@ -748,63 +800,51 @@ function SelectionToolbar({
         return (
             <>
                 <ScreenHeader>
-                    <View
-                        className="flex-row items-center justify-between px-4"
-                        style={{ paddingVertical: 10 }}
-                    >
-                        <View className="flex-row items-center gap-2 flex-1">
-                            <Pressable onPress={onClearSelection} className="p-1">
-                                <X size={16} color={mutedColor} />
-                            </Pressable>
-                            <Text
-                                numberOfLines={1}
-                                className="flex-1 text-foreground"
-                                style={{
-                                    fontSize: 13,
-                                    fontWeight: '500',
-                                }}
-                            >
-                                {displayLabel}
-                            </Text>
-                        </View>
-                        <View className="flex-row items-center gap-1">
-                            <ToolbarIconButton
-                                icon={RotateCcw}
-                                label="Restore"
-                                onPress={isSingle ? handleRestoreSingle : handleRestoreAll}
-                            />
-                            <SuretyGuard
-                                message={
-                                    isSingle && item
-                                        ? `Permanently delete "${item.name}"? This cannot be undone.`
-                                        : `Permanently delete ${selectionCount} items? This cannot be undone.`
-                                }
-                                confirmLabel="Delete permanently"
-                                onConfirmed={
-                                    isSingle && item
-                                        ? () => {
-                                              permanentlyDelete(item.id)
-                                              onClearSelection()
-                                          }
-                                        : handleDeleteAll
-                                }
-                            >
-                                {onOpen => (
-                                    <ToolbarIconButton
-                                        icon={Trash2}
-                                        label="Delete permanently"
-                                        onPress={onOpen}
-                                    />
-                                )}
-                            </SuretyGuard>
-                            <ToolbarSeparator />
-                            <ViewToggle
-                                viewMode={viewMode}
-                                onSetViewMode={onSetViewMode}
-                                mutedColor={mutedColor}
-                                activeIndicator={activeIndicator}
-                            />
-                        </View>
+                    <View style={{ paddingVertical: 10, paddingHorizontal: 8 }}>
+                        <ResponsiveToolbar
+                            items={[
+                                ...toolbarItems.slice(0, 2),
+                                { type: 'spacer' },
+                                {
+                                    type: 'button',
+                                    key: 'restore',
+                                    icon: RotateCcw,
+                                    label: 'Restore',
+                                    onPress: isSingle ? handleRestoreSingle : handleRestoreAll,
+                                },
+                                {
+                                    type: 'custom',
+                                    key: 'delete-permanently',
+                                    element: (
+                                        <SuretyGuard
+                                            message={
+                                                isSingle && item
+                                                    ? `Permanently delete "${item.name}"? This cannot be undone.`
+                                                    : `Permanently delete ${selectionCount} items? This cannot be undone.`
+                                            }
+                                            confirmLabel="Delete permanently"
+                                            onConfirmed={
+                                                isSingle && item
+                                                    ? () => {
+                                                          permanentlyDelete(item.id)
+                                                          onClearSelection()
+                                                      }
+                                                    : handleDeleteAll
+                                            }
+                                        >
+                                            {onOpen => (
+                                                <ToolbarIconButton
+                                                    icon={Trash2}
+                                                    label="Delete permanently"
+                                                    onPress={onOpen}
+                                                />
+                                            )}
+                                        </SuretyGuard>
+                                    ),
+                                },
+                            ]}
+                            rightItems={rightItems}
+                        />
                     </View>
                 </ScreenHeader>
                 {item && isSingle && (
