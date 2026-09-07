@@ -16,10 +16,10 @@ import { captureException, errorToString } from '@tinycld/core/lib/errors'
 import { usePackages } from '@tinycld/core/lib/packages/use-packages'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { Dialog } from '@tinycld/core/ui/dialog'
 import { Menu } from '@tinycld/core/ui/menu'
-import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
-import { Check, ChevronDown, Globe, Link, Lock, Trash2, X } from 'lucide-react-native'
+import { ChevronDown, Globe, Link, Lock, Trash2 } from 'lucide-react-native'
 import { useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native'
 
@@ -199,278 +199,241 @@ export function ShareDialog({
     const otherShares = shares.filter(s => s.userId !== currentUserId)
 
     return (
-        <Modal isOpen={open} onClose={onClose}>
-            <ModalBackdrop />
-            <ModalContent
-                className="w-[min(540px,92vw)] p-0 rounded-2xl overflow-hidden"
-                style={{ maxHeight: '90vh' } as object}
-            >
-                <View className="px-6 pb-4 flex-row items-center gap-2" style={{ paddingTop: 28 }}>
-                    <Text
-                        className="text-foreground flex-1"
-                        style={{ fontSize: 28 }}
-                        numberOfLines={1}
-                    >
-                        Share &ldquo;{itemName}&rdquo;
-                    </Text>
-                    <HelpIcon topic="drive:sharing" size={20} />
-                    <Pressable
-                        onPress={onClose}
-                        accessibilityLabel="Close share dialog"
-                        accessibilityRole="button"
-                        hitSlop={8}
-                        className="rounded-full p-1"
-                    >
-                        <X size={20} color={mutedColor} />
-                    </Pressable>
-                </View>
-
-                {/* Search row stays pinned above the scrollable body so the suggestions
-                    dropdown (position: absolute) anchors to the input even when the
-                    body scrolls underneath. */}
-                <View className="px-6 pb-5 relative overflow-visible" style={{ zIndex: 100 }}>
-                    <View
-                        className="flex-row items-center gap-2 rounded-lg"
-                        style={{
-                            borderWidth: 2,
-                            paddingHorizontal: 14,
-                            paddingVertical: 14,
-                            borderColor: primaryColor,
-                        }}
-                    >
-                        <PlainInput
-                            value={search}
-                            onChangeText={setSearch}
-                            placeholder="Add people by name or email"
-                            placeholderTextColor={primaryColor}
-                            className="flex-1 text-foreground"
-                            style={{ fontSize: 15 }}
-                            autoFocus
-                        />
-                        <RolePicker value={defaultRole} onChange={setDefaultRole} />
-                    </View>
-
-                    <SuggestionsDropdown
-                        search={search}
-                        orgMembers={orgMembers}
-                        alreadySharedIds={alreadySharedIds}
-                        pendingEmails={pendingEmails}
-                        currentUserId={currentUserId}
-                        onSelect={handleSelect}
-                    />
-                </View>
-
-                {/* Scrollable middle: collapses before the bottom action bar so
-                    long pending/people/general-access lists never push the
-                    Done button below the modal's max-height. */}
-                <ScrollView
-                    style={{ flexShrink: 1 }}
-                    contentContainerStyle={{ flexGrow: 0 }}
-                    keyboardShouldPersistTaps="handled"
+        <Dialog
+            isOpen={open}
+            onClose={onClose}
+            title={`Share \u201C${itemName}\u201D`}
+            size="lg"
+            testID="share-dialog"
+        >
+            {/* Search row stays pinned above the scrolling body so the suggestions
+                dropdown (position: absolute) anchors to the input even when the
+                body scrolls underneath. */}
+            <View className="px-5 pb-4 relative overflow-visible" style={{ zIndex: 100 }}>
+                <View
+                    className="flex-row items-center gap-2 rounded-lg"
+                    style={{
+                        borderWidth: 2,
+                        paddingHorizontal: 14,
+                        paddingVertical: 14,
+                        borderColor: primaryColor,
+                    }}
                 >
-                    {pending.length > 0 && (
-                        <View className="px-6 pb-4">
-                            {pending.map(p => (
-                                <View
-                                    key={p.key}
-                                    className="flex-row items-center gap-3"
-                                    style={{ paddingVertical: 6 }}
-                                >
-                                    <NameAvatar firstName={p.name || p.email} size={36} />
-                                    <View className="flex-1" style={{ gap: 1 }}>
-                                        <Text
-                                            numberOfLines={1}
-                                            className="text-foreground"
-                                            style={{
-                                                fontSize: 13,
-                                                fontWeight: '500',
-                                            }}
-                                        >
-                                            {p.name || p.email}
-                                        </Text>
-                                        <Text
-                                            numberOfLines={1}
-                                            className="text-muted-foreground"
-                                            style={{ fontSize: 12 }}
-                                        >
-                                            {p.email}
-                                        </Text>
-                                    </View>
-                                    <RolePicker
-                                        value={p.role}
-                                        onChange={role => setPendingRole(p.key, role)}
-                                    />
-                                    <Pressable
-                                        onPress={() => removePending(p.key)}
-                                        className="p-1.5"
-                                    >
-                                        <Trash2 size={14} color={mutedColor} />
-                                    </Pressable>
-                                </View>
-                            ))}
-                        </View>
-                    )}
+                    <PlainInput
+                        value={search}
+                        onChangeText={setSearch}
+                        placeholder="Add people by name or email"
+                        placeholderTextColor={primaryColor}
+                        className="flex-1 text-foreground"
+                        style={{ fontSize: 15 }}
+                        autoFocus
+                    />
+                    <RolePicker value={defaultRole} onChange={setDefaultRole} />
+                </View>
 
-                    <View className="px-6 pb-4">
-                        <Text
-                            className="mb-3 text-foreground"
-                            style={{
-                                fontSize: 16,
-                                fontWeight: '600',
-                            }}
-                        >
-                            People with access
-                        </Text>
+                <SuggestionsDropdown
+                    search={search}
+                    orgMembers={orgMembers}
+                    alreadySharedIds={alreadySharedIds}
+                    pendingEmails={pendingEmails}
+                    currentUserId={currentUserId}
+                    onSelect={handleSelect}
+                />
+            </View>
 
-                        {currentUserShare && (
+            <Dialog.Body contentClassName="px-5">
+                {pending.length > 0 && (
+                    <View className="pb-4">
+                        {pending.map(p => (
                             <View
+                                key={p.key}
                                 className="flex-row items-center gap-3"
                                 style={{ paddingVertical: 6 }}
                             >
-                                <NameAvatar
-                                    firstName={currentUserShare.name || currentUserShare.email}
-                                    size={36}
+                                <NameAvatar firstName={p.name || p.email} size={36} />
+                                <View className="flex-1" style={{ gap: 1 }}>
+                                    <Text
+                                        numberOfLines={1}
+                                        className="text-foreground"
+                                        style={{
+                                            fontSize: 13,
+                                            fontWeight: '500',
+                                        }}
+                                    >
+                                        {p.name || p.email}
+                                    </Text>
+                                    <Text
+                                        numberOfLines={1}
+                                        className="text-muted-foreground"
+                                        style={{ fontSize: 12 }}
+                                    >
+                                        {p.email}
+                                    </Text>
+                                </View>
+                                <RolePicker
+                                    value={p.role}
+                                    onChange={role => setPendingRole(p.key, role)}
                                 />
-                                <View className="flex-1" style={{ gap: 1 }}>
-                                    <Text
-                                        className="text-foreground"
-                                        style={{
-                                            fontSize: 13,
-                                            fontWeight: '500',
-                                        }}
-                                    >
-                                        {currentUserShare.name || currentUserShare.email} (you)
-                                    </Text>
-                                    <Text
-                                        className="text-muted-foreground"
-                                        style={{ fontSize: 12 }}
-                                    >
-                                        {currentUserShare.email}
-                                    </Text>
-                                </View>
-                                <Text
-                                    className="text-muted-foreground"
-                                    style={{
-                                        fontSize: 12,
-                                        textTransform: 'capitalize',
-                                    }}
-                                >
-                                    Owner
-                                </Text>
-                            </View>
-                        )}
-
-                        {otherShares.map(share => (
-                            <View
-                                key={share.id}
-                                className="flex-row items-center gap-3"
-                                style={{ paddingVertical: 6 }}
-                            >
-                                <NameAvatar firstName={share.name || share.email} size={36} />
-                                <View className="flex-1" style={{ gap: 1 }}>
-                                    <Text
-                                        numberOfLines={1}
-                                        className="text-foreground"
-                                        style={{
-                                            fontSize: 13,
-                                            fontWeight: '500',
-                                        }}
-                                    >
-                                        {share.name || share.email}
-                                    </Text>
-                                    <Text
-                                        numberOfLines={1}
-                                        className="text-muted-foreground"
-                                        style={{ fontSize: 12 }}
-                                    >
-                                        {share.email}
-                                    </Text>
-                                </View>
-                                <Text
-                                    className="text-muted-foreground"
-                                    style={{
-                                        fontSize: 12,
-                                        textTransform: 'capitalize',
-                                    }}
-                                >
-                                    {share.role}
-                                </Text>
-                                <Pressable
-                                    onPress={() => onRemoveShare(share.id)}
-                                    className="p-1.5"
-                                >
+                                <Pressable onPress={() => removePending(p.key)} className="p-1.5">
                                     <Trash2 size={14} color={mutedColor} />
                                 </Pressable>
                             </View>
                         ))}
                     </View>
+                )}
 
-                    <View className="px-6 pb-4">
-                        <Text
-                            className="mb-3 text-foreground"
-                            style={{
-                                fontSize: 16,
-                                fontWeight: '600',
-                            }}
+                <View className="pb-4">
+                    <Text
+                        className="mb-3 text-foreground"
+                        style={{
+                            fontSize: 16,
+                            fontWeight: '600',
+                        }}
+                    >
+                        People with access
+                    </Text>
+
+                    {currentUserShare && (
+                        <View
+                            className="flex-row items-center gap-3"
+                            style={{ paddingVertical: 6 }}
                         >
-                            General access
-                        </Text>
-                        <GeneralAccessSection
-                            activeShareLink={activeShareLink}
-                            isCreatingPublicLink={isCreatingPublicLink}
-                            onTogglePublicLink={async () => {
-                                if (activeShareLink) {
-                                    try {
-                                        await pb.send(
-                                            `/api/drive/share-link/${activeShareLink.id}`,
-                                            {
-                                                method: 'DELETE',
-                                            }
-                                        )
-                                        queryClient.invalidateQueries({
-                                            queryKey: ['share-links', itemId],
-                                        })
-                                    } catch (err) {
-                                        captureException('share-link', err)
-                                    }
-                                } else {
-                                    setIsCreatingPublicLink(true)
-                                    try {
-                                        await pb.send('/api/drive/share-link', {
-                                            method: 'POST',
-                                            body: {
-                                                item_id: itemId,
-                                                role: 'viewer',
-                                            } satisfies CreateShareLinkRequest,
-                                        })
-                                        queryClient.invalidateQueries({
-                                            queryKey: ['share-links', itemId],
-                                        })
-                                    } catch (err) {
-                                        captureException('share-link', err)
-                                    } finally {
-                                        setIsCreatingPublicLink(false)
-                                    }
-                                }
-                            }}
-                            onCopyPublicLink={() => {
-                                if (Platform.OS === 'web' && publicShareUrl) {
-                                    navigator.clipboard.writeText(publicShareUrl)
-                                    setLinkCopied(true)
-                                    setTimeout(() => setLinkCopied(false), 2000)
-                                }
-                            }}
-                            linkCopied={linkCopied}
-                        />
-                    </View>
-                </ScrollView>
+                            <NameAvatar
+                                firstName={currentUserShare.name || currentUserShare.email}
+                                size={36}
+                            />
+                            <View className="flex-1" style={{ gap: 1 }}>
+                                <Text
+                                    className="text-foreground"
+                                    style={{
+                                        fontSize: 13,
+                                        fontWeight: '500',
+                                    }}
+                                >
+                                    {currentUserShare.name || currentUserShare.email} (you)
+                                </Text>
+                                <Text className="text-muted-foreground" style={{ fontSize: 12 }}>
+                                    {currentUserShare.email}
+                                </Text>
+                            </View>
+                            <Text
+                                className="text-muted-foreground"
+                                style={{
+                                    fontSize: 12,
+                                    textTransform: 'capitalize',
+                                }}
+                            >
+                                Owner
+                            </Text>
+                        </View>
+                    )}
 
-                <SaveErrorBanner message={saveError} />
+                    {otherShares.map(share => (
+                        <View
+                            key={share.id}
+                            className="flex-row items-center gap-3"
+                            style={{ paddingVertical: 6 }}
+                        >
+                            <NameAvatar firstName={share.name || share.email} size={36} />
+                            <View className="flex-1" style={{ gap: 1 }}>
+                                <Text
+                                    numberOfLines={1}
+                                    className="text-foreground"
+                                    style={{
+                                        fontSize: 13,
+                                        fontWeight: '500',
+                                    }}
+                                >
+                                    {share.name || share.email}
+                                </Text>
+                                <Text
+                                    numberOfLines={1}
+                                    className="text-muted-foreground"
+                                    style={{ fontSize: 12 }}
+                                >
+                                    {share.email}
+                                </Text>
+                            </View>
+                            <Text
+                                className="text-muted-foreground"
+                                style={{
+                                    fontSize: 12,
+                                    textTransform: 'capitalize',
+                                }}
+                            >
+                                {share.role}
+                            </Text>
+                            <Pressable onPress={() => onRemoveShare(share.id)} className="p-1.5">
+                                <Trash2 size={14} color={mutedColor} />
+                            </Pressable>
+                        </View>
+                    ))}
+                </View>
 
-                <View className="flex-row items-center justify-between px-6 py-4 border-t border-border">
+                <View className="pb-4">
+                    <Text
+                        className="mb-3 text-foreground"
+                        style={{
+                            fontSize: 16,
+                            fontWeight: '600',
+                        }}
+                    >
+                        General access
+                    </Text>
+                    <GeneralAccessSection
+                        activeShareLink={activeShareLink}
+                        isCreatingPublicLink={isCreatingPublicLink}
+                        onTogglePublicLink={async () => {
+                            if (activeShareLink) {
+                                try {
+                                    await pb.send(`/api/drive/share-link/${activeShareLink.id}`, {
+                                        method: 'DELETE',
+                                    })
+                                    queryClient.invalidateQueries({
+                                        queryKey: ['share-links', itemId],
+                                    })
+                                } catch (err) {
+                                    captureException('share-link', err)
+                                }
+                            } else {
+                                setIsCreatingPublicLink(true)
+                                try {
+                                    await pb.send('/api/drive/share-link', {
+                                        method: 'POST',
+                                        body: {
+                                            item_id: itemId,
+                                            role: 'viewer',
+                                        } satisfies CreateShareLinkRequest,
+                                    })
+                                    queryClient.invalidateQueries({
+                                        queryKey: ['share-links', itemId],
+                                    })
+                                } catch (err) {
+                                    captureException('share-link', err)
+                                } finally {
+                                    setIsCreatingPublicLink(false)
+                                }
+                            }
+                        }}
+                        onCopyPublicLink={() => {
+                            if (Platform.OS === 'web' && publicShareUrl) {
+                                navigator.clipboard.writeText(publicShareUrl)
+                                setLinkCopied(true)
+                                setTimeout(() => setLinkCopied(false), 2000)
+                            }
+                        }}
+                        linkCopied={linkCopied}
+                    />
+                </View>
+            </Dialog.Body>
+
+            <SaveErrorBanner message={saveError} />
+
+            <Dialog.Footer>
+                <View className="flex-1 flex-row items-center gap-2">
                     <Pressable
                         className="flex-row items-center gap-2 px-4 rounded-full border border-border"
-                        style={{ paddingVertical: 10 }}
+                        style={{ paddingVertical: 8 }}
                         onPress={copyLink}
                     >
                         <Link size={16} color={primaryColor} />
@@ -484,24 +447,15 @@ export function ShareDialog({
                             {linkCopied ? 'Copied!' : 'Copy link'}
                         </Text>
                     </Pressable>
-                    <Pressable
-                        onPress={handleDone}
-                        disabled={isSaving}
-                        className={`px-6 py-3 rounded-3xl bg-primary ${isSaving ? 'opacity-60' : 'opacity-100'}`}
-                    >
-                        <Text
-                            className="text-primary-foreground"
-                            style={{
-                                fontWeight: '600',
-                                fontSize: 14,
-                            }}
-                        >
-                            {isSaving ? 'Saving...' : 'Done'}
-                        </Text>
-                    </Pressable>
+                    <HelpIcon topic="drive:sharing" size={20} />
                 </View>
-            </ModalContent>
-        </Modal>
+                <Dialog.ActionButton
+                    label={isSaving ? 'Saving...' : 'Done'}
+                    onPress={handleDone}
+                    isDisabled={isSaving}
+                />
+            </Dialog.Footer>
+        </Dialog>
     )
 }
 
@@ -794,9 +748,9 @@ function GeneralAccessSection({
     )
 }
 
-const ROLE_OPTIONS: { value: 'editor' | 'viewer'; label: string; description: string }[] = [
-    { value: 'editor', label: 'Editor', description: 'Can view, comment, and edit' },
-    { value: 'viewer', label: 'Viewer', description: 'Can view only' },
+const ROLE_OPTIONS: { value: 'editor' | 'viewer'; label: string }[] = [
+    { value: 'editor', label: 'Editor' },
+    { value: 'viewer', label: 'Viewer' },
 ]
 
 function RolePicker({
@@ -809,13 +763,14 @@ function RolePicker({
     const mutedColor = useThemeColor('muted-foreground')
     const fgColor = useThemeColor('foreground')
     const borderColor = useThemeColor('border')
-    const primaryColor = useThemeColor('primary')
     const currentLabel = value === 'editor' ? 'Editor' : 'Viewer'
 
     return (
-        <Menu>
-            <Menu.Trigger>
+        <Menu
+            trigger={
                 <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Role: ${currentLabel}`}
                     className="flex-row items-center gap-1.5 rounded-md border bg-background"
                     style={{ borderColor, paddingHorizontal: 10, paddingVertical: 6 }}
                 >
@@ -824,36 +779,19 @@ function RolePicker({
                     </Text>
                     <ChevronDown size={14} color={mutedColor} />
                 </Pressable>
-            </Menu.Trigger>
-            <Menu.Portal>
-                <Menu.Overlay />
-                <Menu.Content presentation="popover" placement="bottom" align="end">
-                    {ROLE_OPTIONS.map(opt => {
-                        const isActive = opt.value === value
-                        return (
-                            <Menu.Item key={opt.value} onPress={() => onChange(opt.value)}>
-                                <View
-                                    className="flex-row items-start gap-2"
-                                    style={{ minWidth: 220 }}
-                                >
-                                    <View style={{ width: 16, paddingTop: 2 }}>
-                                        {isActive ? <Check size={14} color={primaryColor} /> : null}
-                                    </View>
-                                    <View className="flex-1 gap-0.5">
-                                        <Menu.ItemTitle>{opt.label}</Menu.ItemTitle>
-                                        <Text
-                                            className="text-muted-foreground"
-                                            style={{ fontSize: 12 }}
-                                        >
-                                            {opt.description}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </Menu.Item>
-                        )
-                    })}
-                </Menu.Content>
-            </Menu.Portal>
+            }
+            placement="bottom-end"
+            presentation="popover"
+            title="Role"
+        >
+            {ROLE_OPTIONS.map(opt => (
+                <Menu.Item
+                    key={opt.value}
+                    label={opt.label}
+                    isSelected={opt.value === value}
+                    onSelect={() => onChange(opt.value)}
+                />
+            ))}
         </Menu>
     )
 }

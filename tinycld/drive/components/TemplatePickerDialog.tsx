@@ -1,8 +1,8 @@
 import { Thumbnail as CoreThumbnail } from '@tinycld/core/file-viewer/Thumbnail'
 import type { FilePreviewSource } from '@tinycld/core/file-viewer/types'
 import { formatRelativeDate } from '@tinycld/core/lib/format-utils'
-import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { Dialog } from '@tinycld/core/ui/dialog'
+import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { type TemplateItem, useTemplateItems } from '../hooks/use-template-items'
 import { type TemplateExtension, templateDisplayName } from '../lib/template-naming'
 
@@ -35,34 +35,20 @@ function TemplatePickerDialogBody({
     const { items, isLoading } = useTemplateItems(extension)
 
     return (
-        <Modal isOpen onClose={onClose}>
-            <ModalBackdrop />
-            <ModalContent testID="template-picker-dialog" className="w-[440px] max-h-[70vh] p-0">
-                <View className="px-4 pt-4 pb-2">
-                    <Text className="text-foreground" style={{ fontSize: 16, fontWeight: '600' }}>
-                        {title}
-                    </Text>
-                </View>
-
-                <ScrollView style={{ maxHeight: 380, paddingVertical: 4 }}>
-                    <PickerBody
-                        items={items}
-                        isLoading={isLoading}
-                        extension={extension}
-                        isPending={isPending}
-                        onPick={onPick}
-                    />
-                </ScrollView>
-
-                <View className="flex-row justify-end p-3 border-t border-border">
-                    <Pressable onPress={onClose} className="px-3 py-2">
-                        <Text className="text-foreground" style={{ fontSize: 13 }}>
-                            Cancel
-                        </Text>
-                    </Pressable>
-                </View>
-            </ModalContent>
-        </Modal>
+        <Dialog isOpen onClose={onClose} title={title} size="md" testID="template-picker-dialog">
+            <Dialog.Body contentClassName="pb-2">
+                <PickerBody
+                    items={items}
+                    isLoading={isLoading}
+                    extension={extension}
+                    isPending={isPending}
+                    onPick={onPick}
+                />
+            </Dialog.Body>
+            <Dialog.Footer>
+                <Dialog.CancelButton onPress={onClose} />
+            </Dialog.Footer>
+        </Dialog>
     )
 }
 

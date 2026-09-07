@@ -2,16 +2,14 @@ import { useSyncExternalStore } from 'react'
 import type { DriveContextValue } from '../hooks/useDrive'
 
 // Bridge between the in-tree DriveStateContext and consumers that render
-// inside Menu.Portal. The Gluestack overlay used by Menu.Portal does not
-// preserve the React context chain (it queues elements onto a root-mounted
-// PortalProvider's state instead of using React.createPortal), so calling
-// useDrive() from a portaled subtree throws. DriveStateProvider mirrors
-// the latest value here on every render via writeDriveSnapshot, and
-// notifyDriveSnapshotListeners must be called from a layout effect to
-// flush change subscriptions to portaled consumers (useDriveSnapshot)
-// after the parent commits — notifying during render would trigger
-// React's "Cannot update a component while rendering a different
-// component" warning when a snapshot subscriber is mounted.
+// outside the drive screen's provider tree (menu rows in the overlay layer,
+// the detail drawer), where calling useDrive() would throw.
+// DriveStateProvider mirrors the latest value here on every render via
+// writeDriveSnapshot, and notifyDriveSnapshotListeners must be called from
+// a layout effect to flush change subscriptions to those consumers
+// (useDriveSnapshot) after the parent commits — notifying during render
+// would trigger React's "Cannot update a component while rendering a
+// different component" warning when a snapshot subscriber is mounted.
 
 let currentValue: DriveContextValue | null = null
 let lastNotifiedValue: DriveContextValue | null = null

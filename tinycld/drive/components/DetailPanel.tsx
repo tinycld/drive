@@ -1,6 +1,7 @@
 import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import {
     Drawer,
     DrawerBackdrop,
@@ -9,7 +10,6 @@ import {
     DrawerContent,
     DrawerHeader,
 } from '@tinycld/core/ui/drawer'
-import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
 import { Download, FolderOpen, RotateCcw, X } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
@@ -361,36 +361,17 @@ function RestoreConfirmDialog({
     onConfirm,
 }: RestoreConfirmDialogProps) {
     return (
-        <Modal isOpen={open} onClose={() => onOpenChange(false)}>
-            <ModalBackdrop />
-            <ModalContent className="w-[340px] p-4 gap-3">
-                <Text className="text-foreground" style={{ fontSize: 20, fontWeight: '600' }}>
-                    Restore version
-                </Text>
-                <Text className="text-muted-foreground" style={{ fontSize: 13 }}>
-                    Restore to version {versionNumber}? The current file will be saved as a new
-                    version before restoring.
-                </Text>
-                <View className="flex-row gap-3 justify-end">
-                    <Pressable onPress={() => onOpenChange(false)} className="px-3 py-2">
-                        <Text className="text-foreground" style={{ fontSize: 13 }}>
-                            Cancel
-                        </Text>
-                    </Pressable>
-                    <Pressable
-                        onPress={() => {
-                            onConfirm()
-                            onOpenChange(false)
-                        }}
-                        className="px-4 py-2 rounded-md bg-primary"
-                    >
-                        <Text className="text-primary-foreground" style={{ fontWeight: '600' }}>
-                            Restore
-                        </Text>
-                    </Pressable>
-                </View>
-            </ModalContent>
-        </Modal>
+        <ConfirmDialog
+            isOpen={open}
+            onClose={() => onOpenChange(false)}
+            onConfirm={() => {
+                onConfirm()
+                onOpenChange(false)
+            }}
+            title="Restore version"
+            message={`Restore to version ${versionNumber}? The current file will be saved as a new version before restoring.`}
+            confirmLabel="Restore"
+        />
     )
 }
 

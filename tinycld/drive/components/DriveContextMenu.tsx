@@ -1,6 +1,5 @@
 import { ContextMenu } from '@tinycld/core/components/ContextMenu'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { Menu, Separator } from '@tinycld/core/ui/menu'
+import { Menu } from '@tinycld/core/ui/menu'
 import type { LucideIcon } from 'lucide-react-native'
 import {
     Download,
@@ -31,11 +30,10 @@ interface DriveContextMenuProps {
 // items JSX) live inside <DriveMenuContent>, which ContextMenu mounts
 // lazily on first open.
 //
-// DriveMenuContent renders inside Menu.Portal, which routes through
-// Gluestack's OverlayContainer and severs the React context chain — so
-// useDrive() throws there. We read from useDriveSnapshot() instead, which
-// subscribes to an external box that DriveStateProvider mirrors on every
-// render.
+// DriveMenuContent renders inside the overlay layer, outside the drive
+// screen's tree, so it reads drive state from useDriveSnapshot() — an
+// external box that DriveStateProvider mirrors on every render — rather
+// than useDrive().
 export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
     // Right-click should highlight the row it targets. Match Finder /
     // Explorer convention: if the right-clicked row is already part of a
@@ -78,7 +76,6 @@ export function DriveContextMenu({ item, children }: DriveContextMenuProps) {
 }
 
 export function DriveMenuContent({ item }: { item: DriveItemView }) {
-    const mutedColor = useThemeColor('muted-foreground')
     const {
         activeSection,
         openPreview,
@@ -101,7 +98,6 @@ export function DriveMenuContent({ item }: { item: DriveItemView }) {
     if (isTrash) {
         return (
             <TrashMenuItems
-                mutedColor={mutedColor}
                 onRestore={() => restoreFromTrash(item.id)}
                 canRestoreToOriginal={canRestoreToOriginalLocation(item.id)}
                 onRequestMove={() => openMoveDialog(item.id, item.name)}
@@ -113,7 +109,6 @@ export function DriveMenuContent({ item }: { item: DriveItemView }) {
     return (
         <NormalMenuItems
             item={item}
-            mutedColor={mutedColor}
             onPreview={() => openPreview(item)}
             onOpen={() => openItem(item)}
             onDownload={() => downloadItem(item.id)}
@@ -139,7 +134,6 @@ export function DriveMenuContent({ item }: { item: DriveItemView }) {
 
 function NormalMenuItems({
     item,
-    mutedColor,
     onPreview,
     onOpen,
     onDownload,
@@ -151,7 +145,6 @@ function NormalMenuItems({
     onTrash,
 }: {
     item: DriveItemView
-    mutedColor: string
     onPreview: () => void
     onOpen: () => void
     onDownload: () => void
@@ -173,82 +166,39 @@ function NormalMenuItems({
 
     return (
         <>
-            {!item.isFolder && (
-                <ContextMenuItem
-                    label="Preview"
-                    icon={Eye}
-                    onPress={onPreview}
-                    mutedColor={mutedColor}
-                />
-            )}
-            {item.isFolder && (
-                <ContextMenuItem
-                    label="Open"
-                    icon={FolderOpen}
-                    onPress={onOpen}
-                    mutedColor={mutedColor}
-                />
-            )}
+            {!item.isFolder && <ContextMenuItem label="Preview" icon={Eye} onPress={onPreview} />}
+            {item.isFolder && <ContextMenuItem label="Open" icon={FolderOpen} onPress={onOpen} />}
             {extensionActions.map(action => (
                 <ContextMenuItem
                     key={action.id}
                     label={action.label}
                     icon={action.icon}
                     onPress={() => action.onPress(item)}
-                    mutedColor={mutedColor}
                 />
             ))}
-            <ContextMenuItem label="Info" icon={Info} onPress={onInfo} mutedColor={mutedColor} />
-            <ContextMenuItem
-                label="Download"
-                icon={Download}
-                onPress={onDownload}
-                mutedColor={mutedColor}
-            />
-            <Separator className="my-1 mx-2" />
+            <ContextMenuItem label="Info" icon={Info} onPress={onInfo} />
+            <ContextMenuItem label="Download" icon={Download} onPress={onDownload} />
+            <Menu.Separator />
             <ContextMenuItem
                 label={item.starred ? 'Remove star' : 'Add star'}
                 icon={item.starred ? StarOff : Star}
                 onPress={onToggleStar}
-                mutedColor={mutedColor}
             />
-            <ContextMenuItem
-                label="Share"
-                icon={UserPlus}
-                onPress={onShare}
-                mutedColor={mutedColor}
-            />
-            <ContextMenuItem
-                label="Rename"
-                icon={Pencil}
-                onPress={onRename}
-                mutedColor={mutedColor}
-            />
-            <ContextMenuItem
-                label="Move"
-                icon={FolderInput}
-                onPress={onMove}
-                mutedColor={mutedColor}
-            />
-            <Separator className="my-1 mx-2" />
-            <ContextMenuItem
-                label="Move to trash"
-                icon={Trash2}
-                onPress={onTrash}
-                mutedColor={mutedColor}
-            />
+            <ContextMenuItem label="Share" icon={UserPlus} onPress={onShare} />
+            <ContextMenuItem label="Rename" icon={Pencil} onPress={onRename} />
+            <ContextMenuItem label="Move" icon={FolderInput} onPress={onMove} />
+            <Menu.Separator />
+            <ContextMenuItem label="Move to trash" icon={Trash2} onPress={onTrash} />
         </>
     )
 }
 
 function TrashMenuItems({
-    mutedColor,
     onRestore,
     canRestoreToOriginal,
     onRequestMove,
     onPermanentDelete,
 }: {
-    mutedColor: string
     onRestore: () => void
     canRestoreToOriginal: boolean
     onRequestMove: () => void
@@ -262,34 +212,21 @@ function TrashMenuItems({
                 label={canRestoreToOriginal ? 'Restore' : 'Restore to...'}
                 icon={RotateCcw}
                 onPress={handleRestore}
-                mutedColor={mutedColor}
             />
-            <Separator className="my-1 mx-2" />
-            <ContextMenuItem
-                label="Delete permanently"
-                icon={Trash2}
-                onPress={onPermanentDelete}
-                mutedColor={mutedColor}
-            />
+            <Menu.Separator />
+            <ContextMenuItem label="Delete permanently" icon={Trash2} onPress={onPermanentDelete} />
         </>
     )
 }
 
 function ContextMenuItem({
     label,
-    icon: Icon,
+    icon,
     onPress,
-    mutedColor,
 }: {
     label: string
     icon: LucideIcon
     onPress: () => void
-    mutedColor: string
 }) {
-    return (
-        <Menu.Item onPress={onPress}>
-            <Icon size={16} color={mutedColor} />
-            <Menu.ItemTitle>{label}</Menu.ItemTitle>
-        </Menu.Item>
-    )
+    return <Menu.Item label={label} icon={icon} onSelect={onPress} />
 }

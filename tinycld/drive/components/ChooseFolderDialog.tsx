@@ -1,8 +1,8 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
+import { Dialog } from '@tinycld/core/ui/dialog'
 import { ChevronDown, ChevronRight, Folder, HardDrive } from 'lucide-react-native'
 import { useState } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { useFolderTreeQuery } from '../hooks/use-folder-tree-query'
 import type { FolderTreeNode } from '../types'
 
@@ -57,40 +57,28 @@ function ChooseFolderDialogBody({
     }
 
     return (
-        <Modal isOpen onClose={onClose}>
-            <ModalBackdrop />
-            <ModalContent testID="choose-folder-dialog" className="w-[400px] max-h-[70vh] p-0">
-                <View className="px-4 pt-4 pb-2">
-                    <Text className="text-foreground" style={{ fontSize: 16, fontWeight: '600' }}>
-                        {title ?? `Move \u201C${itemName}\u201D`}
-                    </Text>
-                </View>
-
-                <ScrollView style={{ maxHeight: 320, paddingVertical: 4 }}>
-                    <RootItem isSelected={selectedId === ''} onSelect={() => setSelectedId('')} />
-                    <PickerTree
-                        nodes={folderTree}
-                        excludeId={excludeId}
-                        selectedId={selectedId}
-                        onSelect={setSelectedId}
-                        depth={1}
-                    />
-                </ScrollView>
-
-                <View className="flex-row gap-3 justify-end p-3 border-t border-border">
-                    <Pressable onPress={onClose} className="px-3 py-2">
-                        <Text className="text-foreground" style={{ fontSize: 13 }}>
-                            Cancel
-                        </Text>
-                    </Pressable>
-                    <Pressable onPress={handleMove} className="px-4 py-2 rounded-md bg-primary">
-                        <Text className="text-primary-foreground" style={{ fontWeight: '600' }}>
-                            {confirmLabel}
-                        </Text>
-                    </Pressable>
-                </View>
-            </ModalContent>
-        </Modal>
+        <Dialog
+            isOpen
+            onClose={onClose}
+            title={title ?? `Move \u201C${itemName}\u201D`}
+            size="md"
+            testID="choose-folder-dialog"
+        >
+            <Dialog.Body contentClassName="pb-2">
+                <RootItem isSelected={selectedId === ''} onSelect={() => setSelectedId('')} />
+                <PickerTree
+                    nodes={folderTree}
+                    excludeId={excludeId}
+                    selectedId={selectedId}
+                    onSelect={setSelectedId}
+                    depth={1}
+                />
+            </Dialog.Body>
+            <Dialog.Footer>
+                <Dialog.CancelButton onPress={onClose} />
+                <Dialog.ActionButton label={confirmLabel} onPress={handleMove} />
+            </Dialog.Footer>
+        </Dialog>
     )
 }
 
