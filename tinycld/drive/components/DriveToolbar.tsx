@@ -8,8 +8,7 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { captureException } from '@tinycld/core/lib/errors'
 import type { HelpTopicId } from '@tinycld/core/lib/help/types'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
-import { Button, ButtonText } from '@tinycld/core/ui/button'
-import { Modal, ModalBackdrop, ModalContent } from '@tinycld/core/ui/modal'
+import { Dialog } from '@tinycld/core/ui/dialog'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import {
     ArrowLeft,
@@ -955,12 +954,8 @@ function NamePromptDialogInner({ prompt }: { prompt: Exclude<PromptDialog, { typ
     }
 
     return (
-        <Modal isOpen onClose={closePrompt}>
-            <ModalBackdrop />
-            <ModalContent className="w-[360px] p-4 gap-3">
-                <Text className="text-foreground" style={{ fontSize: 20, fontWeight: '600' }}>
-                    {title}
-                </Text>
+        <Dialog isOpen onClose={closePrompt} title={title}>
+            <Dialog.Body>
                 <View
                     className="flex-row border border-border rounded-lg px-3"
                     style={{ paddingVertical: 10 }}
@@ -976,18 +971,16 @@ function NamePromptDialogInner({ prompt }: { prompt: Exclude<PromptDialog, { typ
                         style={{ fontSize: 15 }}
                     />
                 </View>
-                <View className="flex-row gap-3 justify-end">
-                    <Pressable onPress={closePrompt} className="px-3 py-2">
-                        <Text className="text-foreground" style={{ fontSize: 13 }}>
-                            Cancel
-                        </Text>
-                    </Pressable>
-                    <Button onPress={handleSubmit} isDisabled={!value.trim()} size="sm">
-                        <ButtonText>{submitLabel}</ButtonText>
-                    </Button>
-                </View>
-            </ModalContent>
-        </Modal>
+            </Dialog.Body>
+            <Dialog.Footer>
+                <Dialog.CancelButton onPress={closePrompt} />
+                <Dialog.ActionButton
+                    label={submitLabel}
+                    onPress={handleSubmit}
+                    isDisabled={!value.trim()}
+                />
+            </Dialog.Footer>
+        </Dialog>
     )
 }
 

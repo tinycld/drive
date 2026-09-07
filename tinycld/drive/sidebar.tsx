@@ -1,4 +1,3 @@
-import { MenuActionItem } from '@tinycld/core/components/DropdownMenu'
 import {
     SidebarActionButton,
     SidebarDivider,
@@ -98,21 +97,14 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
 
     return (
         <SidebarNav>
-            <Menu>
-                <Menu.Trigger>
-                    <SidebarActionButton label="New" icon={Plus} />
-                </Menu.Trigger>
-                <Menu.Portal>
-                    <Menu.Overlay />
-                    <Menu.Content presentation="popover" placement="bottom" align="start">
-                        <MenuActionItem label="Upload" icon={Upload} onPress={handleUploadPress} />
-                        <MenuActionItem
-                            label="New folder"
-                            icon={FolderPlus}
-                            onPress={handleNewFolderPress}
-                        />
-                    </Menu.Content>
-                </Menu.Portal>
+            <Menu
+                trigger={<SidebarActionButton label="New" icon={Plus} />}
+                placement="bottom-start"
+                presentation="popover"
+                title="New"
+            >
+                <Menu.Item label="Upload" icon={Upload} onSelect={handleUploadPress} />
+                <Menu.Item label="New folder" icon={FolderPlus} onSelect={handleNewFolderPress} />
             </Menu>
 
             <FolderDropTarget

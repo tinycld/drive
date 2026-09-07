@@ -1,8 +1,8 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import { EllipsisVertical } from 'lucide-react-native'
-import { useCallback } from 'react'
-import { Platform, Pressable } from 'react-native'
+import { type ReactNode, useCallback } from 'react'
+import { Platform, Pressable, View } from 'react-native'
 import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
 import { DriveMenuContent } from './DriveContextMenu'
@@ -16,9 +16,7 @@ interface DriveItemMenuButtonProps {
 // A tap-triggered "⋮" overflow menu carrying the same actions as the
 // long-press / right-click context menu (DriveMenuContent). Use it where a
 // long-press is awkward or undiscoverable: the list/grid rows and the file
-// detail header. DriveMenuContent renders inside Menu.Portal — which severs the
-// React context chain — so it reads drive state from the snapshot store rather
-// than useDrive(); nothing extra is needed here.
+// detail header.
 export function DriveItemMenuButton({ item, size = 16 }: DriveItemMenuButtonProps) {
     const mutedColor = useThemeColor('muted-foreground')
 
@@ -35,9 +33,10 @@ export function DriveItemMenuButton({ item, size = 16 }: DriveItemMenuButtonProp
         [item.id]
     )
 
+    // The bare Pressable is the trigger: Menu clones it to inject onPress and
+    // the anchor ref, so a wrapper would be measured (and pressed) instead.
     const triggerButton = (
         <Pressable
-            style={{ padding: 4 }}
             // Deliberately generic — must NOT contain item.name. Row
             // locators select file rows by an accessible name ending in a
             // file extension (e.g. /\.[a-z]{2,4}\b/); embedding the
@@ -49,37 +48,39 @@ export function DriveItemMenuButton({ item, size = 16 }: DriveItemMenuButtonProp
             // Keep the row's own press/navigation from also firing.
             onPress={e => e.stopPropagation()}
         >
-            <EllipsisVertical size={size} color={mutedColor} />
+            <PressGuard>
+                <EllipsisVertical size={size} color={mutedColor} />
+            </PressGuard>
         </Pressable>
     )
 
     return (
-        <Menu onOpenChange={handleOpenChange}>
-            {/* On web, halt pointerdown/touchstart at the ⋯ so a press here can't
-                start an enclosing draggable card/row's Pan gesture (which listens
-                on pointerdown); the menu's own click still fires. On native the
-                trigger child must stay the bare Pressable — Menu.Trigger clones
-                it to inject onPress/ref — so the wrapper is web-only. */}
-            <Menu.Trigger>
-                {Platform.OS === 'web' ? (
-                    <div
-                        role="presentation"
-                        style={{ display: 'contents' }}
-                        onPointerDownCapture={e => e.stopPropagation()}
-                        onTouchStartCapture={e => e.stopPropagation()}
-                    >
-                        {triggerButton}
-                    </div>
-                ) : (
-                    triggerButton
-                )}
-            </Menu.Trigger>
-            <Menu.Portal>
-                <Menu.Overlay />
-                <Menu.Content presentation="popover" placement="bottom" align="end">
-                    <DriveMenuContent item={item} />
-                </Menu.Content>
-            </Menu.Portal>
+        <Menu
+            trigger={triggerButton}
+            onOpenChange={handleOpenChange}
+            placement="bottom-end"
+            title="File actions"
+        >
+            <DriveMenuContent item={item} />
         </Menu>
+    )
+}
+
+// On web, halt pointerdown/touchstart at the ⋯ so a press here can't start
+// an enclosing draggable card/row's Pan gesture (which listens on
+// pointerdown); the menu's own click still fires. The guard carries the
+// button's padding so the whole hit area is covered. RN's Pressable forwards
+// no capture-phase pointer handlers, hence the raw element.
+function PressGuard({ children }: { children: ReactNode }) {
+    if (Platform.OS !== 'web') return <View style={{ padding: 4 }}>{children}</View>
+    return (
+        <div
+            role="presentation"
+            style={{ display: 'flex', padding: 4 }}
+            onPointerDownCapture={e => e.stopPropagation()}
+            onTouchStartCapture={e => e.stopPropagation()}
+        >
+            {children}
+        </div>
     )
 }

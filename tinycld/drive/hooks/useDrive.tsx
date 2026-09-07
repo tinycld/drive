@@ -154,9 +154,9 @@ const LayoutAnimationContext = createContext<MutableRefObject<(() => void) | und
 export function DriveStateProvider({ children }: { children: ReactNode }) {
     const layoutAnimationRef = useRef<(() => void) | undefined>(undefined)
     const value = useDriveState({ layoutAnimationRef })
-    // Mirror the latest value into an external store so portaled subtrees
-    // (Menu.Portal goes through Gluestack's OverlayContainer, which severs
-    // the React context chain) can read drive state via useDriveSnapshot.
+    // Mirror the latest value into an external store so subtrees rendered
+    // outside this provider (menu rows in the overlay layer, the detail
+    // drawer) can read drive state via useDriveSnapshot.
     //
     // Write during render so subscribers that mount/read after this point
     // see fresh data via getSnapshot(); flush change notifications in a
