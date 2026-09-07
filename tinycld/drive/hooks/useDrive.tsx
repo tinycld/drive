@@ -1,7 +1,7 @@
 import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
 import { useUserPreference } from '@tinycld/core/lib/use-user-preference'
-import { router, useLocalSearchParams, usePathname } from 'expo-router'
+import { usePathname } from 'expo-router'
 import {
     createContext,
     type MutableRefObject,
@@ -24,6 +24,7 @@ import { useDriveMutations } from './useDriveMutations'
 import { parseDrivePath, useDriveNavigation } from './useDriveNavigation'
 import { useDriveSearch } from './useDriveSearch'
 import { useFileUpload } from './useFileUpload'
+import { usePreviewUrlSync } from './usePreviewUrlSync'
 import { useTotalStorage } from './useTotalStorage'
 
 // Subset of drive callbacks that rows + the context menu need. The
@@ -242,15 +243,15 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
     const { section: activeSection, folderId: currentFolderId } = parseDrivePath(pathname)
 
     // Preview state is store-only — see useDriveNavigation for why. URL
-    // sharing is handled separately: hydrate-on-mount from ?file=X&preview=1
-    // and mirror store -> URL via history.replaceState (no router push, so
+    // sharing is handled separately: ?file=X&preview=1 and the store are kept
+    // in step by usePreviewUrlSync through setParams (no router push, so
     // <Slot/> never remounts and FlashList scroll is preserved).
     const selectedItemId = useDriveUIStore(s => s.selectedItemId)
     const selectItem = useDriveUIStore(s => s.selectItem)
     const selectedIds = useDriveUIStore(s => s.selectedIds)
     const clearSelection = useDriveUIStore(s => s.clearSelection)
     const previewItemId = useDriveUIStore(s => s.previewItemId)
-    usePreviewUrlSync(previewItemId)
+    usePreviewUrlSync()
 
     // viewMode is decoupled from server persistence so the toggle UI updates
     // synchronously. useUserPreference goes through a TanStack DB optimistic
@@ -492,38 +493,4 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         closeShareDialog,
         actions,
     }
-}
-
-// Bridge between the preview store flag and the browser URL.
-//
-// Two flows:
-//   1. On mount, if the URL has ?file=X&preview=1, seed the store so a
-//      shared link opens the modal. Runs once.
-//   2. While the user navigates between previews via the modal's prev/next
-//      controls (or opens/closes), mirror the store value back to the URL
-//      via router.setParams — a shallow params update that doesn't remount
-//      the route (so <Slot/> stays put) and works on native (where the
-//      URL bar is invisible but the navigation state still tracks).
-function usePreviewUrlSync(previewItemId: string | null): void {
-    const openPreviewItem = useDriveUIStore(s => s.openPreviewItem)
-    const params = useLocalSearchParams<{ file?: string; preview?: string }>()
-
-    // Hydrate once from the initial URL params.
-    const hydratedRef = useRef(false)
-    useEffect(() => {
-        if (hydratedRef.current) return
-        hydratedRef.current = true
-        if (params.preview === '1' && params.file) {
-            openPreviewItem(params.file)
-        }
-    }, [openPreviewItem, params.file, params.preview])
-
-    // Mirror store -> URL params. Only writes when the value actually
-    // differs to avoid a setParams loop with the hydrator above.
-    useEffect(() => {
-        const desiredFile = previewItemId ?? undefined
-        const desiredPreview = previewItemId ? '1' : undefined
-        if (params.file === desiredFile && params.preview === desiredPreview) return
-        router.setParams({ file: desiredFile, preview: desiredPreview })
-    }, [previewItemId, params.file, params.preview])
 }
