@@ -32,12 +32,12 @@ const manifest = {
     // emitter.
     payloads: { package: 'server/api' },
     // `tinycld drive ...` commands, compiled into the per-org CLI binary by
-    // gen-cli.ts. scopes feed the OAuth scope registry and consent screen;
+    // gen-cli.ts. The OAuth scopes the commands need are registered by
+    // server/oauth_scopes.go, never declared here.
     // Cobra is the source of truth for the command list and --help.
     cli: {
         package: 'cli',
         module: 'tinycld.org/packages/drive/cli',
-        scopes: ['drive:read', 'drive:write'],
     },
     // Server-side TS hooks: drop a *.pb.ts into pb-hooks/ to extend drive
     // alongside the Go — including the WebDAV interception points
