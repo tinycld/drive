@@ -10,7 +10,7 @@ import (
 
 // handleCreateShareSession mints (or resumes) an anonymous share session
 // for a public share link. The client calls this when an anonymous
-// visitor opens /share/{token}; the returned session_token is the bearer
+// visitor opens /p/drive/share/{token}; the returned session_token is the bearer
 // credential for every subsequent anon action (render, comments, edit).
 //
 // The visitor's stable identity (anon_id) is supplied by the client from

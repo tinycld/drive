@@ -338,7 +338,7 @@ func (f *fakeDrive) serve() (*httptest.Server, *client.Client) {
 		id := fmt.Sprintf("link%03d", f.seq)
 		token := fmt.Sprintf("token%03d", f.seq)
 		entry := api.ShareLinkEntry{
-			ID: id, Token: token, URL: "/share/" + token,
+			ID: id, Token: token, URL: "/p/drive/share/" + token,
 			Role: f.lastLinkRequest.Role, IsActive: true,
 			ExpiresAt: f.lastLinkRequest.ExpiresAt,
 		}

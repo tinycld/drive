@@ -35,6 +35,13 @@ func getClientIP(r *http.Request) string {
 	return ratelimit.ClientIP(r)
 }
 
+// publicShareURL is the browser URL a share-link recipient opens. The app
+// serves the public page under the /p/<slug>/ public-route prefix, not at a
+// bare /share/, and core registers no redirect for the latter.
+func publicShareURL(app core.App, token string) string {
+	return fmt.Sprintf("%s/p/drive/share/%s", app.Settings().Meta.AppURL, token)
+}
+
 // findShareLinkByToken loads and validates a share link record.
 // Returns the share link record and the associated drive_items record.
 func findShareLinkByToken(app core.App, token string) (*core.Record, *core.Record, int, string) {
@@ -255,7 +262,7 @@ func handleCreateShareLink(app core.App, re *core.RequestEvent) error {
 		return re.InternalServerError("failed to create share link", err)
 	}
 
-	shareURL := fmt.Sprintf("%s/share/%s", app.Settings().Meta.AppURL, token)
+	shareURL := publicShareURL(app, token)
 
 	return re.JSON(http.StatusOK, api.ShareLinkResponse{
 		ID:    record.Id,
@@ -321,7 +328,7 @@ func handleListShareLinks(app core.App, re *core.RequestEvent) error {
 
 	result := make([]api.ShareLinkEntry, 0, len(links))
 	for _, l := range links {
-		shareURL := fmt.Sprintf("%s/share/%s", app.Settings().Meta.AppURL, l.GetString("token"))
+		shareURL := publicShareURL(app, l.GetString("token"))
 		result = append(result, api.ShareLinkEntry{
 			ID:             l.Id,
 			Token:          l.GetString("token"),
