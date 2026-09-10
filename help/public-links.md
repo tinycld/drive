@@ -9,7 +9,7 @@ order: 80
 
 A public share link is a tokenized URL — anyone who has it can open the file without signing in. Use this when you need to share with someone who has no account, on a mailing list, or to embed a file in another tool.
 
-The link looks like `https://{{server-host}}/share/<token>`. The token is a long random string — guessing one is computationally infeasible.
+The link looks like `https://{{server-host}}/p/drive/share/<token>`. The token is a long random string — guessing one is computationally infeasible.
 
 ## Who can create one
 
@@ -40,7 +40,7 @@ If you want to invalidate a link without ever wanting it back, **delete** the li
 
 ## What recipients see
 
-Opening a public link takes the recipient to a minimal viewer page at `/share/&lt;token&gt;`. They see:
+Opening a public link takes the recipient to a minimal viewer page at `/p/drive/share/&lt;token&gt;`. They see:
 
 - The file's name.
 - The file itself — preview for previewable types (PDFs, images, video, audio, text), or a download button for everything else.
@@ -57,4 +57,4 @@ Recipients can't see who else has access or any of your other files.
 
 ## See also
 
-- [Sharing with org members](help://drive:sharing)
+- [Sharing files with people](help://drive:sharing)

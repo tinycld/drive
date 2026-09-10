@@ -17,11 +17,12 @@ To peek at a file without opening its editor, right-click → **Preview**.
 
 ## File actions
 
-Right-click any file (or use the toolbar when one is selected) for the full set of actions:
+Right-click any file (or use the toolbar when one is selected — on a narrow window, the toolbar's **More** menu) for the full set of actions:
 
 - **Preview** — open the in-app preview.
 - **Open in &lt;app&gt;** — for files with a custom opener (e.g. Open in Calc for spreadsheets, Open in Text for documents), jumps straight to that app's editor.
 - **Download** — save the file to your device.
+- **Export to PDF** / **Export to SVG** — convert a document (Word, Excel, PowerPoint, EPUB, RTF, HTML, Markdown, CSV, plain text) on the server and download the result. A PDF offers only Export to SVG; SVG exports the first page. Images can't be exported.
 - **Share** — open the [share dialog](help://drive:sharing).
 - **Rename** — change the file's name.
 - **Move** — move to another folder.

@@ -21,7 +21,7 @@ Folders are searched by name only.
 
 The search scope is your current Drive view:
 
-- In **My Files** — searches everything you can access in this org, including files shared with you.
+- In **My Files** — searches everything you can access, including files shared with you.
 - In **Shared with me**, **Recent**, **Starred**, **Trash** — searches only within that section.
 
 The placeholder text in the search box reflects the current scope (e.g. "Search in Files").
@@ -37,6 +37,10 @@ If you uploaded a file and can't find a word you know is in it, give it a moment
 Multi-word searches treat each word as a separate term — all terms must match. To search for an exact phrase, wrap it in double quotes: `"quarterly revenue"`.
 
 Special characters (`:`, `*`, `^`, `{`, `}`, `(`, `)`, `[`, `]`, `~`, `-`) are stripped from the query, so `q1-report` is treated the same as `q1 report`.
+
+## Searching from anywhere
+
+Drive results also appear in the app-wide search palette. Press `/` from any package to open it; it starts scoped to the package you're in, so from Drive it searches your files right away. From elsewhere, type `drive:` to add a chip that limits results to Drive, or press ⌫ on an empty box to search every package at once. Choosing a Drive result opens that file's preview. See [Searching across packages](help://core:search).
 
 ## Clearing the search
 

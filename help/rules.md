@@ -5,7 +5,7 @@ tags: [rules, automation, workflow, folders]
 order: 100
 ---
 
-Drive takes part in [automation rules](help://core:rules) with two triggers and
+Drive takes part in [automation rules](help://core:rules) with four triggers and
 an action for filing things away.
 
 ## When a file is added
@@ -13,6 +13,12 @@ an action for filing things away.
 The trigger **A file is added** fires for anything new in your drive — an
 upload, a new document or spreadsheet, or a folder. You can filter on name,
 type, size, whether it's a folder, and which folder it landed in.
+
+As a personal rule it fires for everyone who can see the folder the file
+landed in, not only for the person who uploaded it. So a rule on a folder
+shared with you runs when a teammate drops a file there — which is usually
+what you want. A file added at the top level of My Files counts only for its
+uploader.
 
 Two filters do most of the work:
 
@@ -37,16 +43,18 @@ Pair it with a notification, or with an action from another package.
 folder. You can filter on which file, what level of access, and who shared it.
 
 **A public link is created** fires when someone creates a share link. This one
-is mostly useful as an organization rule: a link works for anyone holding the
-URL, so an admin rule watching for them is how you notice something being
-published outside the organization. As a personal rule it means "when *I*
-create a link", which is rarely what you want.
+is mostly useful as a shared rule that an admin manages: a link works for
+anyone holding the URL, so a rule watching for them is how you notice
+something being published outside your workspace. As a personal rule it means
+"when *I* create a link", which is rarely what you want.
 
 ## Filing things away
 
 The action **Move to folder** moves the file that started the rule into a
 folder you pick. It only ever moves that file — a rule can't reach out and move
-something else.
+something else. The destination has to be a folder the rule's owner can write
+to: if a folder is only shared with you as a viewer, the move is refused when
+the rule runs.
 
 ## Recipes
 
@@ -69,3 +77,6 @@ notification. Useful if you don't keep the app open.
   rules react to events as they happen, not to time passing.
 - **Acting on a different file.** Move to folder applies to the file that
   started the rule. A rule can't find some other file and move it.
+- **Filing into someone else's folder.** A rule can only move a file into a
+  folder its owner could move it into by hand — you need editor access to the
+  destination, not just the ability to see it.
