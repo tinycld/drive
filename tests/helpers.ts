@@ -40,6 +40,15 @@ export async function openDriveItem(page: Page, name: string | RegExp) {
     const width = page.viewportSize()?.width ?? 1280
     if (width < MOBILE_BREAKPOINT) await item.click()
     else await item.dblclick()
+
+    // Wait for the folder route to actually land before returning. Opening a
+    // folder pushes /drive/folder/<id> and the listing re-queries; the row that
+    // was just clicked stays mounted through the transition, so without this a
+    // caller can assert on the NEW folder's children while the OLD listing is
+    // still on screen. That reads as "element not found" and only shows up when
+    // the machine is slow enough for the re-query to lose the race — which is
+    // to say, in CI rather than locally.
+    await page.waitForURL(/\/drive\/folder\/[^/]+/)
 }
 
 // Surfaces a drive row by NAME via the search box and returns its (visible)
