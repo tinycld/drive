@@ -109,10 +109,6 @@ function ShareView({ token }: { token: string }) {
 
     // Calc/text (and any doc type with a registered share editor or public
     // preview) → mount the real editor for the visitor.
-    //
-    // No OrgSlugProvider wrapper: single-org has no slug to provide, the
-    // provider is a no-op shim that ignores the prop, and the session no
-    // longer carries one.
     if (getShareEditor(session.mimeType)) {
         return <ShareEditorView token={token} session={session} />
     }

@@ -1,4 +1,5 @@
 import { getFileToken } from '@tinycld/core/file-viewer/use-authed-file-url'
+import { useAuth } from '@tinycld/core/lib/auth'
 import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
@@ -6,8 +7,6 @@ import {
     findCollectionCached,
     readCollectionCached,
 } from '@tinycld/core/lib/read-collection-cached'
-import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
-import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
 import { deduplicateName } from './deduplicate-name'
@@ -45,9 +44,8 @@ export interface CopyDriveItemResult {
 // + per-descendant blob copy. Throws if `sourceItemId` resolves to a
 // folder.
 export function useCopyDriveItem() {
-    const orgSlug = useOrgSlug()
-    const userOrg = useCurrentUserOrg(orgSlug ?? '')
-    const userId = userOrg?.id ?? ''
+    const { user } = useAuth({ throwIfAnon: false })
+    const userId = user?.id ?? ''
     const [itemsCollection] = useStore('drive_items')
 
     return useMutation({

@@ -1,5 +1,4 @@
-import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
-import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
+import { useAuth } from '@tinycld/core/lib/auth'
 import { useUserPreference } from '@tinycld/core/lib/use-user-preference'
 import { usePathname } from 'expo-router'
 import {
@@ -235,9 +234,8 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
         () => (layoutAnimationRef ? () => layoutAnimationRef.current?.() : undefined),
         [layoutAnimationRef]
     )
-    const { orgSlug } = useOrgInfo()
-    const userOrg = useCurrentUserOrg(orgSlug)
-    const userId = userOrg?.id ?? ''
+    const { user } = useAuth({ throwIfAnon: false })
+    const userId = user?.id ?? ''
 
     const pathname = usePathname()
     const { section: activeSection, folderId: currentFolderId } = parseDrivePath(pathname)
