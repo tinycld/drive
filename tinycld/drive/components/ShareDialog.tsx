@@ -601,32 +601,27 @@ function SuggestionsList({
             }}
         >
             <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
-                {suggestions.map(s => {
-                    const firstName = s.name.split(' ')[0] || s.email.split('@')[0]
-                    const lastName = s.name.split(' ').slice(1).join(' ')
-
-                    return (
-                        <Pressable
-                            key={s.key}
-                            onPress={() => onSelect(s)}
-                            className="flex-row items-center gap-2 px-3"
-                            style={{ paddingVertical: 10 }}
-                        >
-                            <Avatar name={`${firstName} ${lastName ?? ''}`.trim()} size={40} />
-                            <View className="flex-1 gap-0.5">
-                                <Text
-                                    className="text-foreground"
-                                    style={{ fontSize: 13, fontWeight: '500' }}
-                                >
-                                    {s.name || s.email}
-                                </Text>
-                                <Text className="text-muted-foreground" style={{ fontSize: 12 }}>
-                                    {s.email}
-                                </Text>
-                            </View>
-                        </Pressable>
-                    )
-                })}
+                {suggestions.map(s => (
+                    <Pressable
+                        key={s.key}
+                        onPress={() => onSelect(s)}
+                        className="flex-row items-center gap-2 px-3"
+                        style={{ paddingVertical: 10 }}
+                    >
+                        <Avatar name={s.name} email={s.email} size={40} />
+                        <View className="flex-1 gap-0.5">
+                            <Text
+                                className="text-foreground"
+                                style={{ fontSize: 13, fontWeight: '500' }}
+                            >
+                                {s.name || s.email}
+                            </Text>
+                            <Text className="text-muted-foreground" style={{ fontSize: 12 }}>
+                                {s.email}
+                            </Text>
+                        </View>
+                    </Pressable>
+                ))}
             </ScrollView>
         </View>
     )
