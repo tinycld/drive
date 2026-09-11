@@ -39,7 +39,54 @@ export async function openDriveItem(page: Page, name: string | RegExp) {
     // own ctx.isMobile branch by keying off the viewport the spec declares.
     const width = page.viewportSize()?.width ?? 1280
     if (width < MOBILE_BREAKPOINT) await item.click()
-    else await item.dblclick()
+    else {
+        // Open with two explicit clicks rather than dblclick(). The app detects
+        // a double click itself, in useDoubleClick: it compares Date.now()
+        // between the two press handlers and only opens when the gap is under
+        // DOUBLE_CLICK_MS (300). That clock measures REACT HANDLER time, not
+        // the gap Playwright puts on the wire — dblclick() sends its pair with
+        // delay 0, but under CI load the work between the two handlers can
+        // itself exceed 300ms. The app then reads two independent single
+        // clicks, which SELECT twice and never open: the listing stays put with
+        // the row merely selected, which is exactly what the failing runs
+        // captured (Rename/Delete in the toolbar, heading still "My Files").
+        //
+        // Dispatching the pair IN THE PAGE makes the gap real DOM time instead
+        // of two Playwright round-trips (each of which can itself exceed 300ms
+        // under load). Synthetic events are the right tool precisely because
+        // the thing under test here is the app's own Date.now() arithmetic, not
+        // the browser's native click synthesis.
+        await item.evaluate(el => {
+            const opts = { bubbles: true, cancelable: true, view: window }
+            for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                el.dispatchEvent(new MouseEvent(type, { ...opts, detail: 1 }))
+            }
+            for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                el.dispatchEvent(new MouseEvent(type, { ...opts, detail: 2 }))
+            }
+        })
+    }
+
+    // Wait for the folder view to actually RENDER before returning. Opening a
+    // folder re-queries the listing, and the row that was just clicked stays
+    // mounted through the transition — so without this a caller can assert on
+    // the NEW folder's children while the OLD listing is still on screen. It
+    // reads as "element not found", and only when the machine is slow enough to
+    // lose the race, which is to say in CI rather than locally.
+    //
+    // Gate on rendered state, NOT waitForURL: this is a client-side route
+    // change and fires no `load` event, so waitForURL waits out the full
+    // timeout while the app sits there working perfectly — the same trap core's
+    // login() helper documents.
+    //
+    // The toolbar header always renders and carries the CURRENT folder's name
+    // (DriveToolbar's `currentLabel` = breadcrumbs.at(-1).name), so it flipping
+    // to the folder we just opened is the commit we need. The toolbar mounts
+    // once in the package layout, above FrozenSlideStack, so there is exactly
+    // one heading and it always reflects the active folder. (The "My Files"
+    // breadcrumb is not usable for this: it only renders two levels deep, where
+    // there is an ancestor to walk back to.)
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
 }
 
 // Surfaces a drive row by NAME via the search box and returns its (visible)
