@@ -6,8 +6,8 @@ import type {
     ShareLinkResponse,
     ShareRequest,
 } from '@tinycld/app-generated/drive-api'
+import { Avatar } from '@tinycld/core/components/Avatar'
 import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
-import { NameAvatar } from '@tinycld/core/components/NameAvatar'
 import {
     type ContactSuggestion,
     ContactSuggestionsProvider,
@@ -250,7 +250,7 @@ export function ShareDialog({
                                 className="flex-row items-center gap-3"
                                 style={{ paddingVertical: 6 }}
                             >
-                                <NameAvatar firstName={p.name || p.email} size={36} />
+                                <Avatar name={p.name} email={p.email} size={36} />
                                 <View className="flex-1" style={{ gap: 1 }}>
                                     <Text
                                         numberOfLines={1}
@@ -298,8 +298,9 @@ export function ShareDialog({
                             className="flex-row items-center gap-3"
                             style={{ paddingVertical: 6 }}
                         >
-                            <NameAvatar
-                                firstName={currentUserShare.name || currentUserShare.email}
+                            <Avatar
+                                name={currentUserShare.name}
+                                email={currentUserShare.email}
                                 size={36}
                             />
                             <View className="flex-1" style={{ gap: 1 }}>
@@ -334,7 +335,7 @@ export function ShareDialog({
                             className="flex-row items-center gap-3"
                             style={{ paddingVertical: 6 }}
                         >
-                            <NameAvatar firstName={share.name || share.email} size={36} />
+                            <Avatar name={share.name} email={share.email} size={36} />
                             <View className="flex-1" style={{ gap: 1 }}>
                                 <Text
                                     numberOfLines={1}
@@ -611,7 +612,7 @@ function SuggestionsList({
                             className="flex-row items-center gap-2 px-3"
                             style={{ paddingVertical: 10 }}
                         >
-                            <NameAvatar firstName={firstName} lastName={lastName} size={40} />
+                            <Avatar name={`${firstName} ${lastName ?? ''}`.trim()} size={40} />
                             <View className="flex-1 gap-0.5">
                                 <Text
                                     className="text-foreground"
