@@ -39,7 +39,28 @@ export async function openDriveItem(page: Page, name: string | RegExp) {
     // own ctx.isMobile branch by keying off the viewport the spec declares.
     const width = page.viewportSize()?.width ?? 1280
     if (width < MOBILE_BREAKPOINT) await item.click()
-    else await item.dblclick()
+    else {
+        // Let the row/card settle before double-clicking. Both views are
+        // virtualized FlashLists whose cells RECYCLE, and the grid additionally
+        // reflows via overrideItemLayout once `cols` is measured — so a cell can
+        // still be moving just after a view-mode swap or a fresh listing. A
+        // dblclick that straddles that reflow delivers its two clicks to
+        // different nodes, which the app reads as two independent SELECTS
+        // instead of an open: the listing stays put with the item merely
+        // selected. Playwright's own actionability check re-tests stability per
+        // click, not across the pair, so gate on the box being identical across
+        // two animation frames first.
+        await expect(async () => {
+            const first = await item.boundingBox()
+            await page.evaluate(
+                () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+            )
+            const second = await item.boundingBox()
+            expect(first).not.toBeNull()
+            expect(second).toEqual(first)
+        }).toPass()
+        await item.dblclick()
+    }
 
     // Wait for the folder view to actually RENDER before returning. Opening a
     // folder re-queries the listing, and the row that was just clicked stays
