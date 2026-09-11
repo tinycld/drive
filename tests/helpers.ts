@@ -40,26 +40,31 @@ export async function openDriveItem(page: Page, name: string | RegExp) {
     const width = page.viewportSize()?.width ?? 1280
     if (width < MOBILE_BREAKPOINT) await item.click()
     else {
-        // Let the row/card settle before double-clicking. Both views are
-        // virtualized FlashLists whose cells RECYCLE, and the grid additionally
-        // reflows via overrideItemLayout once `cols` is measured — so a cell can
-        // still be moving just after a view-mode swap or a fresh listing. A
-        // dblclick that straddles that reflow delivers its two clicks to
-        // different nodes, which the app reads as two independent SELECTS
-        // instead of an open: the listing stays put with the item merely
-        // selected. Playwright's own actionability check re-tests stability per
-        // click, not across the pair, so gate on the box being identical across
-        // two animation frames first.
-        await expect(async () => {
-            const first = await item.boundingBox()
-            await page.evaluate(
-                () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
-            )
-            const second = await item.boundingBox()
-            expect(first).not.toBeNull()
-            expect(second).toEqual(first)
-        }).toPass()
-        await item.dblclick()
+        // Open with two explicit clicks rather than dblclick(). The app detects
+        // a double click itself, in useDoubleClick: it compares Date.now()
+        // between the two press handlers and only opens when the gap is under
+        // DOUBLE_CLICK_MS (300). That clock measures REACT HANDLER time, not
+        // the gap Playwright puts on the wire — dblclick() sends its pair with
+        // delay 0, but under CI load the work between the two handlers can
+        // itself exceed 300ms. The app then reads two independent single
+        // clicks, which SELECT twice and never open: the listing stays put with
+        // the row merely selected, which is exactly what the failing runs
+        // captured (Rename/Delete in the toolbar, heading still "My Files").
+        //
+        // Dispatching the pair IN THE PAGE makes the gap real DOM time instead
+        // of two Playwright round-trips (each of which can itself exceed 300ms
+        // under load). Synthetic events are the right tool precisely because
+        // the thing under test here is the app's own Date.now() arithmetic, not
+        // the browser's native click synthesis.
+        await item.evaluate(el => {
+            const opts = { bubbles: true, cancelable: true, view: window }
+            for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                el.dispatchEvent(new MouseEvent(type, { ...opts, detail: 1 }))
+            }
+            for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                el.dispatchEvent(new MouseEvent(type, { ...opts, detail: 2 }))
+            }
+        })
     }
 
     // Wait for the folder view to actually RENDER before returning. Opening a
