@@ -13,14 +13,15 @@ User-facing features:
 - **Folders and files** — nested hierarchy. Create, rename, move, copy, trash.
 - **Versioning** — every replacement of a file's bytes creates a `drive_item_versions` row with `version_number` (monotonic per-item), size, mime type, source (`upload` | `user` | `system`), and an optional label. Other packages (calc, text) call `POST /api/drive/versions/snapshot` to tag the current bytes as a labeled checkpoint without re-uploading. Restore or download any prior version.
 - **Role-based sharing** — per-item shares with `owner` / `editor` / `commentor` / `viewer` roles (a commentor reads and comments but never edits). "Shared with me" lists everything other people have given you access to.
-- **Public share links** — 64-hex-character tokenized URLs at `/share/<token>` with viewer, commentor, or editor role, optional expiry, download counters, last-accessed timestamps, and an enable / disable toggle that reuses the same token. Served by a public route so recipients don't need an account.
+- **Public share links** — 64-hex-character tokenized URLs at `/p/drive/share/<token>` with viewer, commentor, or editor role, optional expiry, download counters, last-accessed timestamps, and an enable / disable toggle that reuses the same token. Served by a public route so recipients don't need an account.
 - **Server-side thumbnails** — generated asynchronously on upload. PDFs, EPUBs, OOXML Office documents, SVG, HEIC/HEIF photos, and WebP images all render through the pure-Go `omnidoc` library (via `tinycld.org/core/thumbnails`) — the whole pipeline is CGo-free. Plain PNG/JPEG use PocketBase's built-in `?thumb=` query parameter.
 - **In-app previews** — the preview modal and its viewers (PDF canvas renderer, image / video / audio players, text and code viewers) live in `@tinycld/core/file-viewer/`. Drive consumes them and lets other packages register custom previewers (e.g. Calc registers itself for `.xlsx`, surfaced as the "Open in Calc" file action).
 - **Smart categories** — files are classified into `document`, `spreadsheet`, `pdf`, `image`, `presentation`, `drawing`, `video`, `audio`, `archive`, or `code` (mapping lives in `@tinycld/core/file-viewer/file-icons.ts`).
 - **Starred / Recent / Trash** — per-user state. Soft-delete with restore; trashed items still count toward the storage quota until permanently deleted.
 - **Storage quotas** — a per-user ceiling from the core `settings` table at key `storage_limit_bytes` and a deployment-wide ceiling at `org_storage_limit_bytes` (0 = unlimited). Drive declares its storage-bearing collections (`drive_items` + `drive_item_versions`, both sized by `size` and owned by `created_by`) via `quota.RegisterSources`; `core/quota` binds the enforcement hooks, so no write path — REST, WebDAV, or the version endpoints — can route around the limit.
 - **Drag-and-drop uploads** — web-only; walks `webkitGetAsEntry` trees so dropping a folder preserves its structure. A persistent upload status bar tracks pending / uploading / done / error per file.
-- **Search** — SQLite FTS5 across file name, description, and extracted text content. Document text extraction (PDF, Office, plain text) runs asynchronously via `core/textextract` and updates the FTS row when finished.
+- **Search** — SQLite FTS5 across file name, description, and extracted text content. Document text extraction (PDF, Office, plain text) runs asynchronously via `core/textextract` and updates the FTS row when finished. The same index backs two surfaces: drive's own `GET /api/drive/search` (the in-view search box, which filters the grid in place) and the `search.Source` drive registers with core's federated `GET /api/search` (`server/search_source.go`), which is what the cross-app search palette and the CLI's `search` command read. The TypeScript adapter (`tinycld/drive/search-adapter.ts`) only handles selecting a palette row — row shaping is server-side.
+- **Export to PDF / SVG** — server-side conversion through `omnidoc`. "Export to PDF" and "Export to SVG" appear in the file's row menu and in the preview toolbar (`tinycld/drive/lib/export-pdf-action.tsx` registers both against drive's item-action registry and core's preview-action registry); the CLI exposes the same thing as `drive export --to pdf|svg`. A PDF has no PDF export but is a valid SVG source; SVG output is the first page only.
 - **WebDAV mount** — native `/dav/drive/` endpoint. Mount from macOS Finder, Windows Explorer, or Linux GNOME / KDE; the drive becomes a network folder with your Drive tree directly at the root. See the in-app help topic `drive:webdav` for per-OS connection steps.
 - **Realtime updates** — uploads, renames, and share changes propagate immediately through PocketBase's collection-realtime subscriptions (consumed via `pbtsdb`'s `useLiveQuery`). No custom WebSocket layer.
 - **Single-item download** — web-only. Individual files stream directly from PocketBase; folders are zipped on demand via a short-lived (60 s) per-folder download token, capped at 10,000 files and 5 GB per archive.
@@ -33,10 +34,10 @@ Drive contributes triggers and an action to the workflow-rules engine, so users 
 
 **Triggers**
 
-- **`drive:file-added`** — "A file is added". A `drive_items` create, with `ownerField` `created_by`. Exposed fields: `name`, `mime_type` (labelled "Type"), `size`, `is_folder`, `parent` (labelled "Folder").
+- **`drive:file-added`** — "A file is added". A `drive_items` create, with `ownerField` `created_by`, widened by `fileAddedOwnerResolver` (`server/automation.go`) to everyone who can reach the destination folder — so a personal rule on a shared folder fires for the folder's participants, not only the uploader (a root-level file falls back to its creator). Exposed fields: `name`, `mime_type` (labelled "Type"), `size`, `is_folder`, `parent` (labelled "Folder").
 - **`drive:mentioned-in-comment`** — "I'm mentioned in a comment". A `comment_mentions` create, with `ownerField` `mentioned_user`. This one is deliberately cross-cutting: `comment_mentions` is shared, so the trigger covers documents, spreadsheets, *and* files in a single rule — which is why text and calc contribute no mention trigger of their own.
 - **`drive:file-shared`** — "A file is shared with me". A `drive_shares` create; the owner is auto-detected from the `user` (recipient) relation.
-- **`drive:share-link-created`** — "A public link is created". A `drive_share_links` create, with `ownerField` `created_by`. Compliance-oriented, and most useful as an org rule — as a personal rule it means "when *I* create a link".
+- **`drive:share-link-created`** — "A public link is created". A `drive_share_links` create, with `ownerField` `created_by`. Compliance-oriented, and most useful as a shared (admin-managed) rule — as a personal rule it means "when *I* create a link".
 
 **Action**
 
@@ -168,6 +169,12 @@ Public endpoints (`/api/drive/share-link/{token}`, `.../file`, `.../thumbnail`) 
 
 `handleDriveSearch` builds a parameterized FTS5 `MATCH` query, joins through `drive_shares` to enforce per-user access (a `drive_shares` row with `user` equal to the caller's id must exist for the row to be returned — the owner self-share covers the creator's own items), and returns `snippet(..., '<mark>', '</mark>', '...', 30)` for client-side highlighting. Special FTS5 syntax characters (`:`, `*`, `^`, etc.) are stripped from user input before the MATCH so users can't accidentally write invalid queries.
 
+`server/search_source.go` registers a `search.Source` (`Slug: "drive"`, scope `drive:read`, `Order` mirroring `nav.order`) with core's federated `GET /api/search`, so drive rows show up in the cross-app search palette (`/` in the app, scoped with a `drive:` chip) and in the CLI's `search` command. It calls the same `searchDriveItems` the in-app route uses and maps each hit to a normalized `search.Row` (title, description as subtitle, `updated` as meta, plus `is_folder` / `mime_type` / `size` fields for icon choice and scripted filtering). The FTS `<mark>` snippet is deliberately dropped there — a CLI would have to strip markup sent purely for the web. The client-side adapter, `tinycld/drive/search-adapter.ts`, only implements `onSelect`: it pushes `?file=<id>&preview=1`, which `usePreviewUrlSync` hydrates into the open preview.
+
+### Export (PDF / SVG)
+
+`endpoints_export.go` converts a file to PDF or SVG on the server and streams the result as a download. It reuses the folder-download token shape (see below): an authenticated `POST /api/drive/export-token` with `{item, to}` (`to` defaults to `pdf`; `svg` is the only other target) runs the read-access check via `resolveItemAndUser`, refuses folders, fileless items, images, and items already in the target format (`ErrSameFormat` → "item is already a PDF"), then mints a single-use 60-second token. The unauthenticated `GET /api/drive/export?token=...` consumes it, reads the blob (capped at 50 MB), renders through `omnidoc`, and sets `Content-Disposition` to the item name with its extension swapped for the target. A PDF is a valid *input* for SVG export; SVG output is the first page only, since one SVG file has no pagination. The client actions (`tinycld/drive/lib/export-pdf-action.tsx` → `export-pdf.ts`) gate visibility with `canExport(mime, target)` and the server re-checks independently.
+
 ### Thumbnails
 
 `core/thumbnails.CanGenerate(mimeType)` says yes for:
@@ -278,40 +285,51 @@ server/
     extract.go                 textextract → fts_drive_items.content
     thumbnails.go              core/thumbnails → drive_items.thumbnail
     search.go                  /api/drive/search (FTS5)
+    search_source.go           search.Source for core's federated /api/search
+    oauth_scopes.go            drive:read / drive:write scopes + the collections
+                               and endpoints they govern (oauth.RegisterPackage)
+    automation.go              workflow-rules owner resolver + move-to-folder
+                               destination authorizer
     versions.go                snapshotCurrentFile (txn, monotonic version_number)
     endpoints_share.go         /api/drive/share + invite emails
     endpoints_public_share.go  share-link create/list/delete + public token endpoints
     endpoints_share_session.go anonymous share sessions for public links
     endpoints_share_otp.go     email-verified guest provisioning (OTP) for links
     endpoints_download.go      folder-download token flow (POST then GET)
-    endpoints_export.go        convert-and-download token flow
+    endpoints_export.go        PDF / SVG convert-and-download token flow
     bindings.go                $drive.* JS binding for server-side TS hooks
 ```
 
 The WebDAV protocol server itself (FileSystem, auth, path parsing) lives in core at `tinycld/core/server/webdav/`; drive only supplies its `webdav.Source`.
 
-Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,coreserver,driveshare,notify,previewqueue,quota,textextract,thumbnails,userorg,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs.
+Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,coreserver,driveshare,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,search,sharelink,textextract,thumbnails,useraccount,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' server/*.go | sort -u` is the source of truth).
 
 ## Client package layout
 
 ```
+manifest.ts            package manifest (slug, nav, sidebar, provider, server, cli, quota, webdav) — repo root
 tinycld/drive/
-    manifest.ts        package manifest (slug, nav, sidebar, provider, server)
     sidebar.tsx        sections (My Files / Shared with me / Recent / Starred / Trash) + folder tree + storage bar
     provider.tsx       mounts SaveToDriveDialog; registers save-to-drive action
     collections.ts     drive_items / drive_shares / drive_item_state /
                        drive_item_versions / drive_share_links pbtsdb registration
     types.ts           DriveSchema (merged into MergedSchema)
     seed.ts            sample data
+    automation.ts      workflow-rules trigger + action definitions
+    search-adapter.ts  palette row selection (row shaping is server-side)
     screens/
         index.tsx              section view (My Files / Shared / Recent / Starred / Trash)
         recent.tsx             recent-files view
         [...path].tsx          deep-link folder view by path
     public-screens/
-        share/[token].tsx      public-share landing page (/share/<token>)
+        share/[token].tsx      public-share landing page (/p/drive/share/<token>)
     components/
-        DriveToolbar           list/grid toggle, search, primary actions
+        DriveToolbar           breadcrumbs, search, primary actions (core ResponsiveToolbar:
+                               actions fold into a More menu at narrow widths)
         DriveContextMenu       right-click / long-press actions on a file or folder
+        DriveItemMenuButton    per-row "..." menu (same actions)
+        DraggableDriveItem, FolderDropTarget   drag-and-drop move
+        MarqueeContainer, MarqueeOverlay       drag-a-box selection
         DropZone               web-only drag-and-drop, walks webkit FS entries
         FileUploadFAB          iPad floating action button (Photos / Files pickers)
         UploadButton, UploadStatusBar, UploadingGridCard, UploadingListRow
@@ -322,7 +340,10 @@ tinycld/drive/
                                — usable from outside the Drive screen tree
                                (text and calc File menus)
         DetailPanel            details / versions / activity tabs
-        ChooseFolderDialog     "Move to..." / "Copy to..." picker
+        ChooseFolderDialog     "Move to..." picker
+        CopyToFolderDialog     "Copy to..." picker
+        TemplatePickerDialog   new-from-template picker
+        NoFilePanel            empty-state panel (upload / new / template shortcuts)
         SaveToDriveDialog      cross-package "save this file to Drive"
         file-icons.ts          re-exports from @tinycld/core/file-viewer/file-icons
     hooks/
@@ -335,6 +356,10 @@ tinycld/drive/
         useUploadPlaceholders.ts  optimistic upload rows in the current view
         useVersionHistory.ts   list + restore versions
         useDriveSearch.ts      /api/drive/search hook
+        usePreviewUrlSync.ts   two-way `?file=&preview=1` <-> preview store sync
+                               (browser back/forward drives the preview)
+        useDriveShortcuts.ts, useFileSelection.ts, useMarqueeSelection.ts
+        useDriveItemActions.tsx, use-drive-item-file-actions.ts
         use-folder-tree-query.ts  sidebar folder tree (export: useFolderTreeQuery)
         use-share-data.ts      collection-agnostic share data hook used by
                                ShareDialogConnected
@@ -342,15 +367,21 @@ tinycld/drive/
         copy-drive-item.ts     POST-then-recursive copy
         item-actions-registry.ts  registry for cross-package "Open in X" actions
         template-naming.ts     derive default names for new-from-template items
+        export-pdf.ts, export-pdf-action.tsx   "Export to PDF" / "Export to SVG" actions
         save-to-drive.ts, save-to-drive-action.tsx, upload-to-drive.ts
+        share-routing.ts       public-link vs in-app share URL routing
     stores/
         upload-store.ts        zustand: uploading-files list (status + progress)
-        drive-ui-store.ts      zustand: shared UI state (dialogs, view mode)
+        drive-ui-store.ts      zustand: shared UI state (dialogs, view mode, preview item)
+        copy-dialog-store.ts   zustand: "Copy to..." dialog target
+        drive-snapshot-store.ts  useSyncExternalStore bridge so overlay-layer menus and
+                               the detail drawer can read Drive state outside its provider
+        save-to-drive-store.ts zustand: cross-package save-to-drive dialog
 ```
 
 ## Command line
 
-Drive contributes a `drive` command group to the `tinycld` binary — a Go CLI the server cross-compiles and hands out from **Settings → Personal → About**. The source lives in this repo at `cli/`, declared through a `cli` block in `manifest.ts` naming the Go module and the OAuth scopes it requests: `drive:read` and `drive:write`.
+Drive contributes a `drive` command group to the `tinycld` binary — a Go CLI the server cross-compiles and hands out from **Settings → Personal → About**. The source lives in this repo at `cli/`, declared through a `cli` block in `manifest.ts` naming the Go package and module. The OAuth scopes the commands need (`drive:read` and `drive:write`) are not in the manifest — they are registered from the Go server via `oauth.RegisterPackage` in `server/oauth_scopes.go`, which also pins the collections and endpoints each scope governs.
 
 | Group | Commands |
 |-------|----------|
@@ -360,7 +391,7 @@ Drive contributes a `drive` command group to the `tinycld` binary — a Go CLI t
 | Sharing | `share`, `link create`, `link list`, `link revoke` |
 | History and usage | `versions`, `usage` |
 
-Every path argument also accepts `id:<record-id>`, so a script that already holds a record id doesn't have to reconstruct its path. A `get` on a folder downloads it as a zip.
+Every path argument also accepts `id:<record-id>`, so a script that already holds a record id doesn't have to reconstruct its path. A `get` on a folder downloads it as a zip. `export` converts a document to PDF (the default) or SVG via `--to pdf|svg`; a PDF can be exported to SVG. Both `get` and `export` prompt before overwriting an existing local file — `--yes` skips the prompt for scripts (`cli/get.go`, `cli/export.go`).
 
 See [the command line tool](https://tinycld.org/docs/command-line-tool) for setup and authentication, the [full CLI reference](https://tinycld.org/docs/reference/cli-reference) for every flag, and the in-app help topic `help/command-line.md`.
 

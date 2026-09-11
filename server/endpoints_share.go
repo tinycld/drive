@@ -80,7 +80,7 @@ func handleShare(app core.App, re *core.RequestEvent) error {
 
 		if r.Email != "" {
 			if r.UserID == "" {
-				// External recipient: create a public share link and use /share/<token> URL
+				// External recipient: create a public share link and use the /p/drive/share/<token> URL
 				go sendExternalShareInvite(app, senderName, r, item, req.Message, item.GetString("created_by"), userID)
 			} else {
 				go sendShareInvite(app, senderName, r, item.GetString("name"), req.ItemID, req.Message, userID)
@@ -135,7 +135,7 @@ func sendShareInvite(app core.App, senderName string, r api.ShareRecipient, item
 	}
 }
 
-// sendExternalShareInvite creates a public share link and sends an email with the /share/<token> URL.
+// sendExternalShareInvite creates a public share link and sends an email with the /p/drive/share/<token> URL.
 func sendExternalShareInvite(app core.App, senderName string, r api.ShareRecipient, item *core.Record, message string, createdByUserID string, senderUserID string) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
@@ -168,7 +168,7 @@ func sendExternalShareInvite(app core.App, senderName string, r api.ShareRecipie
 		return
 	}
 
-	link := fmt.Sprintf("%s/share/%s", app.Settings().Meta.AppURL, token)
+	link := publicShareURL(app, token)
 	itemName := item.GetString("name")
 
 	greeting := "Hi"

@@ -10,7 +10,7 @@ order: 30
 Two ways:
 
 - Click **New** in the sidebar and choose **New folder**.
-- Click the **New folder** button in the toolbar of the current view.
+- Click the **New folder** button in the toolbar of the current view. On a narrow window the toolbar folds its actions into a **More** menu — look for **New folder** there.
 
 Either prompts for a name. The folder is created at your current location — inside whatever folder you're viewing, or at the root if you're in My Files.
 
@@ -18,12 +18,12 @@ Either prompts for a name. The folder is created at your current location — in
 
 - **Sidebar tree** — the folder hierarchy under **My Files** expands and collapses. Click a folder name to jump to it; click the chevron to expand without jumping. The tree auto-expands to show your current location.
 - **Folder view** — double-click any folder in the main view to enter it.
-- **Breadcrumbs** — the path at the top of the workspace (e.g. `My Files / Projects / 2026`) lets you jump back to any ancestor. The org slug at the start is a link to the Drive root.
+- **Breadcrumbs** — the path at the top of the workspace (e.g. `My Files / Projects / 2026`) lets you jump back to any ancestor. The first item, **My Files**, is a link to the Drive root.
 - **Back button** — your browser's back button (or the swipe-back gesture on iPad) reverses the last navigation.
 
 ## Renaming a folder
 
-Right-click the folder and choose **Rename**, or select it and use the toolbar's **Rename** button. References to the folder from other places (share links, [Calc](help://calc:getting-started) workbooks stored inside it) keep working — the folder's identity doesn't change with its name.
+Right-click the folder and choose **Rename**, or select it and use the toolbar's **Rename** button (under **More** on a narrow window). References to the folder from other places (share links, [Calc](help://calc:getting-started) workbooks stored inside it) keep working — the folder's identity doesn't change with its name.
 
 ## Moving folders and files
 

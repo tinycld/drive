@@ -39,7 +39,7 @@ To replace the contents of an existing file instead, right-click that file and c
 
 ## Storage quota
 
-Each org has a storage quota. The sidebar's storage bar shows your usage. When you approach the quota, uploads are still allowed; once you exceed it, new uploads are rejected with an error. Free up space by emptying [Trash](help://drive:trash) — trashed files still count against the quota until permanently deleted.
+Each user has a storage quota, and the server can set a ceiling for everyone's files combined. The sidebar's storage bar shows your usage. When you approach the quota, uploads are still allowed; once you exceed it, new uploads are rejected with an error. Free up space by emptying [Trash](help://drive:trash) — trashed files still count against the quota until permanently deleted.
 
 ## See also
 

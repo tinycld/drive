@@ -25,19 +25,21 @@ In Grid view, sort is name-only (A → Z).
 - **Click** a file to select it.
 - **Click another** to switch the selection.
 - **Shift-click** to select a range of files between your last click and the new one.
-- **Ctrl/⌘-click** (Cmd-click on Mac) to add or remove individual files from the selection — useful for grabbing a disjoint set.
+- **⌘-click** to add or remove individual files from the selection — useful for grabbing a disjoint set.
 - **Drag a box** — press on empty space and drag. A selection rectangle appears, and every file it touches is selected as you move. Hold **⌘** while you drag to add the boxed files to what's already selected instead of starting over. Drag past the top or bottom edge to scroll and keep selecting. Works in both List and Grid views.
 
 On iPad, long-press a file to enter selection mode, then tap additional files to add them.
 
 ## Selecting everything
 
-- **⌘A** (Ctrl+A on Windows) in any view selects every visible file.
+- **⌘A** in any view selects every visible file.
 - **Esc** clears the selection.
 
 ## Acting on the selection
 
 When more than one file is selected, the toolbar shows the actions that apply to all of them — typically **Download** (as a zip), **Move**, **Share**, **Move to trash**. Actions specific to a single file (Rename, Preview, Star) are unavailable until you reduce the selection.
+
+On a narrow window the toolbar doesn't have room for every action, so the ones that don't fit fold into a **More** menu at its right edge. Anything described as "in the toolbar" may be there.
 
 ## See also
 

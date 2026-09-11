@@ -37,12 +37,15 @@ tinycld drive tree /Projects --depth 2
 tinycld drive put report.pdf /Projects        # upload into a folder
 tinycld drive put ./photos /Albums -r         # upload a whole directory tree
 tinycld drive get /Projects/report.pdf .      # download to the current dir
+tinycld drive get /Projects/report.pdf --yes  # overwrite a local copy without asking
 tinycld drive cat /Projects/notes.txt         # print a file to the terminal
 ```
 
 Uploads get the same treatment as in the app: duplicate names are
 de-duplicated automatically, and the final name is reported. Downloading a
-folder produces a zip of its contents.
+folder produces a zip of its contents. When the destination file already
+exists, `get` asks before overwriting it; pass `--yes` in scripts to skip the
+prompt.
 
 ## Organizing
 
@@ -96,12 +99,16 @@ tinycld drive versions /plan.docx                       # history, newest first
 tinycld drive versions /plan.docx --snapshot --label "before rewrite"
 tinycld drive versions /plan.docx --restore 3
 tinycld drive export /plan.docx report.pdf              # convert to PDF
+tinycld drive export /plan.docx --to svg                # first page as SVG
 ```
 
 Restoring snapshots the current file first, so nothing is lost. `export`
-converts documents, spreadsheets, presentations, and text formats to PDF; the
-server refuses folders, files that are already PDFs, and types it cannot
-convert. See [Versions](help://drive:versions).
+converts documents, spreadsheets, presentations, and text formats to PDF by
+default, or to SVG with `--to svg`. SVG output is the first page only. A PDF
+can't be exported to PDF (it already is one) but can be exported to SVG; the
+server refuses folders, images, and types it cannot convert. Like `get`,
+`export` asks before overwriting an existing local file — `--yes` skips the
+prompt. See [Versions](help://drive:versions).
 
 ## Scripting
 

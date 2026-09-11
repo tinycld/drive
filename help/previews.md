@@ -27,7 +27,8 @@ The preview opens in an overlay above Drive. While it's open:
 
 - **Arrow keys** (or swipe on iPad) move between adjacent files in the current view.
 - **Esc** closes the preview.
-- A toolbar at the top has **Download**, **Share**, **Info**, **Star**, and **Move to trash** so you can act on the file without closing first.
+- A toolbar at the top has **Download**, **Share**, **Info**, **Star**, and **Move to trash** so you can act on the file without closing first. Documents also get **Export to PDF** and **Export to SVG** there (a PDF gets only the SVG one) — see [Working with files](help://drive:files).
+- The address bar follows the preview: opening, closing, or stepping through files updates the URL, so the browser's **Back** and **Forward** buttons reopen the previous file or close the preview, and copying the URL gives a link that opens straight onto this file.
 
 ## Thumbnails
 

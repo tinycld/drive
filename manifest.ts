@@ -17,9 +17,10 @@ const manifest = {
     search: { adapter: 'search-adapter' },
     migrations: { directory: 'pb-migrations' },
     collections: { register: 'collections', types: 'types' },
-    // Trigger + action catalog for workflow rules. Pure data — both triggers
-    // declare their owner column and move-to-folder is a record-op, so drive
-    // needs no automation Go.
+    // Trigger + action catalog for workflow rules. The definitions are data;
+    // server/automation.go adds the Go the engine requires alongside them: the
+    // file-added owner resolver (destination-folder participants, not just the
+    // uploader) and the move-to-folder destination authorizer.
     automation: { definitions: 'automation' },
     seed: { script: 'seed' },
     // Go server extension: the drive_items hooks (quota, dedup, owner share,
@@ -31,7 +32,7 @@ const manifest = {
     // the peerVersions floor below must stay >= the core that ships the
     // emitter.
     payloads: { package: 'server/api' },
-    // `tinycld drive ...` commands, compiled into the per-org CLI binary by
+    // `tinycld drive ...` commands, compiled into the per-deployment CLI binary by
     // gen-cli.ts. The OAuth scopes the commands need are registered by
     // server/oauth_scopes.go, never declared here.
     // Cobra is the source of truth for the command list and --help.

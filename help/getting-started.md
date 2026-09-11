@@ -15,7 +15,7 @@ Drive is also the storage layer for other packages. When you create a workbook i
 
 The Drive sidebar groups files by how you got to them:
 
-- **My Files** — files you've uploaded or created in this org. The folder tree below this entry expands to show your folder hierarchy.
+- **My Files** — files you've uploaded or created on this server. The folder tree below this entry expands to show your folder hierarchy.
 - **Shared with me** — files other people have given you access to. See [Sharing](help://drive:sharing).
 - **Recent** — files you've opened recently, most recent first.
 - **Starred** — files you've starred for quick access. See [Files](help://drive:files).

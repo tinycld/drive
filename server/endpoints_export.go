@@ -21,8 +21,9 @@ import (
 )
 
 // Export converts a drive item to another format on the server and streams the
-// result back as a download. v1 targets PDF only; the token/route shape is
-// generic so other output formats can slot in behind the same `to` param.
+// result back as a download. PDF is the default target and SVG the other
+// supported one; the token/route shape is generic so further output formats
+// can slot in behind the same `to` param.
 //
 // Auth mirrors the folder-download flow (endpoints_download.go): an authed POST
 // mints a single-use, short-lived token after the read-access check, and an
