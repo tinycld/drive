@@ -41,14 +41,26 @@ export async function openDriveItem(page: Page, name: string | RegExp) {
     if (width < MOBILE_BREAKPOINT) await item.click()
     else await item.dblclick()
 
-    // Wait for the folder route to actually land before returning. Opening a
-    // folder pushes /drive/folder/<id> and the listing re-queries; the row that
-    // was just clicked stays mounted through the transition, so without this a
-    // caller can assert on the NEW folder's children while the OLD listing is
-    // still on screen. That reads as "element not found" and only shows up when
-    // the machine is slow enough for the re-query to lose the race — which is
-    // to say, in CI rather than locally.
-    await page.waitForURL(/\/drive\/folder\/[^/]+/)
+    // Wait for the folder view to actually RENDER before returning. Opening a
+    // folder re-queries the listing, and the row that was just clicked stays
+    // mounted through the transition — so without this a caller can assert on
+    // the NEW folder's children while the OLD listing is still on screen. It
+    // reads as "element not found", and only when the machine is slow enough to
+    // lose the race, which is to say in CI rather than locally.
+    //
+    // Gate on rendered state, NOT waitForURL: this is a client-side route
+    // change and fires no `load` event, so waitForURL waits out the full
+    // timeout while the app sits there working perfectly — the same trap core's
+    // login() helper documents.
+    //
+    // The toolbar header always renders and carries the CURRENT folder's name
+    // (DriveToolbar's `currentLabel` = breadcrumbs.at(-1).name), so it flipping
+    // to the folder we just opened is the commit we need. The toolbar mounts
+    // once in the package layout, above FrozenSlideStack, so there is exactly
+    // one heading and it always reflects the active folder. (The "My Files"
+    // breadcrumb is not usable for this: it only renders two levels deep, where
+    // there is an ancestor to walk back to.)
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
 }
 
 // Surfaces a drive row by NAME via the search box and returns its (visible)
