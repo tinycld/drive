@@ -16,6 +16,7 @@ import { captureException, errorToString } from '@tinycld/core/lib/errors'
 import { usePackages } from '@tinycld/core/lib/packages/use-packages'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { useAvatarUrl } from '@tinycld/core/lib/use-avatar-url'
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { Menu } from '@tinycld/core/ui/menu'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
@@ -25,18 +26,28 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from '
 
 // One merged, de-duplicated suggestion the picker can render, tagged by where
 // it came from (an org member vs. a contact from the optional contacts pkg).
+// Contacts carry no `users` link, so their avatar fields are always empty —
+// only member-sourced suggestions can resolve a stored photo.
 interface SuggestionEntry {
     key: string
     userId: string
     name: string
     email: string
     source: 'member' | 'contact'
+    avatar: string
+    avatarCrop: string
+    avatarColor: string
+    avatarEmoji: string
 }
 
 interface OrgMember {
     userId: string
     name: string
     email: string
+    avatar: string
+    avatarCrop: string
+    avatarColor: string
+    avatarEmoji: string
 }
 
 interface ShareEntry {
@@ -45,6 +56,10 @@ interface ShareEntry {
     name: string
     email: string
     role: string
+    avatar: string
+    avatarCrop: string
+    avatarColor: string
+    avatarEmoji: string
 }
 
 interface PendingShare {
@@ -53,6 +68,10 @@ interface PendingShare {
     name: string
     email: string
     role: 'editor' | 'viewer'
+    avatar: string
+    avatarCrop: string
+    avatarColor: string
+    avatarEmoji: string
 }
 
 interface ShareDialogProps {
@@ -145,6 +164,10 @@ export function ShareDialog({
                 name: s.name,
                 email: s.email,
                 role: defaultRole,
+                avatar: s.avatar,
+                avatarCrop: s.avatarCrop,
+                avatarColor: s.avatarColor,
+                avatarEmoji: s.avatarEmoji,
             },
         ])
         setSearch('')
@@ -250,7 +273,7 @@ export function ShareDialog({
                                 className="flex-row items-center gap-3"
                                 style={{ paddingVertical: 6 }}
                             >
-                                <Avatar name={p.name} email={p.email} size={36} />
+                                <PendingShareAvatar share={p} />
                                 <View className="flex-1" style={{ gap: 1 }}>
                                     <Text
                                         numberOfLines={1}
@@ -298,11 +321,7 @@ export function ShareDialog({
                             className="flex-row items-center gap-3"
                             style={{ paddingVertical: 6 }}
                         >
-                            <Avatar
-                                name={currentUserShare.name}
-                                email={currentUserShare.email}
-                                size={36}
-                            />
+                            <ShareEntryAvatar share={currentUserShare} />
                             <View className="flex-1" style={{ gap: 1 }}>
                                 <Text
                                     className="text-foreground"
@@ -335,7 +354,7 @@ export function ShareDialog({
                             className="flex-row items-center gap-3"
                             style={{ paddingVertical: 6 }}
                         >
-                            <Avatar name={share.name} email={share.email} size={36} />
+                            <ShareEntryAvatar share={share} />
                             <View className="flex-1" style={{ gap: 1 }}>
                                 <Text
                                     numberOfLines={1}
@@ -482,7 +501,75 @@ function buildMemberSuggestions(
             name: m.name,
             email: m.email,
             source: 'member' as const,
+            avatar: m.avatar,
+            avatarCrop: m.avatarCrop,
+            avatarColor: m.avatarColor,
+            avatarEmoji: m.avatarEmoji,
         }))
+}
+
+/** A pending share row's avatar — its own component so useAvatarUrl, a hook,
+ *  is called once per row rather than inside the pending.map() above. */
+function PendingShareAvatar({ share }: { share: PendingShare }) {
+    const avatar = useAvatarUrl({
+        id: share.userId,
+        avatar: share.avatar,
+        avatar_crop: share.avatarCrop,
+    })
+    return (
+        <Avatar
+            name={share.name}
+            email={share.email}
+            colorKey={share.userId}
+            avatar={avatar}
+            emoji={share.avatarEmoji || undefined}
+            color={share.avatarColor || undefined}
+            size={36}
+        />
+    )
+}
+
+/** An existing share row's avatar — its own component so useAvatarUrl, a
+ *  hook, is called once per row rather than inside otherShares.map() above
+ *  (also covers the single current-user row for the same reason). */
+function ShareEntryAvatar({ share }: { share: ShareEntry }) {
+    const avatar = useAvatarUrl({
+        id: share.userId,
+        avatar: share.avatar,
+        avatar_crop: share.avatarCrop,
+    })
+    return (
+        <Avatar
+            name={share.name}
+            email={share.email}
+            colorKey={share.userId}
+            avatar={avatar}
+            emoji={share.avatarEmoji || undefined}
+            color={share.avatarColor || undefined}
+            size={36}
+        />
+    )
+}
+
+/** A suggestion dropdown row's avatar — its own component so useAvatarUrl, a
+ *  hook, is called once per row rather than inside suggestions.map() above. */
+function SuggestionAvatar({ suggestion }: { suggestion: SuggestionEntry }) {
+    const avatar = useAvatarUrl({
+        id: suggestion.userId,
+        avatar: suggestion.avatar,
+        avatar_crop: suggestion.avatarCrop,
+    })
+    return (
+        <Avatar
+            name={suggestion.name}
+            email={suggestion.email}
+            colorKey={suggestion.userId || suggestion.email}
+            avatar={avatar}
+            emoji={suggestion.avatarEmoji || undefined}
+            color={suggestion.avatarColor || undefined}
+            size={40}
+        />
+    )
 }
 
 function SaveErrorBanner({ message }: { message: string | null }) {
@@ -517,6 +604,13 @@ function buildContactSuggestions(
             name: `${c.first_name} ${c.last_name}`.trim(),
             email: c.email,
             source: 'contact' as const,
+            // A `contacts` record carries no link to a `users` row, so a
+            // contact-sourced suggestion has no stored photo to resolve —
+            // Avatar falls back to initials for these, same as before.
+            avatar: '',
+            avatarCrop: '',
+            avatarColor: '',
+            avatarEmoji: '',
         }))
 }
 
@@ -608,7 +702,7 @@ function SuggestionsList({
                         className="flex-row items-center gap-2 px-3"
                         style={{ paddingVertical: 10 }}
                     >
-                        <Avatar name={s.name} email={s.email} size={40} />
+                        <SuggestionAvatar suggestion={s} />
                         <View className="flex-1 gap-0.5">
                             <Text
                                 className="text-foreground"
