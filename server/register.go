@@ -532,7 +532,7 @@ func handleStorageUsage(app core.App, re *core.RequestEvent) error {
 		return re.InternalServerError("failed to get user storage", nil)
 	}
 
-	orgDriveBytes, orgMailBytes, err := getDeploymentStorageUsed(app)
+	orgDriveBytes, err := getDeploymentStorageUsed(app)
 	if err != nil {
 		return re.InternalServerError("failed to get deployment storage", nil)
 	}
@@ -542,7 +542,6 @@ func handleStorageUsage(app core.App, re *core.RequestEvent) error {
 	result := api.StorageUsageResponse{
 		UserUsedBytes: userUsed,
 		OrgDriveBytes: orgDriveBytes,
-		OrgMailBytes:  orgMailBytes,
 		LimitBytes:    limitBytes,
 		HasLimit:      limitBytes > 0,
 	}

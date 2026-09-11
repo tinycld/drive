@@ -30,10 +30,16 @@ func getUserStorageUsed(app core.App, userID string) (int64, error) {
 	return result.Total, nil
 }
 
-// getDeploymentStorageUsed returns (driveBytes, mailBytes) for the whole
+// getDeploymentStorageUsed returns the bytes drive holds across the whole
 // deployment. Single-org: the deployment IS the org, so there is nothing to
 // scope by.
-func getDeploymentStorageUsed(app core.App) (int64, int64, error) {
+//
+// Drive's own bytes only. This used to also sum mail_messages, which meant one
+// package querying another's tables directly — it broke silently when mail was
+// absent and, being hardcoded, never counted any package added later. Usage
+// across packages is core's to report, from the quota sources each package
+// registers: GET /api/storage-usage.
+func getDeploymentStorageUsed(app core.App) (int64, error) {
 	var driveResult struct {
 		Total int64 `db:"total"`
 	}
@@ -46,24 +52,9 @@ func getDeploymentStorageUsed(app core.App) (int64, int64, error) {
 		) AS total
 	`).Bind(map[string]any{}).One(&driveResult)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-
-	var mailResult struct {
-		Total int64 `db:"total"`
-	}
-	err = app.DB().NewQuery(`
-		SELECT COALESCE(SUM(m.total_size), 0) AS total
-		FROM mail_messages m
-		JOIN mail_threads t ON m.thread = t.id
-		JOIN mail_mailboxes mb ON t.mailbox = mb.id
-	`).Bind(map[string]any{}).One(&mailResult)
-	if err != nil {
-		// Mail tables may not exist if package is not installed
-		mailResult.Total = 0
-	}
-
-	return driveResult.Total, mailResult.Total, nil
+	return driveResult.Total, nil
 }
 
 // getStorageLimitBytes returns the per-user limit in bytes (0 = unlimited).

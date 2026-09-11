@@ -183,7 +183,6 @@ type UserStorageBreakdown struct {
 type StorageUsageResponse struct {
 	UserUsedBytes int64                  `json:"user_used_bytes"`
 	OrgDriveBytes int64                  `json:"org_drive_bytes"`
-	OrgMailBytes  int64                  `json:"org_mail_bytes"`
 	LimitBytes    int64                  `json:"limit_bytes"`
 	HasLimit      bool                   `json:"has_limit"`
 	Users         []UserStorageBreakdown `json:"users,omitempty"`
