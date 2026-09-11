@@ -1,10 +1,9 @@
 import { and, eq } from '@tanstack/db'
+import { useAuth } from '@tinycld/core/lib/auth'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
-import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { router } from 'expo-router'
 import { newRecordId } from 'pbtsdb/core'
 import { useCallback } from 'react'
@@ -58,9 +57,8 @@ export function useDriveItemFileActions(
         'drive_items',
         'drive_item_state'
     )
-    const orgSlug = useOrgSlug()
-    const userOrg = useCurrentUserOrg(orgSlug)
-    const userId = userOrg?.id ?? ''
+    const { user } = useAuth({ throwIfAnon: false })
+    const userId = user?.id ?? ''
     const orgHref = useOrgHref()
     const openCopyDialog = useCopyDialogStore(s => s.openCopyDialog)
 

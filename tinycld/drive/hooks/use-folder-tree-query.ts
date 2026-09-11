@@ -1,8 +1,7 @@
 import { and, eq } from '@tanstack/db'
+import { useAuth } from '@tinycld/core/lib/auth'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useCurrentUserOrg } from '@tinycld/core/lib/use-current-user-org'
 import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
-import { useOrgSlug } from '@tinycld/core/lib/use-org-slug'
 import { useMemo } from 'react'
 import type { FolderTreeNode } from '../types'
 
@@ -33,9 +32,8 @@ interface FolderRow {
 // is intentionally not joined — moving/copying into a trashed folder
 // would surface as a server-side error and is not a real flow.
 export function useFolderTreeQuery(_: UseFolderTreeQueryArgs = {}): FolderTreeNode[] {
-    const orgSlug = useOrgSlug()
-    const userOrg = useCurrentUserOrg(orgSlug)
-    const userId = userOrg?.id ?? ''
+    const { user } = useAuth({ throwIfAnon: false })
+    const userId = user?.id ?? ''
 
     const [itemsCollection] = useStore('drive_items')
 

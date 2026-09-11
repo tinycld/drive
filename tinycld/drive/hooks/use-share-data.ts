@@ -10,12 +10,20 @@ export interface ShareEntry {
     name: string
     email: string
     role: string
+    avatar: string
+    avatarCrop: string
+    avatarColor: string
+    avatarEmoji: string
 }
 
 export interface OrgMember {
     userId: string
     name: string
     email: string
+    avatar: string
+    avatarCrop: string
+    avatarColor: string
+    avatarEmoji: string
 }
 
 export interface ShareData {
@@ -59,6 +67,22 @@ export function useShareData(itemId: string): ShareData {
         [allUsers]
     )
 
+    const userAvatars = useMemo(
+        () =>
+            new Map(
+                (allUsers ?? []).map(u => [
+                    u.id,
+                    {
+                        avatar: u.avatar || '',
+                        avatarCrop: u.avatar_crop || '',
+                        avatarColor: u.avatar_color || '',
+                        avatarEmoji: u.avatar_emoji || '',
+                    },
+                ])
+            ),
+        [allUsers]
+    )
+
     const orgMembers = useMemo<OrgMember[]>(
         () =>
             (allUsers ?? [])
@@ -67,12 +91,17 @@ export function useShareData(itemId: string): ShareData {
                     userId: u.id,
                     name: u.name || '',
                     email: u.email || '',
+                    avatar: u.avatar || '',
+                    avatarCrop: u.avatar_crop || '',
+                    avatarColor: u.avatar_color || '',
+                    avatarEmoji: u.avatar_emoji || '',
                 })),
         [allUsers, userId]
     )
 
     const shares = useMemo<ShareEntry[]>(() => {
         if (!itemId) return []
+        const emptyAvatar = { avatar: '', avatarCrop: '', avatarColor: '', avatarEmoji: '' }
         return (rawShares ?? [])
             .filter(s => s.item === itemId)
             .map(s => ({
@@ -81,8 +110,9 @@ export function useShareData(itemId: string): ShareData {
                 name: userNames.get(s.user) ?? '',
                 email: userEmails.get(s.user) ?? '',
                 role: s.role,
+                ...(userAvatars.get(s.user) ?? emptyAvatar),
             }))
-    }, [rawShares, itemId, userNames, userEmails])
+    }, [rawShares, itemId, userNames, userEmails, userAvatars])
 
     const unshareMutation = useMutation({
         mutationFn: mutation(function* (shareId: string) {
