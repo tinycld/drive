@@ -29,7 +29,6 @@ func newUsageCmd(c *client.Client) *cobra.Command {
 			rows := [][]string{
 				{"Your files", output.FormatBytes(resp.UserUsedBytes)},
 				{"All Drive files", output.FormatBytes(resp.OrgDriveBytes)},
-				{"Mail storage", output.FormatBytes(resp.OrgMailBytes)},
 				{"Storage limit", limit},
 			}
 			return o.Write(cmd.OutOrStdout(), []string{"WHAT", "SIZE"}, rows, resp)

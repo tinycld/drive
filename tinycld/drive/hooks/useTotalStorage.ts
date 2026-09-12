@@ -16,7 +16,10 @@ export interface StorageUsage {
  */
 export function useTotalStorage(): StorageUsage {
     const { data } = useQuery<StorageUsageResponse>({
-        queryKey: ['storage-usage'],
+        // Distinct from core's ['storage-usage'] (GET /api/storage-usage,
+        // the cross-package per-user breakdown). Two endpoints under one key
+        // would serve each other's cached payload.
+        queryKey: ['drive-storage-usage'],
         queryFn: () => pb.send('/api/drive/storage-usage', {}),
     })
     return {

@@ -418,7 +418,7 @@ func TestSearchMapsFlagsAndStripsMarks(t *testing.T) {
 func TestUsageRendersHumanSizes(t *testing.T) {
 	f := newFakeDrive(t)
 	f.usageResponse = api.StorageUsageResponse{
-		UserUsedBytes: 1536, OrgDriveBytes: 1048576, OrgMailBytes: 0,
+		UserUsedBytes: 1536, OrgDriveBytes: 1048576,
 		LimitBytes: 5 * 1024 * 1024 * 1024, HasLimit: true,
 	}
 	_, c := f.serve()
