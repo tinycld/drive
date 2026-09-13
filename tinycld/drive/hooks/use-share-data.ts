@@ -1,7 +1,7 @@
+import { useLiveQuery } from '@tanstack/react-db'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
 import { useMemo } from 'react'
 
 export interface ShareEntry {
@@ -51,11 +51,11 @@ export function useShareData(itemId: string): ShareData {
     const [sharesCollection] = useStore('drive_shares')
     const [usersCollection] = useStore('users')
 
-    const { data: rawShares } = useOrgLiveQuery(query => query.from({ share: sharesCollection }))
+    const { data: rawShares } = useLiveQuery(query => query.from({ share: sharesCollection }))
 
     // Every user in the single database is a member; names/emails are keyed by
     // users id (the value drive_shares.user now stores).
-    const { data: allUsers } = useOrgLiveQuery(query => query.from({ user: usersCollection }))
+    const { data: allUsers } = useLiveQuery(query => query.from({ user: usersCollection }))
 
     const userNames = useMemo(
         () => new Map((allUsers ?? []).map(u => [u.id, u.name || u.email || ''])),

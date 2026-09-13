@@ -1,6 +1,6 @@
 import { and, eq } from '@tanstack/db'
+import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
 import { useMemo } from 'react'
 import { isTemplateName, TEMPLATE_EXTENSIONS, type TemplateExtension } from '../lib/template-naming'
 
@@ -66,7 +66,7 @@ export function useTemplateItems(extension: TemplateExtension) {
     const [driveItemsCollection] = useStore('drive_items')
     const mime = MIME_BY_EXTENSION[extension]
 
-    const { data, isLoading } = useOrgLiveQuery(
+    const { data, isLoading } = useLiveQuery(
         query =>
             query
                 .from({ item: driveItemsCollection })
