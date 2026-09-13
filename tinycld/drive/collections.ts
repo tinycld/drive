@@ -14,7 +14,7 @@ export function registerCollections(
     coreStores: CoreStores
 ) {
     // Hoisted rather than written inline at each call site: an inline object
-    // literal here defeats pbtsdb 0.8.0's `alwaysExpand` key inference (the
+    // literal here defeats pbtsdb's `alwaysFetchRelations` key inference (the
     // keys resolve to `never`), so every collection references this const.
     const indexing = { autoIndex: 'eager' as const, defaultIndexType: BasicIndex }
 
@@ -27,7 +27,6 @@ export function registerCollections(
             'index_hash',
         ] as const,
         relations: { created_by: coreStores.users },
-        alwaysExpand: ['created_by'],
         // On-demand: each useLiveQuery against drive_items issues a server
         // fetch with the where/orderBy translated into a PocketBase filter.
         // Avoids loading every item in the org just to render a single folder.
@@ -35,6 +34,13 @@ export function registerCollections(
         collectionOptions: indexing,
     })
 
+    // `alwaysFetchRelations: ['item']` on the collections below is deliberate and
+    // load-bearing: drive_items is syncMode 'on-demand', so a share / state /
+    // version row can reference an item this client never queried, and filing it
+    // through the parent's expand is the only thing that puts it in the store.
+    // Relations whose target is EAGER (users, here) need no entry — that store
+    // syncs itself, so fetching them would only add payload. Rows never carry
+    // `expand`; read the item from drive_items with materialize(), a join, or get().
     const drive_shares = newCollection('drive_shares', {
         omitOnInsert: ['created', 'updated'] as const,
         relations: {
@@ -42,28 +48,28 @@ export function registerCollections(
             user: coreStores.users,
             created_by: coreStores.users,
         },
-        alwaysExpand: ['item', 'user', 'created_by'],
+        alwaysFetchRelations: ['item'],
         collectionOptions: indexing,
     })
 
     const drive_item_state = newCollection('drive_item_state', {
         omitOnInsert: ['created', 'updated'] as const,
         relations: { item: drive_items, user: coreStores.users },
-        alwaysExpand: ['item', 'user'],
+        alwaysFetchRelations: ['item'],
         collectionOptions: indexing,
     })
 
     const drive_item_versions = newCollection('drive_item_versions', {
         omitOnInsert: ['created', 'updated'] as const,
         relations: { item: drive_items, created_by: coreStores.users },
-        alwaysExpand: ['item', 'created_by'],
+        alwaysFetchRelations: ['item'],
         collectionOptions: indexing,
     })
 
     const drive_share_links = newCollection('drive_share_links', {
         omitOnInsert: ['created', 'updated'] as const,
         relations: { item: drive_items, created_by: coreStores.users },
-        alwaysExpand: ['item', 'created_by'],
+        alwaysFetchRelations: ['item'],
         collectionOptions: indexing,
     })
 
@@ -81,7 +87,7 @@ export function registerCollections(
             drive_item: drive_items,
             mentioned_user: coreStores.users,
         },
-        alwaysExpand: ['drive_item', 'mentioned_user'],
+        alwaysFetchRelations: ['drive_item'],
     })
 
     return {
