@@ -1,9 +1,10 @@
 import { and, eq } from '@tanstack/db'
+import { useLiveQuery } from '@tanstack/react-db'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
+import { useMyLiveQuery } from '@tinycld/core/lib/use-my-live-query'
 import { router } from 'expo-router'
 import { newRecordId } from 'pbtsdb/core'
 import { useCallback } from 'react'
@@ -62,7 +63,7 @@ export function useDriveItemFileActions(
     const orgHref = useOrgHref()
     const openCopyDialog = useCopyDialogStore(s => s.openCopyDialog)
 
-    const { data: existingStateRows = [] } = useOrgLiveQuery(
+    const { data: existingStateRows = [] } = useMyLiveQuery(
         (query, { userId }) =>
             query
                 .from({ state: driveItemStateCollection })
@@ -71,7 +72,7 @@ export function useDriveItemFileActions(
     )
     const existingState = existingStateRows[0]
 
-    const { data: itemRows = [] } = useOrgLiveQuery(
+    const { data: itemRows = [] } = useLiveQuery(
         query =>
             query
                 .from({ item: driveItemsCollection })

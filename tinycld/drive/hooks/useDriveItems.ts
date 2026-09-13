@@ -1,6 +1,7 @@
 import { eq, inArray } from '@tanstack/db'
+import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
+import { useMyLiveQuery } from '@tinycld/core/lib/use-my-live-query'
 import { useMemo } from 'react'
 import { mimeTypeToCategory } from '../components/file-icons'
 import type { DriveItemView, FolderTreeNode, SidebarSection } from '../types'
@@ -52,18 +53,18 @@ export function useDriveItems({
 
     // --- supporting eager collections (small) ---------------------------------
 
-    const { data: rawShares, isLoading: sharesLoading } = useOrgLiveQuery(query =>
+    const { data: rawShares, isLoading: sharesLoading } = useLiveQuery(query =>
         query.from({ share: sharesCollection })
     )
 
-    const { data: rawStates, isLoading: statesLoading } = useOrgLiveQuery((query, { userId }) =>
+    const { data: rawStates, isLoading: statesLoading } = useMyLiveQuery((query, { userId }) =>
         query.from({ state: stateCollection }).where(({ state }) => eq(state.user, userId))
     )
 
     // All users in the single database are members; the roster is just the
     // users collection. Names/emails are keyed by users id (the value the
     // drive FKs — created_by / user — now store).
-    const { data: allUsers, isLoading: usersLoading } = useOrgLiveQuery(query =>
+    const { data: allUsers, isLoading: usersLoading } = useLiveQuery(query =>
         query.from({ user: usersCollection })
     )
 
@@ -102,14 +103,14 @@ export function useDriveItems({
     const stateByItem = useMemo(() => new Map((rawStates ?? []).map(s => [s.item, s])), [rawStates])
 
     // --- on-demand drive_items queries ----------------------------------------
-    // Each useOrgLiveQuery against drive_items is translated to a PocketBase
+    // Each useMyLiveQuery against drive_items is translated to a PocketBase
     // filter and run server-side. Disabled queries return empty data.
 
     // Items in the current folder for the current org. Only meaningful when the
     // user is inside My Drive (or a subfolder); other sections supply their own
     // listing via sectionQuery below.
     const showCurrentFolder = !isSearchActive && activeSection === 'my-drive'
-    const { data: rawCurrentFolderItems, isLoading: currentFolderLoading } = useOrgLiveQuery(
+    const { data: rawCurrentFolderItems, isLoading: currentFolderLoading } = useLiveQuery(
         query => {
             if (!showCurrentFolder) return null
             return query
@@ -122,7 +123,7 @@ export function useDriveItems({
     // Every folder the user can see in this org. Small set (folders are a tiny
     // fraction of items), drives the sidebar tree, breadcrumb resolution, and
     // the folder section above the file list.
-    const { data: rawFolders, isLoading: foldersLoading } = useOrgLiveQuery(query =>
+    const { data: rawFolders, isLoading: foldersLoading } = useLiveQuery(query =>
         query.from({ item: itemsCollection }).where(({ item }) => eq(item.is_folder, true))
     )
 
@@ -155,7 +156,7 @@ export function useDriveItems({
         return null
     }, [isStarredSection, isTrashSection, isSharedSection, rawStates, rawShares, userId])
 
-    const { data: rawSectionItems, isLoading: sectionLoading } = useOrgLiveQuery(
+    const { data: rawSectionItems, isLoading: sectionLoading } = useLiveQuery(
         query => {
             if (!sectionScoped) return null
             const base = query.from({ item: itemsCollection })
@@ -185,7 +186,7 @@ export function useDriveItems({
     }, [wantedLookupId, rawCurrentFolderItems, rawFolders, rawSectionItems])
 
     const lookupNeeded = !!wantedLookupId && !lookupAlreadyLoaded
-    const { data: rawLookupItems } = useOrgLiveQuery(
+    const { data: rawLookupItems } = useLiveQuery(
         query => {
             if (!lookupNeeded || !wantedLookupId) return null
             return query

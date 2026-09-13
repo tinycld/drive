@@ -1,14 +1,14 @@
 import { and, eq } from '@tanstack/db'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useOrgLiveQuery } from '@tinycld/core/lib/use-org-live-query'
+import { useMyLiveQuery } from '@tinycld/core/lib/use-my-live-query'
 import { useMemo } from 'react'
 import type { FolderTreeNode } from '../types'
 
 interface UseFolderTreeQueryArgs {
     /**
      * Accepted for API symmetry with the original useFolderTree helper,
-     * but ignored — useOrgLiveQuery already gates on org context, and
+     * but ignored — useMyLiveQuery already gates on org context, and
      * the folders list is cheap enough that a "disabled" branch would
      * complicate the call site without measurable savings.
      */
@@ -37,7 +37,7 @@ export function useFolderTreeQuery(_: UseFolderTreeQueryArgs = {}): FolderTreeNo
 
     const [itemsCollection] = useStore('drive_items')
 
-    const { data: folders = [] } = useOrgLiveQuery(
+    const { data: folders = [] } = useMyLiveQuery(
         (query, { userId }) =>
             query
                 .from({ item: itemsCollection })
