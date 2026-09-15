@@ -51,7 +51,7 @@ The WebDAV endpoint is at **`https://<your-instance>/dav/drive/`** (port 443, sa
 
 At the WebDAV root, you'll see your Drive's folder tree directly — the root is a synthetic directory over your top-level items.
 
-The handler is `golang.org/x/net/webdav` with `webdav.NewMemLS()`, which advertises DAV class 2 (LOCK / UNLOCK) so macOS Finder mounts read-write. There is also a `/.well-known/webdav` route that 301-redirects to `/dav/drive/` to help clients that auto-discover.
+The handler is `golang.org/x/net/webdav` with `webdav.NewMemLS()`, which advertises DAV class 2 (LOCK / UNLOCK) so macOS Finder mounts read-write. Core also serves the RFC 5785 discovery alias `/.well-known/webdav` (registered once, regardless of mount prefix) and 301-redirects it to the first registered WebDAV source — `/dav/drive/` on a deployment where drive is the only one.
 
 For step-by-step connection instructions on macOS Finder, Windows Explorer, and Linux file managers, see the **`drive:webdav`** help topic inside the app (`/help/drive/webdav`, or click any `<HelpIcon topic="drive:webdav" />`). They live there rather than in this README so they update in lockstep with what users actually see in the UI.
 
@@ -207,7 +207,7 @@ The flow per request:
 
 `webdav.NewMemLS()` is used for the lock system, which is enough to advertise DAV class 2; macOS Finder requires class 2 to mount read-write. Locks are in-memory and per-process, which is fine for a single-instance deployment — clustered deployments would need a shared lock backend.
 
-WebDAV deletes are real deletes: `RemoveAll` deletes the `drive_items` row (permitted only where the collection's delete rule allows it — the creator), and PocketBase cascade rules remove the dependent shares, versions, and state rows with it.
+WebDAV deletes go to the trash, not the void: drive's `Source` carries a `Trash` binding (`manifest.ts`'s `webdav.trash` block, mirrored by the `TrashConfig` in `register.go`), so `RemoveAll` stamps the caller's `drive_item_state` row with `trashed_at` instead of deleting the `drive_items` record. That is the same write the web UI's trash action performs, so a file removed from Finder or Explorer is restorable from the Trash screen, and trashed items disappear from that user's DAV listing. Only a source with no trash binding destroys the record outright.
 
 ### Versioning
 
@@ -298,6 +298,9 @@ server/
     endpoints_download.go      folder-download token flow (POST then GET)
     endpoints_export.go        PDF / SVG convert-and-download token flow
     bindings.go                $drive.* JS binding for server-side TS hooks
+    api/                       HTTP payload contract (manifest `payloads`): one struct
+                               per request/response, emitted as
+                               @tinycld/app-generated/drive-api; the CLI imports it
 ```
 
 The WebDAV protocol server itself (FileSystem, auth, path parsing) lives in core at `tinycld/core/server/webdav/`; drive only supplies its `webdav.Source`.
@@ -318,6 +321,9 @@ tinycld/drive/
     automation.ts      workflow-rules trigger + action definitions
     search-adapter.ts  palette row selection (row shaping is server-side)
     screens/
+        _layout.tsx            route layout: mounts the Drive providers, toolbar,
+                               DropZone, DetailPanel, PreviewModal, and dialogs
+                               around every screen
         index.tsx              section view (My Files / Shared / Recent / Starred / Trash)
         recent.tsx             recent-files view
         [...path].tsx          deep-link folder view by path
@@ -398,38 +404,35 @@ See [the command line tool](https://tinycld.org/docs/command-line-tool) for setu
 ## Development
 
 ```sh
-# Clone the app shell and this package as siblings
-cd ~/code/tinycld
-git clone git@github.com:tinycld/tinycld.git
-git clone git@github.com:tinycld/drive.git
+# Assemble a workspace with the app shell (+ core) and this package as members
+mkdir ~/code/tinycld && cd ~/code/tinycld
+npx @tinycld/bootstrap@latest --assemble-only --with drive
 
-# Install deps in the app shell
-cd tinycld
+# Install once, at the workspace root (never inside a member) — postinstall
+# links the members and runs the generator
 pnpm install
 
-# Link this package into the app shell
-pnpm run packages:link ../drive
-
-# Run the full stack
+# Run the full stack from the app shell
+cd tinycld
 pnpm run dev
 ```
 
 ## Standalone checks
 
-Lint and typecheck both run from the app shell — biome and TypeScript live there, and the app shell's tsconfig pulls in `expo`'s base config, `uniwind` type augments, and the live `~/types/pbSchema` generated from PocketBase, none of which a standalone invocation in this package can see. Biome's config lives in `tinycld/biome.json` and applies to every linked package (there is no `biome.json` in this repo).
+Checks run from inside this member through the `tinycld-pkg` CLI (`@tinycld/package-scripts`, nested in the app shell repo). Biome and TypeScript resolve from the app shell — its tsconfig pulls in `expo`'s base config, `uniwind` type augments, and the live `~/types/pbSchema` generated from PocketBase, none of which a bare invocation in this package can see. Biome's canonical config is `tinycld/biome.json` and applies to every member (there is no `biome.json` in this repo).
 
 ```sh
-cd ../tinycld
-pnpm run packages:link ../drive    # only needed once per checkout
-pnpm run lint                      # scans this package via the app's biome rules
-pnpm run typecheck                 # full app-shell tsc
-pnpm run test:unit                 # vitest, including this package's tests/
-pnpm run test:go                   # go test on this package's server/
+cd ~/code/tinycld/drive
+pnpm exec tinycld-pkg check        # biome + tsc + vitest, scoped to this member
+pnpm exec tinycld-pkg test         # vitest only
+pnpm exec tinycld-pkg test:e2e     # playwright (this package's specs only)
+(cd server && go test ./...)       # Go tests for the server module
+(cd cli && go test ./...)          # Go tests for the CLI module
 ```
 
 ## CI
 
-`.github/workflows/ci.yml` runs lint, typecheck, and vitest on every push to `main` and every PR. It clones `tinycld/tinycld@main` into a sibling directory, installs the app shell's deps, links this package in, and runs the checks — exactly what a developer does locally.
+`.github/workflows/ci.yml` runs two jobs on every push to `main` and every PR. Both check this repo out into a member slot and assemble the workspace around it with `npx @tinycld/bootstrap@latest --assemble-only --with tinycld[@branch]` — preferring a `tinycld` branch with the same name as the PR's head branch so coordinated cross-repo work typechecks against the matching core, and falling back to its default branch — then `pnpm install` at the workspace root. **Typecheck & Unit** runs `pnpm exec tinycld-pkg check` (biome + tsc + vitest) from `drive/`, then `go build` + `go test -count=1 ./...` in `server/` and `go build && go test ./...` in `cli/`, since `tinycld-pkg` has no Go runner. **E2E** runs `pnpm exec tinycld-pkg test:e2e` under Playwright against a pre-built static web bundle and uploads the Playwright traces, screenshots, and videos as an artifact on failure.
 
 ## Package anatomy
 
@@ -442,7 +445,7 @@ Drive exposes one sidebar slot for other packages to extend:
 - `sidebar.after-tree` — rendered below the folder tree, above the "Shared with me" / Recent / Starred section.
 
 Other packages can target this slot via `sidebarContributions` in their manifest. See [Sidebar slots](https://tinycld.org/docs/anatomy/sidebar-slots) for the full contract.
-- `package.json` — name, exports map, peer deps
+- `package.json` — name and exports map; framework deps come from the workspace root, and the `@tinycld/core` version pin lives in `manifest.ts` as `peerVersions`
 - `tsconfig.json` — typecheck config (lint config lives in the app shell's `biome.json`)
 - `pb-migrations/` — PocketBase migrations (symlinked into the app shell's server on `packages:generate`)
 - `server/` — Go server module, registered by the generator
