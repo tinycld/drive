@@ -273,7 +273,7 @@ iPhone (small phone screens) isn't supported yet.
 
 ```
 server/
-    register.go                Register / RegisterTenant — hooks, API endpoints,
+    register.go                Register -> registerShared — hooks, API endpoints,
                                quota sources, the core/webdav Source
     permissions.go             createOwnerShare (the read/write/delete predicates
                                live in core/driveshare)

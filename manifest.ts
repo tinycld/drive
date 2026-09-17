@@ -48,7 +48,7 @@ const manifest = {
     // same Source the Go server registers; a hosting tenant serves WebDAV
     // from this block (the router materializes it into the tenant's runtime
     // config), which is why the Go-side mount is host-only — drive's other Go
-    // links into tenants via RegisterTenant, but the tenant's DAV mounts come
+    // is shared by both compositions via registerShared, but the DAV mounts come
     // from here.
     //
     // Authorization comes from drive_items' own PocketBase rules and the storage
