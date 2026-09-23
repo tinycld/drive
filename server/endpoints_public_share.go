@@ -104,9 +104,10 @@ func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 		return re.JSON(statusCode, api.ErrorResponse{Error: errMsg})
 	}
 
-	// Update last_accessed_at
-	link.Set("last_accessed_at", time.Now().UTC().Format(time.RFC3339))
-	_ = app.Save(link)
+	if err := touchShareLink(app, token); err != nil {
+		// A missed timestamp must not cost the visitor the file.
+		shareLog.Warn("could not stamp share link access", "token", token, "err", err)
+	}
 
 	// Build proxy URLs
 	baseURL := fmt.Sprintf("%s/api/drive/share-link/%s", app.Settings().Meta.AppURL, token)
@@ -142,10 +143,10 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 		return re.JSON(statusCode, api.ErrorResponse{Error: errMsg})
 	}
 
-	// Increment download_count
-	link.Set("download_count", link.GetInt("download_count")+1)
-	link.Set("last_accessed_at", time.Now().UTC().Format(time.RFC3339))
-	_ = app.Save(link)
+	if err := countShareLinkDownload(app, token); err != nil {
+		// A missed count must not cost the visitor the file.
+		shareLog.Warn("could not count share link download", "token", token, "err", err)
+	}
 
 	reader, err := readFileContent(app, item)
 	if err != nil {
