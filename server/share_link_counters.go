@@ -3,6 +3,7 @@ package drive
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -64,6 +65,31 @@ func touchShareLink(app core.App, token string) error {
 //
 // Returns false only on a definite, successfully-computed over-limit. An
 // error is the caller's to fail open on; see the call site.
+//
+// # What this ceiling does not cover
+//
+// Two paths read a shared item's bytes without passing through here. Both are
+// known and neither is the anonymous redistribution the ceiling exists to
+// stop, but a reader counting on "every public read is metered" would be
+// wrong.
+//
+// A GUEST admitted through the share-link OTP flow gets a users row and a
+// drive_shares row, which satisfies drive_items' view rule — so they can
+// fetch through PocketBase's own file route instead of the share endpoint.
+// Reaching that state requires the owner to have minted a COMMENTOR or
+// EDITOR link (the OTP flow rejects viewer links) and the guest to have
+// proven an email address, so it is a named individual holding a collaboration
+// grant, not a crowd behind a URL. Metering it would also need a link
+// reference on drive_shares, which carries only {item, user, role} today.
+//
+// A CALC OR TEXT document opened from a share link never loads its bytes
+// through any endpoint: the editor receives the document over the realtime
+// WebSocket as a yjs state update, reconstructed server-side from the stored
+// file. What travels is cell values and text runs rather than the xlsx or
+// docx, embedded images do not resolve for an anonymous viewer at all, and
+// the server reads the source file once per ROOM rather than once per
+// visitor. The original file is still served — and still metered — through
+// the share endpoint below; only the derived projection escapes.
 func claimShareLinkDownload(app core.App, token string, limits sharequota.ShareLimits) (bool, error) {
 	now := time.Now().UTC()
 
@@ -96,6 +122,33 @@ func claimShareLinkDownload(app core.App, token string, limits sharequota.ShareL
 		return false, err
 	}
 	return n > 0, nil
+}
+
+// isChargeableRange reports whether this request counts as a download.
+//
+// The share endpoint serves through fsys.Serve, which honours Range, so one
+// video scrub is dozens of requests for a single logical download. Charging
+// each would drain a link in seconds and make the ceiling mean something
+// different here than it does for a board attachment.
+//
+// So only a request that is not a mid-file continuation is charged: no Range
+// header, or one starting at byte zero. The unit is "one transfer a client
+// started" — a player seeking within a file pays once for opening it, and a
+// download resuming at byte N is not charged twice for the same file.
+//
+// Deliberately inexact, and both inaccuracies forgive the visitor: a client
+// re-opening from byte zero pays each time, which is right because those are
+// real transfers, and a client fetching in chunks after one at zero pays
+// once, undercounting by at most one file.
+//
+// Kept identical to the boards meter's version on purpose. If you change the
+// rule here, change it there — the two packages share one ceiling.
+func isChargeableRange(r *http.Request) bool {
+	v := r.Header.Get("Range")
+	if v == "" {
+		return true
+	}
+	return strings.HasPrefix(v, "bytes=0-")
 }
 
 // refuseShareDownload answers a download the ceilings turned away.

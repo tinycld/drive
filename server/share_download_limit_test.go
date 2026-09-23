@@ -1,6 +1,8 @@
 package drive
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -215,5 +217,29 @@ func TestSecondsUntilUTCMidnight(t *testing.T) {
 	exact := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 	if got := secondsUntilUTCMidnight(exact); got <= 0 {
 		t.Errorf("at midnight = %d, want a positive delay", got)
+	}
+}
+
+// Range support means one scrub is many requests for one download. Only a
+// request that starts a transfer is charged, or a seeked video would drain a
+// link in seconds.
+func TestIsChargeableRange_Drive(t *testing.T) {
+	req := func(rangeHeader string) *http.Request {
+		r := httptest.NewRequest(http.MethodGet, "/f", nil)
+		if rangeHeader != "" {
+			r.Header.Set("Range", rangeHeader)
+		}
+		return r
+	}
+
+	for _, v := range []string{"", "bytes=0-", "bytes=0-1023"} {
+		if !isChargeableRange(req(v)) {
+			t.Errorf("Range %q starts a transfer and must be charged", v)
+		}
+	}
+	for _, v := range []string{"bytes=1024-2047", "bytes=500000-", "bytes=-500"} {
+		if isChargeableRange(req(v)) {
+			t.Errorf("Range %q is a continuation and must not be charged", v)
+		}
 	}
 }
