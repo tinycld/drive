@@ -94,7 +94,7 @@ func categorizeFromMime(mimeType string) string {
 // handleGetShareLinkMetadata returns JSON metadata for a public share link.
 func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.Allow(ip) {
+	if !publicShareLimiter.AllowOrLog(ip, "drive.share.metadata") {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
@@ -133,7 +133,7 @@ func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 // handleGetShareLinkFile streams the file content for a public share link.
 func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.Allow(ip) {
+	if !publicShareLimiter.AllowOrLog(ip, "drive.share.download") {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
@@ -175,7 +175,7 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 // handleGetShareLinkThumbnail streams the thumbnail for a public share link.
 func handleGetShareLinkThumbnail(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.Allow(ip) {
+	if !publicShareLimiter.AllowOrLog(ip, "drive.share.thumbnail") {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
