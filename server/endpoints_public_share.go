@@ -12,6 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/driveshare"
 	"tinycld.org/core/ratelimit"
+	"tinycld.org/core/sharequota"
 	"tinycld.org/packages/drive/api"
 )
 
@@ -143,9 +144,23 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 		return re.JSON(statusCode, api.ErrorResponse{Error: errMsg})
 	}
 
-	if err := countShareLinkDownload(app, token); err != nil {
-		// A missed count must not cost the visitor the file.
-		shareLog.Warn("could not count share link download", "token", token, "err", err)
+	// HEAD serves no body, so charging it would let a `curl -I` loop drain
+	// somebody else's link with no bytes leaving. PocketBase routes HEAD to
+	// the GET handler, so this is reachable.
+	if re.Request.Method != http.MethodHead {
+		allowed, err := claimShareLinkDownload(app, token, sharequota.Limits(app))
+		switch {
+		case err != nil:
+			// Fail OPEN. This is a commercial ceiling, not an access check —
+			// the link is already an authorized grant and findShareLinkByToken
+			// made the security decision above. Turning a transient database
+			// error into a refusal would tell a recipient the sender revoked
+			// their link. When you add enforcement here, the error path still
+			// serves the file.
+			shareLog.Warn("could not claim share link download", "token", token, "err", err)
+		case !allowed:
+			return refuseShareDownload(app, re, token)
+		}
 	}
 
 	reader, err := readFileContent(app, item)
