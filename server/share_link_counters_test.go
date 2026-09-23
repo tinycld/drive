@@ -6,6 +6,8 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+
+	"tinycld.org/core/sharequota"
 )
 
 // setupCounterTestApp builds just the columns the counter statements touch.
@@ -22,6 +24,8 @@ func setupCounterTestApp(t *testing.T) (*tests.TestApp, string) {
 	links.Fields.Add(&core.TextField{Name: "token", Required: true})
 	links.Fields.Add(&core.NumberField{Name: "download_count", OnlyInt: true})
 	links.Fields.Add(&core.TextField{Name: "last_accessed_at"})
+	links.Fields.Add(&core.NumberField{Name: "day_download_count", OnlyInt: true})
+	links.Fields.Add(&core.TextField{Name: "download_day", Max: 10})
 	if err := app.Save(links); err != nil {
 		t.Fatalf("save drive_share_links: %v", err)
 	}
@@ -46,12 +50,12 @@ func countFor(t *testing.T, app *tests.TestApp, token string) int {
 	return rec.GetInt("download_count")
 }
 
-func TestCountShareLinkDownload_Increments(t *testing.T) {
+func TestClaimShareLinkDownload_Increments(t *testing.T) {
 	app, token := setupCounterTestApp(t)
 
 	for i := 1; i <= 3; i++ {
-		if err := countShareLinkDownload(app, token); err != nil {
-			t.Fatalf("count %d: %v", i, err)
+		if ok, err := claimShareLinkDownload(app, token, sharequota.ShareLimits{}); err != nil || !ok {
+			t.Fatalf("claim %d: ok=%v err=%v", i, ok, err)
 		}
 	}
 
@@ -64,7 +68,7 @@ func TestCountShareLinkDownload_Increments(t *testing.T) {
 // saved the whole row back. Concurrent downloads both read N and both wrote
 // N+1, so downloads went missing under exactly the parallel fetching that
 // abuse looks like.
-func TestCountShareLinkDownload_ConcurrentDownloadsAllCount(t *testing.T) {
+func TestClaimShareLinkDownload_ConcurrentDownloadsAllCount(t *testing.T) {
 	app, token := setupCounterTestApp(t)
 
 	const n = 20
@@ -74,7 +78,7 @@ func TestCountShareLinkDownload_ConcurrentDownloadsAllCount(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			if err := countShareLinkDownload(app, token); err != nil {
+			if _, err := claimShareLinkDownload(app, token, sharequota.ShareLimits{}); err != nil {
 				errs <- err
 			}
 		}()
@@ -97,7 +101,7 @@ func TestCountShareLinkDownload_ConcurrentDownloadsAllCount(t *testing.T) {
 func TestTouchShareLink_DoesNotClobberTheDownloadCount(t *testing.T) {
 	app, token := setupCounterTestApp(t)
 
-	if err := countShareLinkDownload(app, token); err != nil {
+	if _, err := claimShareLinkDownload(app, token, sharequota.ShareLimits{}); err != nil {
 		t.Fatalf("seed a download: %v", err)
 	}
 
@@ -143,7 +147,7 @@ func TestShareLinkCounters_OnlyAffectTheNamedToken(t *testing.T) {
 		t.Fatalf("seed second link: %v", err)
 	}
 
-	if err := countShareLinkDownload(app, token); err != nil {
+	if _, err := claimShareLinkDownload(app, token, sharequota.ShareLimits{}); err != nil {
 		t.Fatal(err)
 	}
 

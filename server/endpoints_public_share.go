@@ -12,6 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/driveshare"
 	"tinycld.org/core/ratelimit"
+	"tinycld.org/core/sharequota"
 	"tinycld.org/packages/drive/api"
 )
 
@@ -143,33 +144,64 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 		return re.JSON(statusCode, api.ErrorResponse{Error: errMsg})
 	}
 
-	if err := countShareLinkDownload(app, token); err != nil {
-		// A missed count must not cost the visitor the file.
-		shareLog.Warn("could not count share link download", "token", token, "err", err)
+	// HEAD serves no body, so charging it would let a `curl -I` loop drain
+	// somebody else's link with no bytes leaving. PocketBase routes HEAD to
+	// the GET handler, so this is reachable.
+	//
+	// A mid-file range is a continuation of a download already charged for,
+	// not a new one — see isChargeableRange.
+	if re.Request.Method != http.MethodHead && isChargeableRange(re.Request) {
+		allowed, err := claimShareLinkDownload(app, token, sharequota.Limits(app))
+		switch {
+		case err != nil:
+			// Fail OPEN. This is a commercial ceiling, not an access check —
+			// the link is already an authorized grant and findShareLinkByToken
+			// made the security decision above. Turning a transient database
+			// error into a refusal would tell a recipient the sender revoked
+			// their link. When you add enforcement here, the error path still
+			// serves the file.
+			shareLog.Warn("could not claim share link download", "token", token, "err", err)
+		case !allowed:
+			return refuseShareDownload(app, re, token)
+		}
 	}
 
-	reader, err := readFileContent(app, item)
+	filename := item.GetString("file")
+	if filename == "" {
+		return re.JSON(http.StatusNotFound, api.ErrorResponse{Error: "file not found"})
+	}
+
+	fsys, err := app.NewFilesystem()
 	if err != nil {
 		return re.JSON(http.StatusInternalServerError, api.ErrorResponse{Error: "failed to read file"})
 	}
-	defer reader.Close()
+	defer fsys.Close()
 
+	// Both headers are set BEFORE Serve, which only fills in what is missing.
+	// That keeps this endpoint's own disposition contract — `?inline=1` — and
+	// the item's recorded mime type, rather than inheriting Serve's rules,
+	// which invert the default (attachment unless the type is on a safe list)
+	// and read a different query parameter.
 	mimeType := item.GetString("mime_type")
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
-
 	re.Response.Header().Set("Content-Type", mimeType)
 
-	inline := re.Request.URL.Query().Get("inline") == "1"
 	disposition := "attachment"
-	if inline {
+	if re.Request.URL.Query().Get("inline") == "1" {
 		disposition = "inline"
 	}
 	re.Response.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, item.GetString("name")))
 
-	_, err = io.Copy(re.Response, reader)
-	return err
+	// Serve rather than io.Copy so the response honours Range. Without it a
+	// shared video cannot be seeked and a large download cannot be resumed —
+	// every request re-sends the whole file from byte zero, which is also
+	// worse for the egress this endpoint's ceiling exists to bound.
+	//
+	// Range is why the charge above consults isChargeableRange: one seek is
+	// many requests for one download.
+	return fsys.Serve(re.Response, re.Request, item.BaseFilesPath()+"/"+filename, item.GetString("name"))
 }
 
 // handleGetShareLinkThumbnail streams the thumbnail for a public share link.
