@@ -121,6 +121,8 @@ export function useDriveMutations({
                 id: newRecordId(),
                 item: itemId,
                 user: targetUserId,
+                // Direct share: a group grant sets group and leaves user empty.
+                group: '',
                 role,
                 created_by: userId,
             })
