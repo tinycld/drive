@@ -19,6 +19,7 @@ func TestDriveSharesShippedRules(t *testing.T) {
 		{"view", `@request.auth.disabled != true`},
 		{"create", `item.created_by ?= @request.auth.id`},
 		{"create", `(user = "" || group = "")`},
+		{"create", `(user != "" || group != "")`},
 		{"create", `(group = "" || role != "owner")`},
 		{"update", `(user = "" || group = "")`},
 		{"update", `(group = "" || @request.body.role:isset = false || @request.body.role != "owner")`},

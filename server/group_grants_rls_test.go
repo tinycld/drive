@@ -376,3 +376,80 @@ func TestGroupGrants_EditorGrantDoesNotLiftAViewerOnVersions(t *testing.T) {
 		want:   http.StatusBadRequest,
 	}.run(t, env)
 }
+
+// user became optional with group grants; a row naming neither would grant
+// nothing yet show up in every share list.
+func TestGroupGrants_CreatorCannotCreateRowNamingNobody(t *testing.T) {
+	env := setupGroupGrantEnv(t)
+	shareReq{
+		method: http.MethodPost,
+		url:    sharesURL,
+		token:  env.creatorToken,
+		body:   `{"item":"` + env.item.Id + `","role":"owner","created_by":"` + env.creator.Id + `"}`,
+		want:   http.StatusBadRequest,
+	}.run(t, env)
+}
+
+// Positive controls for the two correlation guards: the same requests from a
+// direct editor share succeed, so the refusals above come from the rule and
+// not from the request body.
+func directEditor(t *testing.T, env *groupGrantEnv) (*core.Record, string) {
+	t.Helper()
+	editor := driveGuestUser(t, env.app, "editor@test.local", "member")
+	token, err := editor.NewAuthToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	makeShareRow(t, env.app, env.item, editor, nil, "editor", env.creator)
+	return editor, token
+}
+
+func TestGroupGrants_DirectEditorMayRenameItem(t *testing.T) {
+	env := setupGroupGrantEnv(t)
+	_, token := directEditor(t, env)
+	shareReq{
+		method:  http.MethodPatch,
+		url:     "/api/collections/drive_items/records/" + env.item.Id,
+		token:   token,
+		body:    `{"name":"renamed-by-viewer.txt"}`,
+		want:    http.StatusOK,
+		content: []string{`"name":"renamed-by-viewer.txt"`},
+	}.run(t, env)
+}
+
+func TestGroupGrants_DirectEditorMayCreateVersion(t *testing.T) {
+	env := setupGroupGrantEnv(t)
+	editor, token := directEditor(t, env)
+	shareReq{
+		method:  http.MethodPost,
+		url:     "/api/collections/drive_item_versions/records",
+		token:   token,
+		body:    `{"item":"` + env.item.Id + `","version_number":1,"source":"user","created_by":"` + editor.Id + `"}`,
+		want:    http.StatusOK,
+		content: []string{`"version_number":1`},
+	}.run(t, env)
+}
+
+// Grant rows all carry user "", so the unique index must still include group
+// for a second grant of the same group on the same item to be refused.
+func TestGroupGrants_DuplicateGrantIsRejected(t *testing.T) {
+	env := setupGroupGrantEnv(t)
+	makeShareRow(t, env.app, env.item, nil, env.group, "viewer", env.creator)
+
+	col, err := env.app.FindCollectionByNameOrId("drive_shares")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dup := core.NewRecord(col)
+	dup.Set("item", env.item.Id)
+	dup.Set("group", env.group.Id)
+	dup.Set("role", "editor")
+	dup.Set("created_by", env.creator.Id)
+	err = env.app.Save(dup)
+	if err == nil {
+		t.Fatal("a second grant of the same group on the same item was saved")
+	}
+	if !strings.Contains(err.Error(), "unique") {
+		t.Fatalf("duplicate grant refused for the wrong reason: %v", err)
+	}
+}

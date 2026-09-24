@@ -47,6 +47,9 @@ migrate(
         // core's. A grant never carries owner: driveshare.CheckDelete treats an
         // owner share as delete rights, and ownership stays personal.
         const notDerived = '(user = "" || group = "")'
+        // user is optional now, so without this a row naming nobody would
+        // save: it grants nothing but sits in every share list as a ghost.
+        const namesSomeone = '(user != "" || group != "")'
         const groupNeverOwnerOnCreate = '(group = "" || role != "owner")'
         // On update a bare field is the STORED value, so the owner check must
         // read the body.
@@ -58,7 +61,7 @@ migrate(
 
         shares.listRule = `${enabled} && (${ownShareRecipient} || ${isItemCreator})`
         shares.viewRule = `${enabled} && (${ownShareRecipient} || ${isItemCreator})`
-        shares.createRule = `${enabled} && ${isItemCreator} && ${notDerived} && ${groupNeverOwnerOnCreate}`
+        shares.createRule = `${enabled} && ${isItemCreator} && ${notDerived} && ${namesSomeone} && ${groupNeverOwnerOnCreate}`
         shares.updateRule = `${enabled} && ${isItemCreator} && ${notDerived} && ${groupNeverOwnerOnUpdate} && ${pinItem} && ${pinUser} && ${pinGroup}`
         shares.deleteRule = `${enabled} && ${notDerived} && (${ownShareRecipient} || ${isItemCreator})`
 
