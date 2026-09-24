@@ -110,15 +110,14 @@ export function useDriveItems({
     // user is inside My Drive (or a subfolder); other sections supply their own
     // listing via sectionQuery below.
     const showCurrentFolder = !isSearchActive && activeSection === 'my-drive'
-    const { data: rawCurrentFolderItems, isLoading: currentFolderLoading } = useLiveQuery(
-        query => {
+    const { data: rawCurrentFolderItems, isLoading: currentFolderLoading } = useLiveQuery({
+        query: query => {
             if (!showCurrentFolder) return null
             return query
                 .from({ item: itemsCollection })
                 .where(({ item }) => eq(item.parent, currentFolderId))
         },
-        [showCurrentFolder, currentFolderId]
-    )
+    })
 
     // Every folder the user can see in this org. Small set (folders are a tiny
     // fraction of items), drives the sidebar tree, breadcrumb resolution, and
@@ -156,8 +155,8 @@ export function useDriveItems({
         return null
     }, [isStarredSection, isTrashSection, isSharedSection, rawStates, rawShares, userId])
 
-    const { data: rawSectionItems, isLoading: sectionLoading } = useLiveQuery(
-        query => {
+    const { data: rawSectionItems, isLoading: sectionLoading } = useLiveQuery({
+        query: query => {
             if (!sectionScoped) return null
             const base = query.from({ item: itemsCollection })
             if (isRecentSection) {
@@ -172,8 +171,7 @@ export function useDriveItems({
             if (!idDrivenSectionIds || idDrivenSectionIds.length === 0) return null
             return base.where(({ item }) => inArray(item.id, idDrivenSectionIds))
         },
-        [sectionScoped, isRecentSection, idDrivenSectionIds]
-    )
+    })
 
     // Selected/preview lookup. If the URL-driven id isn't in any of the loaded
     // subsets, fetch it directly so the preview / selection still resolves.
@@ -186,15 +184,14 @@ export function useDriveItems({
     }, [wantedLookupId, rawCurrentFolderItems, rawFolders, rawSectionItems])
 
     const lookupNeeded = !!wantedLookupId && !lookupAlreadyLoaded
-    const { data: rawLookupItems } = useLiveQuery(
-        query => {
+    const { data: rawLookupItems } = useLiveQuery({
+        query: query => {
             if (!lookupNeeded || !wantedLookupId) return null
             return query
                 .from({ item: itemsCollection })
                 .where(({ item }) => eq(item.id, wantedLookupId))
         },
-        [lookupNeeded, wantedLookupId]
-    )
+    })
 
     // --- merging + view shapes ------------------------------------------------
 
