@@ -83,6 +83,8 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 	}
 	t.Cleanup(func() { app.Cleanup() })
 
+	stubGroupsCollection(t, app)
+
 	users, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
 		t.Fatalf("users collection: %v", err)
@@ -153,6 +155,12 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 	})
 	shares.Fields.Add(&core.RelationField{
 		Name: "created_by", Required: true, CollectionId: users.Id, MaxSelect: 1,
+	})
+	// Optional group relation: mirrors migration 2040000002 so the
+	// findOrCreateGuestDriveShare `group = ""` filter resolves against this
+	// fixture's schema.
+	shares.Fields.Add(&core.RelationField{
+		Name: "group", CollectionId: "pbc_groups_01", MaxSelect: 1,
 	})
 	shares.AddIndex("idx_drv_shares_unique", true, "item, user", "")
 	if err := app.Save(shares); err != nil {

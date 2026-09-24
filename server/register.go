@@ -15,6 +15,7 @@ import (
 	"tinycld.org/core/audit"
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/driveshare"
+	"tinycld.org/core/groups"
 	"tinycld.org/core/notify"
 	"tinycld.org/core/oauth"
 	"tinycld.org/core/offboard"
@@ -57,6 +58,16 @@ func registerShared(app *pocketbase.PocketBase) {
 	} {
 		offboard.RegisterReassignable(ref)
 	}
+
+	// Core expands a group grant (group set, user empty) on this table into one
+	// derived row per member, inside the same transaction. Every rule in drive,
+	// text and calc tests `drive_shares_via_item.user`, so a derived row is a
+	// share like any other; driveshare.ResolveRole already takes the highest
+	// role across a user's rows.
+	groups.RegisterGrantTable(groups.GrantTable{
+		Collection:    "drive_shares",
+		ResourceField: "item",
+	})
 
 	// Audit logging for drive collections. Single-org: audit rows carry no org,
 	// so only drive_items customizes anything (its display label).
