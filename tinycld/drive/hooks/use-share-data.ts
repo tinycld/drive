@@ -1,3 +1,4 @@
+import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
@@ -36,6 +37,8 @@ export interface ShareData {
     currentUserId: string
     /** Delete a row from drive_shares by share id. */
     removeShare: (shareId: string) => void
+    /** Whether the current user may add, change, or remove shares on the item. */
+    canManage: boolean
 }
 
 /**
@@ -50,8 +53,20 @@ export function useShareData(itemId: string): ShareData {
     const userId = useAuth().user.id
     const [sharesCollection] = useStore('drive_shares')
     const [usersCollection] = useStore('users')
+    const [itemsCollection] = useStore('drive_items')
 
     const { data: rawShares } = useLiveQuery(query => query.from({ share: sharesCollection }))
+
+    // drive_items is on-demand, so this issues one server fetch for the item.
+    const { data: sharedItem } = useLiveQuery({
+        query: query => {
+            if (!itemId) return null
+            return query
+                .from({ item: itemsCollection })
+                .where(({ item }) => eq(item.id, itemId))
+                .findOne()
+        },
+    })
 
     // Every user in the single database is a member; names/emails are keyed by
     // users id (the value drive_shares.user now stores).
@@ -102,8 +117,9 @@ export function useShareData(itemId: string): ShareData {
     const shares = useMemo<ShareEntry[]>(() => {
         if (!itemId) return []
         const emptyAvatar = { avatar: '', avatarCrop: '', avatarColor: '', avatarEmoji: '' }
+        // Direct shares only: grant rows have no user, derived rows are shown under their group.
         return (rawShares ?? [])
-            .filter(s => s.item === itemId)
+            .filter(s => s.item === itemId && s.group === '')
             .map(s => ({
                 id: s.id,
                 userId: s.user,
@@ -127,5 +143,8 @@ export function useShareData(itemId: string): ShareData {
         shares,
         currentUserId: userId,
         removeShare,
+        // The drive_shares rules let only the item creator manage shares, so
+        // the client offers management to exactly that person.
+        canManage: (sharedItem?.created_by ?? '') === userId,
     }
 }

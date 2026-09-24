@@ -6,6 +6,7 @@ import type {
     DriveItemVersions,
     DriveShareLinks,
     DriveShares,
+    Groups,
     Users,
 } from '@tinycld/core/types/pbSchema'
 
@@ -77,6 +78,7 @@ export type DriveSchema = {
         relations: {
             item: DriveItems
             user: Users
+            group: Groups
             created_by: Users
         }
     }

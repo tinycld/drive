@@ -46,6 +46,7 @@ export function registerCollections(
         relations: {
             item: drive_items,
             user: coreStores.users,
+            group: coreStores.groups,
             created_by: coreStores.users,
         },
         alwaysFetchRelations: ['item'],
