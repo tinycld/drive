@@ -56,13 +56,19 @@ afterEach(cleanup)
 describe('useShareData', () => {
     it('lists direct shares only and marks the creator as manager', async () => {
         const { result } = renderHook(() => useShareData('it1'), { wrapper: wrapper() })
-        await waitFor(() => expect(result.current.shares.length).toBeGreaterThan(0))
+        await waitFor(() => expect(result.current.canManage).toBe(true))
         expect(result.current.shares.map(s => s.id).sort()).toEqual(['s-direct', 's-owner'])
-        expect(result.current.canManage).toBe(true)
     })
 
+    // canManage is false before any item has loaded, so asserting false alone
+    // passes without reading it2. The creator's item on the same collection
+    // turning manageable is the signal that items have loaded.
     it('is not manageable by a non-creator', async () => {
-        const { result } = renderHook(() => useShareData('it2'), { wrapper: wrapper() })
-        await waitFor(() => expect(result.current.canManage).toBe(false))
+        const { result } = renderHook(
+            () => ({ mine: useShareData('it1'), theirs: useShareData('it2') }),
+            { wrapper: wrapper() }
+        )
+        await waitFor(() => expect(result.current.mine.canManage).toBe(true))
+        expect(result.current.theirs.canManage).toBe(false)
     })
 })
