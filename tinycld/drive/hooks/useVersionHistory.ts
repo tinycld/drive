@@ -7,14 +7,13 @@ import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 export function useVersionHistory(itemId: string) {
     const [versionsCollection] = useStore('drive_item_versions')
 
-    const { data: versions } = useLiveQuery(
-        query =>
+    const { data: versions } = useLiveQuery({
+        query: query =>
             query
                 .from({ v: versionsCollection })
                 .where(({ v }) => and(eq(v.item, itemId), not(eq(v.source, 'system'))))
                 .orderBy(({ v }) => v.version_number, 'desc'),
-        [itemId]
-    )
+    })
 
     const restoreMutation = useMutation({
         mutationFn: async (versionId: string) => {

@@ -66,14 +66,13 @@ export function useTemplateItems(extension: TemplateExtension) {
     const [driveItemsCollection] = useStore('drive_items')
     const mime = MIME_BY_EXTENSION[extension]
 
-    const { data, isLoading } = useLiveQuery(
-        query =>
+    const { data, isLoading } = useLiveQuery({
+        query: query =>
             query
                 .from({ item: driveItemsCollection })
                 .where(({ item }) => and(eq(item.mime_type, mime), eq(item.is_folder, false)))
                 .orderBy(({ item }) => item.updated, 'desc'),
-        [mime]
-    )
+    })
 
     const items = useMemo(
         () => filterTemplateItems((data ?? []) as TemplateRow[], extension),
