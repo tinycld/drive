@@ -47,6 +47,7 @@ func setupFileAddedApp(t *testing.T) *fileAddedEnv {
 		t.Fatalf("add users.disabled: %v", err)
 	}
 
+	stubGroupsCollection(t, app)
 	rlstest.Apply(t, app, rlstest.MigrationsDir(t, "../pb-migrations"))
 
 	owner := fileAddedUser(t, app, "owner@test.local")
