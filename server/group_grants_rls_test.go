@@ -8,6 +8,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+	"tinycld.org/core/rlstest"
 )
 
 // The three row kinds on drive_shares, through the API:
@@ -385,7 +386,7 @@ func TestGroupGrants_CreatorCannotCreateRowNamingNobody(t *testing.T) {
 		method: http.MethodPost,
 		url:    sharesURL,
 		token:  env.creatorToken,
-		body:   `{"item":"` + env.item.Id + `","role":"owner","created_by":"` + env.creator.Id + `"}`,
+		body:   `{"item":"` + env.item.Id + `","role":"viewer","created_by":"` + env.creator.Id + `"}`,
 		want:   http.StatusBadRequest,
 	}.run(t, env)
 }
@@ -452,4 +453,143 @@ func TestGroupGrants_DuplicateGrantIsRejected(t *testing.T) {
 	if !strings.Contains(err.Error(), "unique") {
 		t.Fatalf("duplicate grant refused for the wrong reason: %v", err)
 	}
+}
+
+// Anonymous callers and grant rows.
+//
+// A grant row stores user "". With no login PocketBase resolves
+// @request.auth.id to NULL and rewrites `x = NULL` as `(x = '' OR x IS NULL)`,
+// so `drive_shares_via_item.user ?= @request.auth.id` matches the grant and a
+// caller with no token would get the grant's role. Every rule that reaches
+// drive_shares.user therefore also requires `@request.auth.id != ""`. Each
+// test below seeds an EDITOR grant, the strongest a group can hold, and sends
+// no token.
+
+func anonGrantEnv(t *testing.T) (*groupGrantEnv, *core.Record) {
+	t.Helper()
+	env := setupGroupGrantEnv(t)
+	grant := makeShareRow(t, env.app, env.item, nil, env.group, "editor", env.creator)
+	return env, grant
+}
+
+func makeVersion(t *testing.T, app core.App, item, creator *core.Record) *core.Record {
+	t.Helper()
+	col, err := app.FindCollectionByNameOrId("drive_item_versions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := core.NewRecord(col)
+	v.Set("item", item.Id)
+	v.Set("version_number", 1)
+	v.Set("source", "user")
+	v.Set("created_by", creator.Id)
+	if err := app.Save(v); err != nil {
+		t.Fatalf("save version: %v", err)
+	}
+	return v
+}
+
+const itemsURL = "/api/collections/drive_items/records"
+const versionsURL = "/api/collections/drive_item_versions/records"
+const emptyList = `"totalItems":0`
+
+func TestGroupGrants_AnonymousCannotListItems(t *testing.T) {
+	env, _ := anonGrantEnv(t)
+	shareReq{method: http.MethodGet, url: itemsURL, want: http.StatusOK, content: []string{emptyList}}.run(t, env)
+}
+
+// Positive control: the same list with the creator's token finds the item, so
+// the empty list above comes from the rule and not from a missing fixture.
+func TestGroupGrants_CreatorListsItems(t *testing.T) {
+	env, _ := anonGrantEnv(t)
+	shareReq{
+		method: http.MethodGet, url: itemsURL, token: env.creatorToken,
+		want: http.StatusOK, content: []string{`"totalItems":1`, `"name":"plans.txt"`},
+	}.run(t, env)
+}
+
+func TestGroupGrants_AnonymousCannotViewItem(t *testing.T) {
+	env, _ := anonGrantEnv(t)
+	shareReq{method: http.MethodGet, url: itemsURL + "/" + env.item.Id, want: http.StatusNotFound}.run(t, env)
+}
+
+func TestGroupGrants_AnonymousCannotRenameItem(t *testing.T) {
+	env, _ := anonGrantEnv(t)
+	shareReq{
+		method: http.MethodPatch,
+		url:    itemsURL + "/" + env.item.Id,
+		body:   `{"name":"renamed-anonymously.txt"}`,
+		want:   http.StatusNotFound,
+		after: func(t testing.TB, app *tests.TestApp) {
+			fresh, err := app.FindRecordById("drive_items", env.item.Id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := fresh.GetString("name"); got != "plans.txt" {
+				t.Fatalf("an anonymous caller renamed the item to %q", got)
+			}
+		},
+	}.run(t, env)
+}
+
+func TestGroupGrants_AnonymousCannotListShares(t *testing.T) {
+	env, _ := anonGrantEnv(t)
+	shareReq{method: http.MethodGet, url: sharesURL, want: http.StatusOK, content: []string{emptyList}}.run(t, env)
+}
+
+// Positive control: the creator sees both rows (the viewer's direct share and
+// the grant).
+func TestGroupGrants_CreatorListsShares(t *testing.T) {
+	env, _ := anonGrantEnv(t)
+	shareReq{
+		method: http.MethodGet, url: sharesURL, token: env.creatorToken,
+		want: http.StatusOK, content: []string{`"totalItems":2`},
+	}.run(t, env)
+}
+
+func TestGroupGrants_AnonymousCannotDeleteGrant(t *testing.T) {
+	env, grant := anonGrantEnv(t)
+	shareReq{
+		method: http.MethodDelete,
+		url:    sharesURL + "/" + grant.Id,
+		want:   http.StatusNotFound,
+		after: func(t testing.TB, app *tests.TestApp) {
+			requireRowExists(t, app, grant.Id)
+		},
+	}.run(t, env)
+}
+
+func TestGroupGrants_AnonymousCannotListVersions(t *testing.T) {
+	env, _ := anonGrantEnv(t)
+	makeVersion(t, env.app, env.item, env.creator)
+	shareReq{method: http.MethodGet, url: versionsURL, want: http.StatusOK, content: []string{emptyList}}.run(t, env)
+}
+
+// Positive control: a direct viewer lists the version the anonymous caller
+// could not.
+func TestGroupGrants_DirectViewerListsVersions(t *testing.T) {
+	env, _ := anonGrantEnv(t)
+	makeVersion(t, env.app, env.item, env.creator)
+	shareReq{
+		method: http.MethodGet, url: versionsURL, token: env.viewerToken,
+		want: http.StatusOK, content: []string{`"totalItems":1`},
+	}.run(t, env)
+}
+
+func TestGroupGrants_AnonymousCannotCreateVersion(t *testing.T) {
+	env, _ := anonGrantEnv(t)
+	shareReq{
+		method: http.MethodPost,
+		url:    versionsURL,
+		body:   `{"item":"` + env.item.Id + `","version_number":1,"source":"user","created_by":"` + env.creator.Id + `"}`,
+		want:   http.StatusBadRequest,
+	}.run(t, env)
+}
+
+// Every rule in the app that reaches drive_shares.user must carry the login
+// guard. This catches a future rule the behavioural tests above do not name.
+func TestGroupGrants_EveryGrantRuleRequiresLogin(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	applyDriveRules(t, env.app)
+	rlstest.RequireAuthGuardOnGrantRules(t, env.app, "drive_shares")
 }

@@ -15,6 +15,13 @@ func TestDriveSharesShippedRules(t *testing.T) {
 	applyDriveRules(t, env.app)
 
 	cases := []struct{ kind, clause string }{
+		// A grant row's user is "", which an anonymous request's NULL
+		// @request.auth.id matches; every rule must require a login.
+		{"list", rlstest.AuthGuard},
+		{"view", rlstest.AuthGuard},
+		{"create", rlstest.AuthGuard},
+		{"update", rlstest.AuthGuard},
+		{"delete", rlstest.AuthGuard},
 		{"list", `@request.auth.disabled != true`},
 		{"view", `@request.auth.disabled != true`},
 		{"create", `item.created_by ?= @request.auth.id`},
@@ -30,5 +37,28 @@ func TestDriveSharesShippedRules(t *testing.T) {
 	}
 	for _, c := range cases {
 		rlstest.RequireRuleContains(t, env.app, "drive_shares", c.kind, c.clause)
+	}
+}
+
+// The rules on drive's other collections that reach drive_shares.user through
+// the back-relation. Each must require a login, for the same reason as above.
+func TestDriveGrantReachingRules_RequireLogin(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	applyDriveRules(t, env.app)
+
+	for _, c := range []struct{ collection, kind string }{
+		{"drive_items", "list"},
+		{"drive_items", "view"},
+		{"drive_items", "update"},
+		{"drive_item_versions", "list"},
+		{"drive_item_versions", "view"},
+		{"drive_item_versions", "create"},
+		{"drive_item_versions", "update"},
+		{"drive_item_versions", "delete"},
+		{"drive_share_links", "list"},
+		{"drive_share_links", "view"},
+		{"drive_item_state", "create"},
+	} {
+		rlstest.RequireRuleContains(t, env.app, c.collection, c.kind, rlstest.AuthGuard)
 	}
 }
