@@ -29,6 +29,8 @@ func setupSearchApp(t *testing.T) (*tests.TestApp, *core.Record) {
 	}
 	t.Cleanup(func() { app.Cleanup() })
 
+	stubGroupsCollection(t, app)
+
 	users, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
 		t.Fatal(err)
@@ -61,6 +63,11 @@ func setupSearchApp(t *testing.T) (*tests.TestApp, *core.Record) {
 	})
 	shares.Fields.Add(&core.SelectField{
 		Name: "role", MaxSelect: 1, Values: []string{"owner", "editor", "viewer"},
+	})
+	// Optional group relation: mirrors migration 2040000002 so a `group = ""`
+	// filter resolves against this fixture's schema.
+	shares.Fields.Add(&core.RelationField{
+		Name: "group", CollectionId: "pbc_groups_01", MaxSelect: 1,
 	})
 	if err := app.Save(shares); err != nil {
 		t.Fatal(err)

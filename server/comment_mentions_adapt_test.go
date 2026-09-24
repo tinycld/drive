@@ -63,6 +63,7 @@ func TestCommentMentionsAdapt_DriveJoinsACoreCreatedTable(t *testing.T) {
 	}
 
 	// Drive arrives. Its create-or-adapt must take the adapt path.
+	stubGroupsCollection(t, app)
 	rlstest.Apply(t, app, rlstest.MigrationsDir(t, "../pb-migrations"))
 
 	mentions, err = app.FindCollectionByNameOrId("comment_mentions")

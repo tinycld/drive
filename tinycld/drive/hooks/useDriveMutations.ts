@@ -7,6 +7,7 @@ import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
 import { driveItemToSource } from '../lib/file-url'
 import type { DriveItemView } from '../types'
+import type { useDriveItems } from './useDriveItems'
 
 interface UseDriveMutationsParams {
     userId: string
@@ -15,7 +16,7 @@ interface UseDriveMutationsParams {
     itemsById: Map<string, DriveItemView>
     userNames: Map<string, string>
     userEmails: Map<string, string>
-    sharesByItem: Map<string, { id: string; item: string; user: string; role: string }[]>
+    sharesByItem: ReturnType<typeof useDriveItems>['sharesByItem']
     prepareLayoutAnimation?: () => void
 }
 
@@ -121,6 +122,8 @@ export function useDriveMutations({
                 id: newRecordId(),
                 item: itemId,
                 user: targetUserId,
+                // Direct share: a group grant sets group and leaves user empty.
+                group: '',
                 role,
                 created_by: userId,
             })
@@ -230,7 +233,9 @@ export function useDriveMutations({
     }
 
     const getSharesForItem = (itemId: string) => {
-        const shares = sharesByItem.get(itemId) ?? []
+        // Direct rows carry the people the creator named; derived rows are
+        // shown under their group.
+        const shares = (sharesByItem.get(itemId) ?? []).filter(s => s.group === '')
         return shares.map(s => ({
             id: s.id,
             userId: s.user,

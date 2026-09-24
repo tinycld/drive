@@ -429,7 +429,9 @@ func ensureGuestRole(app core.App, user *core.Record) error {
 func findOrCreateGuestDriveShare(app core.App, itemID, userID, role string) error {
 	existing, _ := app.FindFirstRecordByFilter(
 		"drive_shares",
-		"item = {:item} && user = {:user}",
+		// Direct rows only: a derived row (via a group) must not stop a
+		// direct share, or leaving the group would revoke it.
+		`item = {:item} && user = {:user} && group = ""`,
 		map[string]any{"item": itemID, "user": userID},
 	)
 	if existing != nil {
@@ -451,10 +453,10 @@ func findOrCreateGuestDriveShare(app core.App, itemID, userID, role string) erro
 	rec.Set("created_by", userID)
 	if err := app.Save(rec); err != nil {
 		// Race: another verify concurrently created the row (unique
-		// index on (item, user)). Tolerate.
+		// index on (item, user, group)). Tolerate.
 		if again, _ := app.FindFirstRecordByFilter(
 			"drive_shares",
-			"item = {:item} && user = {:user}",
+			`item = {:item} && user = {:user} && group = ""`,
 			map[string]any{"item": itemID, "user": userID},
 		); again != nil {
 			return nil

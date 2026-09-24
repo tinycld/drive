@@ -114,6 +114,7 @@ func driveGuestUser(t *testing.T, app core.App, email, role string) *core.Record
 // therefore made against what the product ships.
 func applyDriveRules(t *testing.T, app core.App) {
 	t.Helper()
+	stubGroupsCollection(t, app)
 	rlstest.Apply(t, app, rlstest.MigrationsDir(t, "../pb-migrations"))
 }
 

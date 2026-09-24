@@ -7,6 +7,7 @@ import type {
     ShareRequest,
 } from '@tinycld/app-generated/drive-api'
 import { Avatar } from '@tinycld/core/components/Avatar'
+import { GroupShareSection } from '@tinycld/core/components/groups/GroupShareSection'
 import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
 import {
     type ContactSuggestion,
@@ -23,6 +24,8 @@ import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import { ChevronDown, Globe, Link, Lock, Trash2 } from 'lucide-react-native'
 import { useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native'
+import { useItemGroupGrants } from '../hooks/use-item-group-grants'
+import { GROUP_ROLE_OPTIONS } from '../lib/share-roles'
 
 // One merged, de-duplicated suggestion the picker can render, tagged by where
 // it came from (an org member vs. a contact from the optional contacts pkg).
@@ -82,6 +85,7 @@ interface ShareDialogProps {
     orgMembers: OrgMember[]
     currentUserId: string
     onRemoveShare: (shareId: string) => void
+    canManage: boolean
     onClose: () => void
 }
 
@@ -98,10 +102,12 @@ export function ShareDialog({
     orgMembers,
     currentUserId,
     onRemoveShare,
+    canManage,
     onClose,
 }: ShareDialogProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const primaryColor = useThemeColor('primary')
+    const groupGrants = useItemGroupGrants(itemId)
     const [search, setSearch] = useState('')
     const [defaultRole, setDefaultRole] = useState<'editor' | 'viewer'>('editor')
     const [pending, setPending] = useState<PendingShare[]>([])
@@ -388,6 +394,12 @@ export function ShareDialog({
                             </Pressable>
                         </View>
                     ))}
+
+                    <GroupShareSection
+                        {...groupGrants}
+                        roles={GROUP_ROLE_OPTIONS}
+                        canManage={canManage}
+                    />
                 </View>
 
                 <View className="pb-4">

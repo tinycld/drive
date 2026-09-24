@@ -61,7 +61,9 @@ func handleShare(app core.App, re *core.RequestEvent) error {
 		if r.UserID != "" {
 			existing, _ := app.FindFirstRecordByFilter(
 				"drive_shares",
-				"item = {:item} && user = {:user}",
+				// Direct rows only: a derived row (via a group) must not stop a
+				// direct share, or leaving the group would revoke it.
+				`item = {:item} && user = {:user} && group = ""`,
 				map[string]any{"item": req.ItemID, "user": r.UserID},
 			)
 			if existing == nil {
