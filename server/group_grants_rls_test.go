@@ -588,8 +588,9 @@ func TestGroupGrants_AnonymousCannotCreateVersion(t *testing.T) {
 
 // Every rule in the app that reaches drive_shares.user must carry the login
 // guard. This catches a future rule the behavioural tests above do not name.
+// The app carries core's migrations too, so a core rule that gains a drive
+// branch (comment_mentions) is scanned as an install ships it.
 func TestGroupGrants_EveryGrantRuleRequiresLogin(t *testing.T) {
-	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
-	rlstest.RequireAuthGuardOnGrantRules(t, env.app, "drive_shares")
+	app := rlstest.NewAssembledApp(t, rlstest.MigrationsDir(t, "../pb-migrations"))
+	rlstest.RequireAuthGuardOnGrantRules(t, app, "drive_shares")
 }
