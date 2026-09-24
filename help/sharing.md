@@ -20,6 +20,21 @@ The file's creator is always the **Owner** — that role isn't assigned via this
 
 Click **Send** to grant access. The other person now sees the file in their **Shared with me** section.
 
+## Sharing with a group
+
+Under the list of people in the share dialog is a **Groups** section. Choose
+**Add group**, pick a role, and pick a group. Everyone in the group gets that
+role on the file, including people who join the group later. Remove the group
+or change its role from the same section. Only the file's creator can manage
+its groups, the same as its people.
+
+A group can be an editor, commentor or viewer, never an owner. If someone is
+shared with directly and also through a group, the stronger role applies.
+
+Text documents and spreadsheets are files, so the same section appears in
+their share dialogs. Admins create and manage groups under **Settings →
+Groups**; see [Groups](help://core:groups).
+
 ## Changing or removing access
 
 Each person who has access is listed below the input with their current role. Use the role dropdown next to their name to:
