@@ -63,23 +63,20 @@ export function useDriveItemFileActions(
     const orgHref = useOrgHref()
     const openCopyDialog = useCopyDialogStore(s => s.openCopyDialog)
 
-    const { data: existingStateRows = [] } = useMyLiveQuery(
-        (query, { userId }) =>
-            query
-                .from({ state: driveItemStateCollection })
-                .where(({ state }) => and(eq(state.item, itemId), eq(state.user, userId))),
-        [itemId]
+    const { data: existingStateRows = [] } = useMyLiveQuery((query, { userId }) =>
+        query
+            .from({ state: driveItemStateCollection })
+            .where(({ state }) => and(eq(state.item, itemId), eq(state.user, userId)))
     )
     const existingState = existingStateRows[0]
 
-    const { data: itemRows = [] } = useLiveQuery(
-        query =>
+    const { data: itemRows = [] } = useLiveQuery({
+        query: query =>
             query
                 .from({ item: driveItemsCollection })
                 .where(({ item }) => eq(item.id, itemId))
                 .select(({ item }) => ({ parent: item.parent })),
-        [itemId]
-    )
+    })
     const sourceParentId = itemRows[0]?.parent ?? ''
 
     const renameMutation = useMutation({
