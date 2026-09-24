@@ -162,7 +162,7 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 	shares.Fields.Add(&core.RelationField{
 		Name: "group", CollectionId: "pbc_groups_01", MaxSelect: 1,
 	})
-	shares.AddIndex("idx_drv_shares_unique", true, "item, user", "")
+	shares.AddIndex("idx_drv_shares_unique", true, "item, user, group", "")
 	if err := app.Save(shares); err != nil {
 		t.Fatalf("save drive_shares: %v", err)
 	}
