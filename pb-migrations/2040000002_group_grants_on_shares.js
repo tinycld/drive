@@ -25,6 +25,14 @@
 // back-relation. rlstest.RequireAuthGuardOnGrantRules fails the build if a
 // later rule forgets it.
 //
+// Two own-row rules gain the guard here too: drive_items.deleteRule
+// (`created_by ?= @request.auth.id`) and drive_item_state's list, view,
+// update and delete (`user = @request.auth.id`). They do not reach
+// drive_shares and are safe today only because `created_by` and `user` are
+// required; the guard stops them depending on that.
+// rlstest.RequireAuthGuardOnAccessRules fails the build on any rule that
+// reads @request.auth on a path without the guard.
+//
 // Rules are restated as literals, never read back off the collection
 // (shipped_rules_test.go asserts them): drive_shares from 1782000000 with the
 // new clauses appended, the other collections from their latest setters
@@ -69,6 +77,18 @@ function grantReachingRules(guard) {
         drive_item_state: {
             createRule: `${guard}${enabled} && user = @request.auth.id && (${verIsItemCreator} || ${verHasShare})`,
         },
+    }
+}
+
+// The own-row rules 1782000000 (drive_item_state) and 1782100000
+// (drive_items.deleteRule) left, with `guard` in front. Up passes the login
+// guard; down passes '' to restore them exactly.
+function ownRowRules(guard) {
+    const enabled = '@request.auth.disabled != true'
+    const ownState = `${guard}${enabled} && user = @request.auth.id`
+    return {
+        drive_items: { deleteRule: `${guard}${enabled} && created_by ?= @request.auth.id` },
+        drive_item_state: { listRule: ownState, viewRule: ownState, updateRule: ownState, deleteRule: ownState },
     }
 }
 
@@ -138,6 +158,7 @@ migrate(
         app.save(shares)
 
         applyRules(app, grantReachingRules(`${authed} && `))
+        applyRules(app, ownRowRules(`${authed} && `))
     },
     app => {
         const shares = app.findCollectionByNameOrId('drive_shares')
@@ -164,5 +185,6 @@ migrate(
         app.save(shares)
 
         applyRules(app, grantReachingRules(''))
+        applyRules(app, ownRowRules(''))
     }
 )
