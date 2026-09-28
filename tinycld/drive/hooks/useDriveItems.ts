@@ -1,4 +1,4 @@
-import { eq, inArray } from '@tanstack/db'
+import { and, eq, inArray } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useMyLiveQuery } from '@tinycld/core/lib/use-my-live-query'
@@ -67,9 +67,18 @@ export function useDriveItems({
 
     // All users in the single database are members; the roster is just the
     // users collection. Names/emails are keyed by users id (the value the
-    // drive FKs — created_by / user — now store).
+    // drive FKs — created_by / user — now store). Only the fields
+    // userNames/userEmails/orgMembers actually read leave the server.
     const { data: allUsers, isLoading: usersLoading } = useLiveQuery(query =>
-        query.from({ user: usersCollection })
+        query.from({ user: usersCollection }).select(({ user }) => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar,
+            avatar_crop: user.avatar_crop,
+            avatar_color: user.avatar_color,
+            avatar_emoji: user.avatar_emoji,
+        }))
     )
 
     const userNames = useMemo(
@@ -77,16 +86,29 @@ export function useDriveItems({
         [allUsers]
     )
 
+    // Share-picker candidates, separately scoped from allUsers: an item's
+    // owner/created_by can be any user (userNames/userEmails must resolve
+    // them regardless of role), but a share can only be offered to a
+    // non-guest, non-disabled member.
+    const { data: memberCandidates } = useLiveQuery(query =>
+        query
+            .from({ user: usersCollection })
+            .where(({ user }) =>
+                and(inArray(user.role, ['owner', 'admin', 'member']), eq(user.disabled, false))
+            )
+            .select(({ user }) => ({ id: user.id, name: user.name, email: user.email }))
+    )
+
     const orgMembers = useMemo(
         () =>
-            (allUsers ?? [])
+            (memberCandidates ?? [])
                 .filter(u => u.id !== userId)
                 .map(u => ({
                     userId: u.id,
                     name: u.name || '',
                     email: u.email || '',
                 })),
-        [allUsers, userId]
+        [memberCandidates, userId]
     )
 
     const userEmails = useMemo(
