@@ -96,9 +96,16 @@ test.describe('Drive — Rules', () => {
         // Search rather than scroll — the menu caps how many matches it
         // renders, and a seeded drive has far more items than that, so a
         // freshly created folder is only reachable by narrowing.
+        //
+        // Pick the MENU ROW, by role, not a page-wide text match: the folder
+        // this rule files into is also a row in the drive list behind the
+        // dialog, and a `getByText(...).last()` matched that one instead —
+        // before the debounced search had even produced the menu row. Rooted
+        // at the role, Playwright waits for the row that can actually be
+        // chosen, so no forced click is needed either.
         await page.getByText('Select…', { exact: true }).last().click()
         await page.getByPlaceholder('Search…').fill(destinationName)
-        await page.getByText(destinationName, { exact: true }).last().click({ force: true })
+        await page.getByRole('menuitem', { name: destinationName, exact: true }).click()
 
         await page.getByText('Save', { exact: true }).click()
         await expect(page.getByText(ruleName, { exact: true })).toBeVisible()
