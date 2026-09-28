@@ -45,8 +45,8 @@ export interface ShareData {
  * Loads the data ShareDialog needs without depending on `useDrive()` context.
  * `useDrive()` is only mounted inside the Drive screen tree; this hook is for
  * surfaces that render ShareDialog from elsewhere (the text and calc File
- * menus). The drive_shares and users collections are small and eager, so
- * subscribing here is cheap and pbtsdb de-duplicates with any other live
+ * menus). drive_shares is on-demand now, but this query is unfiltered, so it
+ * still loads the whole small set; pbtsdb de-duplicates with any other live
  * queries against the same collections.
  */
 export function useShareData(itemId: string): ShareData {
@@ -57,7 +57,8 @@ export function useShareData(itemId: string): ShareData {
 
     const { data: rawShares } = useLiveQuery(query => query.from({ share: sharesCollection }))
 
-    // drive_items is on-demand, so this issues one server fetch for the item.
+    // drive_items is on-demand with per-query realtime, so this issues one
+    // server fetch for the item and stays subscribed to just that row.
     const { data: sharedItem } = useLiveQuery({
         query: query => {
             if (!itemId) return null
