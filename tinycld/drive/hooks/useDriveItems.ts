@@ -65,10 +65,11 @@ export function useDriveItems({
         query.from({ state: stateCollection }).where(({ state }) => eq(state.user, userId))
     )
 
-    // All users in the single database are members; the roster is just the
-    // users collection. Names/emails are keyed by users id (the value the
-    // drive FKs — created_by / user — now store). Only the fields
-    // userNames/userEmails/orgMembers actually read leave the server.
+    // All users in the single database are members, and drive_items.created_by
+    // can name any of them, so this stays unfiltered by role/id. pbtsdb
+    // doesn't pass a fields= param to PocketBase, so .select() here narrows
+    // the row shape userNames/userEmails/orgMembers depend on — it does not
+    // shrink what comes over the wire.
     const { data: allUsers, isLoading: usersLoading } = useLiveQuery(query =>
         query.from({ user: usersCollection }).select(({ user }) => ({
             id: user.id,

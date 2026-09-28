@@ -77,10 +77,11 @@ export function useShareData(itemId: string): ShareData {
         },
     })
 
-    // Every user in the single database is a member; names/emails are keyed by
-    // users id (the value drive_shares.user now stores). Only the fields
-    // userNames/userEmails/userAvatars/orgMembers actually read leave the
-    // server.
+    // Every user in the single database is a member, and a share row can name
+    // any of them, so this stays unfiltered by role/id. pbtsdb doesn't pass a
+    // fields= param to PocketBase, so .select() here narrows the row shape
+    // userNames/userEmails/userAvatars/orgMembers depend on — it does not
+    // shrink what comes over the wire.
     const { data: allUsers } = useLiveQuery(query =>
         query.from({ user: usersCollection }).select(({ user }) => ({
             id: user.id,
