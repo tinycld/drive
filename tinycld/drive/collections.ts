@@ -18,6 +18,12 @@ export function registerCollections(
     // keys resolve to `never`), so every collection references this const.
     const indexing = { autoIndex: 'eager' as const, defaultIndexType: BasicIndex }
 
+    // Every collection syncs on demand and subscribes per query (pbtsdb 0.10):
+    // only the rows a live query asks for enter the store, and realtime covers
+    // exactly those rows. The server emits a delete to a subscription a row
+    // leaves, so a filtered view stays correct across updates.
+    const onDemand = { syncMode: 'on-demand', realtime: 'query' } as const
+
     const drive_items = newCollection('drive_items', {
         omitOnInsert: [
             'created',
@@ -27,19 +33,16 @@ export function registerCollections(
             'index_hash',
         ] as const,
         relations: { created_by: coreStores.users },
-        // On-demand: each useLiveQuery against drive_items issues a server
-        // fetch with the where/orderBy translated into a PocketBase filter.
-        // Avoids loading every item in the org just to render a single folder.
-        syncMode: 'on-demand' as const,
+        ...onDemand,
         collectionOptions: indexing,
     })
 
     // `alwaysFetchRelations: ['item']` on the collections below is deliberate and
-    // load-bearing: drive_items is syncMode 'on-demand', so a share / state /
-    // version row can reference an item this client never queried, and filing it
-    // through the parent's expand is the only thing that puts it in the store.
-    // Relations whose target is EAGER (users, here) need no entry — that store
-    // syncs itself, so fetching them would only add payload. Rows never carry
+    // load-bearing: drive_items is on-demand, so a share / state / version row
+    // can reference an item this client never queried, and filing it through
+    // the parent's expand is the only thing that puts it in the store.
+    // Relations whose target is read elsewhere (users, here) need no entry — a
+    // join batch-loads it by id, so fetching them would only add payload. Rows never carry
     // `expand`; read the item from drive_items with materialize(), a join, or get().
     const drive_shares = newCollection('drive_shares', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -49,6 +52,7 @@ export function registerCollections(
             group: coreStores.groups,
             created_by: coreStores.users,
         },
+        ...onDemand,
         alwaysFetchRelations: ['item'],
         collectionOptions: indexing,
     })
@@ -56,6 +60,7 @@ export function registerCollections(
     const drive_item_state = newCollection('drive_item_state', {
         omitOnInsert: ['created', 'updated'] as const,
         relations: { item: drive_items, user: coreStores.users },
+        ...onDemand,
         alwaysFetchRelations: ['item'],
         collectionOptions: indexing,
     })
@@ -63,6 +68,7 @@ export function registerCollections(
     const drive_item_versions = newCollection('drive_item_versions', {
         omitOnInsert: ['created', 'updated'] as const,
         relations: { item: drive_items, created_by: coreStores.users },
+        ...onDemand,
         alwaysFetchRelations: ['item'],
         collectionOptions: indexing,
     })
@@ -70,6 +76,7 @@ export function registerCollections(
     const drive_share_links = newCollection('drive_share_links', {
         omitOnInsert: ['created', 'updated'] as const,
         relations: { item: drive_items, created_by: coreStores.users },
+        ...onDemand,
         alwaysFetchRelations: ['item'],
         collectionOptions: indexing,
     })
@@ -88,6 +95,7 @@ export function registerCollections(
             drive_item: drive_items,
             mentioned_user: coreStores.users,
         },
+        ...onDemand,
         alwaysFetchRelations: ['drive_item'],
     })
 

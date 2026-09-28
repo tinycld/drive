@@ -1,4 +1,4 @@
-import { eq } from '@tanstack/db'
+import { and, eq, inArray } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { mutation, useMutation } from '@tinycld/core/lib/mutations'
@@ -45,9 +45,10 @@ export interface ShareData {
  * Loads the data ShareDialog needs without depending on `useDrive()` context.
  * `useDrive()` is only mounted inside the Drive screen tree; this hook is for
  * surfaces that render ShareDialog from elsewhere (the text and calc File
- * menus). The drive_shares and users collections are small and eager, so
- * subscribing here is cheap and pbtsdb de-duplicates with any other live
- * queries against the same collections.
+ * menus). drive_shares is on-demand now, and this hook is the whole reason
+ * the query is scoped to `itemId`: it exists precisely for the path outside
+ * the drive screen, where none of drive's other queries (which already hold
+ * a whole-org drive_shares subscription) are mounted to share the cost.
  */
 export function useShareData(itemId: string): ShareData {
     const userId = useAuth().user.id
@@ -55,9 +56,17 @@ export function useShareData(itemId: string): ShareData {
     const [usersCollection] = useStore('users')
     const [itemsCollection] = useStore('drive_items')
 
-    const { data: rawShares } = useLiveQuery(query => query.from({ share: sharesCollection }))
+    const { data: rawShares } = useLiveQuery({
+        query: query => {
+            if (!itemId) return null
+            return query
+                .from({ share: sharesCollection })
+                .where(({ share }) => eq(share.item, itemId))
+        },
+    })
 
-    // drive_items is on-demand, so this issues one server fetch for the item.
+    // drive_items is on-demand with per-query realtime, so this issues one
+    // server fetch for the item and stays subscribed to just that row.
     const { data: sharedItem } = useLiveQuery({
         query: query => {
             if (!itemId) return null
@@ -68,9 +77,43 @@ export function useShareData(itemId: string): ShareData {
         },
     })
 
-    // Every user in the single database is a member; names/emails are keyed by
-    // users id (the value drive_shares.user now stores).
-    const { data: allUsers } = useLiveQuery(query => query.from({ user: usersCollection }))
+    // Every user in the single database is a member, and a share row can name
+    // any of them, so this stays unfiltered by role/id. pbtsdb doesn't pass a
+    // fields= param to PocketBase, so .select() here narrows the row shape
+    // userNames/userEmails/userAvatars/orgMembers depend on — it does not
+    // shrink what comes over the wire.
+    const { data: allUsers } = useLiveQuery(query =>
+        query.from({ user: usersCollection }).select(({ user }) => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar,
+            avatar_crop: user.avatar_crop,
+            avatar_color: user.avatar_color,
+            avatar_emoji: user.avatar_emoji,
+        }))
+    )
+
+    // Share-picker candidates, separately scoped from allUsers: a share row's
+    // user can be anyone (userNames/userEmails/userAvatars must resolve them
+    // regardless of role), but a share can only be offered to a non-guest,
+    // non-disabled member.
+    const { data: memberCandidates } = useLiveQuery(query =>
+        query
+            .from({ user: usersCollection })
+            .where(({ user }) =>
+                and(inArray(user.role, ['owner', 'admin', 'member']), eq(user.disabled, false))
+            )
+            .select(({ user }) => ({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                avatar: user.avatar,
+                avatar_crop: user.avatar_crop,
+                avatar_color: user.avatar_color,
+                avatar_emoji: user.avatar_emoji,
+            }))
+    )
 
     const userNames = useMemo(
         () => new Map((allUsers ?? []).map(u => [u.id, u.name || u.email || ''])),
@@ -100,7 +143,7 @@ export function useShareData(itemId: string): ShareData {
 
     const orgMembers = useMemo<OrgMember[]>(
         () =>
-            (allUsers ?? [])
+            (memberCandidates ?? [])
                 .filter(u => u.id !== userId)
                 .map(u => ({
                     userId: u.id,
@@ -111,15 +154,16 @@ export function useShareData(itemId: string): ShareData {
                     avatarColor: u.avatar_color || '',
                     avatarEmoji: u.avatar_emoji || '',
                 })),
-        [allUsers, userId]
+        [memberCandidates, userId]
     )
 
     const shares = useMemo<ShareEntry[]>(() => {
         if (!itemId) return []
         const emptyAvatar = { avatar: '', avatarCrop: '', avatarColor: '', avatarEmoji: '' }
         // Direct shares only: grant rows have no user, derived rows are shown under their group.
+        // rawShares is already scoped to itemId by the query.
         return (rawShares ?? [])
-            .filter(s => s.item === itemId && s.group === '')
+            .filter(s => s.group === '')
             .map(s => ({
                 id: s.id,
                 userId: s.user,

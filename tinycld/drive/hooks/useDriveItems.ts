@@ -1,4 +1,4 @@
-import { eq, inArray } from '@tanstack/db'
+import { and, eq, inArray } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useMyLiveQuery } from '@tinycld/core/lib/use-my-live-query'
@@ -23,9 +23,11 @@ interface UseDriveItemsParams {
  * filters, then assembles them into the shapes the UI consumes (currentItems,
  * folderTree, breadcrumbs, etc.).
  *
- * The drive_items collection runs in syncMode:'on-demand' — each useLiveQuery
- * here translates its where/orderBy into a PocketBase filter, so we never
- * load the whole org's items just to show one folder.
+ * The drive_items collection runs on-demand with per-query realtime — each
+ * useLiveQuery here translates its where/orderBy into a PocketBase filter, so
+ * we never load the whole org's items just to show one folder, and a row that
+ * leaves a query's filter is dropped via the server's delete event for that
+ * subscription.
  *
  *   - `currentFolderQuery`  — the items shown in the main pane.
  *   - `foldersQuery`        — every folder the user can see; small and stable;
@@ -35,7 +37,9 @@ interface UseDriveItemsParams {
  *   - `selectedItemQuery`   — fires when a selection / preview id isn't in
  *                             any of the above subsets (e.g. shared link).
  *
- * drive_shares and drive_item_state stay eager: small, used everywhere, cheap.
+ * drive_shares and drive_item_state are also on-demand now, but their queries
+ * here are unfiltered (or filtered only by the current user), so they still
+ * load and behave like a small, always-subscribed set.
  */
 export function useDriveItems({
     userId,
@@ -51,7 +55,7 @@ export function useDriveItems({
     const [stateCollection] = useStore('drive_item_state')
     const [usersCollection] = useStore('users')
 
-    // --- supporting eager collections (small) ---------------------------------
+    // --- supporting collections (small, read unfiltered) ----------------------
 
     const { data: rawShares, isLoading: sharesLoading } = useLiveQuery(query =>
         query.from({ share: sharesCollection })
@@ -61,11 +65,21 @@ export function useDriveItems({
         query.from({ state: stateCollection }).where(({ state }) => eq(state.user, userId))
     )
 
-    // All users in the single database are members; the roster is just the
-    // users collection. Names/emails are keyed by users id (the value the
-    // drive FKs — created_by / user — now store).
+    // All users in the single database are members, and drive_items.created_by
+    // can name any of them, so this stays unfiltered by role/id. pbtsdb
+    // doesn't pass a fields= param to PocketBase, so .select() here narrows
+    // the row shape userNames/userEmails/orgMembers depend on — it does not
+    // shrink what comes over the wire.
     const { data: allUsers, isLoading: usersLoading } = useLiveQuery(query =>
-        query.from({ user: usersCollection })
+        query.from({ user: usersCollection }).select(({ user }) => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar,
+            avatar_crop: user.avatar_crop,
+            avatar_color: user.avatar_color,
+            avatar_emoji: user.avatar_emoji,
+        }))
     )
 
     const userNames = useMemo(
@@ -73,16 +87,29 @@ export function useDriveItems({
         [allUsers]
     )
 
+    // Share-picker candidates, separately scoped from allUsers: an item's
+    // owner/created_by can be any user (userNames/userEmails must resolve
+    // them regardless of role), but a share can only be offered to a
+    // non-guest, non-disabled member.
+    const { data: memberCandidates } = useLiveQuery(query =>
+        query
+            .from({ user: usersCollection })
+            .where(({ user }) =>
+                and(inArray(user.role, ['owner', 'admin', 'member']), eq(user.disabled, false))
+            )
+            .select(({ user }) => ({ id: user.id, name: user.name, email: user.email }))
+    )
+
     const orgMembers = useMemo(
         () =>
-            (allUsers ?? [])
+            (memberCandidates ?? [])
                 .filter(u => u.id !== userId)
                 .map(u => ({
                     userId: u.id,
                     name: u.name || '',
                     email: u.email || '',
                 })),
-        [allUsers, userId]
+        [memberCandidates, userId]
     )
 
     const userEmails = useMemo(
@@ -103,8 +130,9 @@ export function useDriveItems({
     const stateByItem = useMemo(() => new Map((rawStates ?? []).map(s => [s.item, s])), [rawStates])
 
     // --- on-demand drive_items queries ----------------------------------------
-    // Each useMyLiveQuery against drive_items is translated to a PocketBase
-    // filter and run server-side. Disabled queries return empty data.
+    // Each live query against drive_items is translated to a PocketBase filter
+    // and run server-side, with realtime scoped to that query. Disabled
+    // queries return empty data.
 
     // Items in the current folder for the current org. Only meaningful when the
     // user is inside My Drive (or a subfolder); other sections supply their own

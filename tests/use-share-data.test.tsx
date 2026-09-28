@@ -11,8 +11,18 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
         createCollection(localOnlyCollectionOptions({ id, getKey: (r: T) => r.id, initialData }))
     const registry: Record<string, unknown> = {
         users: mk('users', [
-            { id: 'me', name: 'Me', email: 'me@x.test', role: 'member' },
-            { id: 'u2', name: 'Bo', email: 'bo@x.test', role: 'member' },
+            { id: 'me', name: 'Me', email: 'me@x.test', role: 'member', disabled: false },
+            { id: 'u2', name: 'Bo', email: 'bo@x.test', role: 'member', disabled: false },
+            // Excluded from orgMembers: a guest and a disabled member should
+            // never be offered as share-picker candidates.
+            { id: 'u3', name: 'Guest', email: 'guest@x.test', role: 'guest', disabled: false },
+            {
+                id: 'u4',
+                name: 'Departed',
+                email: 'departed@x.test',
+                role: 'member',
+                disabled: true,
+            },
         ]),
         drive_items: mk('drive_items', [
             { id: 'it1', name: 'plans', created_by: 'me' },
@@ -36,6 +46,16 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
                 group: 'g1',
                 role: 'viewer',
                 created_by: 'me',
+            },
+            // Belongs to it2 — must never appear in it1's share list. Proves
+            // the query is scoped by itemId, not filtered client-side.
+            {
+                id: 's-other-item',
+                item: 'it2',
+                user: 'u2',
+                group: '',
+                role: 'owner',
+                created_by: 'u2',
             },
         ]),
     }
@@ -70,5 +90,20 @@ describe('useShareData', () => {
         )
         await waitFor(() => expect(result.current.mine.canManage).toBe(true))
         expect(result.current.theirs.canManage).toBe(false)
+    })
+
+    // s-other-item belongs to it2 and would appear here if the drive_shares
+    // query weren't scoped by itemId (the hook's shares memo no longer
+    // filters by item client-side — the query does it).
+    it('scopes drive_shares to the requested item', async () => {
+        const { result } = renderHook(() => useShareData('it2'), { wrapper: wrapper() })
+        await waitFor(() => expect(result.current.canManage).toBe(false))
+        expect(result.current.shares.map(s => s.id)).toEqual(['s-other-item'])
+    })
+
+    it('excludes guests and disabled accounts from orgMembers', async () => {
+        const { result } = renderHook(() => useShareData('it1'), { wrapper: wrapper() })
+        await waitFor(() => expect(result.current.canManage).toBe(true))
+        expect(result.current.orgMembers.map(m => m.userId).sort()).toEqual(['u2'])
     })
 })
