@@ -1,7 +1,7 @@
 const manifest = {
     name: 'Drive',
     slug: 'drive',
-    version: '0.3.1',
+    version: '0.4.0',
     description: 'Cloud file storage, with WebDAV',
     routes: { directory: 'screens' },
     publicRoutes: { directory: 'public-screens' },
