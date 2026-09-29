@@ -146,7 +146,7 @@ Both effectively run as eventual consistency: clients see the item appear immedi
 
 ### Sharing model
 
-`drive_shares` has columns `(item, user, role, created_by)` — both `user` and `created_by` are relations straight to `users`. Roles are exactly:
+`drive_shares` has columns `(item, user, group, role, created_by)` — `user` and `created_by` are relations straight to `users`; `group` is a relation to core's `groups`. A row is one of three kinds: **direct** (`user` set, `group` empty), a **grant** (`user` empty, `group` set — "share this file with a group"), or **derived** (both set). Drive registers `drive_shares` with core's `groups.RegisterGrantTable` (`server/register.go`), so core expands a grant into one derived row per group member inside the same transaction and keeps them in step as membership changes; every access rule tests `user`, so a derived row grants access exactly like a direct one. A group can never be granted `owner`. Roles are exactly:
 
 - **`owner`** — full control. Created automatically by the item-create hook.
 - **`editor`** — write access (rename, move, upload new version).
@@ -155,13 +155,13 @@ Both effectively run as eventual consistency: clients see the item appear immedi
 
 Owners are not assignable through the share dialog UI — the only way to become an owner is to create the item. The Go-side read/write/delete predicates live once in core's `driveshare` package (`tinycld.org/core/driveshare`), shared with text and calc: `Role.CanWrite()` is true for owner and editor only, and every error path fails closed.
 
-The collections' PocketBase access rules (settled by migration `1782100000_restore_guest_clause_and_settle_commentor.js`) let the item's creator or any share-holder read an item, restrict updates to the creator or a share-holder with role `editor` / `owner`, and restrict delete to the creator. `drive_shares` rows themselves are managed by the item's creator (recipients may delete — i.e. leave — their own share). Server endpoints that mutate items (`upload-version`, `restore-version`, the folder-download token) go through `resolveItemAndUser`, which loads the item and checks the caller's access via `driveshare.CheckWrite` / `driveshare.CheckReadItem`.
+The collections' PocketBase access rules (currently restated by migration `2040000002_group_grants_on_shares.js`, which requires `@request.auth.id != ""` on every rule of `drive_items`, `drive_item_versions`, `drive_share_links`, `drive_shares` and `drive_item_state`) let the item's creator or any share-holder read an item, restrict updates to the creator or a share-holder with role `editor` / `owner`, and restrict delete to the creator. `drive_shares` rows themselves are managed by the item's creator (recipients may delete — i.e. leave — their own share). Server endpoints that mutate items (`upload-version`, `restore-version`, the folder-download token) go through `resolveItemAndUser`, which loads the item and checks the caller's access via `driveshare.CheckWrite` / `driveshare.CheckReadItem`.
 
 ### Public share links
 
-A `drive_share_links` row is the entire public-link state: `(item, role, token, expires_at, is_active, download_count, last_accessed_at, created_by)`. Tokens are 32 random bytes hex-encoded — 64 characters of `[0-9a-f]`, with a `UNIQUE` index. The token is generated at create time and never changes; disabling a link sets `is_active = false`, re-enabling restores it, and the same URL works again. Permanent invalidation requires `DELETE /api/drive/share-link/{id}`, after which any new link generated for the same item gets a fresh token. Collection access rules require **owner** role on the underlying item for any CRUD on the link — editors of a file cannot create or revoke its public links.
+A `drive_share_links` row is the entire public-link state: `(item, role, token, expires_at, is_active, download_count, day_download_count, download_day, last_accessed_at, created_by)`. Tokens are 32 random bytes hex-encoded — 64 characters of `[0-9a-f]`, with a `UNIQUE` index. The token is generated at create time and never changes; disabling a link sets `is_active = false`, re-enabling restores it, and the same URL works again. Permanent invalidation requires `DELETE /api/drive/share-link/{id}`, after which any new link generated for the same item gets a fresh token. Collection access rules require **owner** role on the underlying item for any CRUD on the link — editors of a file cannot create or revoke its public links.
 
-Public endpoints (`/api/drive/share-link/{token}`, `.../file`, `.../thumbnail`) sit behind an in-process IP-based rate limiter (60 requests per minute per source IP) shared across all three endpoints. `X-Forwarded-For` is honored when present so the limiter sees the real client behind a reverse proxy.
+Public endpoints (`/api/drive/share-link/{token}`, `.../file`, `.../thumbnail`, and `POST .../session`) sit behind an in-process IP-based rate limiter (`publicShareLimiter`, 60 requests per minute per source IP) shared across all four endpoints; the OTP endpoints (`POST .../otp-request`, `.../otp-verify`) use the stricter `otpLimiter` (10 per minute per IP). `X-Forwarded-For` is honored when present so the limiter sees the real client behind a reverse proxy.
 
 ### Search
 
@@ -235,7 +235,7 @@ PocketBase renames the on-disk blob to a fresh hash on every save, so the prior 
 
 The "Open in Calc" / "Open in Text" actions on a file in Drive aren't defined in drive — they're contributed by the consuming packages at module-load time via `@tinycld/core/file-viewer/preview-action-registry.registerPreviewAction(...)`. Drive's `PreviewModal` reads the registry and renders any action whose `match(mime)` returns true. This is why a fresh Drive install with no other packages linked has no "Open in X" actions but still shows generic previews — drive itself doesn't bundle any.
 
-The save-to-drive action (allowing other packages to push a generated file into Drive) is the only registry entry drive contributes itself, in `lib/save-to-drive-action.tsx`.
+Drive contributes three registry entries itself: the save-to-drive action (allowing other packages to push a generated file into Drive) in `lib/save-to-drive-action.tsx`, and `drive.exportPdf` / `drive.exportSvg` in `lib/export-pdf-action.tsx`.
 
 ### Folder download
 
@@ -305,7 +305,7 @@ server/
 
 The WebDAV protocol server itself (FileSystem, auth, path parsing) lives in core at `tinycld/core/server/webdav/`; drive only supplies its `webdav.Source`.
 
-Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,coreserver,driveshare,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,search,sharelink,textextract,thumbnails,useraccount,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' server/*.go | sort -u` is the source of truth).
+Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,coreserver,driveshare,groups,logging,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,search,sharelink,sharequota,textextract,thumbnails,useraccount,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' server/*.go | sort -u` is the source of truth).
 
 ## Client package layout
 
