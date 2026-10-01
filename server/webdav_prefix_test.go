@@ -5,24 +5,28 @@ import (
 	"testing"
 )
 
-// The WebDAV tree must not shadow the in-app /drive route: mounting at /drive
-// would put a Basic-Auth DAV handler in front of the SPA's own page. /dav is
-// reserved for protocol mounts, so no package slug can ever claim it and
-// re-create the collision.
+// The mount is /drive — what someone types when connecting from Finder or
+// Explorer. It deliberately shadows the SPA catch-all at that exact path (a
+// literal route wins), which is safe because the app's own Drive route is
+// /a/drive and nothing links the bare path.
 //
-// In Go rather than a manifest test since the mount moved into webDAVSource —
-// the manifest no longer carries a webdav block.
-func TestWebDAVPrefixDoesNotShadowTheAppRoute(t *testing.T) {
+// What it must NOT do is sit under a namespace core reserves for
+// infrastructure: /api is PocketBase's REST API, /_ its dashboard,
+// /.well-known protocol discovery. core/davprefix rejects those at
+// registration; this pins the prefix itself so a well-meaning edit cannot
+// quietly move the mount somewhere a client would have to be told about.
+func TestWebDAVPrefix(t *testing.T) {
 	prefix := webDAVSource.Prefix
-	if prefix != "/dav/drive" {
-		t.Errorf("prefix = %q, want /dav/drive", prefix)
+
+	if prefix != "/drive" {
+		t.Errorf("prefix = %q, want /drive", prefix)
 	}
-	if prefix == "/drive" {
-		t.Error("the WebDAV mount shadows the in-app /drive route")
+	if !strings.HasPrefix(prefix, "/") || strings.HasSuffix(prefix, "/") {
+		t.Errorf("prefix %q must start with a slash and not end with one", prefix)
 	}
-	// Nor may it be a prefix OF the app route, which would swallow /drive/*
-	// the same way.
-	if strings.HasPrefix("/drive", prefix+"/") {
-		t.Errorf("prefix %q swallows the in-app /drive route", prefix)
+	for _, reserved := range []string{"/api", "/_", "/.well-known"} {
+		if prefix == reserved || strings.HasPrefix(prefix, reserved+"/") {
+			t.Errorf("prefix %q shadows the reserved %s namespace", prefix, reserved)
+		}
 	}
 }

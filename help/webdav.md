@@ -13,10 +13,10 @@ This is the same data you see in the web UI. Edits made through WebDAV show up i
 
 ## The mount URL
 
-The WebDAV endpoint is at `/dav/drive/` on your TinyCld instance. For example:
+The WebDAV endpoint is at `/drive/` on your TinyCld instance. For example:
 
 ```
-https://{{server-host}}/dav/drive/
+https://{{server-host}}/drive/
 ```
 
 The root of that URL is the root of your Drive — the same files and folders you see under **My Files** in the web UI. You'll only see items you own or that have been shared with you, exactly as in the browser.
@@ -29,7 +29,7 @@ WebDAV uses HTTP Basic auth. When your file manager prompts for credentials, use
 
 1. Open **Finder**.
 2. Choose **Go → Connect to Server…** (or press **⌘K**).
-3. Enter the WebDAV URL (e.g. `https://{{server-host}}/dav/drive/`).
+3. Enter the WebDAV URL (e.g. `https://{{server-host}}/drive/`).
 4. Click **Connect**.
 5. Choose **Registered User** and enter your username (or email) and password.
 
@@ -52,7 +52,7 @@ The Drive appears as a mapped network drive and reconnects on every login.
 2. Click **Other Locations** in the sidebar.
 3. In the **Connect to Server** box at the bottom, enter the URL using the `davs://` scheme:
    ```
-   davs://{{server-host}}/dav/drive/
+   davs://{{server-host}}/drive/
    ```
 4. Click **Connect** and enter your credentials.
 
