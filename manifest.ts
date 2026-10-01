@@ -55,36 +55,6 @@ const manifest = {
     // ceiling from the quota block below, so a tenant enforces both. Only the
     // version snapshot on overwrite is still a Go callback and absent there.
 
-    // Storage-bearing collections. core/quota binds the enforcement hooks from
-    // this, so the ceiling holds on every write path — and in a hosting
-    // tenant, where the router materializes this block into quota.json.
-    quota: [
-        { collection: 'drive_items', sizeField: 'size', ownerField: 'created_by' },
-        { collection: 'drive_item_versions', sizeField: 'size', ownerField: 'created_by' },
-    ],
-    webdav: {
-        prefix: '/dav/drive',
-        collection: 'drive_items',
-        fields: {
-            name: 'name',
-            parent: 'parent',
-            isFolder: 'is_folder',
-            size: 'size',
-            mimeType: 'mime_type',
-            file: 'file',
-            owner: 'created_by',
-            updated: 'updated',
-        },
-        // DAV DELETE stamps the per-user trash state (restorable from the
-        // Trash screen) instead of destroying the record — Finder's "Move to
-        // Trash" must behave like the web UI's.
-        trash: {
-            collection: 'drive_item_state',
-            itemField: 'item',
-            userField: 'user',
-            trashedAtField: 'trashed_at',
-        },
-    },
     repository: { url: 'https://github.com/tinycld/drive' },
     peerVersions: { '@tinycld/core': '>=0.6.1 <0.7.0' },
 }
