@@ -11,10 +11,11 @@ import {
 
 // Single-org: the WebDAV tree hangs directly off the mount — there is no
 // /<orgSlug>/ segment any more (the router gives each org its own process
-// instead). The mount is /dav/drive, NOT /drive: bare /drive is the in-app
-// SPA route, and a literal server route beats the SPA catch-all.
+// instead). The mount is /drive, the path someone types when connecting; it
+// shadows the SPA catch-all there, which is safe because the app's own route
+// is /a/drive.
 const DAV_ROOT = '/'
-const DAV_ROOT_HREF = '/dav/drive/'
+const DAV_ROOT_HREF = '/drive/'
 
 test.describe('Drive — WebDAV', () => {
     test('root PROPFIND matches the names visible in the web UI', async ({ page }) => {

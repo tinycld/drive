@@ -5,7 +5,7 @@ import {
     SidebarNav,
     SidebarSlot,
 } from '@tinycld/core/components/sidebar-primitives'
-import { openHelpPackage } from '@tinycld/core/lib/help/open-help'
+import { openHelp, openHelpPackage } from '@tinycld/core/lib/help/open-help'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import {
@@ -16,6 +16,7 @@ import {
     FolderPlus,
     HardDrive,
     HelpCircle,
+    Laptop,
     Plus,
     Star,
     Trash2,
@@ -169,6 +170,13 @@ export default function DriveSidebar(_props: DriveSidebarProps) {
             />
 
             <SidebarDivider />
+
+            <SidebarItem
+                label="Connect a device"
+                icon={Laptop}
+                closesDrawer
+                onPress={() => openHelp('drive:webdav')}
+            />
 
             <SidebarItem
                 label="Help"
