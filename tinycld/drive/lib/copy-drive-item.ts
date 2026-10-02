@@ -7,6 +7,7 @@ import {
     findCollectionCached,
     readCollectionCached,
 } from '@tinycld/core/lib/read-collection-cached'
+import { serverFetch } from '@tinycld/core/lib/server-fetch'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
 import { deduplicateName } from './deduplicate-name'
@@ -136,7 +137,7 @@ interface UploadShape {
 // past two call sites, extract into a shared module under drive/lib.
 async function fetchForUpload(url: string, name: string, mimeType: string): Promise<UploadShape> {
     if (Platform.OS === 'web') {
-        const resp = await fetch(url)
+        const resp = await serverFetch(url)
         if (!resp.ok) throw new Error(`Could not fetch source file (${resp.status})`)
         const blob = await resp.blob()
         const file = new File([blob], name, {

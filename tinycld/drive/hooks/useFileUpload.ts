@@ -1,3 +1,5 @@
+import { webFileToPickedFile } from '@tinycld/core/file-viewer/picked-file'
+import { uploadRecordWithFile } from '@tinycld/core/file-viewer/upload-file'
 import { usePickFiles } from '@tinycld/core/file-viewer/use-pick-files'
 import { captureException } from '@tinycld/core/lib/errors'
 import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
@@ -43,59 +45,6 @@ function mimeForUpload(file: File): string {
     if (file.type) return file.type
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     return UPLOAD_MIME_BY_EXT[ext] ?? 'application/octet-stream'
-}
-
-// Direct XHR upload — used instead of pb.collection().create() because we need
-// xhr.upload.onprogress events to drive the per-file progress bar. PocketBase's
-// SDK uses fetch() under the hood, which doesn't expose upload progress.
-// React Native's XMLHttpRequest polyfill supports upload progress as well, so
-// the same code path works on web and native.
-//
-// This now also lives in core as `@tinycld/core/file-viewer/upload-file`
-// (cards and mail both use it). New callers should import that rather than
-// copy this; drive keeps its own only because rewriting a shipped upload path
-// buys nothing today.
-function uploadFormDataWithProgress(params: {
-    url: string
-    formData: FormData
-    authToken: string
-    onProgress: (loaded: number, total: number) => void
-}): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest()
-        xhr.open('POST', params.url, true)
-        if (params.authToken) {
-            xhr.setRequestHeader('Authorization', params.authToken)
-        }
-        xhr.upload.onprogress = e => {
-            if (e.lengthComputable) params.onProgress(e.loaded, e.total)
-        }
-        xhr.onload = () => {
-            const text = typeof xhr.response === 'string' ? xhr.response : xhr.responseText
-            let parsed: unknown = null
-            try {
-                parsed = text ? JSON.parse(text) : null
-            } catch {
-                // Non-JSON response — treat as empty success body.
-                parsed = null
-            }
-            if (xhr.status >= 200 && xhr.status < 300) {
-                resolve(parsed)
-            } else {
-                const message =
-                    parsed &&
-                    typeof parsed === 'object' &&
-                    'message' in parsed &&
-                    typeof parsed.message === 'string'
-                        ? parsed.message
-                        : `Upload failed (${xhr.status})`
-                reject(new Error(message))
-            }
-        }
-        xhr.onerror = () => reject(new TypeError('Network request failed'))
-        xhr.onabort = () => reject(new DOMException('Aborted', 'AbortError'))
-        xhr.send(params.formData)
-    })
 }
 
 export function useFileUpload({ userId, currentFolderId }: UseFileUploadOptions) {
@@ -145,21 +94,19 @@ export function useFileUpload({ userId, currentFolderId }: UseFileUploadOptions)
             const { id, name, parentId, file } = params
             updateFile(id, { status: 'uploading', loaded: 0 })
 
-            const formData = new FormData()
-            formData.append('id', id)
-            formData.append('name', name)
-            formData.append('is_folder', 'false')
-            formData.append('mime_type', mimeForUpload(file))
-            formData.append('parent', parentId)
-            formData.append('created_by', userId)
-            formData.append('size', String(file.size))
-            formData.append('file', file)
-            formData.append('description', '')
-
-            const response = await uploadFormDataWithProgress({
-                url: pb.buildURL('/api/collections/drive_items/records'),
-                formData,
-                authToken: pb.authStore.token ?? '',
+            const response = await uploadRecordWithFile({
+                collection: 'drive_items',
+                fields: {
+                    id,
+                    name,
+                    is_folder: 'false',
+                    mime_type: mimeForUpload(file),
+                    parent: parentId,
+                    created_by: userId,
+                    size: String(file.size),
+                    description: '',
+                },
+                file: webFileToPickedFile(file),
                 onProgress: makeProgressHandler(id),
             })
 

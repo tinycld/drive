@@ -6,6 +6,7 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { notify } from '@tinycld/core/lib/notify'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { readCollectionCached } from '@tinycld/core/lib/read-collection-cached'
+import { serverFetch } from '@tinycld/core/lib/server-fetch'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
 import { deduplicateName } from './deduplicate-name'
@@ -121,7 +122,7 @@ interface UploadShape {
 
 async function fetchForUpload(url: string, name: string, mimeType: string): Promise<UploadShape> {
     if (Platform.OS === 'web') {
-        const resp = await fetch(url)
+        const resp = await serverFetch(url)
         if (!resp.ok) throw new Error(`Could not download attachment (${resp.status})`)
         const blob = await resp.blob()
         const file = new File([blob], name, {

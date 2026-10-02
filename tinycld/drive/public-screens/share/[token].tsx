@@ -12,6 +12,7 @@ import { useAuth } from '@tinycld/core/lib/auth'
 import { useShareEditorMount } from '@tinycld/core/lib/editor/use-share-editor-mount'
 import { useShareLinkVisitorRole } from '@tinycld/core/lib/editor/use-share-visitor-role'
 import { PB_SERVER_ADDR } from '@tinycld/core/lib/pocketbase'
+import { serverFetch } from '@tinycld/core/lib/server-fetch'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import { Suspense, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
@@ -25,7 +26,7 @@ function useShareLinkRouting(token: string) {
     const query = useQuery<ShareRoutingData>({
         queryKey: ['share-link-routing', token],
         queryFn: async () => {
-            const resp = await fetch(shareLinkUrl(token))
+            const resp = await serverFetch(shareLinkUrl(token))
             if (!resp.ok) throw new Error('Failed to load share link')
             return resp.json()
         },
@@ -36,7 +37,7 @@ function useShareLinkRouting(token: string) {
 }
 
 async function fetchShareMetadata(token: string): Promise<PublicShareMetadata> {
-    const resp = await fetch(shareLinkUrl(token))
+    const resp = await serverFetch(shareLinkUrl(token))
     if (!resp.ok) {
         const body = await resp.json().catch(() => ({}))
         throw new PublicShareError(resp.status, body.error ?? 'Failed to load')
