@@ -6,7 +6,7 @@ A feature package for the [tinycld](https://tinycld.org/) ecosystem. Lives as a 
 
 ## What it does
 
-Stores files for a TinyCld deployment, with per-user folders, sharing, versioning, public links, server-rendered thumbnails, and a native WebDAV mount endpoint at `/dav/drive/` so any OS can mount the drive as a network folder.
+Stores files for a TinyCld deployment, with per-user folders, sharing, versioning, public links, server-rendered thumbnails, and a native WebDAV mount endpoint at `/drive/` so any OS can mount the drive as a network folder.
 
 User-facing features:
 
@@ -22,7 +22,7 @@ User-facing features:
 - **Drag-and-drop uploads** — web-only; walks `webkitGetAsEntry` trees so dropping a folder preserves its structure. A persistent upload status bar tracks pending / uploading / done / error per file.
 - **Search** — SQLite FTS5 across file name, description, and extracted text content. Document text extraction (PDF, Office, plain text) runs asynchronously via `core/textextract` and updates the FTS row when finished. The same index backs two surfaces: drive's own `GET /api/drive/search` (the in-view search box, which filters the grid in place) and the `search.Source` drive registers with core's federated `GET /api/search` (`server/search_source.go`), which is what the cross-app search palette and the CLI's `search` command read. The TypeScript adapter (`tinycld/drive/search-adapter.ts`) only handles selecting a palette row — row shaping is server-side.
 - **Export to PDF / SVG** — server-side conversion through `omnidoc`. "Export to PDF" and "Export to SVG" appear in the file's row menu and in the preview toolbar (`tinycld/drive/lib/export-pdf-action.tsx` registers both against drive's item-action registry and core's preview-action registry); the CLI exposes the same thing as `drive export --to pdf|svg`. A PDF has no PDF export but is a valid SVG source; SVG output is the first page only.
-- **WebDAV mount** — native `/dav/drive/` endpoint. Mount from macOS Finder, Windows Explorer, or Linux GNOME / KDE; the drive becomes a network folder with your Drive tree directly at the root. See the in-app help topic `drive:webdav` for per-OS connection steps.
+- **WebDAV mount** — native `/drive/` endpoint. Mount from macOS Finder, Windows Explorer, or Linux GNOME / KDE; the drive becomes a network folder with your Drive tree directly at the root. See the in-app help topic `drive:webdav` for per-OS connection steps.
 - **Realtime updates** — uploads, renames, and share changes propagate immediately through PocketBase's collection-realtime subscriptions (consumed via `pbtsdb`'s `useLiveQuery`). No custom WebSocket layer.
 - **Single-item download** — web-only. Individual files stream directly from PocketBase; folders are zipped on demand via a short-lived (60 s) per-folder download token, capped at 10,000 files and 5 GB per archive.
 - **Notifications** — when a `drive_shares` row is created and the recipient isn't the creator (i.e. real share, not the bookkeeping owner self-share), the recipient receives a `drive_file_shared` notification through `core/notify`.
@@ -47,11 +47,11 @@ The user-facing help topic is `help/rules.md`; see [Automation rules](https://ti
 
 ## Mounting via WebDAV
 
-The WebDAV endpoint is at **`https://<your-instance>/dav/drive/`** (port 443, same domain as the web UI). Authentication is HTTP Basic using your TinyCld email (or username) and password.
+The WebDAV endpoint is at **`https://<your-instance>/drive/`** (port 443, same domain as the web UI). Authentication is HTTP Basic using your TinyCld email (or username) and password.
 
 At the WebDAV root, you'll see your Drive's folder tree directly — the root is a synthetic directory over your top-level items.
 
-The handler is `golang.org/x/net/webdav` with `webdav.NewMemLS()`, which advertises DAV class 2 (LOCK / UNLOCK) so macOS Finder mounts read-write. Core also serves the RFC 5785 discovery alias `/.well-known/webdav` (registered once, regardless of mount prefix) and 301-redirects it to the first registered WebDAV source — `/dav/drive/` on a deployment where drive is the only one.
+The handler is `golang.org/x/net/webdav` with `webdav.NewMemLS()`, which advertises DAV class 2 (LOCK / UNLOCK) so macOS Finder mounts read-write. Core also serves the RFC 5785 discovery alias `/.well-known/webdav` (registered once, regardless of mount prefix) and 301-redirects it to the first registered WebDAV source — `/drive/` on a deployment where drive is the only one.
 
 For step-by-step connection instructions on macOS Finder, Windows Explorer, and Linux file managers, see the **`drive:webdav`** help topic inside the app (`/help/drive/webdav`, or click any `<HelpIcon topic="drive:webdav" />`). They live there rather than in this README so they update in lockstep with what users actually see in the UI.
 
@@ -121,8 +121,8 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 │     GET    /api/drive/storage-usage                                  │
 │                                                                      │
 │   WebDAV (served by core/webdav from drive's Source)                 │
-│     ANY    /dav/drive  /  /dav/drive/{path...}                       │
-│     ANY    /.well-known/webdav → 301 /dav/drive/                     │
+│     ANY    /drive  /  /drive/{path...}                               │
+│     ANY    /.well-known/webdav → 301 /drive/                         │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -197,7 +197,7 @@ The thumbnail field is set on a *re-fetched* `drive_items` record (not the one t
 
 ### WebDAV
 
-The protocol server lives in core (`tinycld.org/core/webdav`): its `FileSystem` implements `webdav.FileSystem` over any PocketBase collection shaped as a tree, and drive contributes a `webdav.Source` (register.go's `webDAVSource`) mapping `drive_items`' fields plus a `BeforeOverwrite` hook that snapshots the outgoing blob so a WebDAV PUT gets the same version history as a UI upload. The path layout is `/dav/drive/<segments...>` — the root is a *synthetic* directory with no `drive_items` row. Underneath, every segment maps to a `drive_items` record by `(parent, name)`.
+The protocol server lives in core (`tinycld.org/core/webdav`): its `FileSystem` implements `webdav.FileSystem` over any PocketBase collection shaped as a tree, and drive contributes a `webdav.Source` (register.go's `webDAVSource`) mapping `drive_items`' fields plus a `BeforeOverwrite` hook that snapshots the outgoing blob so a WebDAV PUT gets the same version history as a UI upload. The path layout is `/drive/<segments...>` — the root is a *synthetic* directory with no `drive_items` row. Underneath, every segment maps to a `drive_items` record by `(parent, name)`.
 
 The flow per request:
 

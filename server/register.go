@@ -255,8 +255,13 @@ var quotaSources = []quota.Source{
 // its path resolution and its blob handling all live in core/webdav; drive
 // contributes the field map plus the few decisions a field map can't express.
 var webDAVSource = webdav.Source{
-	Slug:       "drive",
-	Prefix:     "/dav/drive",
+	Slug: "drive",
+	// /drive, not /dav/drive: this is the path someone types when mounting
+	// from Finder or Explorer, and a namespaced one is a support question
+	// every time. It does shadow bare /drive — a literal route beats the SPA
+	// catch-all — but the app's own route is /a/drive and nothing links the
+	// bare path, so nothing is lost.
+	Prefix:     "/drive",
 	Collection: "drive_items",
 	Fields: webdav.FieldMap{
 		Name:     "name",
