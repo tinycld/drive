@@ -207,7 +207,7 @@ The flow per request:
 
 `webdav.NewMemLS()` is used for the lock system, which is enough to advertise DAV class 2; macOS Finder requires class 2 to mount read-write. Locks are in-memory and per-process, which is fine for a single-instance deployment — clustered deployments would need a shared lock backend.
 
-WebDAV deletes go to the trash, not the void: drive's `Source` carries a `Trash` binding (`manifest.ts`'s `webdav.trash` block, mirrored by the `TrashConfig` in `register.go`), so `RemoveAll` stamps the caller's `drive_item_state` row with `trashed_at` instead of deleting the `drive_items` record. That is the same write the web UI's trash action performs, so a file removed from Finder or Explorer is restorable from the Trash screen, and trashed items disappear from that user's DAV listing. Only a source with no trash binding destroys the record outright.
+WebDAV deletes go to the trash, not the void: drive's `Source` carries a `Trash` binding (the `webdav.TrashConfig` on `webDAVSource` in `server/register.go`), so `RemoveAll` stamps the caller's `drive_item_state` row with `trashed_at` instead of deleting the `drive_items` record. That is the same write the web UI's trash action performs, so a file removed from Finder or Explorer is restorable from the Trash screen, and trashed items disappear from that user's DAV listing. Only a source with no trash binding destroys the record outright.
 
 ### Versioning
 
@@ -235,7 +235,7 @@ PocketBase renames the on-disk blob to a fresh hash on every save, so the prior 
 
 The "Open in Calc" / "Open in Text" actions on a file in Drive aren't defined in drive — they're contributed by the consuming packages at module-load time via `@tinycld/core/file-viewer/preview-action-registry.registerPreviewAction(...)`. Drive's `PreviewModal` reads the registry and renders any action whose `match(mime)` returns true. This is why a fresh Drive install with no other packages linked has no "Open in X" actions but still shows generic previews — drive itself doesn't bundle any.
 
-Drive contributes three registry entries itself: the save-to-drive action (allowing other packages to push a generated file into Drive) in `lib/save-to-drive-action.tsx`, and `drive.exportPdf` / `drive.exportSvg` in `lib/export-pdf-action.tsx`.
+Drive registers three ids itself: `drive.save` (lets other packages push a generated file into Drive) in `lib/save-to-drive-action.tsx` against the preview-action registry, and `drive.exportPdf` / `drive.exportSvg` in `lib/export-pdf-action.tsx` against both the preview-action registry and drive's own item-action registry (`lib/item-actions-registry.ts`), so each export shows in the preview toolbar and the row menu.
 
 ### Folder download
 
@@ -305,12 +305,12 @@ server/
 
 The WebDAV protocol server itself (FileSystem, auth, path parsing) lives in core at `tinycld/core/server/webdav/`; drive only supplies its `webdav.Source`.
 
-Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,coreserver,driveshare,groups,logging,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,search,sharelink,sharequota,textextract,thumbnails,useraccount,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' server/*.go | sort -u` is the source of truth).
+Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,coreserver,driveshare,groups,logging,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,search,sharelink,sharequota,textextract,thumbnails,useraccount,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' $(ls server/*.go | grep -v _test.go) | sort -u` is the source of truth; tests also import `rlstest`).
 
 ## Client package layout
 
 ```
-manifest.ts            package manifest (slug, nav, sidebar, provider, server, cli, quota, webdav) — repo root
+manifest.ts            package manifest (routes, nav, sidebar, provider, search, automation, server, payloads, cli, hooks) — repo root
 tinycld/drive/
     sidebar.tsx        sections (My Files / Shared with me / Recent / Starred / Trash) + folder tree + storage bar
     provider.tsx       mounts SaveToDriveDialog; registers save-to-drive action
