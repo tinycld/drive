@@ -44,17 +44,8 @@ const manifest = {
     // alongside the Go — including the WebDAV interception points
     // (webdavHook) and the $drive.* bindings the server exposes.
     hooks: { directory: 'pb-hooks' },
-    // WebDAV over /drive, served by core (tinycld.org/core/webdav). This is the
-    // same Source the Go server registers; a hosting tenant serves WebDAV
-    // from this block (the router materializes it into the tenant's runtime
-    // config), which is why the Go-side mount is host-only — drive's other Go
-    // is shared by both compositions via registerShared, but the DAV mounts come
-    // from here.
-    //
-    // Authorization comes from drive_items' own PocketBase rules and the storage
-    // ceiling from the quota block below, so a tenant enforces both. Only the
-    // version snapshot on overwrite is still a Go callback and absent there.
-
+    // WebDAV (the webdav.Source core mounts at /drive) and the storage-quota
+    // sources are not declared here: both live in server/register.go.
     repository: { url: 'https://github.com/tinycld/drive' },
     peerVersions: { '@tinycld/core': '>=0.6.1 <0.7.0' },
 }

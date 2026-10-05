@@ -273,9 +273,8 @@ var webDAVSource = webdav.Source{
 		Owner:    "created_by",
 		Updated:  "updated",
 	},
-	// Mirrors the manifest's `webdav.trash` block: DAV DELETE stamps the
-	// per-user trash state (restorable from the Trash screen) instead of
-	// destroying the record.
+	// DAV DELETE stamps the per-user trash state (restorable from the Trash
+	// screen) instead of destroying the record.
 	Trash: &webdav.TrashConfig{
 		Collection:     "drive_item_state",
 		ItemField:      "item",
