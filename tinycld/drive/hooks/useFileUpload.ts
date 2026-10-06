@@ -1,9 +1,10 @@
-import { webFileToPickedFile } from '@tinycld/core/file-viewer/picked-file'
+import { uploadFileToPickedFile } from '@tinycld/core/file-viewer/picked-file'
 import { uploadRecordWithFile } from '@tinycld/core/file-viewer/upload-file'
 import { usePickFiles } from '@tinycld/core/file-viewer/use-pick-files'
 import { captureException } from '@tinycld/core/lib/errors'
 import { performMutations, useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
+import type { UploadFile } from '@tinycld/core/lib/upload-file'
 import { newRecordId } from 'pbtsdb/core'
 import { useCallback, useRef } from 'react'
 import { Platform } from 'react-native'
@@ -41,7 +42,7 @@ const UPLOAD_MIME_BY_EXT: Record<string, string> = {
     markdown: 'text/markdown',
 }
 
-function mimeForUpload(file: File): string {
+function mimeForUpload(file: UploadFile): string {
     if (file.type) return file.type
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     return UPLOAD_MIME_BY_EXT[ext] ?? 'application/octet-stream'
@@ -90,7 +91,7 @@ export function useFileUpload({ userId, currentFolderId }: UseFileUploadOptions)
     )
 
     const uploadOne = useCallback(
-        async (params: { id: string; name: string; parentId: string; file: File }) => {
+        async (params: { id: string; name: string; parentId: string; file: UploadFile }) => {
             const { id, name, parentId, file } = params
             updateFile(id, { status: 'uploading', loaded: 0 })
 
@@ -106,7 +107,7 @@ export function useFileUpload({ userId, currentFolderId }: UseFileUploadOptions)
                     size: String(file.size),
                     description: '',
                 },
-                file: webFileToPickedFile(file),
+                file: uploadFileToPickedFile(file),
                 onProgress: makeProgressHandler(id),
             })
 
@@ -124,7 +125,7 @@ export function useFileUpload({ userId, currentFolderId }: UseFileUploadOptions)
     )
 
     const uploadMutation = useMutation({
-        mutationFn: async (files: File[]) => {
+        mutationFn: async (files: UploadFile[]) => {
             const parentId = folderRef.current
             const queued: UploadingFile[] = files.map(f => ({
                 id: newRecordId(),
@@ -152,7 +153,7 @@ export function useFileUpload({ userId, currentFolderId }: UseFileUploadOptions)
     })
 
     const uploadFiles = useCallback(
-        (files: File[]) => {
+        (files: UploadFile[]) => {
             if (files.length === 0) return
             uploadMutation.mutate(files)
         },
@@ -249,7 +250,7 @@ export function useFileUpload({ userId, currentFolderId }: UseFileUploadOptions)
         [uploadTreeMutation]
     )
 
-    const uploadNewVersion = useCallback(async (itemId: string, file: File) => {
+    const uploadNewVersion = useCallback(async (itemId: string, file: UploadFile) => {
         const formData = new FormData()
         formData.append('item', itemId)
         formData.append('file', file)

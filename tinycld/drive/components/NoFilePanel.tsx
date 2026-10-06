@@ -1,5 +1,6 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
+import { type UploadFile, uploadFileFromUri } from '@tinycld/core/lib/upload-file'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { type Href, Link } from 'expo-router'
 import {
@@ -30,7 +31,7 @@ interface NoFilePanelProps {
      */
     accept: string
     onCreateNew: () => void
-    onUpload: (files: File[]) => void
+    onUpload: (files: UploadFile[]) => void
     /**
      * Optional fourth card opening a package-supplied template picker.
      * `label` is the accessible name (also the visible card label) — text
@@ -270,7 +271,7 @@ function LinkRow({ Icon, label, hint, href, isLast }: LinkRowProps) {
 interface UploadRowProps {
     hint: string
     accept: string
-    onPick: (files: File[]) => void
+    onPick: (files: UploadFile[]) => void
     disabled?: boolean
     isLast?: boolean
 }
@@ -398,7 +399,7 @@ function BrowseLinkRow({ Icon, label, href }: BrowseLinkRowProps) {
 interface UploadCardProps {
     hint: string
     accept: string
-    onPick: (files: File[]) => void
+    onPick: (files: UploadFile[]) => void
     disabled?: boolean
 }
 
@@ -467,7 +468,7 @@ function UploadCard({ hint, accept, onPick, disabled }: UploadCardProps) {
 
 // ── Shared upload handlers (card + row presentations call the same code) ──
 
-function useWebUploadChange(onPick: (files: File[]) => void) {
+function useWebUploadChange(onPick: (files: UploadFile[]) => void) {
     return useCallback(
         (event: { target: HTMLInputElement }) => {
             const list = event.target.files
@@ -481,12 +482,11 @@ function useWebUploadChange(onPick: (files: File[]) => void) {
     )
 }
 
-function useNativeUploadPress(accept: string, onPick: (files: File[]) => void) {
+function useNativeUploadPress(accept: string, onPick: (files: UploadFile[]) => void) {
     return useCallback(async () => {
-        // Native uses expo-document-picker; the picker doesn't return web
-        // File objects, so we surface a single-file path through the same
-        // onPick contract using a Blob shim. The consumer's handler maps
-        // it back to the native body shape via FormData on the create call.
+        // Native uses expo-document-picker, whose assets are files on disk;
+        // each is wrapped as an UploadFile so the consumer uploads it the same
+        // way it uploads a web File.
         const picker = await import('expo-document-picker')
         const result = await picker.getDocumentAsync({
             type: accept
@@ -499,14 +499,8 @@ function useNativeUploadPress(accept: string, onPick: (files: File[]) => void) {
         if (result.canceled) return
         const assets = result.assets ?? []
         if (assets.length === 0) return
-        const files = assets.map(
-            a =>
-                ({
-                    name: a.name ?? 'file',
-                    uri: a.uri,
-                    type: a.mimeType ?? 'application/octet-stream',
-                    size: a.size ?? 0,
-                }) as unknown as File
+        const files = assets.map(a =>
+            uploadFileFromUri(a.uri, a.name ?? 'file', a.mimeType ?? 'application/octet-stream')
         )
         onPick(files)
     }, [accept, onPick])
