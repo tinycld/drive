@@ -12,7 +12,7 @@ import { SwipeableRow, SwipeableRowProvider } from '@tinycld/core/components/Swi
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useAuthedThumbnailURL } from '@tinycld/core/file-viewer/use-authed-file-url'
 import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
-import { queryClient } from '@tinycld/core/lib/pocketbase'
+import { refreshAllData } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Image } from 'expo-image'
 import { Download, FolderInput, Info, Share2, Star, Trash2 } from 'lucide-react-native'
@@ -217,7 +217,7 @@ export default function DriveScreen() {
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true)
         try {
-            await queryClient.invalidateQueries()
+            await refreshAllData()
         } finally {
             setIsRefreshing(false)
         }
