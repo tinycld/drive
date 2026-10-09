@@ -18,6 +18,7 @@ import { usePackages } from '@tinycld/core/lib/packages/use-packages'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { useAvatarUrl } from '@tinycld/core/lib/use-avatar-url'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { Menu } from '@tinycld/core/ui/menu'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
@@ -108,6 +109,9 @@ export function ShareDialog({
     const mutedColor = useThemeColor('muted-foreground')
     const primaryColor = useThemeColor('primary')
     const groupGrants = useItemGroupGrants(itemId)
+    const copyLinkState = useServerActionState({
+        accessibilityHint: 'Creates a public link if one does not exist yet, then copies it',
+    })
     const [search, setSearch] = useState('')
     const [defaultRole, setDefaultRole] = useState<'editor' | 'viewer'>('editor')
     const [pending, setPending] = useState<PendingShare[]>([])
@@ -389,9 +393,11 @@ export function ShareDialog({
                             >
                                 {share.role}
                             </Text>
-                            <Pressable onPress={() => onRemoveShare(share.id)} className="p-1.5">
-                                <Trash2 size={14} color={mutedColor} />
-                            </Pressable>
+                            <RemoveShareButton
+                                name={share.name || share.email}
+                                mutedColor={mutedColor}
+                                onPress={() => onRemoveShare(share.id)}
+                            />
                         </View>
                     ))}
 
@@ -465,8 +471,10 @@ export function ShareDialog({
                 <View className="flex-1 flex-row items-center gap-2">
                     <Pressable
                         className="flex-row items-center gap-2 px-4 rounded-full border border-border"
-                        style={{ paddingVertical: 8 }}
+                        style={{ paddingVertical: 8, opacity: copyLinkState.isDisabled ? 0.5 : 1 }}
                         onPress={copyLink}
+                        disabled={copyLinkState.isDisabled}
+                        accessibilityHint={copyLinkState.accessibilityHint}
                     >
                         <Link size={16} color={primaryColor} />
                         <Text
@@ -560,6 +568,33 @@ function ShareEntryAvatar({ share }: { share: ShareEntry }) {
             color={share.avatarColor || undefined}
             size={36}
         />
+    )
+}
+
+/** A share row's remove button — its own component so useServerActionState, a
+ *  hook, is called once per row rather than inside otherShares.map() above. */
+function RemoveShareButton({
+    name,
+    mutedColor,
+    onPress,
+}: {
+    name: string
+    mutedColor: string
+    onPress: () => void
+}) {
+    const removeState = useServerActionState({ accessibilityHint: `Removes ${name}'s access` })
+    return (
+        <Pressable
+            onPress={onPress}
+            disabled={removeState.isDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${name}'s access`}
+            accessibilityHint={removeState.accessibilityHint}
+            className="p-1.5"
+            style={{ opacity: removeState.isDisabled ? 0.4 : 1 }}
+        >
+            <Trash2 size={14} color={mutedColor} />
+        </Pressable>
     )
 }
 
@@ -752,6 +787,12 @@ function GeneralAccessSection({
     const primaryColor = useThemeColor('primary')
     const surfaceBgColor = useThemeColor('surface-secondary')
     const successColor = useThemeColor('success')
+    const toggleState = useServerActionState({
+        isDisabled: isCreatingPublicLink,
+        accessibilityHint: activeShareLink
+            ? 'Revokes the public link'
+            : 'Creates a public link anyone can view',
+    })
 
     if (activeShareLink) {
         return (
@@ -760,6 +801,8 @@ function GeneralAccessSection({
                     className="flex-row items-center gap-3"
                     style={{ paddingVertical: 6 }}
                     onPress={onTogglePublicLink}
+                    disabled={toggleState.isDisabled}
+                    accessibilityHint={toggleState.accessibilityHint}
                 >
                     <View
                         className="size-9 items-center justify-center bg-success/20"
@@ -801,8 +844,11 @@ function GeneralAccessSection({
                         style={{
                             paddingVertical: 10,
                             borderColor,
+                            opacity: toggleState.isDisabled ? 0.5 : 1,
                         }}
                         onPress={onTogglePublicLink}
+                        disabled={toggleState.isDisabled}
+                        accessibilityHint={toggleState.accessibilityHint}
                     >
                         <Trash2 size={14} color={mutedColor} />
                         <Text
@@ -825,7 +871,8 @@ function GeneralAccessSection({
             className="flex-row items-center gap-3"
             style={{ paddingVertical: 6 }}
             onPress={onTogglePublicLink}
-            disabled={isCreatingPublicLink}
+            disabled={toggleState.isDisabled}
+            accessibilityHint={toggleState.accessibilityHint}
         >
             <View
                 className="size-9 items-center justify-center"
