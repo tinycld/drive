@@ -8,6 +8,7 @@ import {
     readCollectionCached,
 } from '@tinycld/core/lib/read-collection-cached'
 import { serverFetch } from '@tinycld/core/lib/server-fetch'
+import { type UploadFile, uploadFileFromUri } from '@tinycld/core/lib/upload-file'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
 import { deduplicateName } from './deduplicate-name'
@@ -104,9 +105,7 @@ export function useCopyDriveItem() {
             formData.append('parent', parentId)
             formData.append('created_by', userId)
             formData.append('size', String(upload.size))
-            // RN's FormData accepts a `{ uri, name, type }` object literal; on
-            // web the `file` field is a real File. We cast to satisfy TS.
-            formData.append('file', upload.file as unknown as Blob, finalName)
+            formData.append('file', upload.file, finalName)
             formData.append('description', '')
             // The drive_items create hook (server/register.go) inserts the
             // owner drive_shares row in the same transaction, so the client
@@ -127,8 +126,8 @@ interface UploadShape {
     name: string
     type: string
     size: number
-    /** A `File` on web, a `{ uri, name, type }` literal on native. */
-    file: unknown
+    /** A browser `File` on web, an expo-file-system `File` on native. */
+    file: UploadFile
 }
 
 // Mirrors save-to-drive's fetchForUpload. Kept private here rather than
@@ -154,6 +153,6 @@ async function fetchForUpload(url: string, name: string, mimeType: string): Prom
         name,
         type: mimeType,
         size,
-        file: { uri: downloaded.uri, name, type: mimeType },
+        file: uploadFileFromUri(downloaded.uri, name, mimeType),
     }
 }

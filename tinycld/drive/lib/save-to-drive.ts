@@ -7,6 +7,7 @@ import { notify } from '@tinycld/core/lib/notify'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { readCollectionCached } from '@tinycld/core/lib/read-collection-cached'
 import { serverFetch } from '@tinycld/core/lib/server-fetch'
+import { type UploadFile, uploadFileFromUri } from '@tinycld/core/lib/upload-file'
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
 import { deduplicateName } from './deduplicate-name'
@@ -42,10 +43,8 @@ export function useSaveToDrive() {
 
             // Fetch the source file (e.g. a mail attachment served by
             // PocketBase) and shape it for upload. On web we use the standard
-            // File constructor; on native there's no global File class and
-            // RN's FormData polyfill expects a `{ uri, name, type }` literal
-            // instead — so we stream the bytes to a cache URI via
-            // expo-file-system and hand that URI to FormData.
+            // File constructor; on native we stream the bytes to a cache file
+            // via expo-file-system and upload that file from disk.
             // ?token=: the source may be a drive_items file behind the
             // record's viewRule, and fetchForUpload uses a bare fetch/download
             // that carries no auth — the SDK only attaches credentials to its
@@ -76,9 +75,7 @@ export function useSaveToDrive() {
             formData.append('parent', parentId)
             formData.append('created_by', userId)
             formData.append('size', String(upload.size))
-            // RN's FormData accepts a `{ uri, name, type }` object literal; on
-            // web the `file` field is a real File. We cast to satisfy TS.
-            formData.append('file', upload.file as unknown as Blob)
+            formData.append('file', upload.file)
             formData.append('description', '')
             // The drive_items create hook (server/register.go) inserts the
             // owner drive_shares row in the same transaction, so the client
@@ -116,8 +113,8 @@ interface UploadShape {
     name: string
     type: string
     size: number
-    /** A `File` on web, a `{ uri, name, type }` literal on native. */
-    file: unknown
+    /** A browser `File` on web, an expo-file-system `File` on native. */
+    file: UploadFile
 }
 
 async function fetchForUpload(url: string, name: string, mimeType: string): Promise<UploadShape> {
@@ -130,7 +127,7 @@ async function fetchForUpload(url: string, name: string, mimeType: string): Prom
         })
         return { name: file.name, type: file.type, size: file.size, file }
     }
-    // Native: download to the cache directory; FormData uploads via URI.
+    // Native: download to the cache directory and upload from there.
     // Lazy-imported so this module stays usable in vitest's node env.
     const { File: FsFile, Paths } = await import('expo-file-system')
     // Suffix the cache filename with a timestamp so repeated saves of the
@@ -145,6 +142,6 @@ async function fetchForUpload(url: string, name: string, mimeType: string): Prom
         name,
         type: mimeType,
         size,
-        file: { uri: downloaded.uri, name, type: mimeType },
+        file: uploadFileFromUri(downloaded.uri, name, mimeType),
     }
 }

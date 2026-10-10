@@ -3,16 +3,14 @@ import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
-import { Platform } from 'react-native'
 import { deduplicateName } from './deduplicate-name'
 
 /**
- * Body of an in-memory file to upload. On web pass a `Blob` or `File`; on
- * native pass a `{ uri, name, type }` literal pointing at a file on disk
- * (e.g. one written via expo-file-system) — that's what RN's FormData
- * polyfill expects.
+ * Body of a file to upload: a `Blob` or `File` on web, or an UploadFile from
+ * core/lib/upload-file (an expo-file-system `File`) for a file on disk on
+ * native.
  */
-export type UploadBody = Blob | { uri: string; name: string; type: string }
+export type UploadBody = Blob
 
 export interface CreateDriveItemInput {
     /** File contents. */
@@ -99,9 +97,7 @@ export function useCreateDriveItem() {
                 formData.append('parent', parentId)
                 formData.append('created_by', userId)
                 formData.append('size', String(size))
-                // RN's FormData accepts a `{ uri, name, type }` object literal; on
-                // web the `file` field is a real Blob/File. We cast to satisfy TS.
-                formData.append('file', input.body as unknown as Blob, finalName)
+                formData.append('file', input.body, finalName)
                 formData.append('description', input.description ?? '')
                 try {
                     // The drive_items create hook (server/register.go) inserts the
@@ -127,9 +123,7 @@ export function useCreateDriveItem() {
 }
 
 function resolveSize(body: UploadBody, explicit: number | undefined): number {
-    if (typeof explicit === 'number') return explicit
-    if (Platform.OS === 'web' && body instanceof Blob) return body.size
-    return 0
+    return typeof explicit === 'number' ? explicit : body.size
 }
 
 /** Input for a blank (no-file) drive_items create. */
