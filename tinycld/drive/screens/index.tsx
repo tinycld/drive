@@ -16,7 +16,16 @@ import { refreshAllData } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Image } from 'expo-image'
 import { Download, FolderInput, Info, Share2, Star, Trash2 } from 'lucide-react-native'
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+    memo,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useId,
+    useMemo,
+    useRef,
+    useState,
+} from 'react'
 import {
     type GestureResponderEvent,
     LayoutAnimation,
@@ -29,6 +38,7 @@ import {
 } from 'react-native'
 import { DragGrip, DraggableDriveItem } from '../components/DraggableDriveItem'
 import { DriveContextMenu } from '../components/DriveContextMenu'
+import { DriveDragScrollView } from '../components/DriveDragScrollView'
 import { DriveItemMenuButton } from '../components/DriveItemMenuButton'
 import { FolderDropTarget } from '../components/FolderDropTarget'
 import { getFileIcon } from '../components/file-icons'
@@ -118,6 +128,8 @@ interface CellContext {
     actions: DriveActions
     openFile: (item: DriveItemView) => void
     itemsById: Map<string, DriveItemView>
+    /** Unique per screen instance, for the Drax ids of its rows (see dragViewId). */
+    dndScope: string
 }
 
 // Composes the drag-and-drop wrappers around a row/card. Every item is
@@ -127,11 +139,14 @@ interface CellContext {
 // the same wrappers work on touch via Drax's long-press activation.
 function DriveDnDCell({
     item,
+    index,
     ctx,
     dragPreview,
     children,
 }: {
     item: DriveItemView
+    /** The row's position in the list; see the drop target's id below. */
+    index: number
     ctx: CellContext
     /** 'name' in list view, 'card' in grid view — controls the drag preview. */
     dragPreview: 'name' | 'card'
@@ -147,6 +162,7 @@ function DriveDnDCell({
         dragPreview === 'card' ? (
             <DraggableDriveItem
                 itemId={item.id}
+                dndScope={ctx.dndScope}
                 label={item.name}
                 category={item.category}
                 dragPreview={dragPreview}
@@ -160,6 +176,11 @@ function DriveDnDCell({
     if (ctx.isTrash || !item.isFolder) return content
     return (
         <FolderDropTarget
+            // Drax measures a view only when it registers or resizes. An item
+            // inserted or removed above this folder moves it without resizing
+            // it (a realtime update can land mid-drag), so the id carries the
+            // position too: a move re-registers the target and measures it again.
+            id={`drive-drop-${ctx.dndScope}-${item.id}-${index}`}
             targetFolderId={item.id}
             itemsById={ctx.itemsById}
             onDropItems={ctx.actions.moveItems}
@@ -317,6 +338,7 @@ export default function DriveScreen() {
     }, [])
     useRegisterDriveLayoutAnimation(prepareLayoutAnimation)
 
+    const dndScope = useId()
     const cellContext: CellContext = useMemo(
         () => ({
             isMobile,
@@ -335,6 +357,7 @@ export default function DriveScreen() {
             actions,
             openFile,
             itemsById,
+            dndScope,
         }),
         [
             isMobile,
@@ -353,6 +376,7 @@ export default function DriveScreen() {
             actions,
             openFile,
             itemsById,
+            dndScope,
         ]
     )
 
@@ -450,7 +474,7 @@ function DriveListMode({
             }
             return (
                 <DriveContextMenu item={it}>
-                    <DriveDnDCell item={it} ctx={ctx} dragPreview="name">
+                    <DriveDnDCell item={it} index={item.index} ctx={ctx} dragPreview="name">
                         <FilesListRow item={it} index={item.index} ctx={ctx} />
                     </DriveDnDCell>
                 </DriveContextMenu>
@@ -493,6 +517,7 @@ function DriveListMode({
             keyExtractor={keyExtractor}
             getItemType={getItemType}
             extraData={cellContext}
+            renderScrollComponent={DriveDragScrollView}
             contentContainerStyle={{ paddingHorizontal: isMobile ? 0 : 16 }}
             ListHeaderComponent={ListHeader}
             refreshControl={
@@ -524,7 +549,7 @@ function DriveGridMode({
     onRefresh,
 }: GridModeProps) {
     const renderItem = useCallback(
-        ({ item, extraData }: { item: GridRow; extraData?: CellContext }) => {
+        ({ item, index, extraData }: { item: GridRow; index: number; extraData?: CellContext }) => {
             const ctx = extraData ?? cellContext
             if (item.kind === 'section') {
                 return <GridSectionHeader title={item.title} />
@@ -536,7 +561,7 @@ function DriveGridMode({
                         <UploadingGridCard item={it} onDismiss={ctx.actions.dismissUpload} />
                     ) : (
                         <DriveContextMenu item={it}>
-                            <DriveDnDCell item={it} ctx={ctx} dragPreview="card">
+                            <DriveDnDCell item={it} index={index} ctx={ctx} dragPreview="card">
                                 {it.isFolder ? (
                                     <FolderGridCard item={it} ctx={ctx} />
                                 ) : (
@@ -583,6 +608,7 @@ function DriveGridMode({
             getItemType={getItemType}
             overrideItemLayout={overrideItemLayout}
             extraData={cellContext}
+            renderScrollComponent={DriveDragScrollView}
             contentContainerStyle={{ paddingHorizontal: GRID_PADDING - GRID_GAP / 2 }}
             refreshControl={
                 isMobile ? (
@@ -790,6 +816,7 @@ function FilesListRowImpl({
                 {ctx.isTrash ? null : (
                     <DragGrip
                         itemId={item.id}
+                        dndScope={ctx.dndScope}
                         label={item.name}
                         category={item.category}
                         dragPreview="name"

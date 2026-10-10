@@ -37,6 +37,11 @@ export function MarqueeContainer({ containerRef, onLayout, children }: MarqueeCo
                 display: 'flex',
                 flexDirection: 'column',
                 minHeight: 0,
+                // A press on a name would otherwise start a text selection,
+                // which fights click-to-select, drag-to-move and the marquee.
+                // Native Text is not selectable by default.
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
             }}
         >
             <View style={{ width: '100%', height: 0 }} onLayout={onLayout} />

@@ -29,7 +29,7 @@ Right-click the folder and choose **Rename**, or select it and use the toolbar's
 
 Two ways to move things:
 
-- **Drag** the file or folder onto a destination. Drop targets are: any folder in the main list or grid, any folder in the sidebar tree, **My Files** in the sidebar (moves to the root), and any ancestor in the breadcrumb path. The target highlights while you hover a valid drop. To move several items at once, select them first (click to select, ⇧-click or ⌘-click to extend), then drag any one of the selection — the whole group moves together.
+- **Drag** the file or folder onto a destination. Drop targets are: any folder in the main list or grid, any folder in the sidebar tree, **My Files** in the sidebar (moves to the root), and any ancestor in the breadcrumb path. The target highlights while you hover a valid drop. If the folder you want is out of view, hold the item near the top or bottom edge of the list: the list scrolls until you move away from the edge. To move several items at once, select them first (click to select, ⇧-click or ⌘-click to extend), then drag any one of the selection — the whole group moves together.
 - **Right-click → Move** opens a folder picker. Choose any destination and confirm.
 
 Drive won't let you drop a folder into itself or into one of its own subfolders, and dropping onto the folder an item already lives in does nothing.
