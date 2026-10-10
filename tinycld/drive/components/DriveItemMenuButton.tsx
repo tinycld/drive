@@ -66,17 +66,30 @@ export function DriveItemMenuButton({ item, size = 16 }: DriveItemMenuButtonProp
     )
 }
 
+const TRIGGER_PADDING = 4
+
+/** The ⋯ trigger's look without its menu, for a row or card's drag preview —
+ *  a copy that must not open anything or duplicate the trigger's label. */
+export function DriveItemMenuIcon({ size = 16 }: { size?: number }) {
+    const mutedColor = useThemeColor('muted-foreground')
+    return (
+        <View style={{ padding: TRIGGER_PADDING }}>
+            <EllipsisVertical size={size} color={mutedColor} />
+        </View>
+    )
+}
+
 // On web, halt pointerdown/touchstart at the ⋯ so a press here can't start
 // an enclosing draggable card/row's Pan gesture (which listens on
 // pointerdown); the menu's own click still fires. The guard carries the
 // button's padding so the whole hit area is covered. RN's Pressable forwards
 // no capture-phase pointer handlers, hence the raw element.
 function PressGuard({ children }: { children: ReactNode }) {
-    if (Platform.OS !== 'web') return <View style={{ padding: 4 }}>{children}</View>
+    if (Platform.OS !== 'web') return <View style={{ padding: TRIGGER_PADDING }}>{children}</View>
     return (
         <div
             role="presentation"
-            style={{ display: 'flex', padding: 4 }}
+            style={{ display: 'flex', padding: TRIGGER_PADDING }}
             onPointerDownCapture={e => e.stopPropagation()}
             onTouchStartCapture={e => e.stopPropagation()}
         >
