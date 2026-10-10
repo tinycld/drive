@@ -34,6 +34,7 @@ import {
     Pressable,
     RefreshControl,
     Text,
+    type TextStyle,
     View,
 } from 'react-native'
 import { DragGrip, DraggableDriveItem } from '../components/DraggableDriveItem'
@@ -47,6 +48,7 @@ import { MarqueeOverlay } from '../components/MarqueeOverlay'
 import { Thumbnail } from '../components/Thumbnail'
 import { UploadingGridCard } from '../components/UploadingGridCard'
 import { UploadingListRow } from '../components/UploadingListRow'
+import { useDetailPanelPresentation } from '../hooks/useDetailPanelPresentation'
 import { useDoubleClick } from '../hooks/useDoubleClick'
 import { type DriveActions, useDrive, useRegisterDriveLayoutAnimation } from '../hooks/useDrive'
 import { type GridRow, type ListRow, useGridRows, useListRows } from '../hooks/useDriveRows'
@@ -64,21 +66,96 @@ interface DriveColumn {
     flex?: number
     width?: number
     sortField?: SortField
+    /** Set on a column a narrow list drops (see listColumnsFor). */
+    optional?: keyof ListColumns
 }
+
+// A date ("Oct 10, 2026") and a size ("331.8 KB") never need more than these,
+// so those columns keep a fixed width and the name and owner take the rest.
+// A flex share instead grew them on a wide list and wrapped them onto three
+// lines on a narrow one (a desktop window with the details panel open).
+const DATE_COLUMN_WIDTH = 104
+const SIZE_COLUMN_WIDTH = 76
+const ACTIONS_COLUMN_WIDTH = 108
 
 const DRIVE_COLUMNS: DriveColumn[] = [
     { label: 'Name', flex: 3, sortField: 'name' },
-    { label: 'Owner', flex: 2, sortField: 'owner' },
-    { label: 'Date modified', flex: 2, sortField: 'updated' },
-    { label: 'File size', flex: 1, sortField: 'size' },
-    { label: '', width: 108 },
+    { label: 'Owner', flex: 1, sortField: 'owner', optional: 'owner' },
+    {
+        label: 'Date modified',
+        width: DATE_COLUMN_WIDTH,
+        sortField: 'updated',
+        optional: 'date',
+    },
+    { label: 'File size', width: SIZE_COLUMN_WIDTH, sortField: 'size', optional: 'size' },
+    { label: '', width: ACTIONS_COLUMN_WIDTH },
 ]
 
 const TRASH_COLUMNS: DriveColumn[] = [
     { label: 'Name', flex: 3, sortField: 'name' },
-    { label: 'Date deleted', flex: 2, sortField: 'trashedAt' },
-    { label: 'File size', flex: 1, sortField: 'size' },
+    {
+        label: 'Date deleted',
+        width: DATE_COLUMN_WIDTH,
+        sortField: 'trashedAt',
+        optional: 'date',
+    },
+    { label: 'File size', width: SIZE_COLUMN_WIDTH, sortField: 'size', optional: 'size' },
 ]
+
+/** The optional list columns a list of the measured width has room for. */
+interface ListColumns {
+    owner: boolean
+    date: boolean
+    size: boolean
+}
+
+const ALL_LIST_COLUMNS: ListColumns = { owner: true, date: true, size: true }
+
+// The list's side padding plus a row's own, around the cells.
+const LIST_ROW_CHROME = 16 * 2 + 12 * 2
+// Grip, thumbnail and enough of the name to read it.
+const NAME_MIN_WIDTH = 200
+const OWNER_MIN_WIDTH = 96
+
+// A narrow list (a desktop window with the details panel open) cannot fit
+// every column, and squeezing them all leaves no room for the name. The name
+// and the row's buttons always show; the room left goes to the date, then the
+// size, then the owner, in that order.
+function listColumnsFor(listWidth: number): ListColumns {
+    if (listWidth <= 0) return ALL_LIST_COLUMNS
+    let room = listWidth - LIST_ROW_CHROME - NAME_MIN_WIDTH - ACTIONS_COLUMN_WIDTH
+    const date = room >= DATE_COLUMN_WIDTH
+    if (date) room -= DATE_COLUMN_WIDTH
+    const size = date && room >= SIZE_COLUMN_WIDTH
+    if (size) room -= SIZE_COLUMN_WIDTH
+    const owner = size && room >= OWNER_MIN_WIDTH
+    return { owner, date, size }
+}
+
+function visibleColumns(columns: DriveColumn[], shown: ListColumns): DriveColumn[] {
+    return columns.filter(column => !column.optional || shown[column.optional])
+}
+
+const OWNER_CELL_STYLE = { fontSize: 12, flex: 1 }
+const DATE_CELL_STYLE = { fontSize: 12, width: DATE_COLUMN_WIDTH }
+const SIZE_CELL_STYLE = { fontSize: 12, width: SIZE_COLUMN_WIDTH }
+
+function ListCell({
+    isVisible,
+    style,
+    children,
+}: {
+    isVisible: boolean
+    style: TextStyle
+    children: ReactNode
+}) {
+    if (!isVisible) return null
+    return (
+        <Text numberOfLines={1} className="text-muted-foreground" style={style}>
+            {children}
+        </Text>
+    )
+}
 
 const GRID_GAP = 12
 const GRID_PADDING = 16
@@ -89,12 +166,15 @@ const CARD_MIN_MOBILE = 150
 // taller neighbour. 120 thumbnail area + ~36 chrome + 12 padding gap.
 const GRID_CARD_HEIGHT = 168
 
-interface GridLayoutInfo {
+interface ListingLayoutInfo {
     cols: number
+    listColumns: ListColumns
     onLayout: (e: LayoutChangeEvent) => void
 }
 
-function useGridColumns(isMobile: boolean): GridLayoutInfo {
+// The listing's measured width sets both the grid's column count and which
+// optional list columns fit.
+function useListingLayout(isMobile: boolean): ListingLayoutInfo {
     const cardMin = isMobile ? CARD_MIN_MOBILE : CARD_MIN_DESKTOP
     const [width, setWidth] = useState(0)
     const onLayout = useCallback((e: LayoutChangeEvent) => {
@@ -108,7 +188,8 @@ function useGridColumns(isMobile: boolean): GridLayoutInfo {
         const inner = width - GRID_PADDING * 2
         return Math.max(2, Math.floor((inner + GRID_GAP) / (cardMin + GRID_GAP)))
     }, [width, cardMin])
-    return { cols, onLayout }
+    const listColumns = useMemo(() => listColumnsFor(width), [width])
+    return { cols, listColumns, onLayout }
 }
 
 interface CellContext {
@@ -130,6 +211,11 @@ interface CellContext {
     itemsById: Map<string, DriveItemView>
     /** Unique per screen instance, for the Drax ids of its rows (see dragViewId). */
     dndScope: string
+    /** A plain single click opens the detail panel — only where the panel sits
+     *  beside the listing, since an overlay would cover what was clicked. */
+    showDetailsOnClick: boolean
+    /** The optional list columns there is room for. */
+    listColumns: ListColumns
 }
 
 // Composes the drag-and-drop wrappers around a row/card. Every item is
@@ -255,7 +341,11 @@ export default function DriveScreen() {
         [currentItems, uploadPlaceholders]
     )
 
-    const { cols, onLayout } = useGridColumns(isMobile)
+    const { cols, listColumns, onLayout } = useListingLayout(isMobile)
+    const listHeaderColumns = useMemo(
+        () => visibleColumns(isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS, listColumns),
+        [isTrash, listColumns]
+    )
     const listRows = useListRows({ folders, files, sortField, sortDirection })
     const gridRows = useGridRows({ folders, files })
 
@@ -339,6 +429,7 @@ export default function DriveScreen() {
     useRegisterDriveLayoutAnimation(prepareLayoutAnimation)
 
     const dndScope = useId()
+    const showDetailsOnClick = useDetailPanelPresentation() === 'inline'
     const cellContext: CellContext = useMemo(
         () => ({
             isMobile,
@@ -358,6 +449,8 @@ export default function DriveScreen() {
             openFile,
             itemsById,
             dndScope,
+            showDetailsOnClick,
+            listColumns,
         }),
         [
             isMobile,
@@ -377,6 +470,8 @@ export default function DriveScreen() {
             openFile,
             itemsById,
             dndScope,
+            showDetailsOnClick,
+            listColumns,
         ]
     )
 
@@ -405,7 +500,7 @@ export default function DriveScreen() {
                         rows={listRows}
                         flashRef={listFlashRef}
                         cellContext={cellContext}
-                        columns={isTrash ? TRASH_COLUMNS : DRIVE_COLUMNS}
+                        columns={listHeaderColumns}
                         showColumnHeader={!isMobile}
                         sortField={sortField}
                         sortDirection={sortDirection}
@@ -589,6 +684,28 @@ function DriveGridMode({
         return 'file'
     }, [])
 
+    // Opening or closing the inline detail panel (or resizing the window)
+    // changes the column count, and every card moves. Bring the selected card
+    // back into view if the reflow moved it off screen. The scroll position
+    // belongs to FlashList, outside React, hence an effect on the column count.
+    const rowsRef = useRef(rows)
+    rowsRef.current = rows
+    const laidOutColsRef = useRef(cols)
+    useEffect(() => {
+        if (laidOutColsRef.current === cols) return
+        laidOutColsRef.current = cols
+        const { selectedItemId } = useDriveUIStore.getState()
+        const index = rowsRef.current.findIndex(
+            r => r.kind === 'card' && r.item.id === selectedItemId
+        )
+        const list = flashRef.current
+        const layout = index < 0 ? undefined : list?.getLayout(index)
+        if (!list || !layout) return
+        const top = layout.y + list.getFirstItemOffset() - list.getAbsoluteLastScrollOffset()
+        if (top >= 0 && top + layout.height <= list.getWindowSize().height) return
+        list.scrollToIndex({ index, viewPosition: 0.5, animated: true })
+    }, [cols, flashRef])
+
     const overrideItemLayout = useCallback(
         (layout: { span?: number }, row: GridRow) => {
             if (row.kind === 'section') {
@@ -616,6 +733,24 @@ function DriveGridMode({
                 ) : undefined
             }
         />
+    )
+}
+
+// Opens the detail panel for a plain single click, once the double-click window
+// has passed: opening it narrows the listing (and reflows the grid), so doing
+// it between the two clicks of a double-click would move the item out from
+// under the second one. The click already selected the item, and the panel
+// shows the selected item. A modified click extends the selection instead.
+function useShowDetailsAfterClick(ctx: CellContext) {
+    const { showDetailsOnClick, actions } = ctx
+    return useCallback(
+        (event: GestureResponderEvent) => {
+            if (!showDetailsOnClick) return
+            const native = event.nativeEvent as unknown as MouseEvent
+            if (native.metaKey || native.ctrlKey || native.shiftKey) return
+            actions.openDetailPanel()
+        },
+        [showDetailsOnClick, actions]
     )
 }
 
@@ -672,7 +807,8 @@ function FilesListRowImpl({
     // ctx.openFile IS the shared opener (useOpenDriveItem): folders navigate,
     // files hand off to a registered app (calc/text) or fall back to preview.
     const handleOpenAction = useCallback(() => ctx.openFile(item), [item, ctx])
-    const handlePress = useDoubleClick(handleRowClickSelect, handleOpenAction)
+    const handleShowDetails = useShowDetailsAfterClick(ctx)
+    const handlePress = useDoubleClick(handleRowClickSelect, handleOpenAction, handleShowDetails)
 
     const handleMobilePress = useCallback(() => {
         // A long-press opened the context menu; ignore the tap that fires when
@@ -786,6 +922,13 @@ function FilesListRowImpl({
         activeIndicator: ctx.activeIndicator,
     })
     const tooltipPosition = index === 0 ? ('below' as const) : ('above' as const)
+    const focusTint = effectStyle?.backgroundColor
+    const rowTint =
+        typeof focusTint === 'string'
+            ? focusTint
+            : isSelectedRow
+              ? `${ctx.activeIndicator}12`
+              : undefined
 
     const hoverWebProps =
         Platform.OS === 'web'
@@ -839,19 +982,15 @@ function FilesListRowImpl({
                     {item.name}
                 </Text>
             </View>
-            <Text
-                numberOfLines={1}
-                className="text-muted-foreground"
-                style={{ fontSize: 12, flex: 2 }}
-            >
+            <ListCell isVisible={ctx.listColumns.owner} style={OWNER_CELL_STYLE}>
                 {item.owner}
-            </Text>
-            <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 2 }}>
+            </ListCell>
+            <ListCell isVisible={ctx.listColumns.date} style={DATE_CELL_STYLE}>
                 {formatDate(item.updated)}
-            </Text>
-            <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 1 }}>
+            </ListCell>
+            <ListCell isVisible={ctx.listColumns.size} style={SIZE_CELL_STYLE}>
                 {item.isFolder ? '—' : formatBytes(item.size)}
-            </Text>
+            </ListCell>
             {/* Trailing column: the quick-action icons (Info, Delete, Download,
                 Share) reveal on hover, followed by the always-visible ★ star +
                 ⋯ menu. Laid out in normal flow (left → right) so nothing
@@ -860,44 +999,52 @@ function FilesListRowImpl({
                 so the row layout doesn't shift. */}
             <View
                 className="flex-row items-center justify-end"
-                style={{ width: 108, flexShrink: 0 }}
+                style={{ width: ACTIONS_COLUMN_WIDTH, flexShrink: 0 }}
             >
+                {/* The hover icons overflow left over the date and size cells,
+                    so they sit on an opaque background, tinted like the row
+                    (selection or keyboard focus) so they read as part of it. */}
                 <View
-                    className="flex-row items-center"
+                    className={isHovered ? 'bg-background' : undefined}
                     style={isHovered ? undefined : { width: 0, opacity: 0, overflow: 'hidden' }}
                     pointerEvents={isHovered ? 'auto' : 'none'}
                 >
-                    <HoverAction
-                        icon={Info}
-                        label="Info"
-                        onPress={handleInfo}
-                        tooltipPosition={tooltipPosition}
-                    />
-                    <ConfirmTrash
-                        itemName={item.name}
-                        onConfirmed={() => actions.moveToTrash(item.id)}
+                    <View
+                        className="flex-row items-center pl-1"
+                        style={{ backgroundColor: rowTint }}
                     >
-                        {onOpen => (
-                            <HoverAction
-                                icon={Trash2}
-                                label="Delete"
-                                onPress={onOpen}
-                                tooltipPosition={tooltipPosition}
-                            />
-                        )}
-                    </ConfirmTrash>
-                    <HoverAction
-                        icon={Download}
-                        label="Download"
-                        onPress={() => actions.downloadItem(item.id)}
-                        tooltipPosition={tooltipPosition}
-                    />
-                    <HoverAction
-                        icon={Share2}
-                        label="Share"
-                        onPress={() => actions.openShareDialog(item.id, item.name)}
-                        tooltipPosition={tooltipPosition}
-                    />
+                        <HoverAction
+                            icon={Info}
+                            label="Info"
+                            onPress={handleInfo}
+                            tooltipPosition={tooltipPosition}
+                        />
+                        <ConfirmTrash
+                            itemName={item.name}
+                            onConfirmed={() => actions.moveToTrash(item.id)}
+                        >
+                            {onOpen => (
+                                <HoverAction
+                                    icon={Trash2}
+                                    label="Delete"
+                                    onPress={onOpen}
+                                    tooltipPosition={tooltipPosition}
+                                />
+                            )}
+                        </ConfirmTrash>
+                        <HoverAction
+                            icon={Download}
+                            label="Download"
+                            onPress={() => actions.downloadItem(item.id)}
+                            tooltipPosition={tooltipPosition}
+                        />
+                        <HoverAction
+                            icon={Share2}
+                            label="Share"
+                            onPress={() => actions.openShareDialog(item.id, item.name)}
+                            tooltipPosition={tooltipPosition}
+                        />
+                    </View>
                 </View>
                 <Pressable
                     style={{ padding: 4 }}
@@ -1036,12 +1183,12 @@ function TrashListRowImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
                     {item.name}
                 </Text>
             </View>
-            <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 2 }}>
+            <ListCell isVisible={ctx.listColumns.date} style={DATE_CELL_STYLE}>
                 {formatDate(item.trashedAt)}
-            </Text>
-            <Text className="text-muted-foreground" style={{ fontSize: 12, flex: 1 }}>
+            </ListCell>
+            <ListCell isVisible={ctx.listColumns.size} style={SIZE_CELL_STYLE}>
                 {item.isFolder ? '—' : formatBytes(item.size)}
-            </Text>
+            </ListCell>
         </Pressable>
     )
 }
@@ -1088,7 +1235,8 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
         (event: GestureResponderEvent) => ctx.handleSelectClick(item.id, event),
         [item.id, ctx]
     )
-    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleNavigate)
+    const handleShowDetails = useShowDetailsAfterClick(ctx)
+    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleNavigate, handleShowDetails)
     const handleMobilePress = useCallback(() => {
         if (consumeContextMenuPressSuppression(Date.now())) return
         handleNavigate()
@@ -1152,7 +1300,8 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
         [item.id, ctx]
     )
     const handleOpen = useCallback(() => ctx.openFile(item), [item, ctx])
-    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleOpen)
+    const handleShowDetails = useShowDetailsAfterClick(ctx)
+    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleOpen, handleShowDetails)
     const handleMobilePress = useCallback(() => {
         if (consumeContextMenuPressSuppression(Date.now())) return
         ctx.openFile(item)
