@@ -13,6 +13,7 @@ import {
 import { Download, FolderOpen, RotateCcw, X } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
+import { useDetailPanelPresentation } from '../hooks/useDetailPanelPresentation'
 import { useDrive } from '../hooks/useDrive'
 import { useVersionHistory } from '../hooks/useVersionHistory'
 import type { DriveItemView } from '../types'
@@ -25,11 +26,11 @@ interface DetailPanelProps {
     onClose: () => void
 }
 
-// The detail panel is a right-anchored Drawer overlay (with a
-// backdrop that dismisses on tap-away) rather than an inline flex
-// sibling of the file list. The Drawer itself manages mount/unmount
-// animation when isOpen flips, so we keep it mounted as long as we
-// have an item to show — guarding on isVisible only at the isOpen
+// The detail panel is a right-anchored Drawer: inline beside the file list
+// on a desktop, and an overlay (with a backdrop that dismisses on tap-away)
+// on narrower screens — see useDetailPanelPresentation. The Drawer itself
+// manages mount/unmount animation when isOpen flips, so we keep it mounted as
+// long as we have an item to show — guarding on isVisible only at the isOpen
 // prop keeps the slide-out animation playing during close.
 //
 // `useDrive()` is read HERE — inside the DriveStateProvider — and the
@@ -76,11 +77,18 @@ function DetailPanelContent({
     const primaryColor = useThemeColor('primary')
     const [activeTab, setActiveTab] = useState<DetailTab>('details')
     const showVersionsTab = !item.isFolder
+    const presentation = useDetailPanelPresentation()
 
     return (
-        <Drawer isOpen={isOpen} onClose={onClose} anchor="right" size="md">
+        <Drawer
+            isOpen={isOpen}
+            onClose={onClose}
+            anchor="right"
+            size="md"
+            presentation={presentation}
+        >
             <DrawerBackdrop />
-            <DrawerContent>
+            <DrawerContent testID="drive-detail-panel">
                 <DrawerHeader>
                     <Text
                         numberOfLines={2}

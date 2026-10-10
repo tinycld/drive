@@ -47,6 +47,7 @@ import { MarqueeOverlay } from '../components/MarqueeOverlay'
 import { Thumbnail } from '../components/Thumbnail'
 import { UploadingGridCard } from '../components/UploadingGridCard'
 import { UploadingListRow } from '../components/UploadingListRow'
+import { useDetailPanelPresentation } from '../hooks/useDetailPanelPresentation'
 import { useDoubleClick } from '../hooks/useDoubleClick'
 import { type DriveActions, useDrive, useRegisterDriveLayoutAnimation } from '../hooks/useDrive'
 import { type GridRow, type ListRow, useGridRows, useListRows } from '../hooks/useDriveRows'
@@ -130,6 +131,9 @@ interface CellContext {
     itemsById: Map<string, DriveItemView>
     /** Unique per screen instance, for the Drax ids of its rows (see dragViewId). */
     dndScope: string
+    /** A plain single click opens the detail panel — only where the panel sits
+     *  beside the listing, since an overlay would cover what was clicked. */
+    showDetailsOnClick: boolean
 }
 
 // Composes the drag-and-drop wrappers around a row/card. Every item is
@@ -339,6 +343,7 @@ export default function DriveScreen() {
     useRegisterDriveLayoutAnimation(prepareLayoutAnimation)
 
     const dndScope = useId()
+    const showDetailsOnClick = useDetailPanelPresentation() === 'inline'
     const cellContext: CellContext = useMemo(
         () => ({
             isMobile,
@@ -358,6 +363,7 @@ export default function DriveScreen() {
             openFile,
             itemsById,
             dndScope,
+            showDetailsOnClick,
         }),
         [
             isMobile,
@@ -377,6 +383,7 @@ export default function DriveScreen() {
             openFile,
             itemsById,
             dndScope,
+            showDetailsOnClick,
         ]
     )
 
@@ -589,6 +596,28 @@ function DriveGridMode({
         return 'file'
     }, [])
 
+    // Opening or closing the inline detail panel (or resizing the window)
+    // changes the column count, and every card moves. Bring the selected card
+    // back into view if the reflow moved it off screen. The scroll position
+    // belongs to FlashList, outside React, hence an effect on the column count.
+    const rowsRef = useRef(rows)
+    rowsRef.current = rows
+    const laidOutColsRef = useRef(cols)
+    useEffect(() => {
+        if (laidOutColsRef.current === cols) return
+        laidOutColsRef.current = cols
+        const { selectedItemId } = useDriveUIStore.getState()
+        const index = rowsRef.current.findIndex(
+            r => r.kind === 'card' && r.item.id === selectedItemId
+        )
+        const list = flashRef.current
+        const layout = index < 0 ? undefined : list?.getLayout(index)
+        if (!list || !layout) return
+        const top = layout.y + list.getFirstItemOffset() - list.getAbsoluteLastScrollOffset()
+        if (top >= 0 && top + layout.height <= list.getWindowSize().height) return
+        list.scrollToIndex({ index, viewPosition: 0.5, animated: true })
+    }, [cols, flashRef])
+
     const overrideItemLayout = useCallback(
         (layout: { span?: number }, row: GridRow) => {
             if (row.kind === 'section') {
@@ -616,6 +645,24 @@ function DriveGridMode({
                 ) : undefined
             }
         />
+    )
+}
+
+// Opens the detail panel for a plain single click, once the double-click window
+// has passed: opening it narrows the listing (and reflows the grid), so doing
+// it between the two clicks of a double-click would move the item out from
+// under the second one. The click already selected the item, and the panel
+// shows the selected item. A modified click extends the selection instead.
+function useShowDetailsAfterClick(ctx: CellContext) {
+    const { showDetailsOnClick, actions } = ctx
+    return useCallback(
+        (event: GestureResponderEvent) => {
+            if (!showDetailsOnClick) return
+            const native = event.nativeEvent as unknown as MouseEvent
+            if (native.metaKey || native.ctrlKey || native.shiftKey) return
+            actions.openDetailPanel()
+        },
+        [showDetailsOnClick, actions]
     )
 }
 
@@ -672,7 +719,8 @@ function FilesListRowImpl({
     // ctx.openFile IS the shared opener (useOpenDriveItem): folders navigate,
     // files hand off to a registered app (calc/text) or fall back to preview.
     const handleOpenAction = useCallback(() => ctx.openFile(item), [item, ctx])
-    const handlePress = useDoubleClick(handleRowClickSelect, handleOpenAction)
+    const handleShowDetails = useShowDetailsAfterClick(ctx)
+    const handlePress = useDoubleClick(handleRowClickSelect, handleOpenAction, handleShowDetails)
 
     const handleMobilePress = useCallback(() => {
         // A long-press opened the context menu; ignore the tap that fires when
@@ -1088,7 +1136,8 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
         (event: GestureResponderEvent) => ctx.handleSelectClick(item.id, event),
         [item.id, ctx]
     )
-    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleNavigate)
+    const handleShowDetails = useShowDetailsAfterClick(ctx)
+    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleNavigate, handleShowDetails)
     const handleMobilePress = useCallback(() => {
         if (consumeContextMenuPressSuppression(Date.now())) return
         handleNavigate()
@@ -1152,7 +1201,8 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
         [item.id, ctx]
     )
     const handleOpen = useCallback(() => ctx.openFile(item), [item, ctx])
-    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleOpen)
+    const handleShowDetails = useShowDetailsAfterClick(ctx)
+    const handleDesktopOpen = useDoubleClick(handleClickSelect, handleOpen, handleShowDetails)
     const handleMobilePress = useCallback(() => {
         if (consumeContextMenuPressSuppression(Date.now())) return
         ctx.openFile(item)
