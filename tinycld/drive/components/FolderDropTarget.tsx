@@ -6,6 +6,10 @@ import { canDrop, type DriveDragPayload, isDriveDragPayload } from '../lib/dnd'
 import type { DriveItemView } from '../types'
 
 interface FolderDropTargetProps {
+    /** Drax id. Inside a recycling list, key it on the folder and its position:
+     *  a recycled or shifted cell keeps its view, and only an id change makes
+     *  Drax measure it again. */
+    id?: string
     /** Destination folder id; the empty string is the drive root. */
     targetFolderId: string
     /** Lookup used to validate drops (self/descendant/no-op rules). */
@@ -22,6 +26,7 @@ interface FolderDropTargetProps {
  * target (itself, a descendant, or a no-op) never highlights or accepts.
  */
 export function FolderDropTarget({
+    id,
     targetFolderId,
     itemsById,
     onDropItems,
@@ -36,6 +41,7 @@ export function FolderDropTarget({
 
     return (
         <DraxView
+            id={id}
             receptive
             acceptsDrag={payload => canDrop(payload, targetFolderId, itemsById)}
             // selected = "this drop target is currently receiving the drag".

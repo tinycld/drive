@@ -54,6 +54,17 @@ function dragIdsFor(itemId: string): string[] {
     return selectedIds.has(itemId) ? Array.from(selectedIds) : [itemId]
 }
 
+/** Drax id for an item's draggable view. A FlashList recycles a cell to a
+ *  new item without remounting it, and Drax measures a view only when it
+ *  registers or resizes, so a recycled view would keep the old item's position
+ *  and hit-test at the wrong place. Keying the id on the item makes Drax
+ *  register and measure the view again when its cell is recycled. `scope`
+ *  keeps the id unique when the same item renders in two mounted lists (a
+ *  folder screen stays mounted under the one pushed above it). */
+export function dragViewId(scope: string, itemId: string): string {
+    return `drive-drag-${scope}-${itemId}`
+}
+
 /** Drag payload for an item — recomputed live so it reflects the selection at
  *  drag-start, not whenever the view last rendered. */
 function useDragPayload(itemId: string): { payload: DriveDragPayload } {
@@ -69,6 +80,8 @@ type DragPreviewKind = 'name' | 'card'
 
 interface DraggableDriveItemProps {
     itemId: string
+    /** Unique per list instance; see dragViewId. */
+    dndScope: string
     /** Item name, shown in the drag preview. */
     label: string
     /** Drives the card preview's icon (folder vs file type). */
@@ -90,6 +103,7 @@ interface DraggableDriveItemProps {
  */
 export function DraggableDriveItem({
     itemId,
+    dndScope,
     label,
     category,
     dragPreview,
@@ -103,6 +117,7 @@ export function DraggableDriveItem({
 
     return (
         <DraxView
+            id={dragViewId(dndScope, itemId)}
             draggable
             dragPayload={payload}
             longPressDelay={DRAG_LONG_PRESS_MS}
@@ -117,6 +132,8 @@ export function DraggableDriveItem({
 
 interface DragGripProps {
     itemId: string
+    /** Unique per list instance; see dragViewId. */
+    dndScope: string
     label: string
     category: FileCategory
     /** Preview shown while dragging (list rows use 'name'). */
@@ -130,13 +147,14 @@ interface DragGripProps {
  * the finger and can reach narrow drop targets like the sidebar tree. The row
  * stays a normal pressable; only this grip initiates a drag.
  */
-export function DragGrip({ itemId, label, category, dragPreview }: DragGripProps) {
+export function DragGrip({ itemId, dndScope, label, category, dragPreview }: DragGripProps) {
     const { payload } = useDragPayload(itemId)
     const renderHover = useHoverPreview({ itemId, label, category, dragPreview })
     const mutedColor = useThemeColor('muted-foreground')
 
     return (
         <DraxView
+            id={dragViewId(dndScope, itemId)}
             draggable
             dragPayload={payload}
             longPressDelay={DRAG_LONG_PRESS_MS}
