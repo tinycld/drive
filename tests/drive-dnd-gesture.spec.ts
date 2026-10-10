@@ -136,6 +136,62 @@ test.describe('Drive — drag gesture', () => {
         await expect(card).toBeVisible()
     })
 
+    // A list row drags by its grip, but the preview is a copy of the whole row,
+    // laid over the source row and moved with the pointer.
+    test('a list row drags as a copy of the whole row', async ({ page }) => {
+        await ensureListView(page)
+        const row = await revealDriveRow(page, 'Hippo.jpg')
+        const rowBox = await row.boundingBox()
+        if (!rowBox) throw new Error('row is not visible')
+        const grip = () => Promise.resolve(row.getByLabel('Drag to move', { exact: true }))
+        const gripBox = await (await grip()).boundingBox()
+        if (!gripBox) throw new Error('grip is not visible')
+
+        const press = await startDrag(page, grip, { x: 8, y: 8 }, { x: 0, y: 60 })
+        const pointer = { x: press.x + 40, y: press.y + 100 }
+        await page.mouse.move(pointer.x, pointer.y)
+
+        await expect(preview(page)).toContainText('Hippo.jpg')
+        await expect(preview(page).locator('img')).toBeVisible()
+        await expect(async () => {
+            const box = await preview(page).boundingBox()
+            expect(box).not.toBeNull()
+            expect(Math.abs((box?.width ?? 0) - rowBox.width)).toBeLessThanOrEqual(1)
+            expect(Math.abs((box?.height ?? 0) - rowBox.height)).toBeLessThanOrEqual(1)
+            const moved = { x: pointer.x - (gripBox.x + 8), y: pointer.y - (gripBox.y + 8) }
+            expect(Math.abs((box?.x ?? 0) - (rowBox.x + moved.x))).toBeLessThanOrEqual(2)
+            expect(Math.abs((box?.y ?? 0) - (rowBox.y + moved.y))).toBeLessThanOrEqual(2)
+        }).toPass()
+
+        await page.mouse.move(press.x, press.y)
+        await page.mouse.up()
+        await expect(preview(page)).toHaveCount(0)
+        await page.getByPlaceholder('Search in Files').clear()
+    })
+
+    // A grid card drags as a copy of the card, thumbnail included, at its size.
+    test('a grid card drags as a copy of the card', async ({ page }) => {
+        await page.getByTestId('drive-view-grid').click()
+        await page.getByPlaceholder('Search in Files').fill('Hippo.jpg')
+        const card = driveItem(page, 'Hippo.jpg')
+        await expect(card).toBeVisible()
+        const cardBox = await card.boundingBox()
+        if (!cardBox) throw new Error('card is not visible')
+
+        const press = await startDrag(page, async () => card, { x: 30, y: 60 }, { x: 0, y: 60 })
+
+        await expect(preview(page)).toContainText('Hippo.jpg')
+        await expect(preview(page).locator('img')).toBeVisible()
+        const box = await preview(page).boundingBox()
+        expect(Math.abs((box?.width ?? 0) - cardBox.width)).toBeLessThanOrEqual(1)
+        expect(Math.abs((box?.height ?? 0) - cardBox.height)).toBeLessThanOrEqual(1)
+
+        await page.mouse.move(press.x, press.y)
+        await page.mouse.up()
+        await expect(preview(page)).toHaveCount(0)
+        await page.getByPlaceholder('Search in Files').clear()
+    })
+
     // Folders sort above files, so moving a file from the bottom of a long
     // listing into a folder means carrying it up past the top of the view: the
     // list must scroll while the drag holds near its edge, the folder that
