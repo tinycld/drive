@@ -37,10 +37,16 @@ import {
     type TextStyle,
     View,
 } from 'react-native'
-import { DragGrip, DraggableDriveItem } from '../components/DraggableDriveItem'
+import {
+    DragGrip,
+    DraggableDriveItem,
+    type RenderDragPreview,
+    StaticDragGrip,
+    useRowDragGeometry,
+} from '../components/DraggableDriveItem'
 import { DriveContextMenu } from '../components/DriveContextMenu'
 import { DriveDragScrollView } from '../components/DriveDragScrollView'
-import { DriveItemMenuButton } from '../components/DriveItemMenuButton'
+import { DriveItemMenuButton, DriveItemMenuIcon } from '../components/DriveItemMenuButton'
 import { FolderDropTarget } from '../components/FolderDropTarget'
 import { getFileIcon } from '../components/file-icons'
 import { MarqueeContainer } from '../components/MarqueeContainer'
@@ -227,17 +233,22 @@ function DriveDnDCell({
     item,
     index,
     ctx,
-    dragPreview,
+    dragBy,
     children,
 }: {
     item: DriveItemView
     /** The row's position in the list; see the drop target's id below. */
     index: number
     ctx: CellContext
-    /** 'name' in list view, 'card' in grid view — controls the drag preview. */
-    dragPreview: 'name' | 'card'
+    /** 'grip' in list view (the row renders its own grip), 'card' in grid view. */
+    dragBy: 'grip' | 'card'
     children: ReactNode
 }) {
+    const renderCardPreview: RenderDragPreview = size => ({
+        content: (
+            <GridCardDragPreview item={item} mutedColor={ctx.mutedColor} width={size?.width} />
+        ),
+    })
     // Grid view drags the whole card (small enough that Drax's hit-test tracks
     // the finger). List rows are full-width, so wrapping the row as the
     // draggable would push the hit-test point far off the finger (it's anchored
@@ -245,13 +256,11 @@ function DriveDnDCell({
     // sidebar — so list rows instead drag via a finger-sized <DragGrip> the row
     // renders itself, and the cell adds no draggable wrapper here.
     const content =
-        dragPreview === 'card' ? (
+        dragBy === 'card' ? (
             <DraggableDriveItem
                 itemId={item.id}
                 dndScope={ctx.dndScope}
-                label={item.name}
-                category={item.category}
-                dragPreview={dragPreview}
+                renderPreview={renderCardPreview}
                 isEnabled={!ctx.isTrash}
             >
                 {children}
@@ -569,7 +578,7 @@ function DriveListMode({
             }
             return (
                 <DriveContextMenu item={it}>
-                    <DriveDnDCell item={it} index={item.index} ctx={ctx} dragPreview="name">
+                    <DriveDnDCell item={it} index={item.index} ctx={ctx} dragBy="grip">
                         <FilesListRow item={it} index={item.index} ctx={ctx} />
                     </DriveDnDCell>
                 </DriveContextMenu>
@@ -656,7 +665,7 @@ function DriveGridMode({
                         <UploadingGridCard item={it} onDismiss={ctx.actions.dismissUpload} />
                     ) : (
                         <DriveContextMenu item={it}>
-                            <DriveDnDCell item={it} index={index} ctx={ctx} dragPreview="card">
+                            <DriveDnDCell item={it} index={index} ctx={ctx} dragBy="card">
                                 {it.isFolder ? (
                                     <FolderGridCard item={it} ctx={ctx} />
                                 ) : (
@@ -773,6 +782,7 @@ function FilesListRowImpl({
     // otherwise the wrong row briefly renders hovered for one frame after
     // a fast scroll.
     const [isHovered, setIsHovered] = useRecyclingState(false, [item.id])
+    const geometry = useRowDragGeometry()
 
     // Select on press-down (onPressIn) for instant highlight. Applies to
     // folders and files alike: a single click selects, a double click opens.
@@ -929,6 +939,24 @@ function FilesListRowImpl({
             : isSelectedRow
               ? `${ctx.activeIndicator}12`
               : undefined
+    // The row drags by its grip, so the preview copies the whole row and is
+    // anchored at the grip's spot in it.
+    const renderRowPreview: RenderDragPreview = () => {
+        const { width, height, anchor } = geometry.read()
+        return {
+            anchor,
+            content: (
+                <DesktopListRowDragPreview
+                    item={item}
+                    mutedColor={ctx.mutedColor}
+                    listColumns={ctx.listColumns}
+                    activeIndicator={ctx.activeIndicator}
+                    width={width}
+                    height={height}
+                />
+            ),
+        }
+    }
 
     const hoverWebProps =
         Platform.OS === 'web'
@@ -948,28 +976,132 @@ function FilesListRowImpl({
             accessibilityLabel={`${item.name} ${item.owner} ${formatDate(item.updated)}`}
             // Tags the row for the drag-to-select hit-test (full-width row rect).
             dataSet={{ driveItemId: item.id }}
-            className={`flex-row items-center px-3 py-2.5 border-b border-border ${isSelectedRow ? '' : 'bg-background'}`}
-            style={[
-                isSelectedRow ? { backgroundColor: `${ctx.activeIndicator}12` } : null,
-                effectStyle,
-            ]}
+            className={`${LIST_ROW_CLASS_NAME} ${isSelectedRow ? '' : 'bg-background'}`}
+            style={[isSelectedRow ? selectedRowStyle(ctx.activeIndicator) : null, effectStyle]}
+            onLayout={geometry.onRowLayout}
             {...hoverWebProps}
         >
-            <View className="flex-row items-center" style={{ gap: 10, flex: 3 }}>
-                {ctx.isTrash ? null : (
-                    <DragGrip
-                        itemId={item.id}
-                        dndScope={ctx.dndScope}
-                        label={item.name}
-                        category={item.category}
-                        dragPreview="name"
-                    />
-                )}
+            <DesktopListRowFace
+                item={item}
+                mutedColor={ctx.mutedColor}
+                listColumns={ctx.listColumns}
+                onLeadingLayout={geometry.onLeadingLayout}
+                grip={
+                    ctx.isTrash ? null : (
+                        <DragGrip
+                            itemId={item.id}
+                            dndScope={ctx.dndScope}
+                            renderPreview={renderRowPreview}
+                            onLayout={geometry.onGripLayout}
+                        />
+                    )
+                }
+                trailing={
+                    <>
+                        {/* The hover icons overflow left over the date and size
+                            cells, so they sit on an opaque background, tinted
+                            like the row (selection or keyboard focus) so they
+                            read as part of it. */}
+                        <View
+                            className={isHovered ? 'bg-background' : undefined}
+                            style={
+                                isHovered ? undefined : { width: 0, opacity: 0, overflow: 'hidden' }
+                            }
+                            pointerEvents={isHovered ? 'auto' : 'none'}
+                        >
+                            <View
+                                className="flex-row items-center pl-1"
+                                style={{ backgroundColor: rowTint }}
+                            >
+                                <HoverAction
+                                    icon={Info}
+                                    label="Info"
+                                    onPress={handleInfo}
+                                    tooltipPosition={tooltipPosition}
+                                />
+                                <ConfirmTrash
+                                    itemName={item.name}
+                                    onConfirmed={() => actions.moveToTrash(item.id)}
+                                >
+                                    {onOpen => (
+                                        <HoverAction
+                                            icon={Trash2}
+                                            label="Delete"
+                                            onPress={onOpen}
+                                            tooltipPosition={tooltipPosition}
+                                        />
+                                    )}
+                                </ConfirmTrash>
+                                <HoverAction
+                                    icon={Download}
+                                    label="Download"
+                                    onPress={() => actions.downloadItem(item.id)}
+                                    tooltipPosition={tooltipPosition}
+                                />
+                                <HoverAction
+                                    icon={Share2}
+                                    label="Share"
+                                    onPress={() => actions.openShareDialog(item.id, item.name)}
+                                    tooltipPosition={tooltipPosition}
+                                />
+                            </View>
+                        </View>
+                        <Pressable
+                            style={{ padding: 4 }}
+                            onPress={e => {
+                                e.stopPropagation()
+                                actions.toggleStar(item.id)
+                            }}
+                        >
+                            <StarIcon isStarred={item.starred} size={16} />
+                        </Pressable>
+                        <DriveItemMenuButton item={item} />
+                    </>
+                }
+            />
+        </Pressable>
+    )
+}
+
+const LIST_ROW_CLASS_NAME = 'flex-row items-center px-3 py-2.5 border-b border-border'
+
+function selectedRowStyle(activeIndicator: string) {
+    return { backgroundColor: `${activeIndicator}12` }
+}
+
+// What a desktop list row shows, shared by the live row and its drag preview so
+// the two cannot drift apart.
+function DesktopListRowFace({
+    item,
+    mutedColor,
+    listColumns,
+    grip,
+    trailing,
+    onLeadingLayout,
+}: {
+    item: DriveItemView
+    mutedColor: string
+    /** The optional columns there is room for. */
+    listColumns: ListColumns
+    /** The drag grip, or its look without the gesture in a preview. */
+    grip: ReactNode
+    /** The row's buttons, or their look without the buttons in a preview. */
+    trailing: ReactNode
+    onLeadingLayout?: (event: LayoutChangeEvent) => void
+}) {
+    return (
+        <>
+            <View
+                className="flex-row items-center"
+                style={{ gap: 10, flex: 3 }}
+                onLayout={onLeadingLayout}
+            >
+                {grip}
                 <ListRowThumbnail
                     item={item}
                     size={28}
                     fallbackIconSize={20}
-                    mutedColor={ctx.mutedColor}
+                    mutedColor={mutedColor}
                 />
                 <Text
                     numberOfLines={1}
@@ -982,13 +1114,13 @@ function FilesListRowImpl({
                     {item.name}
                 </Text>
             </View>
-            <ListCell isVisible={ctx.listColumns.owner} style={OWNER_CELL_STYLE}>
+            <ListCell isVisible={listColumns.owner} style={OWNER_CELL_STYLE}>
                 {item.owner}
             </ListCell>
-            <ListCell isVisible={ctx.listColumns.date} style={DATE_CELL_STYLE}>
+            <ListCell isVisible={listColumns.date} style={DATE_CELL_STYLE}>
                 {formatDate(item.updated)}
             </ListCell>
-            <ListCell isVisible={ctx.listColumns.size} style={SIZE_CELL_STYLE}>
+            <ListCell isVisible={listColumns.size} style={SIZE_CELL_STYLE}>
                 {item.isFolder ? '—' : formatBytes(item.size)}
             </ListCell>
             {/* Trailing column: the quick-action icons (Info, Delete, Download,
@@ -1001,63 +1133,54 @@ function FilesListRowImpl({
                 className="flex-row items-center justify-end"
                 style={{ width: ACTIONS_COLUMN_WIDTH, flexShrink: 0 }}
             >
-                {/* The hover icons overflow left over the date and size cells,
-                    so they sit on an opaque background, tinted like the row
-                    (selection or keyboard focus) so they read as part of it. */}
-                <View
-                    className={isHovered ? 'bg-background' : undefined}
-                    style={isHovered ? undefined : { width: 0, opacity: 0, overflow: 'hidden' }}
-                    pointerEvents={isHovered ? 'auto' : 'none'}
-                >
-                    <View
-                        className="flex-row items-center pl-1"
-                        style={{ backgroundColor: rowTint }}
-                    >
-                        <HoverAction
-                            icon={Info}
-                            label="Info"
-                            onPress={handleInfo}
-                            tooltipPosition={tooltipPosition}
-                        />
-                        <ConfirmTrash
-                            itemName={item.name}
-                            onConfirmed={() => actions.moveToTrash(item.id)}
-                        >
-                            {onOpen => (
-                                <HoverAction
-                                    icon={Trash2}
-                                    label="Delete"
-                                    onPress={onOpen}
-                                    tooltipPosition={tooltipPosition}
-                                />
-                            )}
-                        </ConfirmTrash>
-                        <HoverAction
-                            icon={Download}
-                            label="Download"
-                            onPress={() => actions.downloadItem(item.id)}
-                            tooltipPosition={tooltipPosition}
-                        />
-                        <HoverAction
-                            icon={Share2}
-                            label="Share"
-                            onPress={() => actions.openShareDialog(item.id, item.name)}
-                            tooltipPosition={tooltipPosition}
-                        />
-                    </View>
-                </View>
-                <Pressable
-                    style={{ padding: 4 }}
-                    onPress={e => {
-                        e.stopPropagation()
-                        actions.toggleStar(item.id)
-                    }}
-                >
-                    <StarIcon isStarred={item.starred} size={16} />
-                </Pressable>
-                <DriveItemMenuButton item={item} />
+                {trailing}
             </View>
-        </Pressable>
+        </>
+    )
+}
+
+// The row's copy that follows the pointer: the same face, inert, at the size
+// the source row measured — its height includes the collapsed hover buttons,
+// which the copy leaves out. The live row is transparent when selected, so the
+// copy lays the selection tint over an opaque background.
+function DesktopListRowDragPreview({
+    item,
+    mutedColor,
+    listColumns,
+    activeIndicator,
+    width,
+    height,
+}: {
+    item: DriveItemView
+    mutedColor: string
+    listColumns: ListColumns
+    activeIndicator: string
+    width: number
+    height: number
+}) {
+    const isSelected = useDriveUIStore(s => s.selectedIds.has(item.id))
+    return (
+        <View className="bg-background shadow-md" style={{ width, height }}>
+            <View
+                className={`${LIST_ROW_CLASS_NAME} flex-1`}
+                style={isSelected ? selectedRowStyle(activeIndicator) : null}
+            >
+                <DesktopListRowFace
+                    item={item}
+                    mutedColor={mutedColor}
+                    listColumns={listColumns}
+                    grip={<StaticDragGrip />}
+                    trailing={
+                        <>
+                            <View style={{ padding: 4 }}>
+                                <StarIcon isStarred={item.starred} size={16} />
+                            </View>
+                            <DriveItemMenuIcon />
+                        </>
+                    }
+                />
+            </View>
+        </View>
     )
 }
 
@@ -1214,7 +1337,6 @@ function GridSectionHeader({ title }: { title: string }) {
 const FolderGridCard = memo(FolderGridCardImpl)
 function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext }) {
     const { actions } = ctx
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, ctx.mutedColor)
     const isSelectedRow = ctx.isSelected(item.id)
 
     const handleNavigate = useCallback(() => actions.navigateToFolder(item.id), [item.id, actions])
@@ -1254,27 +1376,13 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
             // visible tile). Renders as data-drive-item-id on web; no-op native.
             dataSet={{ driveItemId: item.id }}
             style={{ height: GRID_CARD_HEIGHT }}
-            className={`rounded-lg border ${isSelectedRow ? 'border-2 border-active-indicator' : 'border-border'}`}
+            className={gridCardClassName(item, isSelectedRow)}
         >
-            <View className="flex-row items-center gap-2.5 px-3 py-2.5 border-b border-border">
-                <FileIcon size={20} color={iconColor} />
-                <Text numberOfLines={1} className="flex-1 text-xs font-medium text-foreground">
-                    {item.name}
-                </Text>
-                <Pressable
-                    style={{ padding: 2 }}
-                    onPress={e => {
-                        e.stopPropagation()
-                        actions.toggleStar(item.id)
-                    }}
-                >
-                    <StarIcon isStarred={item.starred} size={14} />
-                </Pressable>
-                <DriveItemMenuButton item={item} size={14} />
-            </View>
-            <View className="flex-1 items-center justify-center bg-muted-foreground/5">
-                <FileIcon size={56} color={iconColor} />
-            </View>
+            <GridCardFace
+                item={item}
+                mutedColor={ctx.mutedColor}
+                headerActions={<GridCardActions item={item} actions={actions} />}
+            />
         </Pressable>
     )
 }
@@ -1282,7 +1390,6 @@ function FolderGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellConte
 const FileGridCard = memo(FileGridCardImpl)
 function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext }) {
     const { actions } = ctx
-    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, ctx.mutedColor)
     const isSelectedRow = ctx.isSelected(item.id)
 
     // Desktop: select on press-down (onPressIn) so the highlight is instant,
@@ -1318,27 +1425,122 @@ function FileGridCardImpl({ item, ctx }: { item: DriveItemView; ctx: CellContext
             // visible tile). Renders as data-drive-item-id on web; no-op native.
             dataSet={{ driveItemId: item.id }}
             style={{ height: GRID_CARD_HEIGHT }}
-            className={`rounded-lg overflow-hidden border ${isSelectedRow ? 'border-2 border-active-indicator' : 'border-border'}`}
+            className={gridCardClassName(item, isSelectedRow)}
         >
-            <View className="flex-row items-center gap-2 px-2.5 py-2 border-b border-border">
-                <FileIcon size={18} color={iconColor} />
+            <GridCardFace
+                item={item}
+                mutedColor={ctx.mutedColor}
+                headerActions={<GridCardActions item={item} actions={actions} />}
+            />
+        </Pressable>
+    )
+}
+
+function gridCardClassName(item: DriveItemView, isSelected: boolean) {
+    const clip = item.isFolder ? '' : 'overflow-hidden '
+    const border = isSelected ? 'border-2 border-active-indicator' : 'border-border'
+    return `rounded-lg ${clip}border ${border}`
+}
+
+// What a grid card shows, shared by the live card and its drag preview so the
+// two cannot drift apart. A folder's header is a little roomier than a file's,
+// and a file shows its thumbnail where a folder shows a large icon.
+function GridCardFace({
+    item,
+    mutedColor,
+    headerActions,
+}: {
+    item: DriveItemView
+    mutedColor: string
+    /** The star + ⋯ buttons, or their look without the buttons in a preview. */
+    headerActions: ReactNode
+}) {
+    const { icon: FileIcon, color: iconColor } = getFileIcon(item.category, mutedColor)
+    const header = item.isFolder
+        ? { className: 'gap-2.5 px-3 py-2.5', iconSize: 20 }
+        : { className: 'gap-2 px-2.5 py-2', iconSize: 18 }
+    return (
+        <>
+            <View className={`flex-row items-center ${header.className} border-b border-border`}>
+                <FileIcon size={header.iconSize} color={iconColor} />
                 <Text numberOfLines={1} className="flex-1 text-xs font-medium text-foreground">
                     {item.name}
                 </Text>
-                <Pressable
-                    style={{ padding: 2 }}
-                    onPress={e => {
-                        e.stopPropagation()
-                        actions.toggleStar(item.id)
-                    }}
-                >
-                    <StarIcon isStarred={item.starred} size={14} />
-                </Pressable>
-                <DriveItemMenuButton item={item} size={14} />
+                {headerActions}
             </View>
             <View className="flex-1 items-center justify-center bg-muted-foreground/5">
-                <Thumbnail item={item} size={120} />
+                <GridCardBody item={item} icon={FileIcon} iconColor={iconColor} />
             </View>
-        </Pressable>
+        </>
+    )
+}
+
+function GridCardBody({
+    item,
+    icon: FileIcon,
+    iconColor,
+}: {
+    item: DriveItemView
+    icon: FileIconComponent
+    iconColor: string
+}) {
+    if (!item.isFolder) return <Thumbnail item={item} size={120} />
+    return <FileIcon size={56} color={iconColor} />
+}
+
+type FileIconComponent = ReturnType<typeof getFileIcon>['icon']
+
+function GridCardActions({ item, actions }: { item: DriveItemView; actions: DriveActions }) {
+    return (
+        <>
+            <Pressable
+                style={{ padding: 2 }}
+                onPress={e => {
+                    e.stopPropagation()
+                    actions.toggleStar(item.id)
+                }}
+            >
+                <StarIcon isStarred={item.starred} size={14} />
+            </Pressable>
+            <DriveItemMenuButton item={item} size={14} />
+        </>
+    )
+}
+
+function GridCardStaticActions({ item }: { item: DriveItemView }) {
+    return (
+        <>
+            <View style={{ padding: 2 }}>
+                <StarIcon isStarred={item.starred} size={14} />
+            </View>
+            <DriveItemMenuIcon size={14} />
+        </>
+    )
+}
+
+// The card's copy that follows the pointer: the same face, inert, on an opaque
+// background (the live card is transparent over the page), at the width the
+// dragged card measured.
+function GridCardDragPreview({
+    item,
+    mutedColor,
+    width,
+}: {
+    item: DriveItemView
+    mutedColor: string
+    width: number | undefined
+}) {
+    const isSelected = useDriveUIStore(s => s.selectedIds.has(item.id))
+    return (
+        <View
+            className={`${gridCardClassName(item, isSelected)} bg-background shadow-md`}
+            style={{ width, height: GRID_CARD_HEIGHT }}
+        >
+            <GridCardFace
+                item={item}
+                mutedColor={mutedColor}
+                headerActions={<GridCardStaticActions item={item} />}
+            />
+        </View>
     )
 }
