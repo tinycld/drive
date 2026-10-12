@@ -12,7 +12,7 @@ User-facing features:
 
 - **Folders and files** — nested hierarchy. Create, rename, move, copy, trash.
 - **Versioning** — every replacement of a file's bytes creates a `drive_item_versions` row with `version_number` (monotonic per-item), size, mime type, source (`upload` | `user` | `system`), and an optional label. Other packages (calc, text) call `POST /api/drive/versions/snapshot` to tag the current bytes as a labeled checkpoint without re-uploading. Restore or download any prior version.
-- **Role-based sharing** — per-item shares with `owner` / `editor` / `commentor` / `viewer` roles (a commentor reads and comments but never edits). "Shared with me" lists everything other people have given you access to.
+- **Role-based sharing** — per-item shares with `owner` / `editor` / `commentor` / `viewer` roles (a commentor reads and comments but never edits). The share dialog gives people `editor` or `viewer`; `commentor` comes from group grants and public links. "Shared with me" lists everything other people have given you access to.
 - **Public share links** — 64-hex-character tokenized URLs at `/p/drive/share/<token>` with viewer, commentor, or editor role, optional expiry, download counters, last-accessed timestamps, and an enable / disable toggle that reuses the same token. Served by a public route so recipients don't need an account.
 - **Server-side thumbnails** — generated asynchronously on upload. PDFs, EPUBs, OOXML Office documents, SVG, HEIC/HEIF photos, and WebP images all render through the pure-Go `omnidoc` library (via `tinycld.org/core/thumbnails`) — the whole pipeline is CGo-free. Plain PNG/JPEG use PocketBase's built-in `?thumb=` query parameter.
 - **In-app previews** — the preview modal and its viewers (PDF canvas renderer, image / video / audio players, text and code viewers) live in `@tinycld/core/file-viewer/`. Drive consumes them and lets other packages register custom previewers (e.g. Calc registers itself for `.xlsx`, surfaced as the "Open in Calc" file action).
@@ -30,7 +30,7 @@ User-facing features:
 
 ## Automation rules
 
-Drive contributes triggers and an action to the workflow-rules engine, so users can build "when this happens, do that" rules without writing code. Definitions live in `tinycld/drive/automation.ts`, declared via `automation: { definitions: 'automation' }` in `manifest.ts` plus a `"./automation"` entry in the package's exports map; the Go-side trigger filters, owner resolvers, and action handlers live in `server/automation.go`.
+Drive contributes triggers and an action to the workflow-rules engine, so users can build "when this happens, do that" rules without writing code. Definitions live in `tinycld/drive/automation.ts`, declared via `automation: { definitions: 'automation' }` in `manifest.ts` plus a `"./automation"` entry in the package's exports map; the Go-side owner resolver and the move-destination relation authorizer live in `server/automation.go` (the move itself is a generic record-op that the engine runs).
 
 **Triggers**
 
@@ -155,7 +155,7 @@ Both effectively run as eventual consistency: clients see the item appear immedi
 
 Owners are not assignable through the share dialog UI — the only way to become an owner is to create the item. The Go-side read/write/delete predicates live once in core's `driveshare` package (`tinycld.org/core/driveshare`), shared with text and calc: `Role.CanWrite()` is true for owner and editor only, and every error path fails closed.
 
-The collections' PocketBase access rules (currently settled by migrations `1782100000_restore_guest_clause_and_settle_commentor.js` and `2040000002_group_grants_on_shares.js`; every rule of `drive_items`, `drive_item_versions`, `drive_share_links`, `drive_shares` and `drive_item_state` requires `@request.auth.id != ""`) let the item's creator or any share-holder read an item, restrict updates to the creator or a share-holder with role `editor` / `owner`, and restrict delete to the creator. `drive_shares` rows themselves are managed by the item's creator (recipients may delete — i.e. leave — their own share). Server endpoints that mutate items (`upload-version`, `restore-version`, the folder-download token) go through `resolveItemAndUser`, which loads the item and checks the caller's access via `driveshare.CheckWrite` / `driveshare.CheckReadItem`.
+The collections' PocketBase access rules (currently settled by migrations `1782100000_restore_guest_clause_and_settle_commentor.js` and `2040000002_group_grants_on_shares.js`; every rule of `drive_items`, `drive_item_versions`, `drive_share_links`, `drive_shares` and `drive_item_state` requires `@request.auth.id != ""`) let the item's creator or any share-holder read an item, restrict updates to the creator or a share-holder with role `editor` / `owner`, and restrict delete to the creator. `drive_shares` rows themselves are managed by the item's creator (recipients may delete — i.e. leave — their own share). Server endpoints that act on items (`upload-version` and `restore-version`, which need write access, and the folder-download token, which needs read access) go through `resolveItemAndUser`, which loads the item and checks the caller's access via `driveshare.CheckWrite` / `driveshare.CheckReadItem`.
 
 ### Public share links
 
@@ -331,13 +331,13 @@ tinycld/drive/
         share/[token].tsx      public-share landing page (/p/drive/share/<token>)
     components/
         DriveToolbar           breadcrumbs, search, primary actions (core ResponsiveToolbar:
-                               actions fold into a More menu at narrow widths)
+                               actions fold into a More menu at narrow widths);
+                               on native, Upload opens UploadSheet (Photos & videos / File)
         DriveContextMenu       right-click / long-press actions on a file or folder
         DriveItemMenuButton    per-row "..." menu (same actions)
         DraggableDriveItem, FolderDropTarget   drag-and-drop move
         MarqueeContainer, MarqueeOverlay       drag-a-box selection
         DropZone               web-only drag-and-drop, walks webkit FS entries
-        FileUploadFAB          iPad floating action button (Photos / Files pickers)
         UploadButton, UploadStatusBar, UploadingGridCard, UploadingListRow
         PreviewModal           file viewer (consumes core's file-viewer registry)
         Thumbnail              renders drive_items.thumbnail or category icon fallback
@@ -449,7 +449,7 @@ Other packages can target this slot via `sidebarContributions` in their manifest
 - `tsconfig.json` — typecheck config (lint config lives in the app shell's `biome.json`)
 - `pb-migrations/` — PocketBase migrations (symlinked into the app shell's server on `packages:generate`)
 - `server/` — Go server module, registered by the generator
-- `server/automation.go` — Go trigger filters, owner resolvers, and action handlers for the workflow-rules engine
+- `server/automation.go` — Go owner resolver and relation authorizer for the workflow-rules engine
 - `cli/` — Go module contributing this package's `tinycld` command group
 - `help/` — in-app help topics (markdown + frontmatter)
 - `tests/` — vitest unit tests (sibling tests run from the app shell)
