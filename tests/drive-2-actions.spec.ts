@@ -364,11 +364,12 @@ test.describe('Drive — Actions', () => {
         await expect(page.getByLabel('Close details panel', { exact: true })).toBeVisible()
     })
 
-    // The detail panel dismisses via the X button and via a backdrop
-    // click. Both close paths now work under Playwright: the shared Drawer
-    // unmounts the gluestack overlay synchronously on close (it no longer
-    // relies on the broken RN-Web Animated exit handshake), so onClose
-    // takes effect immediately and no lingering overlay swallows the press.
+    // On a desktop-wide window the detail panel sits beside the listing and
+    // closes via its X. On a narrower window it is an overlay that also closes
+    // via a backdrop click: the shared Drawer unmounts the gluestack overlay
+    // synchronously on close (it no longer relies on the broken RN-Web
+    // Animated exit handshake), so onClose takes effect immediately and no
+    // lingering overlay swallows the press.
     test('detail panel closes via X and backdrop', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('DetailClose')
         // The Info hover-action only exists in list view; a prior spec may
@@ -386,9 +387,11 @@ test.describe('Drive — Actions', () => {
         await closeBtn.click()
         await expect(closeBtn).not.toBeVisible()
 
-        // Re-open, then dismiss via backdrop click. The backdrop fills
-        // the viewport behind the right-anchored drawer; clicking near
-        // the left edge lands on it, not the drawer content.
+        // Narrow the window so the panel is an overlay, re-open, then dismiss
+        // via backdrop click. The backdrop fills the viewport behind the
+        // right-anchored drawer; clicking near the left edge lands on it, not
+        // the drawer content.
+        await page.setViewportSize({ width: 900, height: 720 })
         await openDetailPanelViaInfo(page, file)
         await expect(closeBtn).toBeVisible()
 
@@ -419,9 +422,9 @@ test.describe('Drive — Actions', () => {
         await expect(page.getByText('Move', { exact: true })).toBeVisible()
     })
 
-    // The detail drawer's header also carries a ⋯ button (left of the close X).
-    // It lives inside a Gluestack drawer overlay and opens its own menu overlay
-    // on top — a nested-overlay path that can silently fail to open. Assert it.
+    // The detail panel's header also carries a ⋯ button (left of the close X),
+    // which opens its own menu overlay — a path that can silently fail to open,
+    // most of all when the panel is itself an overlay. Assert it.
     test('detail drawer ⋯ menu button opens the actions menu', async ({ page }) => {
         const { folderName, fileName } = await setupFixtureFile('DrawerMenu')
         await revealNewItemsAtRoot(page)
@@ -434,9 +437,13 @@ test.describe('Drive — Actions', () => {
         await openDetailPanelViaInfo(page, file)
         await expect(page.getByLabel('Close details panel', { exact: true })).toBeVisible()
 
-        // The drawer header's ⋯ — scope to the open dialog so it doesn't match
-        // the underlying row's ⋯.
-        await page.getByRole('dialog').getByLabel('More actions', { exact: true }).first().click()
+        // The panel header's ⋯ — scope to the panel so it doesn't match the
+        // underlying row's ⋯.
+        await page
+            .getByTestId('drive-detail-panel')
+            .getByLabel('More actions', { exact: true })
+            .first()
+            .click()
 
         await expect(page.getByText('Rename', { exact: true })).toBeVisible()
     })

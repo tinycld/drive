@@ -22,7 +22,7 @@ In Grid view, sort is name-only (A → Z).
 
 ## Selecting files
 
-- **Click** a file to select it.
+- **Click** a file to select it. On a wide desktop window this also shows it in the [details panel](help://drive:files#details-panel).
 - **Click another** to switch the selection.
 - **Shift-click** to select a range of files between your last click and the new one.
 - **⌘-click** to add or remove individual files from the selection — useful for grabbing a disjoint set.

@@ -7,7 +7,7 @@ order: 40
 
 ## Opening a file
 
-**Double-click** (desktop) or **tap** (mobile/iPad) a file to open it. On desktop, a single click only selects the file. What "open" means depends on the type:
+**Double-click** (desktop) or **tap** (mobile/iPad) a file to open it. On a wide desktop window, a single click selects the file and shows it in the [details panel](help://drive:files#details-panel); on a narrower window, a single click only selects it. What "open" means depends on the type:
 
 - **Files with a custom opener** — e.g. a `.xlsx` opens directly in [Calc](help://calc:getting-started), a `.docx` opens directly in Text. No preview step.
 - **Files with a preview** — PDFs, images, video, audio, text and code files open in the [preview modal](help://drive:previews).
@@ -37,7 +37,9 @@ Click the star icon, or use the **Add star** / **Remove star** action. Starred f
 
 ## The details panel
 
-The **Info** action (or clicking the (i) button in the toolbar with a file selected) opens a side panel with three tabs:
+On a wide desktop window, the details panel sits beside the file list. A single click on a file or folder opens it, and it stays open as you click other items, showing whichever one is selected. Close it with its **×** button. On a narrower window, the panel slides in over the list instead: open it with the **Info** action (or the (i) button in the toolbar with a file selected), and tap outside it or press **Esc** to close it.
+
+The panel has three tabs:
 
 - **Details** — name, owner, size, type, created and modified timestamps, location, description.
 - **Versions** — every prior version of the file, with timestamps and sizes. See [versions](help://drive:versions).

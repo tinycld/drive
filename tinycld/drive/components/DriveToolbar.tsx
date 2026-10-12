@@ -113,6 +113,7 @@ export function DriveToolbar() {
     const isMobile = useBreakpoint() === 'mobile'
     const openUploadSheet = useDriveUIStore(s => s.openUploadSheet)
     const {
+        triggerFilePicker,
         selectedItem,
         selectedIds,
         clearSelection,
@@ -189,6 +190,7 @@ export function DriveToolbar() {
                   currentName: selectedItem.name,
               })
         : undefined
+    const handleUploadPress = Platform.OS === 'web' ? triggerFilePicker : openUploadSheet
     const handleTrashSelected = hasSingleSelection
         ? () => {
               moveToTrash(selectedItem.id)
@@ -265,6 +267,9 @@ export function DriveToolbar() {
             type: 'custom',
             key: 'upload',
             element: <UploadButton onMobilePress={openUploadSheet} />,
+            // Folded into More, the row opens the picker the way the sidebar's
+            // New menu does; in the row, the button keeps its own <label>.
+            overflow: { label: 'Upload', icon: Upload, onPress: handleUploadPress },
         },
         {
             type: 'button',
@@ -292,6 +297,9 @@ export function DriveToolbar() {
                     {onOpen => <ToolbarIconButton icon={Trash2} label="Delete" onPress={onOpen} />}
                 </ConfirmTrash>
             ),
+            // Folded into More it moves to trash at once, like the context
+            // menu's "Move to trash": trash is reversible.
+            overflow: { label: 'Move to trash', icon: Trash2, onPress: handleTrashSelected },
         })
     }
     headerItems.push({ type: 'spacer' })
