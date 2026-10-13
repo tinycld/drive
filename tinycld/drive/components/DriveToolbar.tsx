@@ -8,6 +8,7 @@ import { captureException } from '@tinycld/core/lib/errors'
 import type { HelpTopicId } from '@tinycld/core/lib/help/types'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Dialog } from '@tinycld/core/ui/dialog'
+import { Controller, useForm, zodResolver } from '@tinycld/core/ui/form'
 import { PlainInput } from '@tinycld/core/ui/PlainInput'
 import {
     ArrowLeft,
@@ -33,6 +34,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveDragPayload } from '../lib/dnd'
+import { ITEM_NAME_MAX_LENGTH, itemNameSchema } from '../lib/item-name-schema'
 import { type PromptDialog, useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, SidebarSection, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
@@ -985,21 +987,34 @@ function NamePromptDialog() {
     return <NamePromptDialogInner key={promptKey} prompt={promptDialog} />
 }
 
-function NamePromptDialogInner({ prompt }: { prompt: Exclude<PromptDialog, { type: 'closed' }> }) {
+function useNamePromptForm(prompt: Exclude<PromptDialog, { type: 'closed' }>) {
     const { handlePromptSubmit, closePrompt } = useDrive()
-
     const isNewFolder = prompt.type === 'new-folder'
-    const title = isNewFolder ? 'New folder' : 'Rename'
-    const placeholder = isNewFolder ? 'Untitled folder' : ''
-    const submitLabel = isNewFolder ? 'Create' : 'Rename'
-    const initialValue = prompt.type === 'rename' ? prompt.currentName : ''
 
-    const [value, setValue] = useState(initialValue)
+    const {
+        control,
+        handleSubmit,
+        formState: { isValid },
+    } = useForm({
+        resolver: zodResolver(itemNameSchema),
+        defaultValues: { name: prompt.type === 'rename' ? prompt.currentName : '' },
+        mode: 'onChange',
+    })
 
-    const handleSubmit = () => {
-        const trimmed = value.trim()
-        if (trimmed) handlePromptSubmit(trimmed)
+    return {
+        control,
+        closePrompt,
+        isValid,
+        submit: handleSubmit(data => handlePromptSubmit(data.name)),
+        title: isNewFolder ? 'New folder' : 'Rename',
+        placeholder: isNewFolder ? 'Untitled folder' : '',
+        submitLabel: isNewFolder ? 'Create' : 'Rename',
     }
+}
+
+function NamePromptDialogInner({ prompt }: { prompt: Exclude<PromptDialog, { type: 'closed' }> }) {
+    const { control, closePrompt, isValid, submit, title, placeholder, submitLabel } =
+        useNamePromptForm(prompt)
 
     return (
         <Dialog isOpen onClose={closePrompt} title={title}>
@@ -1008,25 +1023,29 @@ function NamePromptDialogInner({ prompt }: { prompt: Exclude<PromptDialog, { typ
                     className="flex-row border border-border rounded-lg px-3"
                     style={{ paddingVertical: 10 }}
                 >
-                    <PlainInput
-                        testID="drive-name-prompt-input"
-                        value={value}
-                        onChangeText={setValue}
-                        placeholder={placeholder}
-                        autoFocus
-                        onSubmitEditing={handleSubmit}
-                        className="flex-1 text-foreground"
-                        style={{ fontSize: 15 }}
+                    <Controller
+                        control={control}
+                        name="name"
+                        render={({ field }) => (
+                            <PlainInput
+                                testID="drive-name-prompt-input"
+                                value={field.value}
+                                onChangeText={field.onChange}
+                                onBlur={field.onBlur}
+                                placeholder={placeholder}
+                                autoFocus
+                                maxLength={ITEM_NAME_MAX_LENGTH}
+                                onSubmitEditing={submit}
+                                className="flex-1 text-foreground"
+                                style={{ fontSize: 15 }}
+                            />
+                        )}
                     />
                 </View>
             </Dialog.Body>
             <Dialog.Footer>
                 <Dialog.CancelButton onPress={closePrompt} />
-                <Dialog.ActionButton
-                    label={submitLabel}
-                    onPress={handleSubmit}
-                    isDisabled={!value.trim()}
-                />
+                <Dialog.ActionButton label={submitLabel} onPress={submit} isDisabled={!isValid} />
             </Dialog.Footer>
         </Dialog>
     )
