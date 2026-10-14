@@ -23,7 +23,7 @@ The root of that URL is the root of your Drive — the same files and folders yo
 
 ## Signing in
 
-WebDAV uses HTTP Basic auth. When your file manager prompts for credentials, use your TinyCld username or email, and your password — the same ones you use to sign in on the web.
+WebDAV uses HTTP Basic auth. When your file manager prompts for credentials, use your TinyCld username or email, and your password — the same ones you use to sign in on the web. If you turned on [two-step verification](help://core:security-mfa), use an [app password](help://core:security-app-passwords) instead: your account password no longer works in these apps.
 
 ## Mounting on macOS
 
