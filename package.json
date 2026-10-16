@@ -24,6 +24,7 @@
         "./lib/template-naming": "./tinycld/drive/lib/template-naming.ts",
         "./lib/upload-to-drive": "./tinycld/drive/lib/upload-to-drive.ts",
         "./public-screens/*": "./tinycld/drive/public-screens/*.tsx",
+        "./notify-events": "./tinycld/drive/notify-events.ts",
         "./search-adapter": "./tinycld/drive/search-adapter.ts"
     },
     "scripts": {
