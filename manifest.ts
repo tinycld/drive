@@ -10,6 +10,7 @@ const manifest = {
     slots: ['sidebar.after-tree'],
     provider: { component: 'provider' },
     help: { directory: 'help' },
+    notifications: { events: 'notify-events' },
     // Drive is searchable through core's federated /api/search, which reads the
     // Go source registered in server/. The in-app search box keeps its own
     // /api/drive/search route: it filters the grid in place and needs
