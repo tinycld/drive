@@ -1,6 +1,8 @@
 package drive
 
 import (
+	"context"
+
 	"github.com/pocketbase/pocketbase/core"
 
 	"tinycld.org/core/previewqueue"
@@ -8,14 +10,15 @@ import (
 )
 
 // extractAndIndexDriveItem extracts text from the file attached to a drive item
-// and updates its FTS content. Designed to run in a goroutine.
+// and updates its FTS content. It runs as a background job; ctx ends when the
+// app terminates.
 //
 // Editor docs (text/calc) flush with an index_hash set and stash a payload
 // carrying the already-extracted plaintext, letting us skip the slow re-extract
 // — and skip entirely when the hash is unchanged. Regular uploads leave
 // index_hash empty and take the full read-bytes + extract path.
-func extractAndIndexDriveItem(app core.App, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
-	if !appIsLive(app) {
+func extractAndIndexDriveItem(ctx context.Context, app core.App, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
+	if ctx.Err() != nil {
 		return
 	}
 
@@ -67,9 +70,8 @@ func extractAndIndexDriveItem(app core.App, record *core.Record, payload preview
 		return
 	}
 
-	// Extraction above is slow; re-check the app/DB is still live before the
-	// write, as the goroutine can outlive an app/DB reset.
-	if !appIsLive(app) {
+	// Extraction above is slow; a terminating app should not start a new write.
+	if ctx.Err() != nil {
 		return
 	}
 

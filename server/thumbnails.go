@@ -21,25 +21,16 @@ import (
 // decode are not context-aware, so those steps aren't cancelled by it.
 const thumbnailTimeout = 60 * time.Second
 
-// appIsLive reports whether the app still has an open database connection.
-// generateThumbnail runs in a FireAndForget goroutine that can outlive the app
-// instance — e.g. the test harness resets the dev DB while a thumbnail job is
-// in flight. Once the app is torn down, ConcurrentDB() is nil and any record
-// query (PocketBase v0.38 RecordQuery) panics on the nil DB instead of
-// returning an error. Bail out instead of touching the DB in that window.
-func appIsLive(app core.App) bool {
-	return app != nil && app.ConcurrentDB() != nil
-}
-
 // generateThumbnail generates a thumbnail for a drive item's file and stores it
-// on the record's thumbnail field. Designed to run in a goroutine.
+// on the record's thumbnail field. It runs as a background job; ctx ends when
+// the app terminates, and the job then stops before its next storage write.
 //
 // Editor docs (text/calc) flush with thumb_region_hash set and stash a
 // PageModel payload; we render a lightweight text preview and skip entirely
 // when the region is unchanged. Regular uploads leave thumb_region_hash empty
 // and take the omnidoc/HEIC document-render path.
-func generateThumbnail(app core.App, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
-	if !appIsLive(app) {
+func generateThumbnail(ctx context.Context, app core.App, record *core.Record, payload previewqueue.Payload, hasPayload bool) {
+	if ctx.Err() != nil {
 		return
 	}
 
@@ -53,16 +44,17 @@ func generateThumbnail(app core.App, record *core.Record, payload previewqueue.P
 	}
 
 	if record.GetString("thumb_region_hash") != "" {
-		generateEditorThumbnail(app, record, filename, payload, hasPayload)
+		generateEditorThumbnail(ctx, app, record, filename, payload, hasPayload)
 		return
 	}
 
-	generateUploadThumbnail(app, record, filename)
+	generateUploadThumbnail(ctx, app, record, filename)
 }
 
 // generateEditorThumbnail renders the lightweight pure-Go text preview for an
 // editor doc and saves it to the thumbnail field.
 func generateEditorThumbnail(
+	ctx context.Context,
 	app core.App,
 	record *core.Record,
 	filename string,
@@ -95,13 +87,13 @@ func generateEditorThumbnail(
 		return
 	}
 
-	saveThumbnail(app, record, filename, thumbData)
+	saveThumbnail(ctx, app, record, filename, thumbData)
 }
 
 // generateUploadThumbnail renders the first page of a regular upload via
 // omnidoc (HEIC decoded in-library, pure Go), streaming straight from storage — no temp
 // files.
-func generateUploadThumbnail(app core.App, record *core.Record, filename string) {
+func generateUploadThumbnail(ctx context.Context, app core.App, record *core.Record, filename string) {
 	mimeType := record.GetString("mime_type")
 	if !thumbnails.CanGenerate(mimeType) {
 		app.Logger().Debug("Thumbnail: skipping unsupported mime type",
@@ -133,17 +125,17 @@ func generateUploadThumbnail(app core.App, record *core.Record, filename string)
 	}
 	defer blob.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), thumbnailTimeout)
+	renderCtx, cancel := context.WithTimeout(ctx, thumbnailTimeout)
 	defer cancel()
 
 	var thumb bytes.Buffer
-	if err := thumbnails.Generate(ctx, &thumb, blob, mimeType, thumbnails.DefaultWidth, thumbnails.DefaultHeight); err != nil {
+	if err := thumbnails.Generate(renderCtx, &thumb, blob, mimeType, thumbnails.DefaultWidth, thumbnails.DefaultHeight); err != nil {
 		app.Logger().Warn("Thumbnail: generation failed",
 			"id", record.Id, "mime", mimeType, "error", err)
 		return
 	}
 
-	saveThumbnail(app, record, filename, thumb.Bytes())
+	saveThumbnail(ctx, app, record, filename, thumb.Bytes())
 }
 
 // renderTextPreview renders model to a JPEG and returns its bytes.
@@ -174,10 +166,10 @@ func renderTextPreview(app core.App, record *core.Record, model textpreview.Page
 }
 
 // saveThumbnail persists the generated jpg bytes to the record's thumbnail
-// field, re-fetching the record and re-checking liveness (the generation above
-// is slow and the app/DB can be reset out from under this goroutine in that
-// window).
-func saveThumbnail(app core.App, record *core.Record, filename string, thumbData []byte) {
+// field, re-fetching the record to avoid stale data. The generation above is
+// slow, so it checks ctx again first: a terminating app should not start a new
+// write.
+func saveThumbnail(ctx context.Context, app core.App, record *core.Record, filename string, thumbData []byte) {
 	thumbFilename := strings.TrimSuffix(filename, filepath.Ext(filename)) + "_thumb.jpg"
 	f, err := filesystem.NewFileFromBytes(thumbData, thumbFilename)
 	if err != nil {
@@ -186,7 +178,7 @@ func saveThumbnail(app core.App, record *core.Record, filename string, thumbData
 		return
 	}
 
-	if !appIsLive(app) {
+	if ctx.Err() != nil {
 		return
 	}
 

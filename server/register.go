@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
-	"github.com/pocketbase/pocketbase/tools/routine"
 	"tinycld.org/core/audit"
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/driveshare"
@@ -103,35 +103,7 @@ func registerShared(app *pocketbase.PocketBase) {
 		return e.Next()
 	})
 
-	// FTS sync hooks for drive_items
-	app.OnRecordAfterCreateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
-		syncDriveItemToFTS(app, e.Record, "create")
-		rec := e.Record
-		payload, has := previewqueue.Take(rec.Id)
-		routine.FireAndForget(func() { extractAndIndexDriveItem(app, rec, payload, has) })
-		routine.FireAndForget(func() { generateThumbnail(app, rec, payload, has) })
-		return e.Next()
-	})
-
-	app.OnRecordAfterUpdateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
-		syncDriveItemToFTS(app, e.Record, "update")
-		rec := e.Record
-		payload, has := previewqueue.Take(rec.Id)
-		routine.FireAndForget(func() { extractAndIndexDriveItem(app, rec, payload, has) })
-		routine.FireAndForget(func() { generateThumbnail(app, rec, payload, has) })
-		return e.Next()
-	})
-
-	app.OnRecordAfterDeleteSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
-		syncDriveItemToFTS(app, e.Record, "delete")
-		return e.Next()
-	})
-
-	// Notify recipient when a drive item is shared with them
-	app.OnRecordAfterCreateSuccess("drive_shares").BindFunc(func(e *core.RecordEvent) error {
-		go notifyDriveShare(app, e.Record)
-		return e.Next()
-	})
+	registerBackgroundJobHooks(app)
 
 	// Storage ceilings: declare the collections, core binds the enforcement.
 	quota.RegisterSources(quotaSources...)
@@ -562,6 +534,49 @@ func handleStorageUsage(app core.App, re *core.RequestEvent) error {
 	}
 
 	return re.JSON(http.StatusOK, result)
+}
+
+// registerBackgroundJobHooks binds the drive_items FTS sync hooks and the hooks
+// that hand slow work (text extraction, thumbnails, share notifications) to
+// background jobs, which the app's terminate waits for.
+func registerBackgroundJobHooks(app core.App) {
+	jobs := bindBackgroundJobs(app)
+
+	startItemJobs := func(rec *core.Record) {
+		payload, has := previewqueue.Take(rec.Id)
+		jobs.run("drive item text extraction", func(ctx context.Context) {
+			extractAndIndexDriveItem(ctx, app, rec, payload, has)
+		})
+		jobs.run("drive item thumbnail", func(ctx context.Context) {
+			generateThumbnail(ctx, app, rec, payload, has)
+		})
+	}
+
+	app.OnRecordAfterCreateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
+		syncDriveItemToFTS(app, e.Record, "create")
+		startItemJobs(e.Record)
+		return e.Next()
+	})
+
+	app.OnRecordAfterUpdateSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
+		syncDriveItemToFTS(app, e.Record, "update")
+		startItemJobs(e.Record)
+		return e.Next()
+	})
+
+	app.OnRecordAfterDeleteSuccess("drive_items").BindFunc(func(e *core.RecordEvent) error {
+		syncDriveItemToFTS(app, e.Record, "delete")
+		return e.Next()
+	})
+
+	// Notify the recipient when a drive item is shared with them.
+	app.OnRecordAfterCreateSuccess("drive_shares").BindFunc(func(e *core.RecordEvent) error {
+		share := e.Record
+		jobs.run("drive share notification", func(context.Context) {
+			notifyDriveShare(app, share)
+		})
+		return e.Next()
+	})
 }
 
 func notifyDriveShare(app core.App, shareRecord *core.Record) {

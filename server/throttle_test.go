@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"context"
 	"testing"
 
 	"github.com/pocketbase/pocketbase"
@@ -147,7 +148,7 @@ func TestExtractAndIndex_SkipsWhenIndexHashUnchanged(t *testing.T) {
 	}
 
 	payload := previewqueue.Payload{Plaintext: "indexable plaintext body"}
-	extractAndIndexDriveItem(app.pb, rec, payload, true)
+	extractAndIndexDriveItem(context.Background(), app.pb, rec, payload, true)
 
 	if n := ftsRowCount(t, app.test, rec.Id); n != 0 {
 		t.Fatalf("expected throttle to skip indexing (0 fts rows), got %d", n)
@@ -177,7 +178,7 @@ func TestExtractAndIndex_IndexesWhenIndexHashChanged(t *testing.T) {
 	}
 
 	payload := previewqueue.Payload{Plaintext: "fresh indexable content"}
-	extractAndIndexDriveItem(app.pb, rec, payload, true)
+	extractAndIndexDriveItem(context.Background(), app.pb, rec, payload, true)
 
 	if n := ftsRowCount(t, app.test, rec.Id); n != 1 {
 		t.Fatalf("expected one fts row written for changed hash, got %d", n)
@@ -218,7 +219,7 @@ func TestExtractAndIndex_UploadPathNotThrottled(t *testing.T) {
 	// hasPayload=false forces the file-read branch; the file doesn't exist in
 	// the test app's object storage, so extraction returns false and no row is
 	// written. The function must not panic and must leave the table empty.
-	extractAndIndexDriveItem(app.pb, rec, previewqueue.Payload{}, false)
+	extractAndIndexDriveItem(context.Background(), app.pb, rec, previewqueue.Payload{}, false)
 
 	if n := ftsRowCount(t, app.test, rec.Id); n != 0 {
 		t.Fatalf("expected no fts row when extraction has no file, got %d", n)
@@ -259,7 +260,7 @@ func TestGenerateThumbnail_SkipsWhenRegionUnchanged(t *testing.T) {
 	payload := previewqueue.Payload{
 		Page: textpreview.PageModel{Lines: []string{"some new content"}},
 	}
-	generateThumbnail(app.pb, rec, payload, true)
+	generateThumbnail(context.Background(), app.pb, rec, payload, true)
 
 	// The guard returns before any render/save; the in-memory field is unchanged
 	// and no new thumbnail was persisted.
@@ -299,7 +300,7 @@ func TestGenerateThumbnail_RendersWhenRegionChanged(t *testing.T) {
 	payload := previewqueue.Payload{
 		Page: textpreview.PageModel{Lines: []string{"hello", "world"}},
 	}
-	generateThumbnail(app.pb, rec, payload, true)
+	generateThumbnail(context.Background(), app.pb, rec, payload, true)
 
 	fresh, err := app.test.FindRecordById("drive_items", rec.Id)
 	if err != nil {
