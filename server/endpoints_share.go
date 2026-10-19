@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/pocketbase/pocketbase/core"
+	"tinycld.org/core/background"
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/mailer"
 	"tinycld.org/packages/drive/api"
@@ -51,6 +52,7 @@ func handleShare(app core.App, re *core.RequestEvent) error {
 		return re.InternalServerError("Failed to find shares collection", err)
 	}
 
+	jobs := background.For(app, "drive")
 	created := 0
 	for _, r := range req.Recipients {
 		role := r.Role
@@ -83,9 +85,13 @@ func handleShare(app core.App, re *core.RequestEvent) error {
 		if r.Email != "" {
 			if r.UserID == "" {
 				// External recipient: create a public share link and use the /p/drive/share/<token> URL
-				go sendExternalShareInvite(app, senderName, r, item, req.Message, item.GetString("created_by"), userID)
+				jobs.Run("drive external share invite", func(ctx context.Context) {
+					sendExternalShareInvite(ctx, app, senderName, r, item, req.Message, item.GetString("created_by"), userID)
+				})
 			} else {
-				go sendShareInvite(app, senderName, r, item.GetString("name"), req.ItemID, req.Message, userID)
+				jobs.Run("drive share invite", func(ctx context.Context) {
+					sendShareInvite(ctx, app, senderName, r, item.GetString("name"), req.ItemID, req.Message, userID)
+				})
 			}
 		}
 	}
@@ -93,7 +99,7 @@ func handleShare(app core.App, re *core.RequestEvent) error {
 	return re.JSON(http.StatusOK, api.ShareResponse{SharesCreated: created})
 }
 
-func sendShareInvite(app core.App, senderName string, r api.ShareRecipient, itemName, itemID, message, senderUserID string) {
+func sendShareInvite(ctx context.Context, app core.App, senderName string, r api.ShareRecipient, itemName, itemID, message, senderUserID string) {
 	link := fmt.Sprintf("%s/drive?file=%s", app.Settings().Meta.AppURL, itemID)
 
 	greeting := "Hi"
@@ -132,13 +138,13 @@ func sendShareInvite(app core.App, senderName string, r api.ShareRecipient, item
 		return
 	}
 
-	if err := mailer.DefaultSender().Send(context.Background(), msg); err != nil {
+	if err := mailer.DefaultSender().Send(ctx, msg); err != nil {
 		app.Logger().Error("Failed to send share invite", "to", r.Email, "error", err)
 	}
 }
 
 // sendExternalShareInvite creates a public share link and sends an email with the /p/drive/share/<token> URL.
-func sendExternalShareInvite(app core.App, senderName string, r api.ShareRecipient, item *core.Record, message string, createdByUserID string, senderUserID string) {
+func sendExternalShareInvite(ctx context.Context, app core.App, senderName string, r api.ShareRecipient, item *core.Record, message string, createdByUserID string, senderUserID string) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		app.Logger().Error("Failed to generate share token", "error", err)
@@ -209,7 +215,7 @@ func sendExternalShareInvite(app core.App, senderName string, r api.ShareRecipie
 		return
 	}
 
-	if err := mailer.DefaultSender().Send(context.Background(), msg); err != nil {
+	if err := mailer.DefaultSender().Send(ctx, msg); err != nil {
 		app.Logger().Error("Failed to send external share invite", "to", r.Email, "error", err)
 	}
 }

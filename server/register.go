@@ -13,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"tinycld.org/core/audit"
+	"tinycld.org/core/background"
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/driveshare"
 	"tinycld.org/core/groups"
@@ -21,6 +22,7 @@ import (
 	"tinycld.org/core/offboard"
 	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/quota"
+	"tinycld.org/core/readonly"
 	"tinycld.org/core/search"
 	"tinycld.org/core/versionhooks"
 	"tinycld.org/core/webdav"
@@ -540,14 +542,14 @@ func handleStorageUsage(app core.App, re *core.RequestEvent) error {
 // that hand slow work (text extraction, thumbnails, share notifications) to
 // background jobs, which the app's terminate waits for.
 func registerBackgroundJobHooks(app core.App) {
-	jobs := bindBackgroundJobs(app)
+	jobs := background.For(app, "drive")
 
 	startItemJobs := func(rec *core.Record) {
 		payload, has := previewqueue.Take(rec.Id)
-		jobs.run("drive item text extraction", func(ctx context.Context) {
+		jobs.Run("drive item text extraction", func(ctx context.Context) {
 			extractAndIndexDriveItem(ctx, app, rec, payload, has)
 		})
-		jobs.run("drive item thumbnail", func(ctx context.Context) {
+		jobs.Run("drive item thumbnail", func(ctx context.Context) {
 			generateThumbnail(ctx, app, rec, payload, has)
 		})
 	}
@@ -572,14 +574,35 @@ func registerBackgroundJobHooks(app core.App) {
 	// Notify the recipient when a drive item is shared with them.
 	app.OnRecordAfterCreateSuccess("drive_shares").BindFunc(func(e *core.RecordEvent) error {
 		share := e.Record
-		jobs.run("drive share notification", func(context.Context) {
-			notifyDriveShare(app, share)
+		jobs.Run("drive share notification", func(ctx context.Context) {
+			notifyDriveShareWhenWritable(ctx, app, share)
 		})
 		return e.Next()
 	})
 }
 
-func notifyDriveShare(app core.App, shareRecord *core.Record) {
+const shareNotifyDroppedMsg = "drive share notification dropped: the server stayed read-only past the wait"
+
+// notifyDriveShareWhenWritable notifies for a share whose row a request
+// already wrote, possibly just before the server went read-only. The
+// notification is a write, so it waits for the mode to end, bounded by
+// readonly.TailWait and by ctx, which ends when the app terminates.
+func notifyDriveShareWhenWritable(ctx context.Context, app core.App, share *core.Record) {
+	waitCtx, cancel := context.WithTimeout(ctx, readonly.TailWait)
+	defer cancel()
+	err := readonly.WhenWritable(waitCtx, func() error {
+		notifyDriveShare(ctx, app, share)
+		return nil
+	})
+	if err != nil {
+		shareLog.Warn(shareNotifyDroppedMsg, "shareID", share.Id, "err", err)
+	}
+}
+
+// notifyDriveShare tells a share's recipient about it. ctx bounds the push
+// dispatches; the notification row is written regardless, and a failure is
+// logged by notify.
+func notifyDriveShare(ctx context.Context, app core.App, shareRecord *core.Record) {
 	userID := shareRecord.GetString("user")
 	itemID := shareRecord.GetString("item")
 	createdBy := shareRecord.GetString("created_by")
@@ -600,7 +623,7 @@ func notifyDriveShare(app core.App, shareRecord *core.Record) {
 		return
 	}
 
-	notify.NotifyUser(app, notify.NotifyParams{
+	_ = notify.DeliverToUserContext(ctx, app, notify.NotifyParams{
 		UserID:  userID,
 		Type:    "drive_file_shared",
 		Package: "drive",
