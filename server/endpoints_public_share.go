@@ -12,6 +12,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"tinycld.org/core/driveshare"
 	"tinycld.org/core/ratelimit"
+	"tinycld.org/core/readonly"
 	"tinycld.org/core/sharequota"
 	"tinycld.org/packages/drive/api"
 )
@@ -105,7 +106,11 @@ func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 		return re.JSON(statusCode, api.ErrorResponse{Error: errMsg})
 	}
 
-	if err := touchShareLink(app, token); err != nil {
+	// Read-only mode lets a GET through but its writes must not land, and a
+	// request must not block on the mode: a missed timestamp costs nothing.
+	if readonly.Active() {
+		shareLog.Debug("share link access not stamped: the server is read-only", "linkID", link.Id)
+	} else if err := touchShareLink(app, token); err != nil {
 		// A missed timestamp must not cost the visitor the file.
 		shareLog.Warn("could not stamp share link access", "token", token, "err", err)
 	}
@@ -150,7 +155,13 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 	//
 	// A mid-file range is a continuation of a download already charged for,
 	// not a new one — see isChargeableRange.
-	if re.Request.Method != http.MethodHead && isChargeableRange(re.Request) {
+	chargeable := re.Request.Method != http.MethodHead && isChargeableRange(re.Request)
+	if chargeable && readonly.Active() {
+		// Read-only mode lets a GET through but its writes must not land, and
+		// a request must not block on the mode. Serve uncharged, as the
+		// fail-open path below does; Info so the uncounted downloads show.
+		shareLog.Info("share link download served uncharged: the server is read-only", "linkID", link.Id)
+	} else if chargeable {
 		allowed, err := claimShareLinkDownload(app, token, sharequota.Limits(app))
 		switch {
 		case err != nil:
