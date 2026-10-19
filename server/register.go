@@ -584,18 +584,28 @@ func registerBackgroundJobHooks(app core.App) {
 const shareNotifyDroppedMsg = "drive share notification dropped: the server stayed read-only past the wait"
 
 // notifyDriveShareWhenWritable notifies for a share whose row a request
-// already wrote, possibly just before the server went read-only. The
-// notification is a write, so it waits for the mode to end, bounded by
-// readonly.TailWait and by ctx, which ends when the app terminates.
+// already wrote, possibly just before the server went read-only.
 func notifyDriveShareWhenWritable(ctx context.Context, app core.App, share *core.Record) {
+	whenWritable(ctx, shareNotifyDroppedMsg, func() {
+		notifyDriveShare(ctx, app, share)
+	}, "shareID", share.Id)
+}
+
+// whenWritable runs write, a background write that follows a request already
+// accepted (possibly just before the server went read-only), once the mode is
+// off. A write during the mode is lost if the next build rolls back. The wait
+// is bounded by readonly.TailWait and by ctx, which ends when the app
+// terminates; a write still waiting then is dropped and logged as dropMsg
+// with attrs.
+func whenWritable(ctx context.Context, dropMsg string, write func(), attrs ...any) {
 	waitCtx, cancel := context.WithTimeout(ctx, readonly.TailWait)
 	defer cancel()
 	err := readonly.WhenWritable(waitCtx, func() error {
-		notifyDriveShare(ctx, app, share)
+		write()
 		return nil
 	})
 	if err != nil {
-		shareLog.Warn(shareNotifyDroppedMsg, "shareID", share.Id, "err", err)
+		shareLog.Warn(dropMsg, append(attrs, "err", err)...)
 	}
 }
 

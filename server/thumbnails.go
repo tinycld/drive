@@ -166,9 +166,8 @@ func renderTextPreview(app core.App, record *core.Record, model textpreview.Page
 }
 
 // saveThumbnail persists the generated jpg bytes to the record's thumbnail
-// field, re-fetching the record to avoid stale data. The generation above is
-// slow, so it checks ctx again first: a terminating app should not start a new
-// write.
+// field once the server is writable. The generation above is slow, so it
+// checks ctx again first: a terminating app should not start a new write.
 func saveThumbnail(ctx context.Context, app core.App, record *core.Record, filename string, thumbData []byte) {
 	thumbFilename := strings.TrimSuffix(filename, filepath.Ext(filename)) + "_thumb.jpg"
 	f, err := filesystem.NewFileFromBytes(thumbData, thumbFilename)
@@ -182,21 +181,30 @@ func saveThumbnail(ctx context.Context, app core.App, record *core.Record, filen
 		return
 	}
 
-	// Re-fetch the record to avoid stale data
-	fresh, err := app.FindRecordById("drive_items", record.Id)
+	whenWritable(ctx, thumbnailDroppedMsg, func() {
+		storeThumbnail(app, record.Id, f)
+	}, "itemID", record.Id)
+}
+
+const thumbnailDroppedMsg = "drive item thumbnail dropped: the server stayed read-only past the wait"
+
+// storeThumbnail sets f on a fresh copy of the record, so a save made while
+// the thumbnail rendered or waited is not overwritten.
+func storeThumbnail(app core.App, recordID string, f *filesystem.File) {
+	fresh, err := app.FindRecordById("drive_items", recordID)
 	if err != nil {
 		app.Logger().Warn("Thumbnail: failed to re-fetch record",
-			"id", record.Id, "error", err)
+			"id", recordID, "error", err)
 		return
 	}
 
 	fresh.Set("thumbnail", f)
 	if err := app.Save(fresh); err != nil {
 		app.Logger().Warn("Thumbnail: failed to save thumbnail",
-			"id", record.Id, "error", err)
+			"id", recordID, "error", err)
 		return
 	}
-	app.Logger().Debug("Thumbnail: saved", "id", record.Id, "thumbnail", thumbFilename)
+	app.Logger().Debug("Thumbnail: saved", "id", recordID, "thumbnail", f.OriginalName)
 }
 
 // splitPreviewLines breaks a text region into preview lines, splitting on

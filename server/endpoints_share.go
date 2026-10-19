@@ -86,7 +86,7 @@ func handleShare(app core.App, re *core.RequestEvent) error {
 			if r.UserID == "" {
 				// External recipient: create a public share link and use the /p/drive/share/<token> URL
 				jobs.Run("drive external share invite", func(ctx context.Context) {
-					sendExternalShareInvite(ctx, app, senderName, r, item, req.Message, item.GetString("created_by"), userID)
+					sendExternalShareInviteWhenWritable(ctx, app, senderName, r, item, req.Message, item.GetString("created_by"), userID)
 				})
 			} else {
 				jobs.Run("drive share invite", func(ctx context.Context) {
@@ -144,6 +144,18 @@ func sendShareInvite(ctx context.Context, app core.App, senderName string, r api
 }
 
 // sendExternalShareInvite creates a public share link and sends an email with the /p/drive/share/<token> URL.
+const externalInviteDroppedMsg = "drive external share invite dropped: the server stayed read-only past the wait"
+
+// sendExternalShareInviteWhenWritable creates the share link and sends the
+// invite for a share request already accepted, possibly just before the
+// server went read-only. The link is a write, and the email must not carry a
+// link that was never saved, so both wait for the mode to end.
+func sendExternalShareInviteWhenWritable(ctx context.Context, app core.App, senderName string, r api.ShareRecipient, item *core.Record, message string, createdByUserID string, senderUserID string) {
+	whenWritable(ctx, externalInviteDroppedMsg, func() {
+		sendExternalShareInvite(ctx, app, senderName, r, item, message, createdByUserID, senderUserID)
+	}, "itemID", item.Id)
+}
+
 func sendExternalShareInvite(ctx context.Context, app core.App, senderName string, r api.ShareRecipient, item *core.Record, message string, createdByUserID string, senderUserID string) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
