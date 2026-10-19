@@ -186,17 +186,7 @@ func registerShared(app *pocketbase.PocketBase) {
 			return handleCreateShareSession(app, re)
 		})
 
-		// Email-verified guest provisioning for commentor/editor share
-		// links. otp-request mints a single-use code and emails it; the
-		// guest user + drive_shares row are created only at
-		// otp-verify, after the recipient proves they control the email.
-		// viewer links don't need this — they grant anonymous read.
-		e.Router.POST("/api/drive/share-link/{token}/otp-request", func(re *core.RequestEvent) error {
-			return handleShareOTPRequest(app, re)
-		})
-		e.Router.POST("/api/drive/share-link/{token}/otp-verify", func(re *core.RequestEvent) error {
-			return handleShareOTPVerify(app, re)
-		})
+		bindShareOTPRoutes(app, e.Router)
 
 		// Share link management (auth required)
 		e.Router.POST("/api/drive/share-link", func(re *core.RequestEvent) error {

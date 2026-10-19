@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/pocketbase/pocketbase/tools/security"
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/guestauth"
@@ -41,6 +42,24 @@ type otpVerifyBody struct {
 	Email string `json:"email"`
 	Code  string `json:"code"`
 	OTPID string `json:"otp_id"`
+}
+
+// bindShareOTPRoutes registers the email-verified guest provisioning routes
+// for commentor/editor share links. otp-request mints a single-use code and
+// emails it; the guest user + drive_shares row are created only at
+// otp-verify, after the recipient proves they control the email. viewer
+// links don't need this — they grant anonymous read.
+//
+// registerShared calls it, and so does the OTP test fixture, which cannot
+// compose the whole package on its minimal schema. One function keeps the
+// tested routes identical to the shipped ones.
+func bindShareOTPRoutes(app core.App, r *router.Router[*core.RequestEvent]) {
+	r.POST("/api/drive/share-link/{token}/otp-request", func(re *core.RequestEvent) error {
+		return handleShareOTPRequest(app, re)
+	})
+	r.POST("/api/drive/share-link/{token}/otp-verify", func(re *core.RequestEvent) error {
+		return handleShareOTPVerify(app, re)
+	})
 }
 
 // handleShareOTPRequest mints a one-time email-delivered code that an

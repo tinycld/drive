@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
@@ -24,8 +25,8 @@ import (
 // real PB router + DB + OTP primitive. Every Test* func builds a fresh
 // TestApp (PB v0.38.1 panics on duplicate route registration when an
 // app is reused across scenarios), seeds an owner + item + share link,
-// installs the OnServe binding that registers the OTP handlers, then
-// drives an ApiScenario.
+// binds the OTP routes through the same bindShareOTPRoutes production uses,
+// then drives requests.
 //
 // We intercept the OTP password at OnRecordCreate("_otps") time because
 // PB hashes the password before it is persisted; the plain text is only
@@ -61,8 +62,8 @@ type otpTestEnv struct {
 
 // setupOTPApp builds a fresh test app, materialises the drive
 // collections this flow touches (drive_items, drive_share_links,
-// drive_shares), inserts an owner + item + share link, wires the OTP
-// handlers via OnServe, and installs the OTP-code capture hook.
+// drive_shares), inserts an owner + item + share link, installs the OTP-code
+// capture hook, and binds the OTP routes via bindShareOTPRoutes.
 //
 // Single-org: the deployment IS the org, so there are no orgs/user_org
 // collections. Membership is the `users` row itself and its `role`
@@ -212,16 +213,13 @@ func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 		return e.Next()
 	})
 
-	// Bind the OTP routes onto the test app's OnServe. ApiScenario.Test
-	// triggers OnServe per scenario; the binding installs the routes
-	// onto e.Router so the request actually hits our handlers.
+	// Bind through the production helper instead of re-declaring the routes
+	// here: a copy keeps passing after production's path or middleware
+	// changes, so the suite would test a route that no longer ships. The
+	// whole registerShared is not composed because its record hooks (FTS,
+	// share notifications) need collections this minimal schema lacks.
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
-		e.Router.POST("/api/drive/share-link/{token}/otp-request", func(re *core.RequestEvent) error {
-			return handleShareOTPRequest(app, re)
-		})
-		e.Router.POST("/api/drive/share-link/{token}/otp-verify", func(re *core.RequestEvent) error {
-			return handleShareOTPVerify(app, re)
-		})
+		bindShareOTPRoutes(app, e.Router)
 		return e.Next()
 	})
 
@@ -352,6 +350,52 @@ func countRecords(t *testing.T, app core.App, collection, filter string, params 
 		t.Fatalf("FindRecordsByFilter(%s, %s): %v", collection, filter, err)
 	}
 	return len(rs)
+}
+
+// ----- route registration --------------------------------------------------
+
+// The OTP routes must be registered exactly once by the shipped composition.
+// A missing route 404s every share-link sign-in; a second registration makes
+// http.ServeMux panic while the router is built, so the server cannot start.
+func TestShareOTPRoutes_RegisteredExactlyOnce(t *testing.T) {
+	app, err := tests.NewTestApp()
+	if err != nil {
+		t.Fatalf("NewTestApp: %v", err)
+	}
+	t.Cleanup(func() { app.Cleanup() })
+
+	// The shipped composition, not the fixture: this is what decides how
+	// many times the routes are registered in a running server.
+	registerShared(&pocketbase.PocketBase{App: app})
+
+	router, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatalf("apis.NewRouter: %v", err)
+	}
+	serveEvent := new(core.ServeEvent)
+	serveEvent.App = app
+	serveEvent.Router = router
+	if err := app.OnServe().Trigger(serveEvent); err != nil {
+		t.Fatalf("OnServe.Trigger: %v", err)
+	}
+
+	for _, path := range []string{
+		"/api/drive/share-link/{token}/otp-request",
+		"/api/drive/share-link/{token}/otp-verify",
+	} {
+		if !router.HasRoute(http.MethodPost, path) {
+			t.Errorf("POST %s is not registered", path)
+		}
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("BuildMux panicked, so a route is registered twice: %v", r)
+		}
+	}()
+	if _, err := router.BuildMux(); err != nil {
+		t.Fatalf("BuildMux: %v", err)
+	}
 }
 
 // ----- otp-request tests --------------------------------------------------
