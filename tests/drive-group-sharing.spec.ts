@@ -46,6 +46,7 @@ async function removeCollaboratorFromGroup(page: Page, groupName: string) {
     await openGroupsSettings(page)
     await page.getByTestId(`group-row-${groupName}`).click()
     await page.getByRole('button', { name: /^Remove Collaborator Tester from group/ }).click()
+    await page.getByRole('button', { name: 'Remove', exact: true }).click()
     await expect(page.getByTestId(`group-member-row-${TEST_COLLABORATOR_EMAIL}`)).toHaveCount(0)
     await closeDrawer(page)
 }

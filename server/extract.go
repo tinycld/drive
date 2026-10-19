@@ -75,8 +75,12 @@ func extractAndIndexDriveItem(ctx context.Context, app core.App, record *core.Re
 		return
 	}
 
-	updateFTSContent(app, record.Id, text)
+	whenWritable(ctx, ftsIndexDroppedMsg, func() {
+		updateFTSContent(app, record.Id, text)
+	}, "itemID", record.Id)
 }
+
+const ftsIndexDroppedMsg = "drive item text index dropped: the server stayed read-only past the wait"
 
 // extractFileText reads the record's file from storage and runs text
 // extraction. It reports false (with a logged warning) on any read/extract
