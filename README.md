@@ -305,7 +305,7 @@ server/
 
 The WebDAV protocol server itself (FileSystem, auth, path parsing) lives in core at `tinycld/core/server/webdav/`; drive only supplies its `webdav.Source`.
 
-Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,coreserver,driveshare,groups,logging,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,search,sharelink,sharequota,textextract,thumbnails,useraccount,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' $(ls server/*.go | grep -v _test.go) | sort -u` is the source of truth; tests also import `rlstest`).
+Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,coreserver,driveshare,groups,guestauth,logging,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,search,sharelink,sharequota,textextract,thumbnails,useraccount,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' $(ls server/*.go | grep -v _test.go) | sort -u` is the source of truth; tests also import `rlstest`).
 
 ## Client package layout
 
@@ -387,7 +387,7 @@ tinycld/drive/
 
 ## Command line
 
-Drive contributes a `drive` command group to the `tinycld` binary — a Go CLI the server cross-compiles and hands out from **Settings → Personal → About**. The source lives in this repo at `cli/`, declared through a `cli` block in `manifest.ts` naming the Go package and module. The OAuth scopes the commands need (`drive:read` and `drive:write`) are not in the manifest — they are registered from the Go server via `oauth.RegisterPackage` in `server/oauth_scopes.go`, which also pins the collections and endpoints each scope governs.
+Drive contributes a `drive` command group to the `tinycld` binary — a Go CLI the server cross-compiles and hands out from **Settings → About**. The source lives in this repo at `cli/`, declared through a `cli` block in `manifest.ts` naming the Go package and module. The OAuth scopes the commands need (`drive:read` and `drive:write`) are not in the manifest — they are registered from the Go server via `oauth.RegisterPackage` in `server/oauth_scopes.go`, which also pins the collections and endpoints each scope governs.
 
 | Group | Commands |
 |-------|----------|
