@@ -1,6 +1,6 @@
 import { useAuth } from '@tinycld/core/lib/auth'
+import { useUrl } from '@tinycld/core/lib/use-url'
 import { useUserPreference } from '@tinycld/core/lib/use-user-preference'
-import { usePathname } from 'expo-router'
 import {
     createContext,
     type MutableRefObject,
@@ -237,7 +237,7 @@ export function useDriveState(options: UseDriveStateOptions = {}): DriveContextV
     const { user } = useAuth({ throwIfAnon: false })
     const userId = user?.id ?? ''
 
-    const pathname = usePathname()
+    const { pathname } = useUrl()
     const { section: activeSection, folderId: currentFolderId } = parseDrivePath(pathname)
 
     // Preview state is store-only — see useDriveNavigation for why. URL
