@@ -37,7 +37,6 @@ type groupGrantEnv struct {
 func setupGroupGrantEnv(t *testing.T) *groupGrantEnv {
 	t.Helper()
 	base := setupDriveGuestApp(t)
-	applyDriveRules(t, base.app)
 	creator := driveGuestUser(t, base.app, "creator@test.local", "member")
 	viewer := driveGuestUser(t, base.app, "viewer@test.local", "member")
 

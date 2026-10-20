@@ -30,7 +30,7 @@ func searchSource() search.Source {
 
 func searchDriveRows(app core.App, userID string, q search.Query) (search.Result, error) {
 	resp, err := searchDriveItems(
-		app, userID, joinTerms(q.Include), joinTerms(q.Exclude), q.Limit, q.Offset,
+		q.Context(), app, userID, joinTerms(q.Include), joinTerms(q.Exclude), q.Limit, q.Offset,
 	)
 	if err != nil {
 		return search.Result{}, err

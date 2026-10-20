@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -135,7 +136,7 @@ func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 
 	q := re.Request.URL.Query().Get("q")
 	exclude := re.Request.URL.Query().Get("not")
-	resp, err := searchDriveItems(app, re.Auth.Id, q, exclude, limit, offset)
+	resp, err := searchDriveItems(re.Request.Context(), app, re.Auth.Id, q, exclude, limit, offset)
 	if err != nil {
 		app.Logger().Warn("FTS: drive search failed", "error", err)
 		return re.JSON(http.StatusOK, api.SearchResponse{Items: []api.SearchResultItem{}, Total: 0})
@@ -147,8 +148,14 @@ func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 // and the $drive.search JS binding so both enforce the same access scope — a
 // binding that reimplemented the filter could drift out of agreement with the
 // endpoint, which is precisely the class of bug this migration was about.
-func searchDriveItems(app core.App, userID, q, exclude string, limit, offset int) (api.SearchResponse, error) {
+//
+// The queries are bound to ctx: once it ends — the request was dropped, or the
+// federated search's time is up — no query runs and ctx's error is returned.
+func searchDriveItems(ctx context.Context, app core.App, userID, q, exclude string, limit, offset int) (api.SearchResponse, error) {
 	empty := api.SearchResponse{Items: []api.SearchResultItem{}, Total: 0}
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
 
 	if len(q) < 2 {
 		return empty, nil
@@ -208,7 +215,7 @@ func searchDriveItems(app core.App, userID, q, exclude string, limit, offset int
 		Highlight   string `db:"highlight"`
 	}
 
-	if err := app.DB().NewQuery(searchQuery).Bind(dbx.Params(params)).All(&results); err != nil {
+	if err := app.DB().NewQuery(searchQuery).WithContext(ctx).Bind(dbx.Params(params)).All(&results); err != nil {
 		return empty, err
 	}
 
@@ -240,7 +247,7 @@ func searchDriveItems(app core.App, userID, q, exclude string, limit, offset int
 	var countResult struct {
 		Total int `db:"total"`
 	}
-	if err := app.DB().NewQuery(countQuery).Bind(dbx.Params(countParams)).One(&countResult); err != nil {
+	if err := app.DB().NewQuery(countQuery).WithContext(ctx).Bind(dbx.Params(countParams)).One(&countResult); err != nil {
 		countResult.Total = len(items)
 	}
 

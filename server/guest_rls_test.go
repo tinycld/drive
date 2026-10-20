@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -45,33 +46,14 @@ type driveGuestEnv struct {
 
 func setupDriveGuestApp(t *testing.T) *driveGuestEnv {
 	t.Helper()
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatalf("NewTestApp: %v", err)
-	}
-	t.Cleanup(func() { app.Cleanup() })
-
-	users, err := app.FindCollectionByNameOrId("users")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Single-org: the role select on the users auth record IS the membership.
-	users.Fields.Add(&core.SelectField{
-		Name: "role", Required: false, MaxSelect: 1,
-		Values: []string{"owner", "admin", "member", "guest"},
-	})
-	if err := app.Save(users); err != nil {
-		t.Fatalf("add users.role: %v", err)
-	}
-
-	// drive_items, drive_shares and the rest come from drive's own migrations,
-	// applied by applyDriveRules — collection shape and access rules alike, so
-	// neither can drift from what ships.
-	users.Fields.Add(&core.BoolField{Name: "disabled"})
-	if err := app.Save(users); err != nil {
-		t.Fatalf("add users.disabled: %v", err)
-	}
+	// drive_items, drive_shares and the rest come from drive's own migrations
+	// — collection shape and access rules alike, so neither can drift from
+	// what ships.
+	app := rlstest.Fixture{
+		Base:           rlstest.BundledData,
+		Prepare:        addDriveGuestUserFields,
+		MigrationsDirs: []string{rlstest.MigrationsDir(t, "../pb-migrations")},
+	}.NewApp(t)
 
 	member := driveGuestUser(t, app, "member@test.local", "member")
 	guest := driveGuestUser(t, app, "guest@test.local", "guest")
@@ -109,13 +91,41 @@ func driveGuestUser(t *testing.T, app core.App, email, role string) *core.Record
 	return r
 }
 
-// applyDriveRules stamps drive's SHIPPED rules onto the test collections by
-// running the package's own pb-migrations. Every rule assertion below is
-// therefore made against what the product ships.
-func applyDriveRules(t *testing.T, app core.App) {
-	t.Helper()
-	stubGroupsCollection(t, app)
-	rlstest.Apply(t, app, rlstest.MigrationsDir(t, "../pb-migrations"))
+// addDriveGuestUserFields gives the bundled users collection the fields core's
+// schema adds and drive's rules read, and stubs the groups collection a drive
+// migration relates to. It runs before drive's migrations, which reference
+// all three.
+func addDriveGuestUserFields(app core.App) error {
+	users, err := app.FindCollectionByNameOrId("users")
+	if err != nil {
+		return err
+	}
+	// Single-org: the role select on the users auth record IS the membership.
+	users.Fields.Add(&core.SelectField{
+		Name: "role", Required: false, MaxSelect: 1,
+		Values: []string{"owner", "admin", "member", "guest"},
+	})
+	if err := app.Save(users); err != nil {
+		return fmt.Errorf("add users.role: %w", err)
+	}
+	if err := addUsersDisabledField(app); err != nil {
+		return err
+	}
+	return createGroupsStub(app)
+}
+
+// addUsersDisabledField adds users.disabled, which driveshare and drive's
+// rules read; core's users schema isn't carried by this module.
+func addUsersDisabledField(app core.App) error {
+	users, err := app.FindCollectionByNameOrId("users")
+	if err != nil {
+		return err
+	}
+	users.Fields.Add(&core.BoolField{Name: "disabled"})
+	if err := app.Save(users); err != nil {
+		return fmt.Errorf("add users.disabled: %w", err)
+	}
+	return nil
 }
 
 // The clauses each guard is expected to contribute. Asserting on these names
@@ -124,7 +134,6 @@ func applyDriveRules(t *testing.T, app core.App) {
 // the rule as it now ships.
 func TestDriveShippedRules_CarryTheirGuards(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 
 	for _, c := range []struct{ collection, kind, clause, why string }{
 		{"drive_items", "create", `@request.auth.role != "guest"`,
@@ -147,7 +156,6 @@ func TestDriveShippedRules_CarryTheirGuards(t *testing.T) {
 
 func TestDriveGuestRLS_GuestCannotCreateItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 
 	scenario := &tests.ApiScenario{
 		Method: http.MethodPost,
@@ -165,7 +173,6 @@ func TestDriveGuestRLS_GuestCannotCreateItem(t *testing.T) {
 
 func TestDriveGuestRLS_MemberCanCreateItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 
 	scenario := &tests.ApiScenario{
 		Method: http.MethodPost,
@@ -187,7 +194,6 @@ func TestDriveGuestRLS_MemberCanCreateItem(t *testing.T) {
 // could be over-applied and silently break the share-link flow.
 func TestDriveGuestRLS_GuestCanViewSharedItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 
 	// The member owns an item and shares it with the guest.
 	itemsCol, err := env.app.FindCollectionByNameOrId("drive_items")
@@ -263,7 +269,6 @@ func shareItemWith(t *testing.T, env *driveGuestEnv, name string, user *core.Rec
 // WebDAV PUT-overwrite and MOVE).
 func TestDriveCommentorRLS_CannotUpdateSharedItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 	item := shareItemWith(t, env, "commentable.txt", env.guest, "commentor")
 
 	scenario := &tests.ApiScenario{
@@ -292,7 +297,6 @@ func TestDriveCommentorRLS_CannotUpdateSharedItem(t *testing.T) {
 // write-capable roles must not have narrowed the grant to owners.
 func TestDriveEditorRLS_CanUpdateSharedItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 	editor := driveGuestUser(t, env.app, "editor@test.local", "member")
 	editorToken, err := editor.NewAuthToken()
 	if err != nil {
@@ -317,7 +321,6 @@ func TestDriveEditorRLS_CanUpdateSharedItem(t *testing.T) {
 // do the one thing the role exists for.
 func TestDriveCommentorRLS_CanViewSharedItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 	item := shareItemWith(t, env, "readable.txt", env.guest, "commentor")
 
 	scenario := &tests.ApiScenario{
@@ -337,7 +340,6 @@ func TestDriveCommentorRLS_CanViewSharedItem(t *testing.T) {
 // creator-ship or an explicit drive_shares row does.
 func TestDriveGuestRLS_GuestCannotViewUnsharedItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 
 	itemsCol, err := env.app.FindCollectionByNameOrId("drive_items")
 	if err != nil {

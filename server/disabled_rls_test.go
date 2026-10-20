@@ -18,15 +18,11 @@ import (
 // looks perfectly correct in every Go unit test, which is exactly why this
 // file exists.
 
-// The rule under test is not restated here — it is applied by running drive's
-// real pb-migrations (see applyDriveRules in guest_rls_test.go). The sibling
+// The rule under test is not restated here — it comes from drive's real
+// pb-migrations (see setupDriveGuestApp in guest_rls_test.go). The sibling
 // suite learned why the hard way: it kept its own copy of drive_items'
 // createRule, a later migration dropped a clause from the shipped one, and the
 // test that existed to catch that went on passing against its copy.
-func setDriveItemsEnabledViewRule(t *testing.T, app core.App) {
-	t.Helper()
-	applyDriveRules(t, app)
-}
 
 // seedSharedItem creates an item owned by the member and shared with the
 // given user.
@@ -58,10 +54,9 @@ func seedSharedItem(t *testing.T, env *driveGuestEnv, sharedWith *core.Record) *
 	return item
 }
 
-// disableUser re-reads the record before flipping the flag. The caller's
-// *core.Record was loaded before setDriveItemsEnabledViewRule added the
-// `disabled` field, and saving that stale copy silently drops the new column
-// — the write appears to succeed and the flag stays false.
+// disableUser re-reads the record before flipping the flag. Saving a copy
+// loaded before a users schema change silently drops the new column — the
+// write appears to succeed and the flag stays false.
 func disableUser(t *testing.T, app core.App, user *core.Record) {
 	t.Helper()
 	fresh, err := app.FindRecordById("users", user.Id)
@@ -81,7 +76,6 @@ func disableUser(t *testing.T, app core.App, user *core.Record) {
 // it, a rule that denied everyone would pass the deny test below.
 func TestDriveDisabledRLS_EnabledShareeCanView(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	setDriveItemsEnabledViewRule(t, env.app)
 	item := seedSharedItem(t, env, env.guest)
 
 	scenario := &tests.ApiScenario{
@@ -103,7 +97,6 @@ func TestDriveDisabledRLS_EnabledShareeCanView(t *testing.T) {
 // go red — that is what makes it a guard rather than decoration.
 func TestDriveDisabledRLS_DisabledShareeDenied(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	setDriveItemsEnabledViewRule(t, env.app)
 	item := seedSharedItem(t, env, env.guest)
 	disableUser(t, env.app, env.guest)
 
@@ -124,7 +117,6 @@ func TestDriveDisabledRLS_DisabledShareeDenied(t *testing.T) {
 // suspension has to outrank owning the file, not just being shared on it.
 func TestDriveDisabledRLS_DisabledCreatorDenied(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	setDriveItemsEnabledViewRule(t, env.app)
 
 	itemsCol, err := env.app.FindCollectionByNameOrId("drive_items")
 	if err != nil {
