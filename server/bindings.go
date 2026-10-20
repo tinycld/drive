@@ -1,10 +1,12 @@
 package drive
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/grafana/sobek"
 	"github.com/pocketbase/pocketbase"
 
-	"encoding/json"
 	"tinycld.org/core/coreserver"
 )
 
@@ -42,7 +44,8 @@ func registerJSVMBinding(_ *pocketbase.PocketBase) {
 				offset = int(v)
 			}
 
-			resp, err := searchDriveItems(app, userID, q, exclude, limit, offset)
+			// A JS VM call carries no context to bind the query to.
+			resp, err := searchDriveItems(context.Background(), app, userID, q, exclude, limit, offset)
 			if err != nil {
 				return nil, err
 			}

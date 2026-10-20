@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"context"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -110,7 +111,7 @@ func setupSearchApp(t *testing.T) (*tests.TestApp, *core.Record) {
 func TestSearchDriveItems_EnabledShareeFindsItem(t *testing.T) {
 	app, sharee := setupSearchApp(t)
 
-	resp, err := searchDriveItems(app, sharee.Id, "quarterly", "", 25, 0)
+	resp, err := searchDriveItems(context.Background(), app, sharee.Id, "quarterly", "", 25, 0)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -131,7 +132,7 @@ func TestSearchDriveItems_DisabledShareeGetsNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := searchDriveItems(app, sharee.Id, "quarterly", "", 25, 0)
+	resp, err := searchDriveItems(context.Background(), app, sharee.Id, "quarterly", "", 25, 0)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
