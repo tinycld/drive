@@ -15,10 +15,10 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"github.com/pocketbase/pocketbase/tools/security"
-	"tinycld.org/core/coreserver"
 	"tinycld.org/core/guestauth"
 	"tinycld.org/core/mailer"
 	"tinycld.org/core/sharelink"
+	"tinycld.org/core/usernames"
 )
 
 // otpCodeLength is the length of the numeric OTP we email.
@@ -355,7 +355,7 @@ func findOrCreateGuestUser(app core.App, email string) (*core.Record, error) {
 	// against existing rows on collision. Mirrors coreserver.BackfillUsernames
 	// suffix scheme ("foo", "foo2", "foo3") so a future re-backfill won't
 	// thrash the guest's name.
-	username, err := pickAvailableUsername(app, coreserver.DeriveUsername(email))
+	username, err := pickAvailableUsername(app, usernames.Derive(email))
 	if err != nil {
 		return nil, fmt.Errorf("derive username: %w", err)
 	}
