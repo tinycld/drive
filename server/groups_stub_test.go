@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -12,15 +13,24 @@ import (
 // before the relation field can be saved.
 func stubGroupsCollection(t testing.TB, app core.App) {
 	t.Helper()
+	if err := createGroupsStub(app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// createGroupsStub is stubGroupsCollection for a Fixture's Prepare, which has
+// no test to fail.
+func createGroupsStub(app core.App) error {
 	if _, err := app.FindCollectionByNameOrId("groups"); err == nil {
-		return
+		return nil
 	}
 	groups := core.NewBaseCollection("groups")
 	groups.Id = "pbc_groups_01"
 	groups.Fields.Add(&core.TextField{Name: "name", Required: true})
 	if err := app.Save(groups); err != nil {
-		t.Fatalf("stub groups collection: %v", err)
+		return fmt.Errorf("stub groups collection: %w", err)
 	}
+	return nil
 }
 
 func driveGroup(t testing.TB, app core.App, name string) *core.Record {

@@ -12,7 +12,6 @@ import (
 // untouchable through the API.
 func TestDriveSharesShippedRules(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 
 	cases := []struct{ kind, clause string }{
 		// A grant row's user is "", which an anonymous request's NULL
@@ -44,7 +43,6 @@ func TestDriveSharesShippedRules(t *testing.T) {
 // the back-relation. Each must require a login, for the same reason as above.
 func TestDriveGrantReachingRules_RequireLogin(t *testing.T) {
 	env := setupDriveGuestApp(t)
-	applyDriveRules(t, env.app)
 
 	for _, c := range []struct{ collection, kind string }{
 		{"drive_items", "list"},

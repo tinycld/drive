@@ -30,25 +30,11 @@ type fileAddedEnv struct {
 
 func setupFileAddedApp(t *testing.T) *fileAddedEnv {
 	t.Helper()
-	app, err := tests.NewTestApp()
-	if err != nil {
-		t.Fatalf("NewTestApp: %v", err)
-	}
-	t.Cleanup(func() { app.Cleanup() })
-
-	users, err := app.FindCollectionByNameOrId("users")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// driveshare reads users.disabled; core's users schema isn't carried by
-	// this module, so the column has to exist before the resolver runs.
-	users.Fields.Add(&core.BoolField{Name: "disabled"})
-	if err := app.Save(users); err != nil {
-		t.Fatalf("add users.disabled: %v", err)
-	}
-
-	stubGroupsCollection(t, app)
-	rlstest.Apply(t, app, rlstest.MigrationsDir(t, "../pb-migrations"))
+	app := rlstest.Fixture{
+		Base:           rlstest.BundledData,
+		Prepare:        prepareFileAddedBase,
+		MigrationsDirs: []string{rlstest.MigrationsDir(t, "../pb-migrations")},
+	}.NewApp(t)
 
 	owner := fileAddedUser(t, app, "owner@test.local")
 	sharee := fileAddedUser(t, app, "sharee@test.local")
@@ -89,6 +75,16 @@ func setupFileAddedApp(t *testing.T) *fileAddedEnv {
 	}
 
 	return &fileAddedEnv{app: app, owner: owner, sharee: sharee, viewer: viewer, outsider: outsider, folder: folder}
+}
+
+// prepareFileAddedBase runs before drive's migrations. driveshare reads
+// users.disabled, which core's users schema adds and this module does not
+// carry, and a drive migration relates to the groups collection.
+func prepareFileAddedBase(app core.App) error {
+	if err := addUsersDisabledField(app); err != nil {
+		return err
+	}
+	return createGroupsStub(app)
 }
 
 func fileAddedUser(t *testing.T, app core.App, email string) *core.Record {

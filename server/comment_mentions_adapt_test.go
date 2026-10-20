@@ -44,10 +44,13 @@ func coreMentionsDir(t *testing.T) string {
 }
 
 func TestCommentMentionsAdapt_DriveJoinsACoreCreatedTable(t *testing.T) {
-	app := rlstest.NewApp(t)
-
-	// Core first — the drive-added-later order.
-	rlstest.Apply(t, app, coreMentionsDir(t))
+	// Core first — the drive-added-later order. Only this stage comes from a
+	// template: the rule planted below must be on the table before drive's
+	// migrations run, so drive's stage is replayed per test.
+	app := rlstest.Fixture{
+		Base:           rlstest.BundledData,
+		MigrationsDirs: []string{coreMentionsDir(t)},
+	}.NewApp(t)
 
 	// Another package's branch is already on the rule; drive must append,
 	// not set. Synthetic and parse-safe against core collections alone.
