@@ -23,7 +23,7 @@ Open **Trash**, right-click the item, and choose **Restore**. The action does on
 - **Restore** — moves it back to its original location.
 - **Restore to...** — opens a folder picker. This appears when the original location has itself been deleted, so the file has nowhere obvious to land.
 
-Restored files come back with their full version history, share links (re-enabled), stars, and comments intact.
+Restored files come back with their full version history, share links, stars, and comments intact.
 
 ## Permanent deletion
 

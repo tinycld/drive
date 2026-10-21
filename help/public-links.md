@@ -34,9 +34,9 @@ Each public link can have:
 
 ## Disabling a link
 
-Toggle **Anyone with the link** off in the share dialog. The link immediately stops working. You can re-enable it later — the *same* token is reused, so previously-copied links start working again.
+Toggle **Anyone with the link** off in the share dialog. The link immediately stops working, and it never works again.
 
-If you want to invalidate a link without ever wanting it back, **delete** the link from the share dialog. A fresh link generated afterward gets a new token; the old URL is permanently 404.
+If you toggle the link on again later, Drive makes a new link with a new URL. Links that people copied before still do not work, so send them the new one.
 
 ## What recipients see
 
