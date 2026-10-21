@@ -1,4 +1,4 @@
-import { TEST_USER_EMAIL, TEST_USER_PASSWORD } from '@tinycld/core/e2e-helpers'
+import { TEST_USER_PASSWORD, TEST_USER_USERNAME } from '@tinycld/core/e2e-helpers'
 
 // PB owns /dav (protocol mounts); dev.ts's proxy fans /dav to PB,
 // so we can hit the public proxy port instead of PB directly.
@@ -11,7 +11,7 @@ export interface WebDAVResponse {
     contentLength?: number
 }
 
-function authHeader(user = TEST_USER_EMAIL, pass = TEST_USER_PASSWORD): string {
+function authHeader(user = TEST_USER_USERNAME, pass = TEST_USER_PASSWORD): string {
     return `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`
 }
 

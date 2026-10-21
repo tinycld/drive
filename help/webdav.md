@@ -23,7 +23,7 @@ The root of that URL is the root of your Drive — the same files and folders yo
 
 ## Signing in
 
-WebDAV uses HTTP Basic auth. When your file manager prompts for credentials, use your TinyCld username or email, and your password — the same ones you use to sign in on the web. If you turned on [two-step verification](help://core:security-mfa), use an [app password](help://core:security-app-passwords) instead: your account password no longer works in these apps.
+WebDAV uses HTTP Basic auth. When your file manager prompts for credentials, use your TinyCld username, and your password — the same ones you use to sign in on the web. If you turned on [two-step verification](help://core:security-mfa), use an [app password](help://core:security-app-passwords) instead: your account password no longer works in these apps.
 
 ## Mounting on macOS
 
@@ -31,7 +31,7 @@ WebDAV uses HTTP Basic auth. When your file manager prompts for credentials, use
 2. Choose **Go → Connect to Server…** (or press **⌘K**).
 3. Enter the WebDAV URL (e.g. `https://{{server-host}}/drive/`).
 4. Click **Connect**.
-5. Choose **Registered User** and enter your username (or email) and password.
+5. Choose **Registered User** and enter your username and password.
 
 The Drive appears under **Locations** in the Finder sidebar. macOS remembers the connection so you can reconnect from the same dialog.
 
@@ -42,7 +42,7 @@ The Drive appears under **Locations** in the Finder sidebar. macOS remembers the
 3. Pick a drive letter.
 4. Enter the WebDAV URL.
 5. Tick **Connect using different credentials** and click **Finish**.
-6. Enter your username (or email) and password.
+6. Enter your username and password.
 
 The Drive appears as a mapped network drive and reconnects on every login.
 
@@ -78,7 +78,7 @@ KDE's Dolphin works similarly via **Network → Add Network Folder → WebFolder
 ## Troubleshooting
 
 - **"Cannot connect" / connection times out** — verify you can reach the instance over HTTPS in a web browser. WebDAV uses the same domain and port (443).
-- **"Authentication failed"** — sign in with your TinyCld username or email and your current password.
+- **"Authentication failed"** — sign in with your TinyCld username and your current password.
 - **macOS: very slow first listing** — macOS pre-fetches metadata for every file on the first listing of a folder. Subsequent listings are cached and fast.
 - **Files appear with `.DS_Store` or `Thumbs.db`** — these are OS-generated metadata files that get written into the mount. They take real storage and count toward your quota; consider configuring your OS to skip them on network drives.
 
