@@ -13,7 +13,7 @@ User-facing features:
 - **Folders and files** — nested hierarchy. Create, rename, move, copy, trash.
 - **Versioning** — every replacement of a file's bytes creates a `drive_item_versions` row with `version_number` (monotonic per-item), size, mime type, source (`upload` | `user` | `system`), and an optional label. Other packages (calc, text) call `POST /api/drive/versions/snapshot` to tag the current bytes as a labeled checkpoint without re-uploading. Restore or download any prior version.
 - **Role-based sharing** — per-item shares with `owner` / `editor` / `commentor` / `viewer` roles (a commentor reads and comments but never edits). The share dialog gives people `editor` or `viewer`; `commentor` comes from group grants and public links. "Shared with me" lists everything other people have given you access to.
-- **Public share links** — 64-hex-character tokenized URLs at `/p/drive/share/<token>` with viewer, commentor, or editor role, optional expiry, download counters, last-accessed timestamps, and an enable / disable toggle that reuses the same token. Served by a public route so recipients don't need an account.
+- **Public share links** — 64-hex-character tokenized URLs at `/p/drive/share/<token>` with viewer, commentor, or editor role, optional expiry, download counters, last-accessed timestamps, and an on / off toggle. Turning a link off revokes it; turning it back on issues a new token, so the old URL never works again. Served by a public route so recipients don't need an account.
 - **Server-side thumbnails** — generated asynchronously on upload. PDFs, EPUBs, OOXML Office documents, SVG, HEIC/HEIF photos, and WebP images all render through the pure-Go `omnidoc` library (via `tinycld.org/core/thumbnails`) — the whole pipeline is CGo-free. Plain PNG/JPEG use PocketBase's built-in `?thumb=` query parameter.
 - **In-app previews** — the preview modal and its viewers (PDF canvas renderer, image / video / audio players, text and code viewers) live in `@tinycld/core/file-viewer/`. Drive consumes them and lets other packages register custom previewers (e.g. Calc registers itself for `.xlsx`, surfaced as the "Open in Calc" file action).
 - **Smart categories** — files are classified into `document`, `spreadsheet`, `pdf`, `image`, `presentation`, `drawing`, `video`, `audio`, `archive`, or `code` (mapping lives in `@tinycld/core/file-viewer/file-icons.ts`).
@@ -24,7 +24,7 @@ User-facing features:
 - **Export to PDF / SVG** — server-side conversion through `omnidoc`. "Export to PDF" and "Export to SVG" appear in the file's row menu and in the preview toolbar (`tinycld/drive/lib/export-pdf-action.tsx` registers both against drive's item-action registry and core's preview-action registry); the CLI exposes the same thing as `drive export --to pdf|svg`. A PDF has no PDF export but is a valid SVG source; SVG output is the first page only.
 - **WebDAV mount** — native `/drive/` endpoint. Mount from macOS Finder, Windows Explorer, or Linux GNOME / KDE; the drive becomes a network folder with your Drive tree directly at the root. See the in-app help topic `drive:webdav` for per-OS connection steps.
 - **Realtime updates** — uploads, renames, and share changes propagate immediately through PocketBase's collection-realtime subscriptions (consumed via `pbtsdb`'s `useLiveQuery`). No custom WebSocket layer.
-- **Single-item download** — web-only. Individual files stream directly from PocketBase; folders are zipped on demand via a short-lived (60 s) per-folder download token, capped at 10,000 files and 5 GB per archive.
+- **Download** — on web and native (native saves to the cache and opens the share sheet). Individual files stream directly from PocketBase; folders are zipped on demand via a short-lived (60 s) per-folder download token, capped at 10,000 files and 5 GB per archive.
 - **Notifications** — when a `drive_shares` row is created and the recipient isn't the creator (i.e. real share, not the bookkeeping owner self-share), the recipient receives a `drive_file_shared` notification through `core/notify`.
 - **Audit logging** — every mutation on `drive_items`, `drive_item_state`, and `drive_shares` is recorded by `core/audit`. `drive_items` rows are labeled by their `name` field.
 
@@ -88,7 +88,7 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 │     comment_mentions       ── @-mentions; shared with text/calc      │
 │     fts_drive_items        ── SQLite FTS5 virtual table              │
 │                                                                      │
-│   Hooks (register.go)                                                │
+│   Hooks (register.go, dedup_name.go)                                 │
 │     OnRecordCreate(drive_items):  reconcile size → dedup name →      │
 │                                   create owner drive_shares (txn)    │
 │     OnRecordUpdate(drive_items):  reject moves that form a cycle     │
@@ -137,7 +137,7 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 
 ### Asynchronous post-create work
 
-After a successful create or update, two goroutines fire-and-forget via `routine.FireAndForget`:
+After a successful create or update, two jobs run on core's background runner (`background.For(app, "drive")`), so shutdown waits for them to end. Their writes wait in `readonly.WhenWritable` while the server is read-only, and are dropped and logged if the wait ends:
 
 - **Text extraction** (`extract.go` → `core/textextract`) — pulls bytes from the attached file, runs the format-specific extractor (PDF / Office / EPUB / RTF / HTML via `omnidoc`, plain text passthrough, plus any package-registered handlers), and writes the result into `fts_drive_items.content` via `updateFTSContent`. Failures log a warning but don't fail the request — the file is searchable by name and description even if content extraction breaks.
 - **Thumbnail generation** (`thumbnails.go` → `core/thumbnails`) — only fires for mimes the core thumbnail package can render (PDF / EPUB / OOXML Word / Excel / PowerPoint / RTF / SVG / HEIC / HEIF / WebP). Rendering is pure Go via `omnidoc`, which is safe to run concurrently — there is no global render mutex — and writes a JPEG. The thumbnail is stored on `drive_items.thumbnail`.
@@ -159,7 +159,7 @@ The collections' PocketBase access rules (currently settled by migrations `17821
 
 ### Public share links
 
-A `drive_share_links` row is the entire public-link state: `(item, role, token, expires_at, is_active, download_count, day_download_count, download_day, last_accessed_at, created_by)`. Tokens are 32 random bytes hex-encoded — 64 characters of `[0-9a-f]`, with a `UNIQUE` index. The token is generated at create time and never changes; disabling a link sets `is_active = false`, re-enabling restores it, and the same URL works again. Permanent invalidation requires `DELETE /api/drive/share-link/{id}`, after which any new link generated for the same item gets a fresh token. Collection access rules require **owner** role on the underlying item for any CRUD on the link — editors of a file cannot create or revoke its public links.
+A `drive_share_links` row is the entire public-link state: `(item, role, token, expires_at, is_active, download_count, day_download_count, download_day, last_accessed_at, created_by)`. Tokens are 32 random bytes hex-encoded — 64 characters of `[0-9a-f]`, with a `UNIQUE` index. The token is generated at create time and never changes. `DELETE /api/drive/share-link/{id}` revokes a link: it sets `is_active = false` and keeps the row for its counters. Nothing sets `is_active` back to `true` — turning public access on again in the share dialog calls `POST /api/drive/share-link`, which creates a new row with a fresh token. Collection access rules require **owner** role on the underlying item for any CRUD on the link — editors of a file cannot create or revoke its public links.
 
 Public endpoints (`/api/drive/share-link/{token}`, `.../file`, `.../thumbnail`, and `POST .../session`) sit behind an in-process IP-based rate limiter (`publicShareLimiter`, 60 requests per minute per source IP) shared across all four endpoints; the OTP endpoints (`POST .../otp-request`, `.../otp-verify`) use the stricter `otpLimiter` (10 per minute per IP). `X-Forwarded-For` is honored when present so the limiter sees the real client behind a reverse proxy.
 
@@ -258,7 +258,7 @@ The token map is in-process and uses a background goroutine that runs every 5 mi
 | Upload                               | ✅  | ✅ (Photos / Files pickers) |
 | Drag-and-drop upload                 | ✅  | n/a  |
 | Folder drag-and-drop                 | ✅  | n/a  |
-| Download (file or folder zip)        | ✅  | n/a  |
+| Download (file or folder zip)        | ✅  | ✅ (share sheet) |
 | Rename / move / copy / trash         | ✅  | ✅   |
 | Share with other users               | ✅  | ✅   |
 | Public share links                   | ✅  | ✅   |
@@ -305,7 +305,7 @@ server/
 
 The WebDAV protocol server itself (FileSystem, auth, path parsing) lives in core at `tinycld/core/server/webdav/`; drive only supplies its `webdav.Source`.
 
-Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,coreserver,driveshare,groups,guestauth,logging,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,search,sharelink,sharequota,textextract,thumbnails,useraccount,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' $(ls server/*.go | grep -v _test.go) | sort -u` is the source of truth; tests also import `rlstest`).
+Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,background,coreserver,driveshare,groups,guestauth,logging,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,readonly,search,sharelink,sharequota,textextract,thumbnails,useraccount,usernames,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' $(ls server/*.go | grep -v _test.go) | sort -u` is the source of truth; tests also import `rlstest`).
 
 ## Client package layout
 
@@ -356,8 +356,9 @@ tinycld/drive/
         useDrive.tsx           top-level state (active section, current folder,
                                breadcrumbs); also exports useDriveState (the
                                provider-bound variant that wires to URL params)
-        useDriveMutations.ts   create folder, rename, move, copy, trash, restore,
-                               download, public-link CRUD, share CRUD
+        useDriveMutations.ts   create folder, rename, move, star, trash, restore,
+                               download, share CRUD (copy is lib/copy-drive-item.ts;
+                               public links are called from ShareDialog.tsx)
         useFileUpload.ts       upload pipeline + folder-tree handling
         useUploadPlaceholders.ts  optimistic upload rows in the current view
         useVersionHistory.ts   list + restore versions
