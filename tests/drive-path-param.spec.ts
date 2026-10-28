@@ -15,14 +15,17 @@ function collectSplitErrors(page: Page): string[] {
     return errors
 }
 
+// Root → Projects → Engineering, back to the root by the breadcrumb (shown
+// from two levels deep), then back through the history to Projects.
 async function walkNestedFolders(page: Page) {
     await openDriveItem(page, 'Projects')
     await expect(driveItem(page, 'Engineering')).toBeVisible()
     await openDriveItem(page, 'Engineering')
-    await page.goBack()
-    await expect(driveItem(page, 'Engineering')).toBeVisible()
     await page.getByRole('button', { name: 'Breadcrumb: My Files', exact: true }).click()
     await expect(driveItem(page, 'Projects')).toBeVisible()
+    await page.goBack()
+    await page.goBack()
+    await expect(driveItem(page, 'Engineering')).toBeVisible()
 }
 
 test.describe('Drive — path param', () => {
