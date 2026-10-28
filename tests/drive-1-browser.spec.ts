@@ -1,10 +1,11 @@
-import { expect, test } from '@playwright/test'
-import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { expect, type Page, test } from '@playwright/test'
+import { createInvitedUser, login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { appHref } from '@tinycld/core/lib/org-routes'
 import {
     createDriveItem,
     dismissErrorOverlay,
     driveItem,
+    ensureListView,
     openDriveItem,
     openDriveItemViaSearch,
     orderedRowNames,
@@ -16,6 +17,14 @@ import {
 // folders, racing with these reads. drive-2 has been switched to
 // per-test fixture files, so the seeded folder skeleton stays stable
 // for these reads.
+
+// Creates a folder in the current folder through the New folder dialog.
+async function createFolder(page: Page, name: string) {
+    await page.getByRole('button', { name: 'New folder' }).click()
+    await page.getByPlaceholder('Untitled folder').fill(name)
+    await page.getByRole('button', { name: 'Create' }).click()
+    await expect(driveItem(page, name)).toBeVisible()
+}
 
 test.describe('Drive — Browser', () => {
     test.beforeEach(async ({ page }) => {
@@ -151,44 +160,45 @@ test.describe('Drive — Browser', () => {
         await expect(page.getByText(/\d+ selected/)).toBeVisible()
     })
 
+    // Sort is a preference of the signed-in user, and other specs read the
+    // shared test user's listing in parallel: a sort changed here flipped
+    // their order mid-test (the drag-to-folder spec then never found its
+    // folder on screen). So this test sorts as its own user, on folders it
+    // creates through the UI.
     test('clicking a column heading sorts the list and toggles direction', async ({ page }) => {
-        // Three fixture files in their own folder so unrelated seeded rows
-        // don't interfere. Created out of alphabetical order so the list is
-        // not already name-sorted by arrival order.
-        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-        const folder = await createDriveItem({ name: `Sort-${stamp}`, isFolder: true })
-        const alpha = `Alpha-${stamp}.txt`
-        const mike = `Mike-${stamp}.txt`
-        const zulu = `Zulu-${stamp}.txt`
-        await createDriveItem({ name: zulu, parent: folder.id })
-        await createDriveItem({ name: mike, parent: folder.id })
-        await createDriveItem({ name: alpha, parent: folder.id })
+        const { inviteePage: own, close } = await createInvitedUser(page, 'drivesort')
+        try {
+            await navigateToPackage(own, 'drive', {
+                waitFor: own.getByTestId('package-sidebar-mounted'),
+            })
+            await dismissErrorOverlay(own)
+            await ensureListView(own)
 
-        // No page.reload(): the liveQuery reacts to the inserts and the search
-        // below re-queries anyway. A hard reload cancels in-flight Metro chunk
-        // loads (the documented CI-flake source).
+            const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+            const folder = `Sort-${stamp}`
+            await createFolder(own, folder)
+            await openDriveItem(own, folder)
 
-        // Column headings only render in list view; a prior test switches to
-        // grid and the choice persists across the serial session.
-        await page.getByTestId('drive-view-list').click()
-        await openDriveItemViaSearch(page, `Sort-${stamp}`)
-        await expect(driveItem(page, alpha)).toBeVisible()
+            // Created out of alphabetical order so the list is not already
+            // name-sorted by arrival order.
+            const alpha = `Alpha-${stamp}`
+            const mike = `Mike-${stamp}`
+            const zulu = `Zulu-${stamp}`
+            for (const name of [zulu, mike, alpha]) await createFolder(own, name)
+            const fixtures = [alpha, mike, zulu]
 
-        const fixtures = [alpha, mike, zulu]
+            // Clicking Owner switches the field, so the next Name click is a
+            // field switch, which always starts ascending.
+            await sortableHeader(own, 'Owner').click()
 
-        // Move the active sort off Name first (sort state can leak in from a
-        // prior test in the serial session). Clicking Owner switches the
-        // field, so the next Name click is a fresh field-switch — which always
-        // starts ascending — rather than an ambiguous toggle.
-        await sortableHeader(page, 'Owner').click()
+            await sortableHeader(own, 'Name').click()
+            await expect.poll(() => orderedRowNames(own, fixtures)).toEqual([alpha, mike, zulu])
 
-        // Click Name → ascending (field switch resets direction to asc).
-        await sortableHeader(page, 'Name').click()
-        await expect.poll(() => orderedRowNames(page, fixtures)).toEqual([alpha, mike, zulu])
-
-        // Click Name again → descending toggle.
-        await sortableHeader(page, 'Name').click()
-        await expect.poll(() => orderedRowNames(page, fixtures)).toEqual([zulu, mike, alpha])
+            await sortableHeader(own, 'Name').click()
+            await expect.poll(() => orderedRowNames(own, fixtures)).toEqual([zulu, mike, alpha])
+        } finally {
+            await close()
+        }
     })
 
     test('storage indicator shows usage', async ({ page }) => {
