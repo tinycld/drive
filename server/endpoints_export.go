@@ -124,6 +124,12 @@ func handleCreateExportToken(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError(fmt.Sprintf("this file type can't be exported to %s", strings.ToUpper(string(to))), nil)
 	}
 
+	// The export reads the stored blob; a live editor room writes it on a
+	// debounce, so bring it current before the token can be redeemed.
+	if _, err := flushItemForRead(app, re, item); err != nil {
+		return err
+	}
+
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return re.InternalServerError("failed to generate token", nil)

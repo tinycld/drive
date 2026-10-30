@@ -23,6 +23,7 @@ import (
 	"tinycld.org/core/previewqueue"
 	"tinycld.org/core/quota"
 	"tinycld.org/core/readonly"
+	"tinycld.org/core/realtime"
 	"tinycld.org/core/search"
 	"tinycld.org/core/versionhooks"
 	"tinycld.org/core/webdav"
@@ -175,6 +176,17 @@ func registerShared(app *pocketbase.PocketBase) {
 			return handleListShareLinks(app, re)
 		}).BindFunc(requireAuth)
 
+		// Stable file endpoints: the current blob by record id, flushed from a
+		// live editor room first. Auth is the SDK's header or a `?token=`
+		// file token (endpoints_file.go), so no requireAuth here.
+		e.Router.GET("/api/drive/items/{id}/file", func(re *core.RequestEvent) error {
+			return handleItemFile(app, re)
+		})
+
+		e.Router.GET("/api/drive/versions/{id}/file", func(re *core.RequestEvent) error {
+			return handleVersionFile(app, re)
+		})
+
 		// Folder download endpoints
 		e.Router.POST("/api/drive/download-token", func(re *core.RequestEvent) error {
 			return handleCreateDownloadToken(app, re)
@@ -262,6 +274,11 @@ var driveWebDAVHooks = webdav.Hooks{
 	BeforeOverwrite: func(app core.App, userID string, record *core.Record) error {
 		_, err := snapshotCurrentFile(app, record, userID, "upload", "")
 		return err
+	},
+	// A document open in an editor is written on a debounce; a DAV client
+	// reading it gets the edits the editor shows, not the last save.
+	BeforeRead: func(_ core.App, record *core.Record) error {
+		return realtime.FlushItem(record.Id)
 	},
 }
 
@@ -385,6 +402,13 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 		return router.NewApiError(http.StatusUnprocessableEntity, "nothing to snapshot — file is empty", nil)
 	}
 
+	// A live editor room writes the file on a debounce; a version taken
+	// from the stored blob alone would trail the edits the user just made.
+	item, err = flushItemForRead(app, re, item)
+	if err != nil {
+		return err
+	}
+
 	version, err := snapshotCurrentFile(app, item, userID, "user", label)
 	if err != nil {
 		app.Logger().Warn("version snapshot failed", "id", item.Id, "error", err)
@@ -439,7 +463,13 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	// Snapshot the current file before restoring (system-generated, hidden from UI)
+	// Snapshot the current file before restoring (system-generated, hidden
+	// from UI). Flushed first so the hidden snapshot holds the edits a live
+	// room has not yet written — it is what an undo of this restore returns.
+	item, err = flushItemForRead(app, re, item)
+	if err != nil {
+		return err
+	}
 	if _, err := snapshotCurrentFile(app, item, userID, "system", ""); err != nil {
 		app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
 	}

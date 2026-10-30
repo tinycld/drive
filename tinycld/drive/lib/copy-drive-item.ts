@@ -1,4 +1,3 @@
-import { getFileToken } from '@tinycld/core/file-viewer/use-authed-file-url'
 import { useAuth } from '@tinycld/core/lib/auth'
 import { captureException } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
@@ -12,6 +11,7 @@ import { type UploadFile, uploadFileFromUri } from '@tinycld/core/lib/upload-fil
 import { newRecordId } from 'pbtsdb/core'
 import { Platform } from 'react-native'
 import { deduplicateName } from './deduplicate-name'
+import { itemFileUrl } from './item-file-url'
 
 export interface CopyDriveItemInput {
     /** Drive item to duplicate. Must reference a non-folder item. */
@@ -75,17 +75,12 @@ export function useCopyDriveItem() {
             const parentId = input.parentId ?? source.parent ?? ''
             const mimeType = source.mime_type || 'application/octet-stream'
 
-            // ?token=: drive_items files sit behind the record's viewRule, and
-            // fetchForUpload uses a bare fetch/download that carries no auth —
-            // the SDK only attaches credentials to its own requests. Without
-            // it the source read 404s and the copy fails with "Could not fetch
-            // source file (404)".
-            const fileToken = await getFileToken()
-            const sourceUrl = pb.files.getURL(
-                { collectionId: 'drive_items', id: source.id },
-                source.file,
-                fileToken ? { token: fileToken } : undefined
-            )
+            // The stable endpoint, not `/api/files/<id>/<file>`: the source may
+            // be open in an editor, whose debounced save renames the blob — the
+            // name in the cached row is stale the moment that happens, and the
+            // old URL 404s. The server flushes the live room before serving, so
+            // the copy holds the edits the editor shows.
+            const sourceUrl = await itemFileUrl(source.id)
             const upload = await fetchForUpload(sourceUrl, input.newName, mimeType)
 
             // Pre-dedupe so we report the right final name back to the caller

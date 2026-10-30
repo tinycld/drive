@@ -1,6 +1,4 @@
-import { captureException } from '@tinycld/core/lib/errors'
 import { notify } from '@tinycld/core/lib/notify'
-import { useForceFlush } from '../hooks/use-force-flush'
 import { useCopyDriveItem } from '../lib/copy-drive-item'
 import { useCopyDialogStore } from '../stores/copy-dialog-store'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
@@ -23,16 +21,14 @@ interface CopyToFolderDialogProps {
 //
 // The dialog is opened by useDriveItemFileActions.makeCopy (and the
 // analogous "Export as template" action), which pushes the pending copy
-// into useCopyDialogStore. When the pending copy names a `roomKind`, the
-// source is a live document (text/calc) whose durable blob only refreshes
-// on a debounce — so we force-flush the room before copying, otherwise
-// the duplicate would miss the most recent edits. Mount this once
-// alongside the host package's other detail-screen dialogs.
+// into useCopyDialogStore. A live document (text/calc) needs no client-side
+// flush: the copy reads the source through drive's stable file endpoint,
+// which flushes the room on the server. Mount this once alongside the host
+// package's other detail-screen dialogs.
 export function CopyToFolderDialog({ itemId, onCopied }: CopyToFolderDialogProps) {
     const pending = useCopyDialogStore(s => s.pendingCopy)
     const close = useCopyDialogStore(s => s.closeCopyDialog)
     const copyDriveItem = useCopyDriveItem()
-    const forceFlush = useForceFlush()
 
     if (pending == null) return null
 
@@ -68,33 +64,13 @@ export function CopyToFolderDialog({ itemId, onCopied }: CopyToFolderDialogProps
         )
     }
 
-    const handleMove = (targetFolderId: string) => {
-        if (!pending.roomKind) {
-            runCopy(targetFolderId)
-            return
-        }
-        // Flush the live room first so the copy reads edit-current bytes.
-        // A flush failure is non-fatal: fall back to copying the
-        // last-saved blob rather than blocking the user entirely.
-        forceFlush.mutate(
-            { roomKind: pending.roomKind, itemId },
-            {
-                onSuccess: () => runCopy(targetFolderId),
-                onError: err => {
-                    captureException('drive.copyToFolder.forceFlush', err)
-                    runCopy(targetFolderId)
-                },
-            }
-        )
-    }
-
     return (
         <ChooseFolderDialog
             open
             itemName={pending.copyName}
             excludeId=""
             initialSelectedId={pending.sourceParentId}
-            onMove={handleMove}
+            onMove={runCopy}
             onClose={close}
             title={pending.title ?? `Copy "${pending.copyName}" to`}
             confirmLabel={pending.confirmLabel ?? 'Copy here'}

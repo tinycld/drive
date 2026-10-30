@@ -27,10 +27,6 @@ interface UseDriveItemFileActionsParams {
     // index route (e.g. orgHref('calc'), orgHref('text')) so the user
     // isn't left staring at the trashed item.
     onTrashed: () => void
-    // The realtime room kind that owns this document ('text', 'calc').
-    // Threaded into the copy flow so "Make a copy" / "Export as template"
-    // force-flush the live room before duplicating its drive_items.file.
-    roomKind: string
 }
 
 // Self-contained wrappers around the drive_items collection for any
@@ -53,7 +49,7 @@ interface UseDriveItemFileActionsParams {
 export function useDriveItemFileActions(
     params: UseDriveItemFileActionsParams
 ): DriveItemFileActions {
-    const { itemId, onTrashed, roomKind } = params
+    const { itemId, onTrashed } = params
     const [driveItemsCollection, driveItemStateCollection] = useStore(
         'drive_items',
         'drive_item_state'
@@ -94,9 +90,9 @@ export function useDriveItemFileActions(
 
     const makeCopy = useCallback(
         (copyName: string) => {
-            openCopyDialog({ copyName, sourceParentId, roomKind })
+            openCopyDialog({ copyName, sourceParentId })
         },
-        [openCopyDialog, sourceParentId, roomKind]
+        [openCopyDialog, sourceParentId]
     )
 
     const exportAsTemplate = useCallback(
@@ -104,7 +100,6 @@ export function useDriveItemFileActions(
             openCopyDialog({
                 copyName: templateName,
                 sourceParentId,
-                roomKind,
                 title: `Save template "${templateName}" to`,
                 confirmLabel: 'Save template',
                 // Stay on the current document after saving the template —
@@ -112,7 +107,7 @@ export function useDriveItemFileActions(
                 skipNavigateOnDone: true,
             })
         },
-        [openCopyDialog, sourceParentId, roomKind]
+        [openCopyDialog, sourceParentId]
     )
 
     const trashMutation = useMutation({

@@ -182,6 +182,17 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 		return re.JSON(http.StatusNotFound, api.ErrorResponse{Error: "file not found"})
 	}
 
+	// A shared document may be open in an editor, which writes the file on
+	// a debounce; the recipient gets the edits the editor shows.
+	if re.Request.Method != http.MethodHead {
+		flushed, err := flushItemForRead(app, re, item)
+		if err != nil {
+			return err
+		}
+		item = flushed
+		filename = item.GetString("file")
+	}
+
 	fsys, err := app.NewFilesystem()
 	if err != nil {
 		return re.JSON(http.StatusInternalServerError, api.ErrorResponse{Error: "failed to read file"})
