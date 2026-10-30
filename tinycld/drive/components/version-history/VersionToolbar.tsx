@@ -3,6 +3,7 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ArrowLeft } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
 import type { CompareMode } from '../../lib/compare-mode'
+import { VersionPeople } from './VersionPeople'
 
 interface VersionToolbarProps {
     title: string
@@ -16,6 +17,7 @@ interface VersionToolbarProps {
     onCompareModeChange: (mode: CompareMode) => void
     baseTitle: string
     onClearBase: () => void
+    changedBy: { userIds: string[]; shareNames: string[] }
 }
 
 export function VersionToolbar({
@@ -30,6 +32,7 @@ export function VersionToolbar({
     onCompareModeChange,
     baseTitle,
     onClearBase,
+    changedBy,
 }: VersionToolbarProps) {
     const fg = useThemeColor('foreground')
     return (
@@ -64,6 +67,10 @@ export function VersionToolbar({
                 onChange={onCompareModeChange}
             />
             <BaseCompareLine title={baseTitle} onClear={onClearBase} />
+            <ChangedByLine
+                isVisible={isCompareVisible && (!!baseTitle || compareMode !== 'none')}
+                people={changedBy}
+            />
         </View>
     )
 }
@@ -173,6 +180,30 @@ function BaseCompareLine({ title, onClear }: { title: string; onClear: () => voi
             >
                 <ButtonText>Clear</ButtonText>
             </Button>
+        </View>
+    )
+}
+
+const CHANGED_BY_NAMES = 5
+
+// Who made the changes the compare marks: the editors recorded on the
+// versions inside the compared range.
+function ChangedByLine({
+    isVisible,
+    people,
+}: {
+    isVisible: boolean
+    people: { userIds: string[]; shareNames: string[] }
+}) {
+    if (!isVisible || people.userIds.length + people.shareNames.length === 0) return null
+    return (
+        <View accessibilityLabel="Changed by" className="flex-row items-center gap-1 px-3 pb-2">
+            <Text className="text-xs text-muted-foreground">Changed by</Text>
+            <VersionPeople
+                userIds={people.userIds}
+                shareNames={people.shareNames}
+                maxNames={CHANGED_BY_NAMES}
+            />
         </View>
     )
 }

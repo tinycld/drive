@@ -45,6 +45,8 @@ The preview shows the newer of the two, with the changes since the older one mar
 
 The compared version stays while you select other versions, so you can step through the history against one version. To stop, click **Clear**, choose **Version**, **vs. previous** or **vs. current**, or ⌘-click the compared version again.
 
+Under the compare choices, **Changed by** names the people who edited in the compared range. With **vs. current**, it names the people on the versions after the selected one; edits not yet in any version are not counted.
+
 In a compare:
 
 - Added text has a green background.
