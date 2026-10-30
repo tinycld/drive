@@ -1,27 +1,14 @@
 import { and, eq, inArray } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import type { RestoreVersionRequest } from '@tinycld/app-generated/drive-api'
-import { captureException, errorToString } from '@tinycld/core/lib/errors'
 import { useMutation } from '@tinycld/core/lib/mutations'
-import { notify } from '@tinycld/core/lib/notify'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
+import { notifyWriteFailed } from '../lib/notify-write-failed'
 
 // 'system' rows are the hidden copy a restore takes first; the history
 // shows the other sources. inArray, not not(eq(...)): pbtsdb compiles not()
 // to `!(...)`, which PocketBase's filter parser rejects.
 const VISIBLE_SOURCES = ['upload', 'user', 'auto']
-
-function reportFailure(operation: string, title: string) {
-    return (err: unknown) => {
-        captureException(operation, err)
-        notify.emit({
-            event: 'mutation.error',
-            title,
-            body: errorToString(err),
-            data: { operation, error: errorToString(err) },
-        })
-    }
-}
 
 export function useVersionHistory(itemId: string) {
     const [versionsCollection] = useStore('drive_item_versions')
@@ -45,7 +32,7 @@ export function useVersionHistory(itemId: string) {
                 headers: { 'Content-Type': 'application/json' },
             })
         },
-        onError: reportFailure('drive.version.restore', 'Could not restore this version'),
+        onError: err => notifyWriteFailed('drive.restore_version', 'Version not restored', err),
     })
 
     const renameMutation = useMutation({
@@ -54,7 +41,7 @@ export function useVersionHistory(itemId: string) {
                 draft.label = label
             })
         },
-        onError: reportFailure('drive.version.rename', 'Could not rename this version'),
+        onError: err => notifyWriteFailed('drive.version.rename', 'Version not renamed', err),
     })
 
     return {
