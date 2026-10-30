@@ -693,7 +693,7 @@ const shareNotifyDroppedMsg = "drive share notification dropped: the server stay
 // notifyDriveShareWhenWritable notifies for a share whose row a request
 // already wrote, possibly just before the server went read-only.
 func notifyDriveShareWhenWritable(ctx context.Context, app core.App, share *core.Record) {
-	whenWritable(ctx, shareNotifyDroppedMsg, func() {
+	whenWritable(ctx, app, shareNotifyDroppedMsg, func() {
 		notifyDriveShare(ctx, app, share)
 	}, "shareID", share.Id)
 }
@@ -704,10 +704,10 @@ func notifyDriveShareWhenWritable(ctx context.Context, app core.App, share *core
 // is bounded by readonly.TailWait and by ctx, which ends when the app
 // terminates; a write still waiting then is dropped and logged as dropMsg
 // with attrs.
-func whenWritable(ctx context.Context, dropMsg string, write func(), attrs ...any) {
+func whenWritable(ctx context.Context, app core.App, dropMsg string, write func(), attrs ...any) {
 	waitCtx, cancel := context.WithTimeout(ctx, readonly.TailWait)
 	defer cancel()
-	err := readonly.WhenWritable(waitCtx, func() error {
+	err := readonly.WhenWritable(waitCtx, app, func() error {
 		write()
 		return nil
 	})

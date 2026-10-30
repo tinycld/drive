@@ -108,7 +108,7 @@ func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 
 	// Read-only mode lets a GET through but its writes must not land, and a
 	// request must not block on the mode: a missed timestamp costs nothing.
-	if readonly.Active() {
+	if readonly.Active(app) {
 		shareLog.Debug("share link access not stamped: the server is read-only", "linkID", link.Id)
 	} else if err := touchShareLink(app, token); err != nil {
 		// A missed timestamp must not cost the visitor the file.
@@ -156,7 +156,7 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 	// A mid-file range is a continuation of a download already charged for,
 	// not a new one — see isChargeableRange.
 	chargeable := re.Request.Method != http.MethodHead && isChargeableRange(re.Request)
-	if chargeable && readonly.Active() {
+	if chargeable && readonly.Active(app) {
 		// Read-only mode lets a GET through but its writes must not land, and
 		// a request must not block on the mode. Serve uncharged, as the
 		// fail-open path below does; Info so the uncounted downloads show.
