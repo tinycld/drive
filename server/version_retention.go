@@ -152,10 +152,8 @@ func pruneItemVersions(app core.App, itemID string, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	byID := map[string]*core.Record{}
 	rows := make([]versionRow, 0, len(records))
 	for _, rec := range records {
-		byID[rec.Id] = rec
 		var share []string
 		_ = rec.UnmarshalJSONField("share_editors", &share)
 		rows = append(rows, versionRow{
@@ -171,9 +169,20 @@ func pruneItemVersions(app core.App, itemID string, now time.Time) error {
 	if len(deleteIDs) == 0 {
 		return nil
 	}
+	return applyPrune(app, deleteIDs, merges)
+}
+
+// applyPrune writes a plan in one transaction. Each row is read again
+// inside it, because the plan was made from an earlier read: a version
+// labeled since then is kept, and a merge sets only the editor fields, so a
+// rename made meanwhile is not overwritten.
+func applyPrune(app core.App, deleteIDs []string, merges map[string]editorMerge) error {
 	return app.RunInTransaction(func(tx core.App) error {
 		for id, m := range merges {
-			rec := byID[id]
+			rec, err := tx.FindRecordById("drive_item_versions", id)
+			if err != nil {
+				continue
+			}
 			rec.Set("editors", m.Editors)
 			rec.Set("share_editors", m.ShareEditors)
 			if err := tx.Save(rec); err != nil {
@@ -181,7 +190,11 @@ func pruneItemVersions(app core.App, itemID string, now time.Time) error {
 			}
 		}
 		for _, id := range deleteIDs {
-			if err := tx.Delete(byID[id]); err != nil {
+			rec, err := tx.FindRecordById("drive_item_versions", id)
+			if err != nil || rec.GetString("label") != "" {
+				continue
+			}
+			if err := tx.Delete(rec); err != nil {
 				return err
 			}
 		}

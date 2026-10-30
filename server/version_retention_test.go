@@ -174,3 +174,51 @@ func TestPruneVersions_DeletesRowsAndMergesInDB(t *testing.T) {
 		t.Fatalf("kept editors = %v", eds)
 	}
 }
+
+// The plan is made from rows read before the transaction. A rename in
+// between must survive: the labeled version is not deleted, and a merge
+// target keeps the label it got meanwhile.
+func TestApplyPrune_RespectsLabelsSetAfterTheRead(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
+	target, err := snapshotCurrentFile(env.app, item, snapshotOpts{UserID: env.member.Id, Source: "auto"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doomed, err := snapshotCurrentFile(env.app, item, snapshotOpts{UserID: env.member.Id, Source: "auto"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Renamed by users after the plan was made.
+	for id, label := range map[string]string{target.Id: "Kept target", doomed.Id: "Now labeled"} {
+		rec, err := env.app.FindRecordById("drive_item_versions", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec.Set("label", label)
+		if err := env.app.Save(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err = applyPrune(env.app, []string{doomed.Id}, map[string]editorMerge{
+		target.Id: {Editors: []string{env.guest.Id}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := env.app.FindRecordById("drive_item_versions", doomed.Id); err != nil {
+		t.Fatal("a version labeled after the read was deleted")
+	}
+	fresh, err := env.app.FindRecordById("drive_item_versions", target.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.GetString("label") != "Kept target" {
+		t.Fatalf("merge overwrote the label: %q", fresh.GetString("label"))
+	}
+	if eds := fresh.GetStringSlice("editors"); len(eds) != 1 || eds[0] != env.guest.Id {
+		t.Fatalf("editors = %v", eds)
+	}
+}

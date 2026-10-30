@@ -32,7 +32,9 @@ func handleEditCheckpoint(app core.App) editcheckpoint.Listener {
 		}
 		owner := item.GetString("created_by")
 		if err := checkUserStorageQuota(app, owner, int64(item.GetInt("size"))); err != nil {
-			versionLog.WarnContext(ctx, "auto version skipped: owner over storage limit", "itemID", itemID)
+			// Info, not Warn: an owner over the limit would send one Sentry
+			// event per document per checkpoint until they free space.
+			versionLog.InfoContext(ctx, "auto version skipped: owner over storage limit", "itemID", itemID)
 			return
 		}
 		version, err := snapshotCurrentFile(app, item, snapshotOpts{UserID: owner, Source: "auto", Editors: editors})
