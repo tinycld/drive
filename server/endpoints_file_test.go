@@ -1,6 +1,7 @@
 package drive
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
+	"github.com/pocketbase/pocketbase/tools/router"
 	"tinycld.org/core/realtime"
 )
 
@@ -75,8 +77,9 @@ func getFile(app core.App, auth *core.Record, path, id, query string, handler fu
 	if err := handler(app, re); err != nil {
 		// Handlers return router.ApiError values; render their status the
 		// way the router would so assertions can read rec.Code.
-		if apiErr, ok := err.(interface{ Code() int }); ok {
-			rec.Code = apiErr.Code()
+		var apiErr *router.ApiError
+		if errors.As(err, &apiErr) {
+			rec.Code = apiErr.Status
 		} else {
 			rec.Code = http.StatusInternalServerError
 		}
