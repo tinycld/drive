@@ -112,6 +112,30 @@ func flushItemForRead(app core.App, re *core.RequestEvent, item *core.Record) (*
 	return fresh, nil
 }
 
+// writeItemFile runs write, which replaces item itemID's stored file. An
+// editor room open on the item closes first and saves its last edits, so
+// the write replaces them and the editors reload the new file. write must
+// load the item again, since that save changes it.
+func writeItemFile(itemID string, write func() error) error {
+	err := realtime.WriteItem(itemID, write)
+	if errors.Is(err, realtime.ErrItemBusy) {
+		return router.NewApiError(http.StatusServiceUnavailable,
+			"the editor that has this file open did not close in time; try again", nil)
+	}
+	return err
+}
+
+// guardFileUpdateRequest puts a REST update that replaces an item's file
+// through the same guard as upload-version. A rename or move does not touch
+// the file and passes.
+func guardFileUpdateRequest(e *core.RecordRequestEvent) error {
+	if len(e.Record.GetUnsavedFiles("file")) == 0 &&
+		e.Record.GetString("file") == e.Record.Original().GetString("file") {
+		return e.Next()
+	}
+	return writeItemFile(e.Record.Id, e.Next)
+}
+
 // serveRecordFile streams a record's `file` blob. Serve (not io.Copy) so Range
 // works; `?inline=1` opens in the browser, anything else downloads. no-store:
 // the URL is stable across saves, so nothing between here and the user may

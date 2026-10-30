@@ -47,7 +47,7 @@ The file goes back to the content of that version. The history keeps every versi
 - The state before the restore is kept as a version in the list, with all edits up to that moment. You can restore it again.
 - A new version named "Restored from …" appears at the top of the list.
 
-If other people have the document open, their editors change to the restored content at once.
+You can restore a version while the file is open in an editor (Text or Calc), in any tab or by any person. The editor first saves its last edits, and they are kept as a version in the list. Then every open editor reloads with the restored contents. Edits typed in the second before the reload are lost.
 
 The file name, its folder, its share settings and its links do not change.
 
