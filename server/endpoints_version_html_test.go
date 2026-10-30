@@ -25,7 +25,7 @@ func seedTypedVersion(t *testing.T, env *driveGuestEnv, mimeType string, content
 	if err := env.app.Save(item); err != nil {
 		t.Fatal(err)
 	}
-	v, err := snapshotCurrentFile(env.app, item, env.member.Id, "user", "first")
+	v, err := snapshotCurrentFile(env.app, item, snapshotOpts{UserID: env.member.Id, Source: "user", Label: "first"})
 	if err != nil || v == nil {
 		t.Fatalf("snapshot: %v", err)
 	}

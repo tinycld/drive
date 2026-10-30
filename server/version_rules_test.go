@@ -21,7 +21,7 @@ func editorWithVersion(t *testing.T, env *driveGuestEnv) (string, *core.Record) 
 	}
 	// shareItemWith makes an item without a file; a version needs one.
 	item := seedFileItemFor(t, env, shareItemWith(t, env, "versioned.txt", editor, "editor"))
-	v, err := snapshotCurrentFile(env.app, item, env.member.Id, "user", "Approved")
+	v, err := snapshotCurrentFile(env.app, item, snapshotOpts{UserID: env.member.Id, Source: "user", Label: "Approved"})
 	if err != nil || v == nil {
 		t.Fatalf("snapshot: %v", err)
 	}

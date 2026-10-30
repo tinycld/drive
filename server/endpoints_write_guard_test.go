@@ -168,7 +168,7 @@ func TestUploadVersion_WritesWhenClosed(t *testing.T) {
 func TestRestoreVersion_ReplacesTheFileWhileOpen(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "notes.txt", []byte("v1"))
-	version, err := snapshotCurrentFile(env.app, item, env.member.Id, "user", "v1")
+	version, err := snapshotCurrentFile(env.app, item, snapshotOpts{UserID: env.member.Id, Source: "user", Label: "v1"})
 	if err != nil {
 		t.Fatal(err)
 	}
