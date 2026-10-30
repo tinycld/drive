@@ -32,7 +32,11 @@ export function VersionToolbar({
             >
                 <ArrowLeft size={20} color={fg} />
             </Pressable>
-            <Text className="flex-1 text-base font-medium text-foreground" numberOfLines={1}>
+            <Text
+                accessibilityRole="header"
+                className="flex-1 text-base font-medium text-foreground"
+                numberOfLines={1}
+            >
                 {title}
             </Text>
             <VersionActions
