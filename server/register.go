@@ -154,6 +154,12 @@ func registerShared(app *pocketbase.PocketBase) {
 			return handleGetShareLinkThumbnail(app, re)
 		})
 
+		// Images attached to a shared document, for its anonymous visitors;
+		// the share session in ?session= is the credential.
+		e.Router.GET("/api/drive/share-session/attachments/{id}", func(re *core.RequestEvent) error {
+			return handleShareAttachment(app, re)
+		})
+
 		// Mint/resume an anonymous share session for a public link. The
 		// returned session token is the bearer credential for anon
 		// render/comment/edit actions.
