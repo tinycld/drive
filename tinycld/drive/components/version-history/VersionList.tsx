@@ -28,15 +28,14 @@ export function VersionList({
             onSelect={onSelect}
         />
     ))
+    // The width goes on a View: a ScrollView's className does not size it.
     return (
-        <ScrollView
-            accessibilityRole="list"
-            accessibilityLabel="Versions"
-            className={`bg-background ${className ?? ''}`}
-        >
-            <EmptyList isVisible={groups.length === 0} />
-            {groupViews}
-        </ScrollView>
+        <View className={`bg-background ${className ?? ''}`}>
+            <ScrollView accessibilityRole="list" accessibilityLabel="Versions" className="flex-1">
+                <EmptyList isVisible={groups.length === 0} />
+                {groupViews}
+            </ScrollView>
+        </View>
     )
 }
 
