@@ -6,6 +6,7 @@ import { notify } from '@tinycld/core/lib/notify'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
 import { driveItemToSource } from '../lib/file-url'
+import { useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView } from '../types'
 import type { useDriveItems } from './useDriveItems'
 
@@ -33,6 +34,7 @@ export function useDriveMutations({
     const [itemsCollection] = useStore('drive_items')
     const [sharesCollection] = useStore('drive_shares')
     const [stateCollection] = useStore('drive_item_state')
+    const deselectItem = useDriveUIStore(s => s.deselectItem)
 
     const toggleStarMutation = useMutation({
         mutationFn: mutation(function* ({ itemId, starred }: { itemId: string; starred: boolean }) {
@@ -168,8 +170,11 @@ export function useDriveMutations({
         toggleStarMutation.mutate({ itemId, starred: item?.starred ?? false })
     }
 
+    // A trashed or deleted item leaves the listing, so it must leave the
+    // selection too; otherwise the detail panel keeps showing it.
     const moveToTrash = (itemId: string) => {
         prepareLayoutAnimation?.()
+        deselectItem(itemId)
         trashMutation.mutate({ itemId, restore: false })
     }
     const restoreFromTrash = (itemId: string) => {
@@ -178,6 +183,7 @@ export function useDriveMutations({
     }
     const permanentlyDelete = (itemId: string) => {
         prepareLayoutAnimation?.()
+        deselectItem(itemId)
         permanentDeleteMutation.mutate(itemId)
     }
 
