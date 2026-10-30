@@ -528,6 +528,20 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
+	// The restored state becomes a visible version. The hidden "system"
+	// copy above is the undo; this row is what the timeline shows.
+	restored, err := snapshotCurrentFile(app, item, userID, "user", restoredFromLabel(version))
+	if err != nil {
+		app.Logger().Warn("drive: restored-from version failed", "id", item.Id, "error", err)
+	} else if restored != nil {
+		if hook := versionhooks.For(mimeType); hook.OnSnapshot != nil {
+			if err := hook.OnSnapshot(app, item, restored); err != nil {
+				app.Logger().Warn("drive: restored-from snapshot hook failed",
+					"itemID", item.Id, "versionID", restored.Id, "err", err)
+			}
+		}
+	}
+
 	return re.JSON(http.StatusOK, api.VersionFileResponse{
 		ID:       item.Id,
 		Name:     item.GetString("name"),
