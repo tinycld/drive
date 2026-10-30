@@ -67,7 +67,9 @@ export function useVersionHistoryScreen(itemId: string) {
         rowActions: {
             isEnabled: canWrite && !isPhone,
             isRestoring: history.isRestoring,
-            onRename: () => setRenameOpen(true),
+            onRename: (label: string) => {
+                if (selected) history.renameVersion(selected.id, label)
+            },
             onRestore: () => setRestoreOpen(true),
         },
         // Selecting the base version itself ends the two-version compare.

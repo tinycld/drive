@@ -59,16 +59,16 @@ Everyone who can open the file can compare versions. Compare is not available fo
 To give a version a name, such as "Initial draft" or "Approved":
 
 1. Select the version.
-2. Click **Rename**.
+2. Click **Rename** on that version in the list. The title becomes a text field.
 3. Type the label. A label can have up to 500 characters.
-4. Click **Save**.
+4. Press Enter or click **Save**. To stop without a change, press Escape or click **Cancel**.
 
-To remove a label, rename the version and leave the field empty.
+To remove a label, rename the version and leave the field empty. On a phone, **Rename** is at the top of the screen when a version is open.
 
 ## Restore a version
 
 1. Select the version.
-2. Click **Restore**, then confirm.
+2. Click **Restore** on that version in the list, then confirm. On a phone, **Restore** is at the top of the screen when a version is open.
 
 The file goes back to the content of that version. The history keeps every version:
 

@@ -1,5 +1,9 @@
-import { type GestureResponderEvent, Pressable, Text, View } from 'react-native'
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { Controller } from '@tinycld/core/ui/form'
+import { useState } from 'react'
+import { type GestureResponderEvent, Pressable, Text, TextInput, View } from 'react-native'
 import type { VersionRow } from '../../hooks/useVersionHistory'
+import { useVersionLabelEditor } from '../../hooks/useVersionLabelEditor'
 import { VersionPeople } from './VersionPeople'
 import { versionPeople, versionRowText } from './version-row-text'
 
@@ -12,7 +16,7 @@ interface VersionListRowProps {
     isRestoring: boolean
     onSelect: (versionId: string) => void
     onPickBase: (versionId: string) => void
-    onRename: () => void
+    onRename: (label: string) => void
     onRestore: () => void
 }
 
@@ -43,6 +47,23 @@ export function VersionListRow({
     const titleSpace = isActionsVisible ? 'pr-32' : ''
     const press = (event: GestureResponderEvent) =>
         hasCompareModifier(event) ? onPickBase(version.id) : onSelect(version.id)
+    // Local to the row; it ends when the row stops being the active one.
+    const [isEditingState, setEditing] = useState(false)
+    const isEditing = isEditingState && isActionsVisible
+
+    if (isEditing) {
+        return (
+            <EditingRow
+                label={version.label}
+                subtitle={time}
+                badge={badge}
+                people={people}
+                onSave={onRename}
+                onDone={() => setEditing(false)}
+                rowClass={`${rowClass} ${baseClass}`}
+            />
+        )
+    }
 
     // The click target and the actions are siblings: on web the target is a
     // <button>, and a button cannot hold the Rename and Restore buttons.
@@ -77,11 +98,81 @@ export function VersionListRow({
             <RowActions
                 isVisible={isActionsVisible}
                 isRestoring={isRestoring}
-                onRename={onRename}
+                onRename={() => setEditing(true)}
                 onRestore={onRestore}
             />
         </View>
     )
+}
+
+interface EditingRowProps {
+    label: string
+    subtitle: string
+    badge: string
+    people: ReturnType<typeof versionPeople>
+    onSave: (label: string) => void
+    onDone: () => void
+    rowClass: string
+}
+
+// The active row while its label is edited: the title is a field, and the
+// actions are Save and Cancel. Not a click target, so the field and the
+// buttons are not inside a button.
+function EditingRow({ label, subtitle, badge, people, onSave, onDone, rowClass }: EditingRowProps) {
+    const editor = useVersionLabelEditor({ label, onSave, onDone })
+    const fg = useThemeColor('foreground')
+    return (
+        <View className={`border-b border-border px-4 py-3 ${rowClass}`}>
+            <Controller
+                control={editor.control}
+                name="label"
+                render={({ field }) => (
+                    <TextInput
+                        ref={editor.inputRef}
+                        value={field.value}
+                        onChangeText={field.onChange}
+                        autoFocus
+                        selectTextOnFocus
+                        maxLength={500}
+                        placeholder="Version name"
+                        onSubmitEditing={() => editor.save()}
+                        onKeyPress={editor.handleKeyPress}
+                        returnKeyType="done"
+                        accessibilityLabel="Version name"
+                        className="mr-32 rounded-md border border-border bg-field-background px-2 py-0.5 text-sm"
+                        style={{ color: fg }}
+                    />
+                )}
+            />
+            <InlineError message={editor.errorMessage} />
+            <SubtitleLine text={subtitle} />
+            <View className="flex-row items-end justify-between gap-2">
+                <View className="flex-1">
+                    <VersionPeople userIds={people.userIds} shareNames={people.shareNames} />
+                </View>
+                <Text className="text-xs text-muted-foreground">{badge}</Text>
+            </View>
+            <View className="absolute right-3 top-2.5 flex-row gap-1">
+                <RowActionButton
+                    label="Save"
+                    onPress={() => editor.save()}
+                    isPrimary
+                    isDisabled={false}
+                />
+                <RowActionButton
+                    label="Cancel"
+                    onPress={onDone}
+                    isPrimary={false}
+                    isDisabled={false}
+                />
+            </View>
+        </View>
+    )
+}
+
+function InlineError({ message }: { message: string | undefined }) {
+    if (!message) return null
+    return <Text className="mt-1 text-xs text-danger">{message}</Text>
 }
 
 function SubtitleLine({ text }: { text: string }) {

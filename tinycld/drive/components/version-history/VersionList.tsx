@@ -19,7 +19,7 @@ interface VersionListProps {
 export interface RowActionProps {
     isEnabled: boolean
     isRestoring: boolean
-    onRename: () => void
+    onRename: (label: string) => void
     onRestore: () => void
 }
 
