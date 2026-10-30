@@ -390,8 +390,6 @@ function RestoreConfirmDialog({
 
 interface VersionMetadata {
     suggestionsOpen?: number
-    authors?: string[]
-    schemaVersion?: number
 }
 
 interface VersionRowProps {
@@ -401,6 +399,7 @@ interface VersionRowProps {
         size: number
         created: string
         file: string
+        editors: string[]
         version_metadata?: unknown
     }
     onRestore: () => void
@@ -408,16 +407,19 @@ interface VersionRowProps {
     isRestoring: boolean
 }
 
-function formatMetadataBadge(metadata: VersionMetadata | null | undefined): string | null {
-    if (!metadata) return null
+// Editors are the people who changed the file since the previous version.
+function formatMetadataBadge(
+    metadata: VersionMetadata | null | undefined,
+    editors: string[]
+): string | null {
     const items: string[] = []
-    const suggestions = metadata.suggestionsOpen ?? 0
+    const suggestions = metadata?.suggestionsOpen ?? 0
     if (suggestions > 0) {
         items.push(`${suggestions} pending suggestion${suggestions === 1 ? '' : 's'}`)
     }
-    const contributors = metadata.authors?.length ?? 0
+    const contributors = editors.length
     if (contributors > 0) {
-        items.push(`${contributors} contributor${contributors === 1 ? '' : 's'}`)
+        items.push(`${contributors} editor${contributors === 1 ? '' : 's'}`)
     }
     return items.length > 0 ? items.join(' · ') : null
 }
@@ -425,7 +427,8 @@ function formatMetadataBadge(metadata: VersionMetadata | null | undefined): stri
 function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const badgeText = formatMetadataBadge(
-        version.version_metadata as VersionMetadata | null | undefined
+        version.version_metadata as VersionMetadata | null | undefined,
+        version.editors
     )
 
     return (

@@ -14,8 +14,9 @@ You can open the history of a file in two ways:
 
 The history opens full screen. The list of versions is on the right, grouped by day, newest first. On a phone, the list fills the screen. Tap a version to see it, and tap **Back** to return to the list.
 
-Each version shows its label or the time it was made. It also shows who saved it, and a tag:
+Each version shows its label or the time it was made, the people who made it, and a tag:
 
+- **Auto**: Drive made the version automatically. It names the people who edited since the version before it.
 - **Saved**: someone chose **File → Save version**.
 - **Upload**: someone uploaded a new version of the file.
 
@@ -54,9 +55,63 @@ The file name, its folder, its share settings and its links do not change.
 
 In the **Info** panel's **Versions** tab, click the download icon next to a version. You get only that version's file. The current file does not change.
 
+## When automatic versions are made
+
+For a document that people edit in the app, Drive makes a version automatically:
+
+- after 10 minutes with no edits, and
+- when the last person closes the document.
+
+Drive makes an automatic version only if something changed since the last version. Typing does not make a version for each change.
+
 ## How long versions are kept
 
-Versions are kept until the file is permanently deleted. A version counts against the storage of the person who saved, uploaded or restored it.
+These versions are kept until the file is permanently deleted:
+
+- versions you saved with **File → Save version**,
+- uploaded versions,
+- any version that has a label.
+
+Automatic versions without a label are thinned as they get older:
+
+| Age of the version | What is kept |
+|---|---|
+| Up to 7 days | All automatic versions |
+| 7 to 90 days | One per day: the last version of that day |
+| More than 90 days | One per week: the last version of that week |
+
+Example: you edit a document on many days for four months. On each day, Drive makes several automatic versions.
+
+- The versions from the last 7 days are all there.
+- From 7 to 90 days ago, there is one version for each day that you edited.
+- From before that, there is one version for each week that you edited.
+
+Thinning runs once a day.
+
+### Keep a version forever
+
+To keep an automatic version forever, give it a label (see **Label a version**). If you remove the label later, the version is thinned again by the rules above.
+
+### Who edited
+
+When Drive thins a version, the names of the people who edited it move to the next newer version that is kept. So the history still shows everyone who changed the document.
+
+### The state a restore replaces
+
+Before each restore, Drive keeps the state you replace as an automatic version, with all edits up to that moment. It is thinned like other automatic versions. To keep it forever, give it a label.
+
+### Storage
+
+A version counts against the storage of the person who made it:
+
+- An automatic version counts against the file's owner.
+- A version from **Save version**, an upload or a restore counts against the person who did it.
+
+While the owner is over their storage limit, Drive does not make automatic versions. Editing still works. **Save version**, uploads and restores follow the usual storage limit.
+
+### What a restore brings back
+
+A restore brings back the content of the version and the suggestions saved in it. The restored text counts as a new change, so its author colors are not kept.
 
 ## When the file is deleted
 
