@@ -191,6 +191,11 @@ func registerShared(app *pocketbase.PocketBase) {
 			return handleVersionFile(app, re)
 		})
 
+		// Read-only HTML of one version, through its type's versionhooks.
+		e.Router.GET("/api/drive/versions/{id}/render", func(re *core.RequestEvent) error {
+			return handleVersionRender(app, re)
+		}).BindFunc(requireAuth)
+
 		// Folder download endpoints
 		e.Router.POST("/api/drive/download-token", func(re *core.RequestEvent) error {
 			return handleCreateDownloadToken(app, re)
@@ -435,11 +440,11 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 	}
 
 	if version != nil {
-		itemType := item.GetString("type")
-		if hook := versionhooks.For(itemType); hook.OnSnapshot != nil {
+		mimeType := item.GetString("mime_type")
+		if hook := versionhooks.For(mimeType); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, version); err != nil {
 				app.Logger().Warn("drive: version snapshot hook failed",
-					"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+					"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
 				// continue — the docx blob is already saved; the hook is supplementary
 			}
 		}
@@ -482,17 +487,16 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	// Snapshot the current file before restoring (system-generated, hidden
-	// from UI). The write runs after a live room's final save, so the hidden
-	// snapshot holds the editors' last edits — it is what an undo of this
-	// restore returns.
+	// Keep the state being replaced as a visible automatic version. The write
+	// runs after a live room's final save, so it holds the editors' last
+	// edits; those exist nowhere else, and the user can restore them.
 	if err := writeItemFile(item.Id, func() error {
 		fresh, err := app.FindRecordById("drive_items", item.Id)
 		if err != nil {
 			return re.NotFoundError("item not found", nil)
 		}
 		item = fresh
-		if _, err := snapshotCurrentFile(app, item, userID, "system", ""); err != nil {
+		if _, err := snapshotCurrentFile(app, item, userID, "auto", ""); err != nil {
 			app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
 		}
 
@@ -537,16 +541,30 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 			return re.BadRequestError("failed to save restored item", nil)
 		}
 
-		itemType := item.GetString("type")
-		if hook := versionhooks.For(itemType); hook.OnRestore != nil {
+		mimeType := item.GetString("mime_type")
+		if hook := versionhooks.For(mimeType); hook.OnRestore != nil {
 			if err := hook.OnRestore(app, item, version); err != nil {
 				app.Logger().Warn("drive: version restore hook failed",
-					"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+					"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
 			}
 		}
 		return nil
 	}); err != nil {
 		return err
+	}
+
+	// The restored state becomes a visible version, so the timeline shows
+	// where the current state came from; the copy above is the undo.
+	restored, err := snapshotCurrentFile(app, item, userID, "user", restoredFromLabel(version))
+	if err != nil {
+		app.Logger().Warn("drive: restored-from version failed", "id", item.Id, "error", err)
+	} else if restored != nil {
+		if hook := versionhooks.For(item.GetString("mime_type")); hook.OnSnapshot != nil {
+			if err := hook.OnSnapshot(app, item, restored); err != nil {
+				app.Logger().Warn("drive: restored-from snapshot hook failed",
+					"itemID", item.Id, "versionID", restored.Id, "err", err)
+			}
+		}
 	}
 
 	return re.JSON(http.StatusOK, api.VersionFileResponse{

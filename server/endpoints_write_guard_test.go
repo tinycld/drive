@@ -187,8 +187,9 @@ func TestRestoreVersion_ReplacesTheFileWhileOpen(t *testing.T) {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
 	}
 	assertFileBytes(t, env.app, item.Id, "v1")
-	if got := latestVersionBytes(t, env.app, item.Id, "system"); got != "edited" {
-		t.Fatalf("hidden version = %q, want the room's final save", got)
+	// The replaced state stays in the visible history (source "auto").
+	if got := latestVersionBytes(t, env.app, item.Id, "auto"); got != "edited" {
+		t.Fatalf("replaced-state version = %q, want the room's final save", got)
 	}
 }
 

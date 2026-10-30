@@ -1,6 +1,7 @@
 import { downloadFromUrl } from '@tinycld/core/file-viewer/file-url'
 import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import {
     Drawer,
@@ -10,6 +11,7 @@ import {
     DrawerContent,
     DrawerHeader,
 } from '@tinycld/core/ui/drawer'
+import { router } from 'expo-router'
 import { Download, FolderOpen, RotateCcw, X } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
@@ -17,6 +19,7 @@ import { useDetailPanelPresentation } from '../hooks/useDetailPanelPresentation'
 import { useDrive } from '../hooks/useDrive'
 import { useVersionHistory } from '../hooks/useVersionHistory'
 import { versionFileUrl } from '../lib/item-file-url'
+import { versionHistoryHref } from '../lib/version-history-href'
 import type { DriveItemView } from '../types'
 import { DriveItemMenuButton } from './DriveItemMenuButton'
 import { Thumbnail } from './Thumbnail'
@@ -323,7 +326,8 @@ function VersionsContent({ itemId, itemName }: { itemId: string; itemName: strin
 
     if (versions.length === 0) {
         return (
-            <View className="p-4">
+            <View className="p-4 gap-3">
+                <OpenHistoryButton itemId={itemId} />
                 <NeutralMessage>No previous versions</NeutralMessage>
             </View>
         )
@@ -332,6 +336,7 @@ function VersionsContent({ itemId, itemName }: { itemId: string; itemName: strin
     return (
         <>
             <View className="p-4">
+                <OpenHistoryButton itemId={itemId} />
                 {versions.map(version => (
                     <VersionRow
                         key={version.id}
@@ -465,6 +470,14 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
                 </Pressable>
             </View>
         </View>
+    )
+}
+
+function OpenHistoryButton({ itemId }: { itemId: string }) {
+    return (
+        <Button variant="outline" size="sm" onPress={() => router.push(versionHistoryHref(itemId))}>
+            <ButtonText>Open version history</ButtonText>
+        </Button>
     )
 }
 

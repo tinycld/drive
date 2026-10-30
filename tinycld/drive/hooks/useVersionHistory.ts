@@ -5,20 +5,19 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { notifyWriteFailed } from '../lib/notify-write-failed'
 
+// 'system' rows are the hidden copy a restore takes first; the history
+// shows the other sources. inArray, not not(eq(...)): pbtsdb compiles not()
+// to `!(...)`, which PocketBase's filter parser rejects.
+const VISIBLE_SOURCES = ['upload', 'user', 'auto']
+
 export function useVersionHistory(itemId: string) {
     const [versionsCollection] = useStore('drive_item_versions')
 
-    // drive_item_versions.source is a select field with values
-    // ['upload', 'system', 'user'] (drive/pb-migrations/1716200000,
-    // 1781500000). 'system' is a hidden snapshot-before-restore; history
-    // shows only user-visible versions. inArray of the two non-system
-    // values, not `not(eq(...))` — pbtsdb compiles `not()` to `!(...)`,
-    // which PocketBase's filter parser rejects with "invalid sign operator".
     const { data: versions } = useLiveQuery({
         query: query =>
             query
                 .from({ v: versionsCollection })
-                .where(({ v }) => and(eq(v.item, itemId), inArray(v.source, ['upload', 'user'])))
+                .where(({ v }) => and(eq(v.item, itemId), inArray(v.source, VISIBLE_SOURCES)))
                 .orderBy(({ v }) => v.version_number, 'desc'),
     })
 
@@ -36,9 +35,24 @@ export function useVersionHistory(itemId: string) {
         onError: err => notifyWriteFailed('drive.restore_version', 'Version not restored', err),
     })
 
+    const renameMutation = useMutation({
+        mutationFn: function* ({ versionId, label }: { versionId: string; label: string }) {
+            yield versionsCollection.update(versionId, draft => {
+                draft.label = label
+            })
+        },
+        onError: err => notifyWriteFailed('drive.version.rename', 'Version not renamed', err),
+    })
+
     return {
         versions: versions ?? [],
-        restoreVersion: restoreMutation.mutate,
+        restoreVersion: (versionId: string, opts?: { onSuccess?: () => void }) =>
+            restoreMutation.mutate(versionId, { onSuccess: opts?.onSuccess }),
         isRestoring: restoreMutation.isPending,
+        renameVersion: (versionId: string, label: string) =>
+            renameMutation.mutate({ versionId, label: label.trim() }),
+        isRenaming: renameMutation.isPending,
     }
 }
+
+export type VersionRow = ReturnType<typeof useVersionHistory>['versions'][number]

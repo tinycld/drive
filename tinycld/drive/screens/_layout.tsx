@@ -1,4 +1,5 @@
 import { FrozenSlideStack } from '@tinycld/core/components/workspace/FrozenStack'
+import { useUrl } from '@tinycld/core/lib/use-url'
 import { View } from 'react-native'
 import { DetailPanel } from '../components/DetailPanel'
 import { DriveDialogs, DriveToolbar } from '../components/DriveToolbar'
@@ -19,7 +20,15 @@ export default function DriveLayout() {
     )
 }
 
+// The version history screen is full screen: no Drive toolbar, listing or
+// detail panel around it.
+function useIsHistoryRoute() {
+    const { pathname } = useUrl()
+    return pathname.includes('/drive/history/')
+}
+
 function DriveLayoutInner() {
+    const isHistoryRoute = useIsHistoryRoute()
     const {
         selectedItem,
         activeSection,
@@ -33,13 +42,13 @@ function DriveLayoutInner() {
     // The detail panel sits beside the listing on a desktop and is a
     // right-anchored drawer over it on narrower screens — on a phone "Info"
     // opens the same drawer the web shows (see useDetailPanelPresentation).
-    const showDetail = detailPanelOpen && !!selectedItem
-    const isMyDrive = activeSection === 'my-drive'
+    const showDetail = detailPanelOpen && !!selectedItem && !isHistoryRoute
+    const isMyDrive = activeSection === 'my-drive' && !isHistoryRoute
 
     return (
         <View className="flex-1 bg-background">
             <DriveItemActionsHost />
-            <DriveToolbar />
+            <DriveChromeToolbar isVisible={!isHistoryRoute} />
             {/* A row, so an inline detail panel takes its place beside the
                 listing; an overlay panel renders outside it. */}
             <View className="flex-1 flex-row">
@@ -59,4 +68,11 @@ function DriveLayoutInner() {
             <DriveDialogs />
         </View>
     )
+}
+
+// The same tree serves the history route, so the frozen listing behind it
+// keeps its state; only the Drive chrome is hidden.
+function DriveChromeToolbar({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <DriveToolbar />
 }
