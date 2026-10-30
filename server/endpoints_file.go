@@ -47,7 +47,7 @@ func handleItemFile(app core.App, re *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	return serveRecordFile(app, re, item, item.GetString("name"))
+	return serveRecordFile(app, re, item, item.GetString("name"), "no-store")
 }
 
 // handleVersionFile serves GET /api/drive/versions/{id}/file. A version is
@@ -69,7 +69,7 @@ func handleVersionFile(app core.App, re *core.RequestEvent) error {
 	if err := driveshare.CheckReadItem(app, user.Id, item); err != nil {
 		return re.NotFoundError("version not found", nil)
 	}
-	return serveRecordFile(app, re, version, item.GetString("name"))
+	return serveRecordFile(app, re, version, item.GetString("name"), "no-store")
 }
 
 // fileRequestUser is the caller: the request's auth record, or the user a
@@ -113,10 +113,10 @@ func flushItemForRead(app core.App, re *core.RequestEvent, item *core.Record) (*
 }
 
 // serveRecordFile streams a record's `file` blob. Serve (not io.Copy) so Range
-// works; `?inline=1` opens in the browser, anything else downloads. no-store:
-// the URL is stable across saves, so nothing between here and the user may
-// keep a copy.
-func serveRecordFile(app core.App, re *core.RequestEvent, record *core.Record, name string) error {
+// works; `?inline=1` opens in the browser, anything else downloads. The
+// item and version URLs pass no-store: they are stable across saves, so
+// nothing between here and the user may keep a copy.
+func serveRecordFile(app core.App, re *core.RequestEvent, record *core.Record, name, cacheControl string) error {
 	filename := record.GetString("file")
 	if filename == "" {
 		return re.NotFoundError("file not found", nil)
@@ -138,6 +138,6 @@ func serveRecordFile(app core.App, re *core.RequestEvent, record *core.Record, n
 	h := re.Response.Header()
 	h.Set("Content-Type", mimeType)
 	h.Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, sanitizeFilename(name)))
-	h.Set("Cache-Control", "no-store")
+	h.Set("Cache-Control", cacheControl)
 	return fsys.Serve(re.Response, re.Request, record.BaseFilesPath()+"/"+filename, name)
 }
