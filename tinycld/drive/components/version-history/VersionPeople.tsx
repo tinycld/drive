@@ -14,16 +14,17 @@ function PersonName({ userId, isLast }: { userId: string; isLast: boolean }) {
 interface VersionPeopleProps {
     userIds: string[]
     shareNames: string[]
+    maxNames?: number
 }
 
 // Names are read per user in this row (useRecord), not joined into the list
 // query: the row only displays them.
-export function VersionPeople({ userIds, shareNames }: VersionPeopleProps) {
+export function VersionPeople({ userIds, shareNames, maxNames = MAX_NAMES }: VersionPeopleProps) {
     const names = [
         ...userIds.map(id => ({ kind: 'user' as const, id })),
         ...shareNames.map(id => ({ kind: 'share' as const, id })),
     ]
-    const shown = names.slice(0, MAX_NAMES)
+    const shown = names.slice(0, maxNames)
     if (shown.length === 0) return null
     const entries = shown.map((entry, index) => (
         <PersonEntry key={entry.id} entry={entry} isLast={index === shown.length - 1} />

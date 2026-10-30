@@ -4,6 +4,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
+import { changedBy } from '../components/version-history/changed-by'
 import { versionRowText } from '../components/version-history/version-row-text'
 import { type CompareMode, comparePlan, parseCompareMode } from '../lib/compare-mode'
 import { groupVersionsByDay } from '../lib/version-groups'
@@ -37,6 +38,7 @@ export function useVersionHistoryScreen(itemId: string) {
     const groups = groupVersionsByDay(history.versions, new Date())
     const baseVersion = history.versions.find(row => row.id === base)
     const plan = comparePlan(selected, baseVersion, compareMode)
+    const changedByPeople = changedBy(history.versions, plan)
     const baseTitle =
         plan.compare === 'versions' && baseVersion ? versionRowText(baseVersion).title : ''
 
@@ -87,6 +89,7 @@ export function useVersionHistoryScreen(itemId: string) {
         baseId: baseVersion?.id,
         baseTitle,
         plan,
+        changedByPeople,
         compareMode,
         setCompareMode: (mode: CompareMode) =>
             router.setParams({ compare: mode === 'none' ? undefined : mode, base: undefined }),
