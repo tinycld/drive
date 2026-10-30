@@ -4,7 +4,7 @@ go 1.27.1
 
 require (
 	github.com/grafana/sobek v0.0.0-20260722203707-64fef69693b6
-	github.com/nathanstitt/omnidoc v1.0.0
+	github.com/nathanstitt/omnidoc v1.1.2
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.40.4
 	modernc.org/sqlite v1.54.0
