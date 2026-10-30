@@ -4,9 +4,7 @@ import { ScreenHeader } from '@tinycld/core/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '@tinycld/core/components/SuretyGuard'
 import { ToolbarIconButton } from '@tinycld/core/components/ToolbarIconButton'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { captureException, errorToString } from '@tinycld/core/lib/errors'
 import type { HelpTopicId } from '@tinycld/core/lib/help/types'
-import { notify } from '@tinycld/core/lib/notify'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { Controller, useForm, zodResolver } from '@tinycld/core/ui/form'
@@ -31,12 +29,12 @@ import {
     UserPlus,
     X,
 } from 'lucide-react-native'
-import { ClientResponseError } from 'pocketbase'
 import { useCallback, useMemo, useState } from 'react'
 import { Platform, Pressable, Text, View } from 'react-native'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveDragPayload } from '../lib/dnd'
 import { ITEM_NAME_MAX_LENGTH, itemNameSchema } from '../lib/item-name-schema'
+import { notifyWriteFailed } from '../lib/write-refused'
 import { type PromptDialog, useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, SidebarSection, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
@@ -614,17 +612,9 @@ function SelectionToolbar({
             input.type = 'file'
             input.onchange = () => {
                 if (input.files?.[0]) {
-                    uploadNewVersion(item.id, input.files[0]).catch(err => {
-                        // A 409 is drive refusing the write because the file
-                        // is open in an editor: expected, not a bug report.
-                        if (!isConflict(err)) captureException('uploadNewVersion', err)
-                        notify.emit({
-                            event: 'mutation.error',
-                            title: 'Version not uploaded',
-                            body: errorToString(err),
-                            data: { operation: 'drive.upload_version', error: errorToString(err) },
-                        })
-                    })
+                    uploadNewVersion(item.id, input.files[0]).catch(err =>
+                        notifyWriteFailed('drive.upload_version', 'Version not uploaded', err)
+                    )
                 }
             }
             input.click()
@@ -1162,8 +1152,4 @@ function SheetAction({
             </Text>
         </Pressable>
     )
-}
-
-function isConflict(err: unknown): boolean {
-    return err instanceof ClientResponseError && err.status === 409
 }
