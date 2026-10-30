@@ -5,6 +5,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 import { useVersionHtml } from '../../hooks/useVersionHtml'
+import { withAlpha } from '../../lib/color-alpha'
 import type { CompareMode } from '../../lib/compare-mode'
 import { versionFileUrl } from '../../lib/item-file-url'
 
@@ -18,14 +19,12 @@ interface VersionPreviewProps {
 // Marks from the server's htmldiff, in theme colors so they follow light
 // and dark mode.
 function useDiffCss() {
-    const insBg = useThemeColor('success-soft')
-    const insFg = useThemeColor('success-soft-foreground')
-    const delBg = useThemeColor('danger-soft')
-    const delFg = useThemeColor('danger-soft-foreground')
+    const added = useThemeColor('success')
+    const removed = useThemeColor('danger')
     const format = useThemeColor('warning')
     return `
-ins, [data-diff="ins"] { background: ${insBg}; color: ${insFg}; text-decoration: none; }
-del, [data-diff="del"] { background: ${delBg}; color: ${delFg}; text-decoration: line-through; }
+ins, [data-diff="ins"] { background: ${withAlpha(added, 0.22)}; text-decoration: none; }
+del, [data-diff="del"] { background: ${withAlpha(removed, 0.18)}; text-decoration: line-through; }
 [data-changed="format"] { border-left: 3px solid ${format}; padding-left: 6px; }
 `
 }
