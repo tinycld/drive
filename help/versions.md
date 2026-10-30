@@ -32,6 +32,10 @@ Click a previous version's row and choose **Restore**. The selected version beco
 
 Restore preserves the file's identity. Share links, stars, comments, and folder location are unchanged.
 
+## When the file is open in an editor
+
+You cannot restore a version or upload a new version while the file is open in an editor (Text or Calc), in any tab or by any person. Drive shows "this file is open in an editor" and changes nothing, because the editor would save its own copy over the new contents. Close the file everywhere, then try again.
+
 ## Downloading a previous version
 
 Click a previous version's row and choose **Download** to save just that version's bytes to your device. The current version is unaffected.
