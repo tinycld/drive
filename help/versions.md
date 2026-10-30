@@ -1,50 +1,69 @@
 ---
 title: Version history
-summary: Restoring and downloading prior versions of a file
-tags: [versions, history, restore]
+summary: See earlier versions of a file, label them, and restore one
+tags: [versions, history, restore, label]
 order: 60
 ---
 
-## How versions are created
+## Open version history
 
-Every time the contents of a file change, Drive saves the previous version automatically. New versions come from:
+You can open the history of a file in two ways:
 
-- **Upload new version** — right-click a file and pick this to replace its contents while keeping the file's identity, name, and share links.
-- **System updates** — for files that other packages own (e.g. a [Calc](help://calc:getting-started) workbook saving back to its `.xlsx` blob), saves create system-source versions.
+- In Drive, select the file, open the **Info** panel, choose the **Versions** tab, and click **Open version history**.
+- In a document, choose **File → Version history**.
 
-The file name, location, share settings, and stars never change with a new version — only the bytes.
+The history opens full screen. The list of versions is on the right, grouped by day, newest first. On a phone, the list fills the screen. Tap a version to see it, and tap **Back** to return to the list.
 
-## Viewing version history
+Each version shows its label or the time it was made. It also shows who saved it, and a tag:
 
-Open the file's **Info** panel and switch to the **Versions** tab. Each row shows:
+- **Saved**: someone chose **File → Save version**.
+- **Upload**: someone uploaded a new version of the file.
 
-- A timestamp.
-- The size of that version.
-- The user who created it (for uploaded versions).
-- A source tag — **Upload** or **System** — so you can tell automated saves apart from manual replacements.
-- An optional **label** (e.g. "Before Q1 revisions"). Click any version to add or change its label.
+## Preview a version
 
-The current version sits at the top, highlighted.
+Click a version in the list to see it. The preview is read-only. Your current document does not change.
 
-## Restoring a previous version
+Some file types have no preview. For these, the history shows **Download** so you can open that version on your device.
 
-Click a previous version's row and choose **Restore**. The selected version becomes the current one, and the previously-current version is moved into history (so restore is itself reversible — restore the version you came from to undo).
+## Label a version
 
-Restore preserves the file's identity. Share links, stars, comments, and folder location are unchanged.
+To give a version a name, such as "Initial draft" or "Approved":
 
-## Downloading a previous version
+1. Select the version.
+2. Click **Rename**.
+3. Type the label. A label can have up to 500 characters.
+4. Click **Save**.
 
-Click a previous version's row and choose **Download** to save just that version's bytes to your device. The current version is unaffected.
+To remove a label, rename the version and leave the field empty.
+
+## Restore a version
+
+1. Select the version.
+2. Click **Restore**, then confirm.
+
+The file goes back to the content of that version. The history keeps every version:
+
+- The state before the restore is kept, so you can restore it again.
+- A new version named "Restored from …" appears at the top of the list.
+
+If other people have the document open, their editors change to the restored content at once.
+
+The file name, its folder, its share settings and its links do not change.
+
+## Download a version
+
+In the **Info** panel's **Versions** tab, click the download icon next to a version. You get only that version's file. The current file does not change.
 
 ## How long versions are kept
 
-Versions are kept indefinitely. They count toward your storage quota, so deleting old versions you don't need is a way to free up space — though there's currently no per-version delete UI; the practical lever is whether to upload new versions in the first place.
+Versions are kept until the file is permanently deleted. Every version counts against the storage of the file's owner.
 
-## When the file itself is deleted
+## When the file is deleted
 
-Moving a file to [Trash](help://drive:trash) keeps the version history intact — restore from trash and the full history comes back. Permanently deleting a file removes every version with it.
+When you move a file to [Trash](help://drive:trash), its history stays. Restore the file from the trash, and the full history comes back. When you delete a file permanently, all of its versions are deleted too.
 
 ## See also
 
 - [Files](help://drive:files)
 - [Uploading](help://drive:uploading)
+- [Saving a version in a document](help://text:save-version)
