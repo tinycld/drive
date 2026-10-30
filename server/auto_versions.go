@@ -17,7 +17,7 @@ import (
 // stop editing.
 func handleEditCheckpoint(app core.App) editcheckpoint.Listener {
 	return func(ctx context.Context, itemID string, editors editcheckpoint.Editors, reason editcheckpoint.Reason) {
-		if err := realtime.FlushItem(itemID); err != nil {
+		if err := realtime.FlushItem(app, itemID); err != nil {
 			if errors.Is(err, realtime.ErrReadOnly) || errors.Is(err, realtime.ErrStopping) {
 				versionLog.InfoContext(ctx, "auto version skipped: the server cannot write now",
 					"itemID", itemID, "reason", reason)

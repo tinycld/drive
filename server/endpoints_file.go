@@ -93,7 +93,7 @@ func fileRequestUser(app core.App, re *core.RequestEvent) (*core.Record, error) 
 // record as stored afterwards. A flush the server cannot run is an error the
 // reader must see — a stale file is not served as if it were current.
 func flushItemForRead(app core.App, re *core.RequestEvent, item *core.Record) (*core.Record, error) {
-	if err := realtime.FlushItem(item.Id); err != nil {
+	if err := realtime.FlushItem(app, item.Id); err != nil {
 		switch {
 		case errors.Is(err, realtime.ErrReadOnly):
 			return nil, router.NewApiError(http.StatusConflict,
@@ -116,8 +116,8 @@ func flushItemForRead(app core.App, re *core.RequestEvent, item *core.Record) (*
 // editor room open on the item closes first and saves its last edits, so
 // the write replaces them and the editors reload the new file. write must
 // load the item again, since that save changes it.
-func writeItemFile(itemID string, write func() error) error {
-	err := realtime.WriteItem(itemID, write)
+func writeItemFile(app core.App, itemID string, write func() error) error {
+	err := realtime.WriteItem(app, itemID, write)
 	if errors.Is(err, realtime.ErrItemBusy) {
 		return router.NewApiError(http.StatusServiceUnavailable,
 			"the editor that has this file open did not close in time; try again", nil)
@@ -133,7 +133,7 @@ func guardFileUpdateRequest(e *core.RecordRequestEvent) error {
 		e.Record.GetString("file") == e.Record.Original().GetString("file") {
 		return e.Next()
 	}
-	return writeItemFile(e.Record.Id, e.Next)
+	return writeItemFile(e.App, e.Record.Id, e.Next)
 }
 
 // serveRecordFile streams a record's `file` blob. Serve (not io.Copy) so Range

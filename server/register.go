@@ -116,7 +116,7 @@ func registerShared(app *pocketbase.PocketBase) {
 
 	// Automatic versions: core's realtime rooms fire a checkpoint after an
 	// idle period and when the last editor leaves.
-	editcheckpoint.Register(handleEditCheckpoint(app))
+	editcheckpoint.Register(app, handleEditCheckpoint(app))
 
 	// Version retention, daily. The scheduler skips jobs while read-only.
 	app.Cron().MustAdd("drive_version_retention", "23 3 * * *", func() {
@@ -304,13 +304,13 @@ var driveWebDAVHooks = webdav.Hooks{
 	},
 	// A document open in an editor is written on a debounce; a DAV client
 	// reading it gets the edits the editor shows, not the last save.
-	BeforeRead: func(_ core.App, record *core.Record) error {
-		return realtime.FlushItem(record.Id)
+	BeforeRead: func(app core.App, record *core.Record) error {
+		return realtime.FlushItem(app, record.Id)
 	},
 	// A PUT over a document open in an editor would be overwritten by the
 	// room's next save; close the room first.
-	GuardWrite: func(_ core.App, record *core.Record, write func() error) error {
-		return realtime.WriteItem(record.Id, write)
+	GuardWrite: func(app core.App, record *core.Record, write func() error) error {
+		return realtime.WriteItem(app, record.Id, write)
 	},
 }
 
@@ -378,7 +378,7 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	if err := writeItemFile(item.Id, func() error {
+	if err := writeItemFile(app, item.Id, func() error {
 		fresh, err := app.FindRecordById("drive_items", item.Id)
 		if err != nil {
 			return re.NotFoundError("item not found", nil)
@@ -387,7 +387,7 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 		if _, err := snapshotCurrentFile(app, item, snapshotOpts{
 			UserID:  userID,
 			Source:  "upload",
-			Editors: realtime.TakeEditors(item.Id),
+			Editors: realtime.TakeEditors(app, item.Id),
 		}); err != nil {
 			app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
 		}
@@ -461,7 +461,7 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 		UserID:  userID,
 		Source:  "user",
 		Label:   label,
-		Editors: realtime.TakeEditors(item.Id),
+		Editors: realtime.TakeEditors(app, item.Id),
 	})
 	if err != nil {
 		app.Logger().Warn("version snapshot failed", "id", item.Id, "error", err)
@@ -519,7 +519,7 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 	// Keep the state being replaced as a visible automatic version. The write
 	// runs after a live room's final save, so it holds the editors' last
 	// edits; those exist nowhere else, and the user can restore them.
-	if err := writeItemFile(item.Id, func() error {
+	if err := writeItemFile(app, item.Id, func() error {
 		fresh, err := app.FindRecordById("drive_items", item.Id)
 		if err != nil {
 			return re.NotFoundError("item not found", nil)
@@ -528,7 +528,7 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		if _, err := snapshotCurrentFile(app, item, snapshotOpts{
 			UserID:  userID,
 			Source:  "auto",
-			Editors: realtime.TakeEditors(item.Id),
+			Editors: realtime.TakeEditors(app, item.Id),
 		}); err != nil {
 			app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
 		}

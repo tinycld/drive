@@ -66,7 +66,7 @@ func TestCheckpoint_SkipsWhenOverQuota(t *testing.T) {
 func TestCheckpoint_SkipsWhenFlushRefused(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
-	realtime.RegisterRoomKindWith("refuse-"+t.Name(), realtime.RoomKindOptions{
+	realtime.RegisterRoomKindWith(env.app, "refuse-"+t.Name(), realtime.RoomKindOptions{
 		Authorize: func(*core.Record, string) error { return nil },
 		ForceFlush: func(id string) error {
 			if id == item.Id {
