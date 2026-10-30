@@ -51,4 +51,17 @@ describe('useDoubleClick', () => {
         expect(double).not.toHaveBeenCalled()
         expect(settled).toHaveBeenCalledTimes(2)
     })
+
+    // Under load the first click's re-render can delay the second click's
+    // handler past the window, though the user clicked twice quickly. The
+    // gap is measured between the clicks themselves (event.timeStamp).
+    it('measures the gap between the clicks, not between the handler runs', () => {
+        const single = vi.fn()
+        const double = vi.fn()
+        const { result } = renderHook(() => useDoubleClick(single, double))
+        result.current({ timeStamp: 1000 } as GestureResponderEvent)
+        vi.advanceTimersByTime(500)
+        result.current({ timeStamp: 1120 } as GestureResponderEvent)
+        expect(double).toHaveBeenCalledTimes(1)
+    })
 })
