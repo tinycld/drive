@@ -21,7 +21,8 @@ import (
 // the two share this function at all.
 
 // setupSearchApp builds the minimal schema searchDriveItems reads: users with
-// a `disabled` flag, drive_items, drive_shares, and the FTS virtual table.
+// a `disabled` flag, drive_items, drive_shares, drive_item_state, and the FTS
+// virtual table.
 func setupSearchApp(t *testing.T) (*tests.TestApp, *core.Record) {
 	t.Helper()
 	app, err := tests.NewTestApp()
@@ -54,6 +55,10 @@ func setupSearchApp(t *testing.T) (*tests.TestApp, *core.Record) {
 	if err := app.Save(items); err != nil {
 		t.Fatal(err)
 	}
+	items.Fields.Add(&core.RelationField{Name: "parent", CollectionId: items.Id, MaxSelect: 1})
+	if err := app.Save(items); err != nil {
+		t.Fatal(err)
+	}
 
 	shares := core.NewBaseCollection("drive_shares")
 	shares.Fields.Add(&core.RelationField{
@@ -71,6 +76,18 @@ func setupSearchApp(t *testing.T) (*tests.TestApp, *core.Record) {
 		Name: "group", CollectionId: "pbc_groups_01", MaxSelect: 1,
 	})
 	if err := app.Save(shares); err != nil {
+		t.Fatal(err)
+	}
+
+	state := core.NewBaseCollection("drive_item_state")
+	state.Fields.Add(&core.RelationField{
+		Name: "item", Required: true, CollectionId: items.Id, MaxSelect: 1,
+	})
+	state.Fields.Add(&core.RelationField{
+		Name: "user", Required: true, CollectionId: users.Id, MaxSelect: 1,
+	})
+	state.Fields.Add(&core.DateField{Name: "trashed_at"})
+	if err := app.Save(state); err != nil {
 		t.Fatal(err)
 	}
 

@@ -269,11 +269,15 @@ export function useDriveItems({
 
     const itemsById = useMemo(() => new Map(allItems.map(i => [i.id, i])), [allItems])
 
+    // A search hit that no live query has loaded still reads its star and
+    // trash state from the user's drive_item_state rows, so trashing it from
+    // the results removes it at once instead of after the next server search.
     const searchItemViews = useMemo<DriveItemView[]>(() => {
         if (!isSearchActive) return []
-        return searchResults.map(sr => {
+        const views = searchResults.map(sr => {
             const existing = itemsById.get(sr.id)
             if (existing) return existing
+            const state = stateByItem.get(sr.id)
             return {
                 id: sr.id,
                 name: sr.name,
@@ -285,15 +289,16 @@ export function useDriveItems({
                 updated: sr.updated,
                 size: sr.size,
                 shared: false,
-                starred: false,
-                trashedAt: '',
+                starred: state?.is_starred ?? false,
+                trashedAt: state?.trashed_at ?? '',
                 file: '',
                 thumbnail: '',
                 description: sr.description,
                 category: mimeTypeToCategory(sr.mime_type, sr.is_folder),
             }
         })
-    }, [isSearchActive, searchResults, itemsById])
+        return views.filter(i => !i.trashedAt)
+    }, [isSearchActive, searchResults, itemsById, stateByItem])
 
     const currentFolderItems = useMemo<DriveItemView[]>(() => {
         if (!showCurrentFolder) return []

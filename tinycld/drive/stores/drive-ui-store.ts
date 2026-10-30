@@ -54,6 +54,8 @@ interface DriveUIActions {
     /** Replace the whole selection (used by drag-to-select / marquee). */
     setSelection: (ids: Set<string>) => void
     clearSelection: () => void
+    /** Drops one item from every selection, for an item that leaves the listing. */
+    deselectItem: (id: string) => void
     setSearchQuery: (query: string) => void
     openPrompt: (state: PromptDialog) => void
     closePrompt: () => void
@@ -126,6 +128,17 @@ export const useDriveUIStore = create<DriveUIState & DriveUIActions>(set => ({
         set(prev => (sameSelection(prev.selectedIds, ids) ? prev : { selectedIds: ids })),
 
     clearSelection: () => set({ selectedIds: new Set<string>(), lastSelectedId: null }),
+
+    deselectItem: (id: string) =>
+        set(prev => {
+            const selectedIds = new Set(prev.selectedIds)
+            selectedIds.delete(id)
+            return {
+                selectedIds,
+                selectedItemId: prev.selectedItemId === id ? null : prev.selectedItemId,
+                lastSelectedId: prev.lastSelectedId === id ? null : prev.lastSelectedId,
+            }
+        }),
 
     setSearchQuery: (query: string) => set({ searchQuery: query }),
 

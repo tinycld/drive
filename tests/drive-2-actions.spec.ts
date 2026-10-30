@@ -422,6 +422,64 @@ test.describe('Drive — Actions', () => {
         await expect(page.getByText('Move', { exact: true })).toBeVisible()
     })
 
+    // Search reads its own server results, so a trashed hit has to leave them
+    // twice over: at once on the client, and from the server on the next query.
+    // Trash does not cascade to a folder's children, so the server must also
+    // leave out what sits under a trashed folder.
+    test('trashing from search results removes the item and its contents', async ({ page }) => {
+        const { folderName, fileName } = await setupFixtureFile('SearchTrash')
+        const stamp = folderName.replace('Drive2-', '')
+        const keptName = `Kept-${stamp}.txt`
+        await createDriveItem({ name: keptName })
+        await ensureListView(page)
+
+        const folder = await revealDriveRow(page, folderName)
+        await folder.getByLabel('More actions', { exact: true }).first().click()
+        await page.getByRole('menuitem', { name: 'Move to trash' }).click()
+        await expect(driveItem(page, folderName)).toHaveCount(0)
+
+        // A new query: the kept file proves the server answered.
+        await page.getByPlaceholder('Search in Files').fill(stamp)
+        await expect(driveItem(page, keptName)).toBeVisible()
+        await expect(driveItem(page, folderName)).toHaveCount(0)
+        await expect(driveItem(page, fileName)).toHaveCount(0)
+    })
+
+    // The menu is portaled, but React bubbles its clicks up the component
+    // tree to the row that renders it. A row click collapses a multi-selection
+    // to that row (and later opens the detail panel), so a kept selection
+    // proves the menu click stopped at the menu.
+    test('a ⋯ menu action does not also click the row', async ({ page }) => {
+        const stamp = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        const folderName = `Drive2-${stamp}`
+        const firstName = `MenuFirst-${stamp}.txt`
+        const secondName = `MenuSecond-${stamp}.txt`
+        const folder = await createDriveItem({ name: folderName, isFolder: true })
+        await createDriveItem({ name: firstName, parent: folder.id })
+        await createDriveItem({ name: secondName, parent: folder.id })
+
+        await ensureListView(page)
+        await openDriveItemViaSearch(page, folderName)
+        const first = driveItem(page, firstName)
+        const second = driveItem(page, secondName)
+        await expect(first).toBeVisible()
+        await expect(second).toBeVisible()
+
+        const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
+        await first.click({ modifiers: [modifier] })
+        await second.click({ modifiers: [modifier] })
+        await expect(page.getByText('2 selected')).toBeVisible()
+
+        await second.getByLabel('More actions', { exact: true }).first().click()
+        await page.getByRole('menuitem', { name: 'Add star' }).click()
+        await expect(page.getByText('2 selected')).toBeVisible()
+
+        await second.getByLabel('More actions', { exact: true }).first().click()
+        await page.getByRole('menuitem', { name: 'Remove star' }).click()
+        await expect(page.getByText('2 selected')).toBeVisible()
+        await expect(page.getByTestId('drive-detail-panel')).toBeHidden()
+    })
+
     // The detail panel's header also carries a ⋯ button (left of the close X),
     // which opens its own menu overlay — a path that can silently fail to open,
     // most of all when the panel is itself an overlay. Assert it.

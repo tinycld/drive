@@ -144,6 +144,18 @@ func handleDriveSearch(app core.App, re *core.RequestEvent) error {
 	return re.JSON(http.StatusOK, resp)
 }
 
+// trashedByUserCTE lists the items the caller has trashed and everything
+// under them. Trash is per-user state on drive_item_state and does not cascade
+// to children, but a trashed folder's contents must leave search with it, as
+// they leave the folder view.
+const trashedByUserCTE = `
+	WITH RECURSIVE trashed(id) AS (
+		SELECT item FROM drive_item_state
+		WHERE user = {:userID} AND trashed_at != ''
+		UNION
+		SELECT c.id FROM drive_items c JOIN trashed t ON c.parent = t.id
+	)`
+
 // searchDriveItems runs the authorized FTS query. Shared by the HTTP endpoint
 // and the $drive.search JS binding so both enforce the same access scope — a
 // binding that reimplemented the filter could drift out of agreement with the
@@ -178,7 +190,7 @@ func searchDriveItems(ctx context.Context, app core.App, userID, q, exclude stri
 
 	// Single-org: authorization is a single drive_shares row keyed by the
 	// caller's user id — the former per-membership IN clause is gone.
-	searchQuery := `
+	searchQuery := trashedByUserCTE + `
 		SELECT DISTINCT
 			d.id,
 			d.name,
@@ -193,6 +205,7 @@ func searchDriveItems(ctx context.Context, app core.App, userID, q, exclude stri
 		JOIN drive_shares ds ON ds.item = d.id
 		WHERE fts_drive_items MATCH {:ftsQuery}
 		AND ds.user = {:userID}
+		AND d.id NOT IN (SELECT id FROM trashed)
 		ORDER BY fts_drive_items.rank
 		LIMIT {:limit} OFFSET {:offset}
 	`
@@ -234,13 +247,14 @@ func searchDriveItems(ctx context.Context, app core.App, userID, q, exclude stri
 	}
 
 	// Count total
-	countQuery := `
+	countQuery := trashedByUserCTE + `
 		SELECT COUNT(DISTINCT d.id) as total
 		FROM fts_drive_items
 		JOIN drive_items d ON d.id = fts_drive_items.record_id
 		JOIN drive_shares ds ON ds.item = d.id
 		WHERE fts_drive_items MATCH {:ftsQuery}
-		AND ds.user = {:userID}`
+		AND ds.user = {:userID}
+		AND d.id NOT IN (SELECT id FROM trashed)`
 
 	countParams := map[string]any{"ftsQuery": ftsQuery, "userID": userID}
 
