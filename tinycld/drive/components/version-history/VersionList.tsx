@@ -8,15 +8,29 @@ interface VersionListProps {
     isVisible: boolean
     groups: VersionGroupData[]
     selectedId: string | undefined
+    baseId: string | undefined
+    rowActions: RowActionProps
     onSelect: (versionId: string) => void
+    onPickBase: (versionId: string) => void
     className?: string
+}
+
+// Rename and Restore for the active row.
+export interface RowActionProps {
+    isEnabled: boolean
+    isRestoring: boolean
+    onRename: (label: string) => void
+    onRestore: () => void
 }
 
 export function VersionList({
     isVisible,
     groups,
     selectedId,
+    baseId,
+    rowActions,
     onSelect,
+    onPickBase,
     className,
 }: VersionListProps) {
     if (!isVisible) return null
@@ -25,7 +39,10 @@ export function VersionList({
             key={group.dayKey}
             group={group}
             selectedId={selectedId}
+            baseId={baseId}
+            rowActions={rowActions}
             onSelect={onSelect}
+            onPickBase={onPickBase}
         />
     ))
     // The width goes on a View: a ScrollView's className does not size it.
@@ -42,18 +59,30 @@ export function VersionList({
 function VersionGroup({
     group,
     selectedId,
+    baseId,
+    rowActions,
     onSelect,
+    onPickBase,
 }: {
     group: VersionGroupData
     selectedId: string | undefined
+    baseId: string | undefined
+    rowActions: RowActionProps
     onSelect: (versionId: string) => void
+    onPickBase: (versionId: string) => void
 }) {
     const rows = group.versions.map(version => (
         <VersionListRow
             key={version.id}
             version={version}
             isSelected={version.id === selectedId}
+            isBase={version.id === baseId}
+            isActionsVisible={rowActions.isEnabled && version.id === selectedId}
+            isRestoring={rowActions.isRestoring}
+            onRename={rowActions.onRename}
+            onRestore={rowActions.onRestore}
             onSelect={onSelect}
+            onPickBase={onPickBase}
         />
     ))
     return (

@@ -3,6 +3,8 @@ package drive
 import (
 	"net/http"
 
+	"github.com/pocketbase/dbx"
+
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"tinycld.org/core/driveshare"
@@ -61,4 +63,66 @@ func handleVersionRender(app core.App, re *core.RequestEvent) error {
 		return re.InternalServerError("could not render this version", nil)
 	}
 	return writeVersionHTML(re, html)
+}
+
+// handleVersionDiff serves a compare through the item type's versionhooks
+// Diff:
+//   - default: the version, with the changes from the version just before
+//     it marked (hidden restore copies are skipped; the first version
+//     compares with nothing)
+//   - ?from=<id>: the version, with the changes from that version marked
+//   - ?against=current: the document as it is now, with the changes since
+//     the version marked. Open edits are saved first, so the compare shows
+//     what the editor shows.
+func handleVersionDiff(app core.App, re *core.RequestEvent) error {
+	item, version, err := loadVersionForRead(app, re, re.Request.PathValue("id"))
+	if err != nil {
+		return err
+	}
+	hook := versionhooks.For(item.GetString("mime_type"))
+	if hook.Diff == nil {
+		return re.NotFoundError("no compare for this file type", nil)
+	}
+	query := re.Request.URL.Query()
+	from, to := (*core.Record)(nil), version
+	switch {
+	case query.Get("against") == "current" && query.Get("from") != "":
+		return re.BadRequestError("use from or against, not both", nil)
+	case query.Get("against") == "current":
+		if item, err = flushItemForRead(app, re, item); err != nil {
+			return err
+		}
+		from, to = version, item
+	default:
+		if from, err = diffBase(app, re, item, version); err != nil {
+			return err
+		}
+	}
+	html, err := hook.Diff(re.Request.Context(), app, item, from, to, re.Auth.Id)
+	if err != nil {
+		versionLog.WarnContext(re.Request.Context(), "version diff failed",
+			"itemID", item.Id, "versionID", version.Id, "err", err)
+		return re.InternalServerError("could not compare this version", nil)
+	}
+	return writeVersionHTML(re, html)
+}
+
+func diffBase(app core.App, re *core.RequestEvent, item, version *core.Record) (*core.Record, error) {
+	if fromID := re.Request.URL.Query().Get("from"); fromID != "" {
+		from, err := app.FindRecordById("drive_item_versions", fromID)
+		if err != nil || from.GetString("item") != item.Id {
+			return nil, re.BadRequestError("from is not a version of this file", nil)
+		}
+		return from, nil
+	}
+	rows, err := app.FindRecordsByFilter("drive_item_versions",
+		"item = {:item} && version_number < {:n} && source != 'system'", "-version_number", 1, 0,
+		dbx.Params{"item": item.Id, "n": version.GetInt("version_number")})
+	if err != nil {
+		return nil, re.InternalServerError("could not find the previous version", nil)
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return rows[0], nil
 }

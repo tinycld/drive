@@ -209,6 +209,11 @@ func registerShared(app *pocketbase.PocketBase) {
 			return handleVersionRender(app, re)
 		}).BindFunc(requireAuth)
 
+		// The same version with the changes from an earlier one marked.
+		e.Router.GET("/api/drive/versions/{id}/diff", func(re *core.RequestEvent) error {
+			return handleVersionDiff(app, re)
+		}).BindFunc(requireAuth)
+
 		// Folder download endpoints
 		e.Router.POST("/api/drive/download-token", func(re *core.RequestEvent) error {
 			return handleCreateDownloadToken(app, re)

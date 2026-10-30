@@ -26,21 +26,49 @@ Click a version in the list to see it. The preview is read-only. Your current do
 
 Some file types have no preview. For these, the history shows **Download** so you can open that version on your device.
 
+## Compare versions
+
+Select a version, then choose what the preview shows:
+
+- **vs. current**: the document as it is now, with the changes since the selected version marked. Edits that are not saved as a version yet are included. Use this before you restore, to see what a restore would undo.
+- **vs. previous**: the selected version, with the changes since the version just before it marked.
+- **Version**: the selected version without marks.
+
+### Compare two versions
+
+To compare any two versions:
+
+1. Select one version.
+2. ⌘-click the other version in the list. On a phone, press and hold the other version, then tap the one to open.
+
+The preview shows the newer of the two, with the changes since the older one marked. The order you pick them in does not matter. The other version is marked **Compared** in the list, and a line under the toolbar says which version you compare with.
+
+The compared version stays while you select other versions, so you can step through the history against one version. To stop, click **Clear**, choose **Version**, **vs. previous** or **vs. current**, or ⌘-click the compared version again.
+
+In a compare:
+
+- Added text has a green background.
+- Removed text has a red background and a line through it.
+- A bar at the left marks a paragraph where only the formatting changed.
+- When a table, an image or a link changed, the old block shows as removed and the new block as added.
+
+Everyone who can open the file can compare versions. Compare is not available for every file type.
+
 ## Label a version
 
 To give a version a name, such as "Initial draft" or "Approved":
 
 1. Select the version.
-2. Click **Rename**.
+2. Click **Rename** on that version in the list. The title becomes a text field.
 3. Type the label. A label can have up to 500 characters.
-4. Click **Save**.
+4. Press Enter or click **Save**. To stop without a change, press Escape or click **Cancel**.
 
-To remove a label, rename the version and leave the field empty.
+To remove a label, rename the version and leave the field empty. On a phone, **Rename** is at the top of the screen when a version is open.
 
 ## Restore a version
 
 1. Select the version.
-2. Click **Restore**, then confirm.
+2. Click **Restore** on that version in the list, then confirm. On a phone, **Restore** is at the top of the screen when a version is open.
 
 The file goes back to the content of that version. The history keeps every version:
 

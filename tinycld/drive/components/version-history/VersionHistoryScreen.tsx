@@ -2,6 +2,7 @@ import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import { PromptDialog } from '@tinycld/core/ui/PromptDialog'
 import { View } from 'react-native'
 import { useVersionHistoryScreen } from '../../hooks/useVersionHistoryScreen'
+import type { ComparePlan } from '../../lib/compare-mode'
 import { VersionList } from './VersionList'
 import { VersionPreview } from './VersionPreview'
 import { VersionToolbar } from './VersionToolbar'
@@ -20,13 +21,18 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                 onBack={screen.back}
                 onRename={screen.openRename}
                 onRestore={screen.openRestore}
-                isActionsVisible={screen.isActionsVisible}
+                isActionsVisible={screen.isToolbarActionsVisible}
                 isRestoring={screen.isRestoring}
+                isCompareVisible={screen.isCompareVisible}
+                compareMode={screen.compareMode}
+                onCompareModeChange={screen.setCompareMode}
+                baseTitle={screen.baseTitle}
+                onClearBase={screen.clearBase}
             />
             <View className="flex-1 flex-row">
                 <PreviewPane
                     isVisible={screen.isPreviewVisible}
-                    versionId={screen.selected?.id}
+                    plan={screen.plan}
                     itemName={screen.itemName}
                     mimeType={screen.mimeType}
                 />
@@ -34,7 +40,10 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                     isVisible={screen.isListVisible}
                     groups={screen.groups}
                     selectedId={screen.selected?.id}
+                    baseId={screen.baseId}
+                    rowActions={screen.rowActions}
                     onSelect={screen.select}
+                    onPickBase={screen.pickBase}
                     className={listClass}
                 />
             </View>
@@ -65,19 +74,19 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
 
 function PreviewPane({
     isVisible,
-    versionId,
+    plan,
     itemName,
     mimeType,
 }: {
     isVisible: boolean
-    versionId: string | undefined
+    plan: ComparePlan
     itemName: string
     mimeType: string
 }) {
     if (!isVisible) return null
     return (
         <View className="flex-1">
-            <VersionPreview versionId={versionId} itemName={itemName} mimeType={mimeType} />
+            <VersionPreview plan={plan} itemName={itemName} mimeType={mimeType} />
         </View>
     )
 }
