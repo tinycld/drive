@@ -138,7 +138,7 @@ func sendShareInvite(ctx context.Context, app core.App, senderName string, r api
 		return
 	}
 
-	if err := mailer.DefaultSender().Send(ctx, msg); err != nil {
+	if err := mailer.DefaultSender(app).Send(ctx, msg); err != nil {
 		app.Logger().Error("Failed to send share invite", "to", r.Email, "error", err)
 	}
 }
@@ -227,7 +227,7 @@ func sendExternalShareInvite(ctx context.Context, app core.App, senderName strin
 		return
 	}
 
-	if err := mailer.DefaultSender().Send(ctx, msg); err != nil {
+	if err := mailer.DefaultSender(app).Send(ctx, msg); err != nil {
 		app.Logger().Error("Failed to send external share invite", "to", r.Email, "error", err)
 	}
 }
