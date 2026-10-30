@@ -45,7 +45,7 @@ func handleEditCheckpoint(app core.App) editcheckpoint.Listener {
 		if version == nil {
 			return
 		}
-		if hook := versionhooks.For(item.GetString("mime_type")); hook.OnSnapshot != nil {
+		if hook := versionhooks.For(app, item.GetString("mime_type")); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, version); err != nil {
 				versionLog.WarnContext(ctx, "auto version snapshot hook failed", "itemID", itemID, "err", err)
 			}

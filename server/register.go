@@ -470,7 +470,7 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 
 	if version != nil {
 		mimeType := item.GetString("mime_type")
-		if hook := versionhooks.For(mimeType); hook.OnSnapshot != nil {
+		if hook := versionhooks.For(app, mimeType); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, version); err != nil {
 				app.Logger().Warn("drive: version snapshot hook failed",
 					"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
@@ -575,7 +575,7 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		}
 
 		mimeType := item.GetString("mime_type")
-		if hook := versionhooks.For(mimeType); hook.OnRestore != nil {
+		if hook := versionhooks.For(app, mimeType); hook.OnRestore != nil {
 			if err := hook.OnRestore(app, item, version); err != nil {
 				app.Logger().Warn("drive: version restore hook failed",
 					"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
@@ -592,7 +592,7 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 	if err != nil {
 		app.Logger().Warn("drive: restored-from version failed", "id", item.Id, "error", err)
 	} else if restored != nil {
-		if hook := versionhooks.For(item.GetString("mime_type")); hook.OnSnapshot != nil {
+		if hook := versionhooks.For(app, item.GetString("mime_type")); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, restored); err != nil {
 				app.Logger().Warn("drive: restored-from snapshot hook failed",
 					"itemID", item.Id, "versionID", restored.Id, "err", err)

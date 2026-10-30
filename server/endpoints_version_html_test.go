@@ -10,10 +10,9 @@ import (
 	"tinycld.org/core/versionhooks"
 )
 
-func registerFakeHook(t *testing.T, itemType string, hook versionhooks.Hook) {
+func registerFakeHook(t *testing.T, app core.App, itemType string, hook versionhooks.Hook) {
 	t.Helper()
-	versionhooks.Register(itemType, hook)
-	t.Cleanup(func() { versionhooks.Register(itemType, versionhooks.Hook{}) })
+	versionhooks.Register(app, itemType, hook)
 }
 
 // seedTypedVersion makes an item whose mime_type is the hook key, plus one
@@ -35,7 +34,7 @@ func seedTypedVersion(t *testing.T, env *driveGuestEnv, mimeType string, content
 func TestVersionRender_UsesTypeHook(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	typ := "application/x-notepad-" + t.Name()
-	registerFakeHook(t, typ, versionhooks.Hook{
+	registerFakeHook(t, env.app, typ, versionhooks.Hook{
 		Render: func(_ context.Context, _ core.App, _, v *core.Record, user string) (string, error) {
 			return "<p>" + v.GetString("label") + ":" + user + "</p>", nil
 		},
@@ -61,7 +60,7 @@ func TestVersionRender_UsesTypeHook(t *testing.T) {
 func TestVersionRender_NoAccessIsNotFound(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	typ := "application/x-notepad-" + t.Name()
-	registerFakeHook(t, typ, versionhooks.Hook{
+	registerFakeHook(t, env.app, typ, versionhooks.Hook{
 		Render: func(context.Context, core.App, *core.Record, *core.Record, string) (string, error) {
 			return "<p>secret</p>", nil
 		},
@@ -87,7 +86,7 @@ func TestVersionRender_TypeWithoutHookIsNotFound(t *testing.T) {
 func TestVersionRender_EmptyFile(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	typ := "application/x-notepad-" + t.Name()
-	registerFakeHook(t, typ, versionhooks.Hook{
+	registerFakeHook(t, env.app, typ, versionhooks.Hook{
 		Render: func(context.Context, core.App, *core.Record, *core.Record, string) (string, error) {
 			return "", errors.New("empty")
 		},
@@ -107,7 +106,7 @@ func TestVersionRender_EmptyFile(t *testing.T) {
 func TestVersionRender_RendererErrorIsServerError(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	typ := "application/x-notepad-" + t.Name()
-	registerFakeHook(t, typ, versionhooks.Hook{
+	registerFakeHook(t, env.app, typ, versionhooks.Hook{
 		Render: func(context.Context, core.App, *core.Record, *core.Record, string) (string, error) {
 			return "", errors.New("broken docx")
 		},
@@ -126,7 +125,7 @@ func TestSnapshotEndpoint_RunsHookForItemMimeType(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
 	var called int
-	registerFakeHook(t, mime, versionhooks.Hook{
+	registerFakeHook(t, env.app, mime, versionhooks.Hook{
 		OnSnapshot: func(core.App, *core.Record, *core.Record) error {
 			called++
 			return nil

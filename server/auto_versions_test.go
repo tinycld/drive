@@ -89,7 +89,7 @@ func TestCheckpoint_RunsOnSnapshotHook(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
 	var called int
-	registerFakeHook(t, mime, versionhooks.Hook{
+	registerFakeHook(t, env.app, mime, versionhooks.Hook{
 		OnSnapshot: func(core.App, *core.Record, *core.Record) error {
 			called++
 			return nil

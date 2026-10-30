@@ -49,7 +49,7 @@ func handleVersionRender(app core.App, re *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	hook := versionhooks.For(item.GetString("mime_type"))
+	hook := versionhooks.For(app, item.GetString("mime_type"))
 	if hook.Render == nil {
 		return re.NotFoundError("no preview for this file type", nil)
 	}
@@ -79,7 +79,7 @@ func handleVersionDiff(app core.App, re *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	hook := versionhooks.For(item.GetString("mime_type"))
+	hook := versionhooks.For(app, item.GetString("mime_type"))
 	if hook.Diff == nil {
 		return re.NotFoundError("no compare for this file type", nil)
 	}
