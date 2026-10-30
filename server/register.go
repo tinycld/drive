@@ -84,6 +84,10 @@ func registerShared(app *pocketbase.PocketBase) {
 
 	registerAutomation()
 
+	// A REST write that replaces the file of an item open in an editor would
+	// be overwritten by the room's next save; close the room first.
+	app.OnRecordUpdateRequest("drive_items").BindFunc(guardFileUpdateRequest)
+
 	// Reject reparenting that would create a folder cycle. Move-cycle
 	// prevention is otherwise client-only (dnd.ts), so a direct PATCH of
 	// `parent` — e.g. making A a child of its own descendant — could form a
@@ -91,10 +95,6 @@ func registerShared(app *pocketbase.PocketBase) {
 	// loop (see the guards there). This DB-level check is the authoritative
 	// backstop: it fires for every update path, not just the drag UI, and only
 	// does work when `parent` actually changes.
-	// A REST write that replaces the file of an item open in an editor would
-	// be overwritten by the room's next save; refuse it while the room is open.
-	app.OnRecordUpdateRequest("drive_items").BindFunc(guardFileUpdateRequest)
-
 	app.OnRecordUpdate("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		newParent := e.Record.GetString("parent")
 		if newParent != e.Record.Original().GetString("parent") {
@@ -285,7 +285,7 @@ var driveWebDAVHooks = webdav.Hooks{
 		return realtime.FlushItem(record.Id)
 	},
 	// A PUT over a document open in an editor would be overwritten by the
-	// room's next save; refuse it while the room is open.
+	// room's next save; close the room first.
 	GuardWrite: func(_ core.App, record *core.Record, write func() error) error {
 		return realtime.WriteItem(record.Id, write)
 	},
@@ -356,6 +356,11 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 	}
 
 	if err := writeItemFile(item.Id, func() error {
+		fresh, err := app.FindRecordById("drive_items", item.Id)
+		if err != nil {
+			return re.NotFoundError("item not found", nil)
+		}
+		item = fresh
 		if _, err := snapshotCurrentFile(app, item, userID, "upload", ""); err != nil {
 			app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
 		}
@@ -478,13 +483,15 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 	}
 
 	// Snapshot the current file before restoring (system-generated, hidden
-	// from UI). Flushed first so the hidden snapshot holds the edits a live
-	// room has not yet written — it is what an undo of this restore returns.
-	item, err = flushItemForRead(app, re, item)
-	if err != nil {
-		return err
-	}
+	// from UI). The write runs after a live room's final save, so the hidden
+	// snapshot holds the editors' last edits — it is what an undo of this
+	// restore returns.
 	if err := writeItemFile(item.Id, func() error {
+		fresh, err := app.FindRecordById("drive_items", item.Id)
+		if err != nil {
+			return re.NotFoundError("item not found", nil)
+		}
+		item = fresh
 		if _, err := snapshotCurrentFile(app, item, userID, "system", ""); err != nil {
 			app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
 		}

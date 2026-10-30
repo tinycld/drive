@@ -10,8 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
+	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"tinycld.org/core/realtime"
 )
@@ -77,18 +79,76 @@ func assertFileBytes(t *testing.T, app core.App, itemID, want string) {
 	}
 }
 
-func TestUploadVersion_RefusedWhileOpen(t *testing.T) {
+// openWithFinalSave holds itemID open in a room whose final save writes
+// content, standing in for a text/calc editor. It returns the name of the
+// blob that save wrote, empty until the room closes.
+func openWithFinalSave(t *testing.T, app core.App, itemID string, content []byte) (savedName func() string) {
+	t.Helper()
+	var name string
+	kind := "guard-test-" + t.Name()
+	realtime.RegisterRoomKindWith(kind, realtime.RoomKindOptions{
+		Authorize: func(*core.Record, string) error { return nil },
+		OnEmpty: func(id string) {
+			item, err := app.FindRecordById("drive_items", id)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			f, err := filesystem.NewFileFromBytes(content, item.GetString("name"))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			item.Set("file", f)
+			item.Set("size", len(content))
+			if err := app.Save(item); err != nil {
+				t.Error(err)
+				return
+			}
+			name = item.GetString("file")
+		},
+	})
+	t.Cleanup(realtime.JoinItemForTest(kind, itemID))
+	return func() string { return name }
+}
+
+// latestVersionBytes reads the newest version of itemID with source.
+func latestVersionBytes(t *testing.T, app core.App, itemID, source string) string {
+	t.Helper()
+	versions, err := app.FindRecordsByFilter("drive_item_versions",
+		"item = {:item} && source = {:source}", "-created", 1, 0,
+		dbx.Params{"item": itemID, "source": source})
+	if err != nil || len(versions) == 0 {
+		t.Fatalf("no %s version: %v", source, err)
+	}
+	reader, err := readFileContent(app, versions[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(got)
+}
+
+// An upload over an open item closes its room; the room's final save is
+// archived as the upload's version, and the upload replaces it.
+func TestUploadVersion_ReplacesTheFileWhileOpen(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "notes.txt", []byte("v1"))
-	leave := realtime.JoinItemForTest("guard-test-"+t.Name(), item.Id)
-	defer leave()
+	openWithFinalSave(t, env.app, item.Id, []byte("edited"))
 
 	rec := callHandler(env.app, env.member, uploadVersionRequest(t, item.Id, []byte("v2")), handleUploadVersion)
 
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
 	}
-	assertFileBytes(t, env.app, item.Id, "v1")
+	assertFileBytes(t, env.app, item.Id, "v2")
+	if got := latestVersionBytes(t, env.app, item.Id, "upload"); got != "edited" {
+		t.Fatalf("archived version = %q, want the room's final save", got)
+	}
 }
 
 func TestUploadVersion_WritesWhenClosed(t *testing.T) {
@@ -103,7 +163,9 @@ func TestUploadVersion_WritesWhenClosed(t *testing.T) {
 	assertFileBytes(t, env.app, item.Id, "v2")
 }
 
-func TestRestoreVersion_RefusedWhileOpen(t *testing.T) {
+// A restore over an open item closes its room; the room's final save is
+// kept as the hidden version an undo returns to.
+func TestRestoreVersion_ReplacesTheFileWhileOpen(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "notes.txt", []byte("v1"))
 	version, err := snapshotCurrentFile(env.app, item, env.member.Id, "user", "v1")
@@ -114,28 +176,31 @@ func TestRestoreVersion_RefusedWhileOpen(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("upload v2: status = %d", rec.Code)
 	}
-	leave := realtime.JoinItemForTest("guard-test-"+t.Name(), item.Id)
-	defer leave()
+	openWithFinalSave(t, env.app, item.Id, []byte("edited"))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/drive/versions/restore",
 		strings.NewReader(`{"item":"`+item.Id+`","version":"`+version.Id+`"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec = callHandler(env.app, env.member, req, handleRestoreVersion)
 
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
 	}
-	assertFileBytes(t, env.app, item.Id, "v2")
+	assertFileBytes(t, env.app, item.Id, "v1")
+	if got := latestVersionBytes(t, env.app, item.Id, "system"); got != "edited" {
+		t.Fatalf("hidden version = %q, want the room's final save", got)
+	}
 }
 
-// A REST update that replaces the file is refused while the item is open; a
-// rename does not touch the file and passes.
-func TestRESTFileUpdate_RefusedWhileOpen_RenameAllowed(t *testing.T) {
+// A REST update that replaces the file of an open item closes its room and
+// then wins. The request saves a record loaded before the room's final
+// save; PocketBase reads the stored file name at save time, so that save's
+// blob is deleted, not left behind.
+func TestRESTFileUpdate_ReplacesTheFileWhileOpen(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	env.app.OnRecordUpdateRequest("drive_items").BindFunc(guardFileUpdateRequest)
 	item := seedFileItem(t, env.app, env.member, "notes.txt", []byte("v1"))
-	leave := realtime.JoinItemForTest("guard-test-"+t.Name(), item.Id)
-	defer leave()
+	savedName := openWithFinalSave(t, env.app, item.Id, []byte("edited"))
 
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
@@ -154,12 +219,32 @@ func TestRESTFileUpdate_RefusedWhileOpen_RenameAllowed(t *testing.T) {
 		URL:                   "/api/collections/drive_items/records/" + item.Id,
 		Body:                  &body,
 		Headers:               map[string]string{"Authorization": env.memberToken, "Content-Type": w.FormDataContentType()},
-		ExpectedStatus:        http.StatusConflict,
-		ExpectedContent:       []string{"open in an editor"},
+		ExpectedStatus:        http.StatusOK,
+		ExpectedContent:       []string{`"id":"` + item.Id + `"`},
 		TestAppFactory:        func(_ testing.TB) *tests.TestApp { return env.app },
 		DisableTestAppCleanup: true,
 	}).Test(t)
-	assertFileBytes(t, env.app, item.Id, "v1")
+
+	assertFileBytes(t, env.app, item.Id, "v2")
+	if savedName() == "" {
+		t.Fatal("the room's final save did not run")
+	}
+	fsys, err := env.app.NewFilesystem()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fsys.Close()
+	if exists, _ := fsys.Exists(item.BaseFilesPath() + "/" + savedName()); exists {
+		t.Fatal("the final save's blob was left behind")
+	}
+}
+
+// A rename does not touch the file, so it does not close the room.
+func TestRESTRename_LeavesTheRoomOpen(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	env.app.OnRecordUpdateRequest("drive_items").BindFunc(guardFileUpdateRequest)
+	item := seedFileItem(t, env.app, env.member, "notes.txt", []byte("v1"))
+	savedName := openWithFinalSave(t, env.app, item.Id, []byte("edited"))
 
 	(&tests.ApiScenario{
 		Method:                http.MethodPatch,
@@ -171,17 +256,24 @@ func TestRESTFileUpdate_RefusedWhileOpen_RenameAllowed(t *testing.T) {
 		TestAppFactory:        func(_ testing.TB) *tests.TestApp { return env.app },
 		DisableTestAppCleanup: true,
 	}).Test(t)
+
+	if savedName() != "" {
+		t.Fatal("a rename closed the room")
+	}
 }
 
-func TestWebDAVGuardWrite_UsesWriteItem(t *testing.T) {
+func TestWebDAVGuardWrite_ClosesTheRoomThenWrites(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "notes.txt", []byte("v1"))
-	leave := realtime.JoinItemForTest("guard-test-"+t.Name(), item.Id)
+	savedName := openWithFinalSave(t, env.app, item.Id, []byte("edited"))
 
-	ran := false
-	err := driveWebDAVHooks.GuardWrite(env.app, item, func() error { ran = true; return nil })
-	if !errors.Is(err, realtime.ErrItemOpen) || ran {
-		t.Fatalf("open item: err = %v, ran = %v; want ErrItemOpen and no write", err, ran)
+	savedBeforeWrite := ""
+	err := driveWebDAVHooks.GuardWrite(env.app, item, func() error { savedBeforeWrite = savedName(); return nil })
+
+	if err != nil {
+		t.Fatal(err)
 	}
-	leave()
+	if savedBeforeWrite == "" {
+		t.Fatal("the write ran before the room's final save")
+	}
 }

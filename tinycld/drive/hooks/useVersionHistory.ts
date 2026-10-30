@@ -3,7 +3,7 @@ import { useLiveQuery } from '@tanstack/react-db'
 import type { RestoreVersionRequest } from '@tinycld/app-generated/drive-api'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
-import { notifyWriteFailed } from '../lib/write-refused'
+import { notifyWriteFailed } from '../lib/notify-write-failed'
 
 export function useVersionHistory(itemId: string) {
     const [versionsCollection] = useStore('drive_item_versions')

@@ -112,14 +112,15 @@ func flushItemForRead(app core.App, re *core.RequestEvent, item *core.Record) (*
 	return fresh, nil
 }
 
-// writeItemFile runs write, which replaces item itemID's stored file, only
-// while no editor room has the item open: the room's next save would
-// overwrite the new bytes and its editors would keep showing the old ones.
+// writeItemFile runs write, which replaces item itemID's stored file. An
+// editor room open on the item closes first and saves its last edits, so
+// the write replaces them and the editors reload the new file. write must
+// load the item again, since that save changes it.
 func writeItemFile(itemID string, write func() error) error {
 	err := realtime.WriteItem(itemID, write)
-	if errors.Is(err, realtime.ErrItemOpen) {
-		return router.NewApiError(http.StatusConflict,
-			"this file is open in an editor; close it and try again", nil)
+	if errors.Is(err, realtime.ErrItemBusy) {
+		return router.NewApiError(http.StatusServiceUnavailable,
+			"the editor that has this file open did not close in time; try again", nil)
 	}
 	return err
 }
