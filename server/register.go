@@ -187,6 +187,11 @@ func registerShared(app *pocketbase.PocketBase) {
 			return handleVersionFile(app, re)
 		})
 
+		// Read-only HTML of one version, through its type's versionhooks.
+		e.Router.GET("/api/drive/versions/{id}/render", func(re *core.RequestEvent) error {
+			return handleVersionRender(app, re)
+		}).BindFunc(requireAuth)
+
 		// Folder download endpoints
 		e.Router.POST("/api/drive/download-token", func(re *core.RequestEvent) error {
 			return handleCreateDownloadToken(app, re)
@@ -416,11 +421,11 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 	}
 
 	if version != nil {
-		itemType := item.GetString("type")
-		if hook := versionhooks.For(itemType); hook.OnSnapshot != nil {
+		mimeType := item.GetString("mime_type")
+		if hook := versionhooks.For(mimeType); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, version); err != nil {
 				app.Logger().Warn("drive: version snapshot hook failed",
-					"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+					"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
 				// continue — the docx blob is already saved; the hook is supplementary
 			}
 		}
@@ -515,11 +520,11 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError("failed to save restored item", nil)
 	}
 
-	itemType := item.GetString("type")
-	if hook := versionhooks.For(itemType); hook.OnRestore != nil {
+	mimeType := item.GetString("mime_type")
+	if hook := versionhooks.For(mimeType); hook.OnRestore != nil {
 		if err := hook.OnRestore(app, item, version); err != nil {
 			app.Logger().Warn("drive: version restore hook failed",
-				"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+				"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
 		}
 	}
 
