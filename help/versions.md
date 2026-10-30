@@ -28,18 +28,20 @@ Some file types have no preview. For these, the history shows **Download** so yo
 
 ## Compare versions
 
-To see what changed in a version:
+Select a version, then choose what the preview shows:
 
-1. Select the version.
-2. Turn on **Show changes**.
+- **vs. current**: the document as it is now, with the changes since the selected version marked. Edits that are not saved as a version yet are included. Use this before you restore, to see what a restore would undo.
+- **vs. previous**: the selected version, with the changes since the version just before it marked.
+- **Version**: the selected version without marks.
 
-The preview compares the version with the version just before it:
+In a compare:
 
 - Added text has a green background.
 - Removed text has a red background and a line through it.
 - A bar at the left marks a paragraph where only the formatting changed.
+- When a table, an image or a link changed, the old block shows as removed and the new block as added.
 
-Turn off **Show changes** to see the version without marks. Compare is not available for every file type.
+Everyone who can open the file can compare versions. Compare is not available for every file type.
 
 ## Label a version
 

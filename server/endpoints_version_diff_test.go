@@ -123,3 +123,36 @@ func TestVersionDiff_NoAccessIsNotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 }
+
+// against=current compares the version with the document as it is now:
+// the live room is flushed first, then the item itself is the newer side.
+func TestVersionDiff_AgainstCurrentFlushesAndUsesTheItem(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	mime := "application/x-notepad-" + t.Name()
+	recordDiffHook(t, mime)
+	item := mimeItem(t, env, mime, "doc.bin")
+	v := snap(t, env, item, "user")
+	var flushed int
+	registerFlushingKind(t, env.app, item.Id, []byte("live edits"), &flushed)
+
+	rec := getFile(env.app, env.member, "/api/drive/versions/"+v.Id+"/diff", v.Id, "?against=current", handleVersionDiff)
+	if rec.Code != http.StatusOK || rec.Body.String() != v.Id+">"+item.Id {
+		t.Fatalf("status = %d body = %q", rec.Code, rec.Body.String())
+	}
+	if flushed != 1 {
+		t.Fatalf("flushed %d times, want 1", flushed)
+	}
+}
+
+func TestVersionDiff_AgainstAndFromTogetherIsBadRequest(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	mime := "application/x-notepad-" + t.Name()
+	recordDiffHook(t, mime)
+	item := mimeItem(t, env, mime, "doc.bin")
+	v := snap(t, env, item, "user")
+
+	rec := getFile(env.app, env.member, "/api/drive/versions/"+v.Id+"/diff", v.Id, "?against=current&from="+v.Id, handleVersionDiff)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}

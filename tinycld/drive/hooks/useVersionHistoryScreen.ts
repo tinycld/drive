@@ -4,6 +4,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
+import { type CompareMode, parseCompareMode } from '../lib/compare-mode'
 import { groupVersionsByDay } from '../lib/version-groups'
 import { useCanWriteItem } from './useCanWriteItem'
 import { useVersionHistory } from './useVersionHistory'
@@ -22,7 +23,7 @@ export function useVersionHistoryScreen(itemId: string) {
     const history = useVersionHistory(itemId)
     const canWrite = useCanWriteItem(itemId, item?.created_by)
     const { v, compare } = useLocalSearchParams<{ v?: string; compare?: string }>()
-    const isComparing = compare === '1'
+    const compareMode = parseCompareMode(compare)
     const isPhone = useBreakpoint() === 'mobile'
     const [isRestoreOpen, setRestoreOpen] = useState(false)
     const [isRenameOpen, setRenameOpen] = useState(false)
@@ -53,8 +54,11 @@ export function useVersionHistoryScreen(itemId: string) {
         // Restore and Rename need write access; viewers only look.
         isActionsVisible: canWrite && (!isPhone || !!v) && !!selected,
         select: (versionId: string) => router.setParams({ v: versionId }),
-        isComparing,
-        toggleCompare: () => router.setParams({ compare: isComparing ? undefined : '1' }),
+        compareMode,
+        setCompareMode: (mode: CompareMode) =>
+            router.setParams({ compare: mode === 'none' ? undefined : mode }),
+        // Viewers may compare; only Restore and Rename need write access.
+        isCompareVisible: (!isPhone || !!v) && !!selected,
         // Back from a phone preview returns to the list; otherwise it leaves.
         back: isPhone && v ? () => router.setParams({ v: undefined }) : leaveHistory,
         isRestoring: history.isRestoring,

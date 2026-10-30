@@ -65,10 +65,15 @@ func handleVersionRender(app core.App, re *core.RequestEvent) error {
 	return writeVersionHTML(re, html)
 }
 
-// handleVersionDiff serves a version with the changes from an earlier one
-// marked, through the item type's versionhooks Diff. Without ?from= it
-// compares with the version just before it (hidden restore copies are
-// skipped); the first version compares with nothing.
+// handleVersionDiff serves a compare through the item type's versionhooks
+// Diff:
+//   - default: the version, with the changes from the version just before
+//     it marked (hidden restore copies are skipped; the first version
+//     compares with nothing)
+//   - ?from=<id>: the version, with the changes from that version marked
+//   - ?against=current: the document as it is now, with the changes since
+//     the version marked. Open edits are saved first, so the compare shows
+//     what the editor shows.
 func handleVersionDiff(app core.App, re *core.RequestEvent) error {
 	item, version, err := loadVersionForRead(app, re, re.Request.PathValue("id"))
 	if err != nil {
@@ -78,11 +83,22 @@ func handleVersionDiff(app core.App, re *core.RequestEvent) error {
 	if hook.Diff == nil {
 		return re.NotFoundError("no compare for this file type", nil)
 	}
-	from, err := diffBase(app, re, item, version)
-	if err != nil {
-		return err
+	query := re.Request.URL.Query()
+	from, to := (*core.Record)(nil), version
+	switch {
+	case query.Get("against") == "current" && query.Get("from") != "":
+		return re.BadRequestError("use from or against, not both", nil)
+	case query.Get("against") == "current":
+		if item, err = flushItemForRead(app, re, item); err != nil {
+			return err
+		}
+		from, to = version, item
+	default:
+		if from, err = diffBase(app, re, item, version); err != nil {
+			return err
+		}
 	}
-	html, err := hook.Diff(re.Request.Context(), app, item, from, version, re.Auth.Id)
+	html, err := hook.Diff(re.Request.Context(), app, item, from, to, re.Auth.Id)
 	if err != nil {
 		versionLog.WarnContext(re.Request.Context(), "version diff failed",
 			"itemID", item.Id, "versionID", version.Id, "err", err)

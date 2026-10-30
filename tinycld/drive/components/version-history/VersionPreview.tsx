@@ -5,13 +5,14 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 import { useVersionHtml } from '../../hooks/useVersionHtml'
+import type { CompareMode } from '../../lib/compare-mode'
 import { versionFileUrl } from '../../lib/item-file-url'
 
 interface VersionPreviewProps {
     versionId: string | undefined
     itemName: string
     mimeType: string
-    isComparing: boolean
+    compareMode: CompareMode
 }
 
 // Marks from the server's htmldiff, in theme colors so they follow light
@@ -29,9 +30,12 @@ del, [data-diff="del"] { background: ${delBg}; color: ${delFg}; text-decoration:
 `
 }
 
-function useVersionPreview({ versionId, itemName, mimeType, isComparing }: VersionPreviewProps) {
-    const mode = isComparing ? 'diff' : 'render'
-    const { html, isLoading, error, isUnsupported } = useVersionHtml({ versionId, mode })
+function useVersionPreview({ versionId, itemName, mimeType, compareMode }: VersionPreviewProps) {
+    const isComparing = compareMode !== 'none'
+    const { html, isLoading, error, isUnsupported } = useVersionHtml({
+        versionId,
+        compare: compareMode,
+    })
     const diffCss = useDiffCss()
     const typeCss = getPreviewEntry(mimeType)?.htmlCss ?? ''
     const css = isComparing ? typeCss + diffCss : typeCss

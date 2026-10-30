@@ -2,6 +2,7 @@ import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import { PromptDialog } from '@tinycld/core/ui/PromptDialog'
 import { View } from 'react-native'
 import { useVersionHistoryScreen } from '../../hooks/useVersionHistoryScreen'
+import type { CompareMode } from '../../lib/compare-mode'
 import { VersionList } from './VersionList'
 import { VersionPreview } from './VersionPreview'
 import { VersionToolbar } from './VersionToolbar'
@@ -22,8 +23,9 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                 onRestore={screen.openRestore}
                 isActionsVisible={screen.isActionsVisible}
                 isRestoring={screen.isRestoring}
-                isComparing={screen.isComparing}
-                onToggleCompare={screen.toggleCompare}
+                isCompareVisible={screen.isCompareVisible}
+                compareMode={screen.compareMode}
+                onCompareModeChange={screen.setCompareMode}
             />
             <View className="flex-1 flex-row">
                 <PreviewPane
@@ -31,7 +33,7 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                     versionId={screen.selected?.id}
                     itemName={screen.itemName}
                     mimeType={screen.mimeType}
-                    isComparing={screen.isComparing}
+                    compareMode={screen.compareMode}
                 />
                 <VersionList
                     isVisible={screen.isListVisible}
@@ -71,13 +73,13 @@ function PreviewPane({
     versionId,
     itemName,
     mimeType,
-    isComparing,
+    compareMode,
 }: {
     isVisible: boolean
     versionId: string | undefined
     itemName: string
     mimeType: string
-    isComparing: boolean
+    compareMode: CompareMode
 }) {
     if (!isVisible) return null
     return (
@@ -86,7 +88,7 @@ function PreviewPane({
                 versionId={versionId}
                 itemName={itemName}
                 mimeType={mimeType}
-                isComparing={isComparing}
+                compareMode={compareMode}
             />
         </View>
     )

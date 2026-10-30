@@ -1,8 +1,8 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
-import { Switch } from '@tinycld/core/ui/switch'
 import { ArrowLeft } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
+import type { CompareMode } from '../../lib/compare-mode'
 
 interface VersionToolbarProps {
     title: string
@@ -11,8 +11,9 @@ interface VersionToolbarProps {
     onRestore: () => void
     isActionsVisible: boolean
     isRestoring: boolean
-    isComparing: boolean
-    onToggleCompare: () => void
+    isCompareVisible: boolean
+    compareMode: CompareMode
+    onCompareModeChange: (mode: CompareMode) => void
 }
 
 export function VersionToolbar({
@@ -22,38 +23,41 @@ export function VersionToolbar({
     onRestore,
     isActionsVisible,
     isRestoring,
-    isComparing,
-    onToggleCompare,
+    isCompareVisible,
+    compareMode,
+    onCompareModeChange,
 }: VersionToolbarProps) {
     const fg = useThemeColor('foreground')
     return (
-        <View className="flex-row items-center gap-2 border-b border-border bg-background px-3 py-2">
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Back"
-                onPress={onBack}
-                hitSlop={8}
-                className="p-1"
-            >
-                <ArrowLeft size={20} color={fg} />
-            </Pressable>
-            <Text
-                accessibilityRole="header"
-                className="flex-1 text-base font-medium text-foreground"
-                numberOfLines={1}
-            >
-                {title}
-            </Text>
-            <CompareSwitch
-                isVisible={isActionsVisible}
-                isComparing={isComparing}
-                onToggle={onToggleCompare}
-            />
-            <VersionActions
-                isVisible={isActionsVisible}
-                onRename={onRename}
-                onRestore={onRestore}
-                isRestoring={isRestoring}
+        <View className="border-b border-border bg-background">
+            <View className="flex-row items-center gap-2 px-3 py-2">
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Back"
+                    onPress={onBack}
+                    hitSlop={8}
+                    className="p-1"
+                >
+                    <ArrowLeft size={20} color={fg} />
+                </Pressable>
+                <Text
+                    accessibilityRole="header"
+                    className="flex-1 text-base font-medium text-foreground"
+                    numberOfLines={1}
+                >
+                    {title}
+                </Text>
+                <VersionActions
+                    isVisible={isActionsVisible}
+                    onRename={onRename}
+                    onRestore={onRestore}
+                    isRestoring={isRestoring}
+                />
+            </View>
+            <CompareChoice
+                isVisible={isCompareVisible}
+                mode={compareMode}
+                onChange={onCompareModeChange}
             />
         </View>
     )
@@ -83,24 +87,68 @@ function VersionActions({
     )
 }
 
-function CompareSwitch({
+const COMPARE_OPTIONS: { mode: CompareMode; label: string; accessibilityLabel: string }[] = [
+    { mode: 'none', label: 'Version', accessibilityLabel: 'Show this version' },
+    {
+        mode: 'previous',
+        label: 'vs. previous',
+        accessibilityLabel: 'Compare with previous version',
+    },
+    { mode: 'current', label: 'vs. current', accessibilityLabel: 'Compare with current document' },
+]
+
+function CompareChoice({
     isVisible,
-    isComparing,
-    onToggle,
+    mode,
+    onChange,
 }: {
     isVisible: boolean
-    isComparing: boolean
-    onToggle: () => void
+    mode: CompareMode
+    onChange: (mode: CompareMode) => void
 }) {
     if (!isVisible) return null
+    const options = COMPARE_OPTIONS.map(option => (
+        <CompareOption
+            key={option.mode}
+            label={option.label}
+            accessibilityLabel={option.accessibilityLabel}
+            isSelected={option.mode === mode}
+            onPress={() => onChange(option.mode)}
+        />
+    ))
     return (
-        <View className="flex-row items-center gap-2">
-            <Text className="text-sm text-muted-foreground">Show changes</Text>
-            <Switch
-                value={isComparing}
-                onValueChange={onToggle}
-                accessibilityLabel="Show changes"
-            />
+        <View
+            accessibilityRole="radiogroup"
+            accessibilityLabel="Show changes"
+            className="flex-row gap-1.5 px-3 pb-2"
+        >
+            {options}
         </View>
+    )
+}
+
+function CompareOption({
+    label,
+    accessibilityLabel,
+    isSelected,
+    onPress,
+}: {
+    label: string
+    accessibilityLabel: string
+    isSelected: boolean
+    onPress: () => void
+}) {
+    const boxClass = isSelected ? 'border-primary bg-primary' : 'border-border bg-background'
+    const textClass = isSelected ? 'text-primary-foreground' : 'text-foreground'
+    return (
+        <Pressable
+            accessibilityRole="radio"
+            accessibilityLabel={accessibilityLabel}
+            accessibilityState={{ checked: isSelected }}
+            onPress={onPress}
+            className={`rounded-md border px-3 py-1 ${boxClass}`}
+        >
+            <Text className={`text-sm font-medium ${textClass}`}>{label}</Text>
+        </Pressable>
     )
 }
