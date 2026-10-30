@@ -257,7 +257,7 @@ export async function orderedRowNames(page: Page, among: string[]): Promise<stri
 
 // PB sits behind the dev.ts proxy on the test Expo port. /api/* routes
 // through to PB transparently — see scripts/dev.ts::isPbPath.
-const PB_URL = 'http://127.0.0.1:7200'
+const PB_URL = `http://127.0.0.1:${process.env.E2E_PORT ?? 7200}`
 
 let cachedAuthToken: string | null = null
 let cachedUserId: string | null = null
