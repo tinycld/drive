@@ -34,7 +34,7 @@ Restore preserves the file's identity. Share links, stars, comments, and folder 
 
 ## When the file is open in an editor
 
-You can restore a version or upload a new version while the file is open in an editor (Text or Calc), in any tab or by any person. The editor first saves its last edits, and Drive keeps them as a version. Then every open editor reloads with the new contents. Edits typed in the second before the reload are lost.
+You can restore a version or upload a new version while the file is open in an editor (Text or Calc), in any tab or by any person. The editor first saves its last edits, so they are kept in history like any current version that a restore or upload replaces. Then every open editor reloads with the new contents. Edits typed in the second before the reload are lost.
 
 ## Downloading a previous version
 
