@@ -16,6 +16,7 @@ import (
 	"tinycld.org/core/background"
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/driveshare"
+	"tinycld.org/core/editcheckpoint"
 	"tinycld.org/core/groups"
 	"tinycld.org/core/notify"
 	"tinycld.org/core/oauth"
@@ -107,6 +108,10 @@ func registerShared(app *pocketbase.PocketBase) {
 	})
 
 	registerBackgroundJobHooks(app)
+
+	// Automatic versions: core's realtime rooms fire a checkpoint after an
+	// idle period and when the last editor leaves.
+	editcheckpoint.Register(handleEditCheckpoint(app))
 
 	// Storage ceilings: declare the collections, core binds the enforcement.
 	quota.RegisterSources(quotaSources...)
@@ -277,7 +282,7 @@ var driveWebDAVHooks = webdav.Hooks{
 	// Archive the outgoing blob before an overwrite replaces it, so a
 	// WebDAV PUT gets the same version history as a UI upload.
 	BeforeOverwrite: func(app core.App, userID string, record *core.Record) error {
-		_, err := snapshotCurrentFile(app, record, userID, "upload", "")
+		_, err := snapshotCurrentFile(app, record, snapshotOpts{UserID: userID, Source: "upload"})
 		return err
 	},
 	// A document open in an editor is written on a debounce; a DAV client
@@ -351,7 +356,7 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	if _, err := snapshotCurrentFile(app, item, userID, "upload", ""); err != nil {
+	if _, err := snapshotCurrentFile(app, item, snapshotOpts{UserID: userID, Source: "upload"}); err != nil {
 		app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
 	}
 
@@ -414,7 +419,14 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 		return err
 	}
 
-	version, err := snapshotCurrentFile(app, item, userID, "user", label)
+	// The editors since the last version belong to this one, so the next
+	// automatic version names only later editors.
+	version, err := snapshotCurrentFile(app, item, snapshotOpts{
+		UserID:  userID,
+		Source:  "user",
+		Label:   label,
+		Editors: realtime.TakeEditors(item.Id),
+	})
 	if err != nil {
 		app.Logger().Warn("version snapshot failed", "id", item.Id, "error", err)
 		return re.InternalServerError("failed to save version", nil)
@@ -475,7 +487,12 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	if _, err := snapshotCurrentFile(app, item, userID, "auto", ""); err != nil {
+	// The editors since the last version made the state being replaced.
+	if _, err := snapshotCurrentFile(app, item, snapshotOpts{
+		UserID:  userID,
+		Source:  "auto",
+		Editors: realtime.TakeEditors(item.Id),
+	}); err != nil {
 		app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
 	}
 
@@ -530,7 +547,7 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 
 	// The restored state becomes a visible version. The hidden "system"
 	// copy above is the undo; this row is what the timeline shows.
-	restored, err := snapshotCurrentFile(app, item, userID, "user", restoredFromLabel(version))
+	restored, err := snapshotCurrentFile(app, item, snapshotOpts{UserID: userID, Source: "user", Label: restoredFromLabel(version)})
 	if err != nil {
 		app.Logger().Warn("drive: restored-from version failed", "id", item.Id, "error", err)
 	} else if restored != nil {

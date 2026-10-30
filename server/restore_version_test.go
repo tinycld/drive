@@ -41,7 +41,7 @@ func postJSON(app core.App, auth *core.Record, body any, handler func(core.App, 
 func TestRestore_AddsRestoredFromVersion(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("one"))
-	v1, err := snapshotCurrentFile(env.app, item, env.member.Id, "user", "Initial draft")
+	v1, err := snapshotCurrentFile(env.app, item, snapshotOpts{UserID: env.member.Id, Source: "user", Label: "Initial draft"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestRestoredFromLabel(t *testing.T) {
 func TestRestore_KeepsReplacedStateVisible(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("one"))
-	v1, err := snapshotCurrentFile(env.app, item, env.member.Id, "user", "Initial draft")
+	v1, err := snapshotCurrentFile(env.app, item, snapshotOpts{UserID: env.member.Id, Source: "user", Label: "Initial draft"})
 	if err != nil {
 		t.Fatal(err)
 	}
