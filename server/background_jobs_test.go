@@ -50,7 +50,6 @@ func TestBackgroundJobs_RecoversAndLogsNotifyPanic(t *testing.T) {
 // query on the nil handle panicked. The cleanup now returns only after the
 // jobs have finished, so a save afterwards cannot reach a job.
 func TestBackgroundJobHooks_CleanupWaitsForItemJobs(t *testing.T) {
-	t.Cleanup(previewqueue.ResetForTest)
 	logs := readonlytest.CaptureLogs(t)
 	app := setupThrottleApp(t)
 	registerBackgroundJobHooks(app)
@@ -65,7 +64,7 @@ func TestBackgroundJobHooks_CleanupWaitsForItemJobs(t *testing.T) {
 	rec.Set("file", "page.txt")
 	rec.Set("mime_type", "text/plain")
 	rec.Set("thumb_region_hash", "region-1")
-	previewqueue.Stash(rec.Id, previewqueue.Payload{
+	previewqueue.Stash(app, rec.Id, previewqueue.Payload{
 		Page: textpreview.PageModel{Lines: []string{"hello"}},
 	})
 	if err := app.Save(rec); err != nil {

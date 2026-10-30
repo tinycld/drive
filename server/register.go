@@ -652,7 +652,7 @@ func registerBackgroundJobHooks(app core.App) {
 	jobs := background.For(app, "drive")
 
 	startItemJobs := func(rec *core.Record) {
-		payload, has := previewqueue.Take(rec.Id)
+		payload, has := previewqueue.Take(app, rec.Id)
 		jobs.Run("drive item text extraction", func(ctx context.Context) {
 			extractAndIndexDriveItem(ctx, app, rec, payload, has)
 		})
