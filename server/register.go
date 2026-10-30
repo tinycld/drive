@@ -41,7 +41,7 @@ import (
 // the mechanism that needed it.
 func Register(app *pocketbase.PocketBase) {
 	registerShared(app)
-	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
+	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings(app)); err != nil {
 		app.Logger().Error("drive: WebDAV registration failed", "error", err)
 	}
 }
