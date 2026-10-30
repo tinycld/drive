@@ -20,7 +20,7 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                 onBack={screen.back}
                 onRename={screen.openRename}
                 onRestore={screen.openRestore}
-                isActionsVisible={screen.isPreviewVisible && !!screen.selected}
+                isActionsVisible={screen.isActionsVisible}
                 isRestoring={screen.isRestoring}
             />
             <View className="flex-1 flex-row">

@@ -11,11 +11,17 @@ function shareEditorNames(value: unknown): string[] {
     return value.filter((name): name is string => typeof name === 'string')
 }
 
-// The people a row names: who edited since the previous version for an
-// automatic one, who saved or uploaded it otherwise.
+// The people a row names: who saved or uploaded it, and who edited since
+// the version before it (retention also moves the editors of thinned
+// versions here). An automatic version's created_by is the file owner, not
+// an editor, so it is left out.
 export function versionPeople(version: VersionRow) {
-    const userIds = version.source === 'auto' ? version.editors : [version.created_by]
-    return { userIds: userIds.filter(Boolean), shareNames: shareEditorNames(version.share_editors) }
+    const ids =
+        version.source === 'auto' ? version.editors : [version.created_by, ...version.editors]
+    return {
+        userIds: [...new Set(ids.filter(Boolean))],
+        shareNames: shareEditorNames(version.share_editors),
+    }
 }
 
 export function versionRowText(version: VersionRow) {

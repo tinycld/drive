@@ -43,7 +43,7 @@ To remove a label, rename the version and leave the field empty.
 
 The file goes back to the content of that version. The history keeps every version:
 
-- The state before the restore is kept, so you can restore it again.
+- The state before the restore is kept as a version in the list, with all edits up to that moment. You can restore it again.
 - A new version named "Restored from …" appears at the top of the list.
 
 If other people have the document open, their editors change to the restored content at once.
@@ -56,7 +56,7 @@ In the **Info** panel's **Versions** tab, click the download icon next to a vers
 
 ## How long versions are kept
 
-Versions are kept until the file is permanently deleted. Every version counts against the storage of the file's owner.
+Versions are kept until the file is permanently deleted. A version counts against the storage of the person who saved, uploaded or restored it.
 
 ## When the file is deleted
 

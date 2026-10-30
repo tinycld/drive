@@ -24,14 +24,14 @@ export function VersionPeople({ userIds, shareNames }: VersionPeopleProps) {
         ...shareNames.map(id => ({ kind: 'share' as const, id })),
     ]
     const shown = names.slice(0, MAX_NAMES)
-    const extra = names.length - shown.length
     if (shown.length === 0) return null
+    const entries = shown.map((entry, index) => (
+        <PersonEntry key={entry.id} entry={entry} isLast={index === shown.length - 1} />
+    ))
     return (
         <View className="flex-row flex-wrap">
-            {shown.map((entry, index) => (
-                <PersonEntry key={entry.id} entry={entry} isLast={index === shown.length - 1} />
-            ))}
-            <ExtraCount count={extra} />
+            {entries}
+            <ExtraCount count={names.length - shown.length} />
         </View>
     )
 }

@@ -5,6 +5,7 @@ import { useRecord } from '@tinycld/core/lib/use-record'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import { groupVersionsByDay } from '../lib/version-groups'
+import { useCanWriteItem } from './useCanWriteItem'
 import { useVersionHistory } from './useVersionHistory'
 
 function leaveHistory() {
@@ -19,6 +20,7 @@ export function useVersionHistoryScreen(itemId: string) {
     const [driveItemsCollection] = useStore('drive_items')
     const { record: item } = useRecord(driveItemsCollection, itemId)
     const history = useVersionHistory(itemId)
+    const canWrite = useCanWriteItem(itemId, item?.created_by)
     const { v } = useLocalSearchParams<{ v?: string }>()
     const isPhone = useBreakpoint() === 'mobile'
     const [isRestoreOpen, setRestoreOpen] = useState(false)
@@ -47,6 +49,8 @@ export function useVersionHistoryScreen(itemId: string) {
         isPhone,
         isListVisible: !isPhone || !v,
         isPreviewVisible: !isPhone || !!v,
+        // Restore and Rename need write access; viewers only look.
+        isActionsVisible: canWrite && (!isPhone || !!v) && !!selected,
         select: (versionId: string) => router.setParams({ v: versionId }),
         // Back from a phone preview returns to the list; otherwise it leaves.
         back: isPhone && v ? () => router.setParams({ v: undefined }) : leaveHistory,

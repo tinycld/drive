@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { serverFetch } from '@tinycld/core/lib/server-fetch'
 
+const HTML_STALE_MS = 5 * 60 * 1000
+
 type VersionHtmlArgs = {
     versionId: string | undefined
     mode: 'render' | 'diff'
@@ -29,14 +31,14 @@ async function fetchVersionHtml({ versionId, mode, fromId }: VersionHtmlArgs): P
     return response.text()
 }
 
-// A version never changes, so one fetch per (version, mode, from) is enough
-// for the session.
+// A version never changes, but URL-mode images in the HTML carry short-lived
+// file tokens, so the HTML is fetched again after a few minutes.
 export function useVersionHtml(args: VersionHtmlArgs) {
     const { data, isLoading, error } = useQuery({
         queryKey: ['drive-version-html', args.versionId, args.mode, args.fromId ?? ''],
         queryFn: () => fetchVersionHtml(args),
         enabled: !!args.versionId,
-        staleTime: Number.POSITIVE_INFINITY,
+        staleTime: HTML_STALE_MS,
         retry: false,
     })
     const status = error instanceof VersionHtmlError ? error.status : undefined

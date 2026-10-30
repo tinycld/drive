@@ -20,6 +20,14 @@ export function VersionList({
     className,
 }: VersionListProps) {
     if (!isVisible) return null
+    const groupViews = groups.map(group => (
+        <VersionGroup
+            key={group.dayKey}
+            group={group}
+            selectedId={selectedId}
+            onSelect={onSelect}
+        />
+    ))
     return (
         <ScrollView
             accessibilityRole="list"
@@ -27,14 +35,7 @@ export function VersionList({
             className={`bg-background ${className ?? ''}`}
         >
             <EmptyList isVisible={groups.length === 0} />
-            {groups.map(group => (
-                <VersionGroup
-                    key={group.dayKey}
-                    group={group}
-                    selectedId={selectedId}
-                    onSelect={onSelect}
-                />
-            ))}
+            {groupViews}
         </ScrollView>
     )
 }
@@ -48,19 +49,20 @@ function VersionGroup({
     selectedId: string | undefined
     onSelect: (versionId: string) => void
 }) {
+    const rows = group.versions.map(version => (
+        <VersionListRow
+            key={version.id}
+            version={version}
+            isSelected={version.id === selectedId}
+            onSelect={onSelect}
+        />
+    ))
     return (
         <View>
             <Text className="px-4 pt-4 pb-1 text-xs font-semibold uppercase text-muted-foreground">
                 {group.label}
             </Text>
-            {group.versions.map(version => (
-                <VersionListRow
-                    key={version.id}
-                    version={version}
-                    isSelected={version.id === selectedId}
-                    onSelect={onSelect}
-                />
-            ))}
+            {rows}
         </View>
     )
 }
