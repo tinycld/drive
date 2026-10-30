@@ -90,3 +90,28 @@ func TestShareAttachment_RefusesABadOrRevokedSession(t *testing.T) {
 		t.Fatalf("revoked link: status = %d, want 410", rec.Code)
 	}
 }
+
+// A document's images load on every render; they must not exhaust the
+// limiter every public share endpoint shares, and a browser may keep them
+// briefly, privately.
+func TestShareAttachment_OwnLimiterAndPrivateCache(t *testing.T) {
+	publicShareLimiter.Reset()
+	shareAttachmentLimiter.Reset()
+	e := setupAttached(t)
+	session, _ := shareSessionFor(t, e.app, e.doc, e.member)
+
+	for i := 0; i < 100; i++ {
+		rec := getShareAttachment(e.app, e.image.Id, session)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d: status = %d", i+1, rec.Code)
+		}
+		if i == 0 {
+			if cc := rec.Header().Get("Cache-Control"); cc != "private, max-age=300" {
+				t.Fatalf("Cache-Control = %q", cc)
+			}
+		}
+	}
+	if !publicShareLimiter.AllowOrLog("192.0.2.1", "test") {
+		t.Fatal("attachment loads used up the shared public-share limiter")
+	}
+}

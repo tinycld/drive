@@ -16,7 +16,9 @@
 // - createRule: only a user who can edit the document may attach to it.
 // - updateRule: attached_to is set at create and never changes, so an image
 //   cannot be handed to another document's viewers.
-// - cascadeDelete: the image goes with its document.
+// - no cascadeDelete: an image copied into a second document must survive
+//   the first one's deletion. With the document gone, the image is again
+//   visible only to its uploader and the people it is shared with.
 //
 // Rules are restated as literals (shipped_rules_test.go asserts them): the
 // 2040000002 / 1782100000 rules with the new clauses appended. The down
@@ -52,7 +54,7 @@ migrate(
                 type: 'relation',
                 required: false,
                 collectionId: items.id,
-                cascadeDelete: true,
+                cascadeDelete: false,
                 maxSelect: 1,
             })
         )

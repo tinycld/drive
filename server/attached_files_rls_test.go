@@ -171,3 +171,15 @@ func TestAttachedImage_AttachmentCannotChange(t *testing.T) {
 		ExpectedContent: []string{`"data":{}`},
 	})
 }
+
+// An image can appear in more than one document (copied and pasted), so
+// deleting the document it is attached to must not delete it.
+func TestAttachedImage_SurvivesItsDocumentsDeletion(t *testing.T) {
+	e := setupAttached(t)
+	if err := e.app.Delete(e.doc); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.app.FindRecordById("drive_items", e.image.Id); err != nil {
+		t.Fatalf("the attached image was deleted with its document: %v", err)
+	}
+}
