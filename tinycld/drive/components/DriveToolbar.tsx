@@ -1005,7 +1005,7 @@ function useNamePromptForm(prompt: Exclude<PromptDialog, { type: 'closed' }>) {
         control,
         closePrompt,
         isValid,
-        submit: handleSubmit(data => handlePromptSubmit(data.name)),
+        submit: () => void handleSubmit(data => handlePromptSubmit(data.name))(),
         title: isNewFolder ? 'New folder' : 'Rename',
         placeholder: isNewFolder ? 'Untitled folder' : '',
         submitLabel: isNewFolder ? 'Create' : 'Rename',

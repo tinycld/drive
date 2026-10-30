@@ -9,7 +9,7 @@ import {
     uploadFileAsDriveItem,
 } from './helpers'
 
-const PB_URL = 'http://127.0.0.1:7200'
+const PB_URL = `http://127.0.0.1:${process.env.E2E_PORT ?? 7200}`
 const ASSETS = join(dirname(fileURLToPath(import.meta.url)), 'assets')
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'

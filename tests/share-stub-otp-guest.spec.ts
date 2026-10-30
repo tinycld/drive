@@ -30,7 +30,7 @@ import { authTokenForTestUser, shareStubInstalled, uploadFileAsDriveItem } from 
 //     asserting that it appears (anon) and disappears (post-verify) is
 //     in scope for drive's E2E.
 
-const PB_URL = 'http://127.0.0.1:7200'
+const PB_URL = `http://127.0.0.1:${process.env.E2E_PORT ?? 7200}`
 const STUB_MIME = 'application/x-tinycld-stub'
 
 function uniqueSuffix(): string {

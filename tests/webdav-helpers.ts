@@ -2,7 +2,7 @@ import { TEST_USER_PASSWORD, TEST_USER_USERNAME } from '@tinycld/core/e2e-helper
 
 // PB owns /dav (protocol mounts); dev.ts's proxy fans /dav to PB,
 // so we can hit the public proxy port instead of PB directly.
-const WEBDAV_BASE = 'http://127.0.0.1:7200/drive'
+const WEBDAV_BASE = `http://127.0.0.1:${process.env.E2E_PORT ?? 7200}/drive`
 
 export interface WebDAVResponse {
     href: string
