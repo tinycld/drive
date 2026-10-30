@@ -1,6 +1,7 @@
 import { downloadFromUrl } from '@tinycld/core/file-viewer/file-url'
 import { HtmlSurface } from '@tinycld/core/file-viewer/HtmlSurface'
 import { getPreviewEntry } from '@tinycld/core/file-viewer/registry'
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native'
 import { useVersionHtml } from '../../hooks/useVersionHtml'
@@ -10,11 +11,30 @@ interface VersionPreviewProps {
     versionId: string | undefined
     itemName: string
     mimeType: string
+    isComparing: boolean
 }
 
-function useVersionPreview({ versionId, itemName, mimeType }: VersionPreviewProps) {
-    const { html, isLoading, error, isUnsupported } = useVersionHtml({ versionId, mode: 'render' })
-    const css = getPreviewEntry(mimeType)?.htmlCss ?? ''
+// Marks from the server's htmldiff, in theme colors so they follow light
+// and dark mode.
+function useDiffCss() {
+    const insBg = useThemeColor('success-soft')
+    const insFg = useThemeColor('success-soft-foreground')
+    const delBg = useThemeColor('danger-soft')
+    const delFg = useThemeColor('danger-soft-foreground')
+    const format = useThemeColor('warning')
+    return `
+ins, [data-diff="ins"] { background: ${insBg}; color: ${insFg}; text-decoration: none; }
+del, [data-diff="del"] { background: ${delBg}; color: ${delFg}; text-decoration: line-through; }
+[data-changed="format"] { border-left: 3px solid ${format}; padding-left: 6px; }
+`
+}
+
+function useVersionPreview({ versionId, itemName, mimeType, isComparing }: VersionPreviewProps) {
+    const mode = isComparing ? 'diff' : 'render'
+    const { html, isLoading, error, isUnsupported } = useVersionHtml({ versionId, mode })
+    const diffCss = useDiffCss()
+    const typeCss = getPreviewEntry(mimeType)?.htmlCss ?? ''
+    const css = isComparing ? typeCss + diffCss : typeCss
     const download = () => {
         if (!versionId) return
         void (async () => {
@@ -23,7 +43,8 @@ function useVersionPreview({ versionId, itemName, mimeType }: VersionPreviewProp
         })()
     }
     let message = ''
-    if (isUnsupported) message = 'No preview for this file type'
+    if (isUnsupported && isComparing) message = 'Compare is not available for this file type'
+    else if (isUnsupported) message = 'No preview for this file type'
     else if (error) message = 'Cannot show this version'
     return { html, css, isLoading, message, download }
 }

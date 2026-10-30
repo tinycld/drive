@@ -26,6 +26,21 @@ Click a version in the list to see it. The preview is read-only. Your current do
 
 Some file types have no preview. For these, the history shows **Download** so you can open that version on your device.
 
+## Compare versions
+
+To see what changed in a version:
+
+1. Select the version.
+2. Turn on **Show changes**.
+
+The preview compares the version with the version just before it:
+
+- Added text has a green background.
+- Removed text has a red background and a line through it.
+- A bar at the left marks a paragraph where only the formatting changed.
+
+Turn off **Show changes** to see the version without marks. Compare is not available for every file type.
+
 ## Label a version
 
 To give a version a name, such as "Initial draft" or "Approved":

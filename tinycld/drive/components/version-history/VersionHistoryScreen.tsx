@@ -22,6 +22,8 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                 onRestore={screen.openRestore}
                 isActionsVisible={screen.isActionsVisible}
                 isRestoring={screen.isRestoring}
+                isComparing={screen.isComparing}
+                onToggleCompare={screen.toggleCompare}
             />
             <View className="flex-1 flex-row">
                 <PreviewPane
@@ -29,6 +31,7 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                     versionId={screen.selected?.id}
                     itemName={screen.itemName}
                     mimeType={screen.mimeType}
+                    isComparing={screen.isComparing}
                 />
                 <VersionList
                     isVisible={screen.isListVisible}
@@ -68,16 +71,23 @@ function PreviewPane({
     versionId,
     itemName,
     mimeType,
+    isComparing,
 }: {
     isVisible: boolean
     versionId: string | undefined
     itemName: string
     mimeType: string
+    isComparing: boolean
 }) {
     if (!isVisible) return null
     return (
         <View className="flex-1">
-            <VersionPreview versionId={versionId} itemName={itemName} mimeType={mimeType} />
+            <VersionPreview
+                versionId={versionId}
+                itemName={itemName}
+                mimeType={mimeType}
+                isComparing={isComparing}
+            />
         </View>
     )
 }

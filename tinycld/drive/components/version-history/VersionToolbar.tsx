@@ -1,5 +1,6 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { Switch } from '@tinycld/core/ui/switch'
 import { ArrowLeft } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
 
@@ -10,6 +11,8 @@ interface VersionToolbarProps {
     onRestore: () => void
     isActionsVisible: boolean
     isRestoring: boolean
+    isComparing: boolean
+    onToggleCompare: () => void
 }
 
 export function VersionToolbar({
@@ -19,6 +22,8 @@ export function VersionToolbar({
     onRestore,
     isActionsVisible,
     isRestoring,
+    isComparing,
+    onToggleCompare,
 }: VersionToolbarProps) {
     const fg = useThemeColor('foreground')
     return (
@@ -39,6 +44,11 @@ export function VersionToolbar({
             >
                 {title}
             </Text>
+            <CompareSwitch
+                isVisible={isActionsVisible}
+                isComparing={isComparing}
+                onToggle={onToggleCompare}
+            />
             <VersionActions
                 isVisible={isActionsVisible}
                 onRename={onRename}
@@ -69,6 +79,28 @@ function VersionActions({
             <Button size="sm" onPress={onRestore} isDisabled={isRestoring}>
                 <ButtonText>Restore</ButtonText>
             </Button>
+        </View>
+    )
+}
+
+function CompareSwitch({
+    isVisible,
+    isComparing,
+    onToggle,
+}: {
+    isVisible: boolean
+    isComparing: boolean
+    onToggle: () => void
+}) {
+    if (!isVisible) return null
+    return (
+        <View className="flex-row items-center gap-2">
+            <Text className="text-sm text-muted-foreground">Show changes</Text>
+            <Switch
+                value={isComparing}
+                onValueChange={onToggle}
+                accessibilityLabel="Show changes"
+            />
         </View>
     )
 }

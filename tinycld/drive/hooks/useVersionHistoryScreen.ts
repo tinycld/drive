@@ -21,7 +21,8 @@ export function useVersionHistoryScreen(itemId: string) {
     const { record: item } = useRecord(driveItemsCollection, itemId)
     const history = useVersionHistory(itemId)
     const canWrite = useCanWriteItem(itemId, item?.created_by)
-    const { v } = useLocalSearchParams<{ v?: string }>()
+    const { v, compare } = useLocalSearchParams<{ v?: string; compare?: string }>()
+    const isComparing = compare === '1'
     const isPhone = useBreakpoint() === 'mobile'
     const [isRestoreOpen, setRestoreOpen] = useState(false)
     const [isRenameOpen, setRenameOpen] = useState(false)
@@ -52,6 +53,8 @@ export function useVersionHistoryScreen(itemId: string) {
         // Restore and Rename need write access; viewers only look.
         isActionsVisible: canWrite && (!isPhone || !!v) && !!selected,
         select: (versionId: string) => router.setParams({ v: versionId }),
+        isComparing,
+        toggleCompare: () => router.setParams({ compare: isComparing ? undefined : '1' }),
         // Back from a phone preview returns to the list; otherwise it leaves.
         back: isPhone && v ? () => router.setParams({ v: undefined }) : leaveHistory,
         isRestoring: history.isRestoring,
