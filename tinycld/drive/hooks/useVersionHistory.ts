@@ -3,6 +3,7 @@ import { useLiveQuery } from '@tanstack/react-db'
 import type { RestoreVersionRequest } from '@tinycld/app-generated/drive-api'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
+import { notifyWriteFailed } from '../lib/notify-write-failed'
 
 export function useVersionHistory(itemId: string) {
     const [versionsCollection] = useStore('drive_item_versions')
@@ -32,6 +33,7 @@ export function useVersionHistory(itemId: string) {
                 headers: { 'Content-Type': 'application/json' },
             })
         },
+        onError: err => notifyWriteFailed('drive.restore_version', 'Version not restored', err),
     })
 
     return {

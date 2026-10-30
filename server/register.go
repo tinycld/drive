@@ -84,6 +84,10 @@ func registerShared(app *pocketbase.PocketBase) {
 
 	registerAutomation()
 
+	// A REST write that replaces the file of an item open in an editor would
+	// be overwritten by the room's next save; close the room first.
+	app.OnRecordUpdateRequest("drive_items").BindFunc(guardFileUpdateRequest)
+
 	// Reject reparenting that would create a folder cycle. Move-cycle
 	// prevention is otherwise client-only (dnd.ts), so a direct PATCH of
 	// `parent` — e.g. making A a child of its own descendant — could form a
@@ -280,6 +284,11 @@ var driveWebDAVHooks = webdav.Hooks{
 	BeforeRead: func(_ core.App, record *core.Record) error {
 		return realtime.FlushItem(record.Id)
 	},
+	// A PUT over a document open in an editor would be overwritten by the
+	// room's next save; close the room first.
+	GuardWrite: func(_ core.App, record *core.Record, write func() error) error {
+		return realtime.WriteItem(record.Id, write)
+	},
 }
 
 func requireAuth(re *core.RequestEvent) error {
@@ -346,26 +355,36 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	if _, err := snapshotCurrentFile(app, item, userID, "upload", ""); err != nil {
-		app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
-	}
+	if err := writeItemFile(item.Id, func() error {
+		fresh, err := app.FindRecordById("drive_items", item.Id)
+		if err != nil {
+			return re.NotFoundError("item not found", nil)
+		}
+		item = fresh
+		if _, err := snapshotCurrentFile(app, item, userID, "upload", ""); err != nil {
+			app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
+		}
 
-	f, err := filesystem.NewFileFromBytes(data, header.Filename)
-	if err != nil {
-		return re.BadRequestError("failed to create file", nil)
-	}
+		f, err := filesystem.NewFileFromBytes(data, header.Filename)
+		if err != nil {
+			return re.BadRequestError("failed to create file", nil)
+		}
 
-	item.Set("file", f)
-	item.Set("size", len(data))
-	item.Set("mime_type", header.Header.Get("Content-Type"))
+		item.Set("file", f)
+		item.Set("size", len(data))
+		item.Set("mime_type", header.Header.Get("Content-Type"))
 
-	// Clear editor hashes so the freshly uploaded bytes force a one-shot full
-	// regen via the upload fallback path rather than being skipped as stale.
-	item.Set("thumb_region_hash", "")
-	item.Set("index_hash", "")
+		// Clear editor hashes so the freshly uploaded bytes force a one-shot full
+		// regen via the upload fallback path rather than being skipped as stale.
+		item.Set("thumb_region_hash", "")
+		item.Set("index_hash", "")
 
-	if err := app.Save(item); err != nil {
-		return re.BadRequestError("failed to save item", nil)
+		if err := app.Save(item); err != nil {
+			return re.BadRequestError("failed to save item", nil)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	return re.JSON(http.StatusOK, api.VersionFileResponse{
@@ -464,63 +483,70 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 	}
 
 	// Snapshot the current file before restoring (system-generated, hidden
-	// from UI). Flushed first so the hidden snapshot holds the edits a live
-	// room has not yet written — it is what an undo of this restore returns.
-	item, err = flushItemForRead(app, re, item)
-	if err != nil {
-		return err
-	}
-	if _, err := snapshotCurrentFile(app, item, userID, "system", ""); err != nil {
-		app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
-	}
-
-	versionFilename := version.GetString("file")
-	if versionFilename == "" {
-		return re.BadRequestError("version has no file", nil)
-	}
-
-	fsys, err := app.NewFilesystem()
-	if err != nil {
-		return re.BadRequestError("filesystem error", nil)
-	}
-	defer fsys.Close()
-
-	key := version.BaseFilesPath() + "/" + versionFilename
-	reader, err := fsys.GetReader(key)
-	if err != nil {
-		return re.BadRequestError("failed to read version file", nil)
-	}
-	defer reader.Close()
-
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return re.BadRequestError("failed to read version data", nil)
-	}
-
-	f, err := filesystem.NewFileFromBytes(data, versionFilename)
-	if err != nil {
-		return re.BadRequestError("failed to create file from version", nil)
-	}
-
-	item.Set("file", f)
-	item.Set("size", version.GetInt("size"))
-	item.Set("mime_type", version.GetString("mime_type"))
-
-	// Clear editor hashes so the restored bytes force a one-shot full regen via
-	// the upload fallback path rather than being skipped as stale.
-	item.Set("thumb_region_hash", "")
-	item.Set("index_hash", "")
-
-	if err := app.Save(item); err != nil {
-		return re.BadRequestError("failed to save restored item", nil)
-	}
-
-	itemType := item.GetString("type")
-	if hook := versionhooks.For(itemType); hook.OnRestore != nil {
-		if err := hook.OnRestore(app, item, version); err != nil {
-			app.Logger().Warn("drive: version restore hook failed",
-				"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+	// from UI). The write runs after a live room's final save, so the hidden
+	// snapshot holds the editors' last edits — it is what an undo of this
+	// restore returns.
+	if err := writeItemFile(item.Id, func() error {
+		fresh, err := app.FindRecordById("drive_items", item.Id)
+		if err != nil {
+			return re.NotFoundError("item not found", nil)
 		}
+		item = fresh
+		if _, err := snapshotCurrentFile(app, item, userID, "system", ""); err != nil {
+			app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
+		}
+
+		versionFilename := version.GetString("file")
+		if versionFilename == "" {
+			return re.BadRequestError("version has no file", nil)
+		}
+
+		fsys, err := app.NewFilesystem()
+		if err != nil {
+			return re.BadRequestError("filesystem error", nil)
+		}
+		defer fsys.Close()
+
+		key := version.BaseFilesPath() + "/" + versionFilename
+		reader, err := fsys.GetReader(key)
+		if err != nil {
+			return re.BadRequestError("failed to read version file", nil)
+		}
+		defer reader.Close()
+
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return re.BadRequestError("failed to read version data", nil)
+		}
+
+		f, err := filesystem.NewFileFromBytes(data, versionFilename)
+		if err != nil {
+			return re.BadRequestError("failed to create file from version", nil)
+		}
+
+		item.Set("file", f)
+		item.Set("size", version.GetInt("size"))
+		item.Set("mime_type", version.GetString("mime_type"))
+
+		// Clear editor hashes so the restored bytes force a one-shot full regen via
+		// the upload fallback path rather than being skipped as stale.
+		item.Set("thumb_region_hash", "")
+		item.Set("index_hash", "")
+
+		if err := app.Save(item); err != nil {
+			return re.BadRequestError("failed to save restored item", nil)
+		}
+
+		itemType := item.GetString("type")
+		if hook := versionhooks.For(itemType); hook.OnRestore != nil {
+			if err := hook.OnRestore(app, item, version); err != nil {
+				app.Logger().Warn("drive: version restore hook failed",
+					"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	return re.JSON(http.StatusOK, api.VersionFileResponse{

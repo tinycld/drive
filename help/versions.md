@@ -32,6 +32,10 @@ Click a previous version's row and choose **Restore**. The selected version beco
 
 Restore preserves the file's identity. Share links, stars, comments, and folder location are unchanged.
 
+## When the file is open in an editor
+
+You can restore a version or upload a new version while the file is open in an editor (Text or Calc), in any tab or by any person. The editor first saves its last edits. An upload keeps them as a version in the list. Then every open editor reloads with the new contents. Edits typed in the second before the reload are lost.
+
 ## Downloading a previous version
 
 Click a previous version's row and choose **Download** to save just that version's bytes to your device. The current version is unaffected.
