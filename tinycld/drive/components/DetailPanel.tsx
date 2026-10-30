@@ -1,5 +1,5 @@
+import { downloadFromUrl } from '@tinycld/core/file-viewer/file-url'
 import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
-import { pb } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import {
@@ -16,6 +16,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { useDetailPanelPresentation } from '../hooks/useDetailPanelPresentation'
 import { useDrive } from '../hooks/useDrive'
 import { useVersionHistory } from '../hooks/useVersionHistory'
+import { versionFileUrl } from '../lib/item-file-url'
 import type { DriveItemView } from '../types'
 import { DriveItemMenuButton } from './DriveItemMenuButton'
 import { Thumbnail } from './Thumbnail'
@@ -127,7 +128,7 @@ function DetailPanelContent({
                         />
                     )}
                     {activeTab === 'versions' && showVersionsTab && (
-                        <VersionsContent itemId={item.id} />
+                        <VersionsContent itemId={item.id} itemName={item.name} />
                     )}
                     {activeTab === 'activity' && <ActivityContent />}
                 </DrawerBody>
@@ -293,7 +294,7 @@ function TabBar({ tabs, activeTab, onTabPress, mutedColor, primaryColor }: TabBa
     )
 }
 
-function VersionsContent({ itemId }: { itemId: string }) {
+function VersionsContent({ itemId, itemName }: { itemId: string; itemName: string }) {
     const { versions, restoreVersion, isRestoring } = useVersionHistory(itemId)
     const [confirmVersionId, setConfirmVersionId] = useState<string | null>(null)
 
@@ -307,19 +308,18 @@ function VersionsContent({ itemId }: { itemId: string }) {
         setConfirmVersionId(null)
     }, [confirmVersionId, restoreVersion])
 
-    const handleDownload = useCallback((version: { id: string; file: string }) => {
-        const url = pb.files.getURL(
-            {
-                id: version.id,
-                collectionId: 'pbc_drive_versions_01',
-                collectionName: 'drive_item_versions',
-            },
-            version.file
-        )
-        if (typeof window !== 'undefined') {
-            window.open(url, '_blank')
-        }
-    }, [])
+    // The stable endpoint by version id (not `/api/files/.../<file>`), so the
+    // link needs no blob name from the cached row; downloadFromUrl saves on
+    // web and opens the share sheet on native.
+    const handleDownload = useCallback(
+        (version: { id: string; mime_type: string }) => {
+            void (async () => {
+                const url = await versionFileUrl(version.id)
+                downloadFromUrl(url, itemName, version.mime_type)
+            })()
+        },
+        [itemName]
+    )
 
     if (versions.length === 0) {
         return (
