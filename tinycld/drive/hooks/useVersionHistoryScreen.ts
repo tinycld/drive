@@ -60,8 +60,16 @@ export function useVersionHistoryScreen(itemId: string) {
         isPhone,
         isListVisible: !isPhone || !v,
         isPreviewVisible: !isPhone || !!v,
-        // Restore and Rename need write access; viewers only look.
-        isActionsVisible: canWrite && (!isPhone || !!v) && !!selected,
+        // Restore and Rename need write access; viewers only look. They sit
+        // on the active version's row; on a phone the list is hidden while
+        // a version is open, so there they are in the preview's toolbar.
+        isToolbarActionsVisible: canWrite && isPhone && !!v && !!selected,
+        rowActions: {
+            isEnabled: canWrite && !isPhone,
+            isRestoring: history.isRestoring,
+            onRename: () => setRenameOpen(true),
+            onRestore: () => setRestoreOpen(true),
+        },
         // Selecting the base version itself ends the two-version compare.
         select: (versionId: string) =>
             router.setParams(

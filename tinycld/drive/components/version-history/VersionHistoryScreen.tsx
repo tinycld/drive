@@ -21,7 +21,7 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                 onBack={screen.back}
                 onRename={screen.openRename}
                 onRestore={screen.openRestore}
-                isActionsVisible={screen.isActionsVisible}
+                isActionsVisible={screen.isToolbarActionsVisible}
                 isRestoring={screen.isRestoring}
                 isCompareVisible={screen.isCompareVisible}
                 compareMode={screen.compareMode}
@@ -41,6 +41,7 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                     groups={screen.groups}
                     selectedId={screen.selected?.id}
                     baseId={screen.baseId}
+                    rowActions={screen.rowActions}
                     onSelect={screen.select}
                     onPickBase={screen.pickBase}
                     className={listClass}

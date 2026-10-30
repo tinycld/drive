@@ -9,9 +9,18 @@ interface VersionListProps {
     groups: VersionGroupData[]
     selectedId: string | undefined
     baseId: string | undefined
+    rowActions: RowActionProps
     onSelect: (versionId: string) => void
     onPickBase: (versionId: string) => void
     className?: string
+}
+
+// Rename and Restore for the active row.
+export interface RowActionProps {
+    isEnabled: boolean
+    isRestoring: boolean
+    onRename: () => void
+    onRestore: () => void
 }
 
 export function VersionList({
@@ -19,6 +28,7 @@ export function VersionList({
     groups,
     selectedId,
     baseId,
+    rowActions,
     onSelect,
     onPickBase,
     className,
@@ -30,6 +40,7 @@ export function VersionList({
             group={group}
             selectedId={selectedId}
             baseId={baseId}
+            rowActions={rowActions}
             onSelect={onSelect}
             onPickBase={onPickBase}
         />
@@ -49,12 +60,14 @@ function VersionGroup({
     group,
     selectedId,
     baseId,
+    rowActions,
     onSelect,
     onPickBase,
 }: {
     group: VersionGroupData
     selectedId: string | undefined
     baseId: string | undefined
+    rowActions: RowActionProps
     onSelect: (versionId: string) => void
     onPickBase: (versionId: string) => void
 }) {
@@ -64,6 +77,10 @@ function VersionGroup({
             version={version}
             isSelected={version.id === selectedId}
             isBase={version.id === baseId}
+            isActionsVisible={rowActions.isEnabled && version.id === selectedId}
+            isRestoring={rowActions.isRestoring}
+            onRename={rowActions.onRename}
+            onRestore={rowActions.onRestore}
             onSelect={onSelect}
             onPickBase={onPickBase}
         />

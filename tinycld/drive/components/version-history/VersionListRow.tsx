@@ -7,8 +7,13 @@ interface VersionListRowProps {
     version: VersionRow
     isSelected: boolean
     isBase: boolean
+    // Rename and Restore show on the active row only, for users who can edit.
+    isActionsVisible: boolean
+    isRestoring: boolean
     onSelect: (versionId: string) => void
     onPickBase: (versionId: string) => void
+    onRename: () => void
+    onRestore: () => void
 }
 
 // ⌘-click (Ctrl-click off Mac) on web. Native has no modifier keys; there a
@@ -22,37 +27,60 @@ export function VersionListRow({
     version,
     isSelected,
     isBase,
+    isActionsVisible,
+    isRestoring,
     onSelect,
     onPickBase,
+    onRename,
+    onRestore,
 }: VersionListRowProps) {
     const { title, time, badge } = versionRowText(version)
     const people = versionPeople(version)
     const rowClass = isSelected ? 'bg-accent' : 'bg-background'
     const baseClass = isBase ? 'border-l-4 border-l-primary' : ''
     const subtitle = version.label ? time : ''
+    // Room on the title line for the actions, which sit over its right end.
+    const titleSpace = isActionsVisible ? 'pr-32' : ''
     const press = (event: GestureResponderEvent) =>
         hasCompareModifier(event) ? onPickBase(version.id) : onSelect(version.id)
 
+    // The click target and the actions are siblings: on web the target is a
+    // <button>, and a button cannot hold the Rename and Restore buttons.
     return (
-        <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={title}
-            accessibilityState={{ selected: isSelected }}
-            accessibilityHint="⌘-click or long-press to compare with this version"
-            onPress={press}
-            onLongPress={() => onPickBase(version.id)}
-            className={`px-4 py-3 border-b border-border ${rowClass} ${baseClass}`}
-        >
-            <View className="flex-row items-center justify-between gap-2">
-                <Text className="flex-1 text-sm font-medium text-foreground" numberOfLines={1}>
-                    {title}
-                </Text>
-                <BaseBadge isVisible={isBase} />
-                <Text className="text-xs text-muted-foreground">{badge}</Text>
-            </View>
-            <SubtitleLine text={subtitle} />
-            <VersionPeople userIds={people.userIds} shareNames={people.shareNames} />
-        </Pressable>
+        <View className={`border-b border-border ${rowClass} ${baseClass}`}>
+            <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={title}
+                accessibilityState={{ selected: isSelected }}
+                accessibilityHint="⌘-click or long-press to compare with this version"
+                onPress={press}
+                onLongPress={() => onPickBase(version.id)}
+                className="px-4 py-3"
+            >
+                <View className="flex-row items-center gap-2">
+                    <Text
+                        className={`flex-1 text-sm font-medium text-foreground ${titleSpace}`}
+                        numberOfLines={1}
+                    >
+                        {title}
+                    </Text>
+                    <BaseBadge isVisible={isBase} />
+                </View>
+                <SubtitleLine text={subtitle} />
+                <View className="flex-row items-end justify-between gap-2">
+                    <View className="flex-1">
+                        <VersionPeople userIds={people.userIds} shareNames={people.shareNames} />
+                    </View>
+                    <Text className="text-xs text-muted-foreground">{badge}</Text>
+                </View>
+            </Pressable>
+            <RowActions
+                isVisible={isActionsVisible}
+                isRestoring={isRestoring}
+                onRename={onRename}
+                onRestore={onRestore}
+            />
+        </View>
     )
 }
 
@@ -64,4 +92,64 @@ function SubtitleLine({ text }: { text: string }) {
 function BaseBadge({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
     return <Text className="text-xs font-medium text-primary">Compared</Text>
+}
+
+function RowActions({
+    isVisible,
+    isRestoring,
+    onRename,
+    onRestore,
+}: {
+    isVisible: boolean
+    isRestoring: boolean
+    onRename: () => void
+    onRestore: () => void
+}) {
+    if (!isVisible) return null
+    return (
+        <View className="absolute right-3 top-2.5 flex-row gap-1">
+            <RowActionButton
+                label="Rename"
+                onPress={onRename}
+                isPrimary={false}
+                isDisabled={false}
+            />
+            <RowActionButton
+                label="Restore"
+                onPress={onRestore}
+                isPrimary
+                isDisabled={isRestoring}
+            />
+        </View>
+    )
+}
+
+// Compact enough to fit on the title line of a two-line row; the standard
+// small Button is taller than that line and covers the source tag below.
+function RowActionButton({
+    label,
+    onPress,
+    isPrimary,
+    isDisabled,
+}: {
+    label: string
+    onPress: () => void
+    isPrimary: boolean
+    isDisabled: boolean
+}) {
+    const boxClass = isPrimary ? 'border-primary bg-primary' : 'border-border bg-background'
+    const textClass = isPrimary ? 'text-primary-foreground' : 'text-foreground'
+    const disabledClass = isDisabled ? 'opacity-40' : ''
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            accessibilityState={{ disabled: isDisabled }}
+            disabled={isDisabled}
+            onPress={onPress}
+            className={`rounded border px-2 py-0.5 ${boxClass} ${disabledClass}`}
+        >
+            <Text className={`text-xs font-medium ${textClass}`}>{label}</Text>
+        </Pressable>
+    )
 }
