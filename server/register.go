@@ -468,14 +468,14 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	// Snapshot the current file before restoring (system-generated, hidden
-	// from UI). Flushed first so the hidden snapshot holds the edits a live
-	// room has not yet written — it is what an undo of this restore returns.
+	// Keep the state being replaced as a visible automatic version, flushed
+	// first so it holds the edits a live room has not yet written. Edits made
+	// since the last version exist nowhere else; the user can restore them.
 	item, err = flushItemForRead(app, re, item)
 	if err != nil {
 		return err
 	}
-	if _, err := snapshotCurrentFile(app, item, userID, "system", ""); err != nil {
+	if _, err := snapshotCurrentFile(app, item, userID, "auto", ""); err != nil {
 		app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
 	}
 

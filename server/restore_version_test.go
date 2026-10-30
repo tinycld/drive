@@ -13,6 +13,7 @@ import (
 	"github.com/pocketbase/dbx"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/router"
 )
 
@@ -83,4 +84,48 @@ func TestRestoredFromLabel(t *testing.T) {
 	if !utf8.ValidString(got) {
 		t.Fatal("label is not valid UTF-8")
 	}
+}
+
+// The state a restore replaces must stay in the visible history: edits
+// since the last version exist nowhere else.
+func TestRestore_KeepsReplacedStateVisible(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("one"))
+	v1, err := snapshotCurrentFile(env.app, item, env.member.Id, "user", "Initial draft")
+	if err != nil {
+		t.Fatal(err)
+	}
+	item.Set("file", mustFile(t, []byte("unsaved two"), "a.txt"))
+	item.Set("size", len("unsaved two"))
+	if err := env.app.Save(item); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := postJSON(env.app, env.member, map[string]string{"item": item.Id, "version": v1.Id}, handleRestoreVersion)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("restore status = %d: %s", rec.Code, rec.Body.String())
+	}
+
+	hidden, err := env.app.FindRecordsByFilter("drive_item_versions",
+		"item = {:item} && source = 'system'", "", 0, 0, dbx.Params{"item": item.Id})
+	if err != nil || len(hidden) != 0 {
+		t.Fatalf("hidden versions = %d, %v; want none", len(hidden), err)
+	}
+	before, err := env.app.FindRecordsByFilter("drive_item_versions",
+		"item = {:item} && source = 'auto'", "", 0, 0, dbx.Params{"item": item.Id})
+	if err != nil || len(before) != 1 {
+		t.Fatalf("auto versions = %d, %v; want the replaced state", len(before), err)
+	}
+	if got := before[0].GetInt("size"); got != len("unsaved two") {
+		t.Fatalf("replaced-state version size = %d", got)
+	}
+}
+
+func mustFile(t *testing.T, b []byte, name string) *filesystem.File {
+	t.Helper()
+	f, err := filesystem.NewFileFromBytes(b, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
 }

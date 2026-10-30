@@ -5,6 +5,28 @@
 //     last editor leaves; thinned by the retention job.
 //   - editors / share_editors: who edited since the previous version, so
 //     the history list can show it without walking the document.
+// Every drive_item_versions field except `label`.
+const DRIVE_OWNED_VERSION_FIELDS = [
+    'item',
+    'version_number',
+    'file',
+    'size',
+    'mime_type',
+    'source',
+    'created_by',
+    'editors',
+    'share_editors',
+]
+
+const UPDATE_GUARD = DRIVE_OWNED_VERSION_FIELDS.map(f => `@request.body.${f}:isset = false`).join(
+    ' && '
+)
+const CREATE_GUARD =
+    '@request.body.editors:isset = false && @request.body.share_editors:isset = false && ' +
+    '(@request.body.source = "user" || @request.body.source = "upload")'
+
+const withoutSuffix = (rule, suffix) => (rule?.endsWith(suffix) ? rule.slice(0, -suffix.length) : rule)
+
 migrate(
     app => {
         const col = app.findCollectionByNameOrId('drive_item_versions')
@@ -32,6 +54,15 @@ migrate(
                 maxSize: 10 * 1024,
             })
         )
+        // The history screen writes one field, `label`. Every other field is
+        // history the server writes: changing `source` would let retention
+        // delete a version that only an owner may delete, and `editors` would
+        // let an editor rewrite who changed the document. A REST create keeps
+        // its share guards but cannot make an automatic or hidden version, or
+        // name editors.
+        col.updateRule = `${col.updateRule} && ${UPDATE_GUARD}`
+        col.createRule = `${col.createRule} && ${CREATE_GUARD}`
+
         app.save(col)
     },
     app => {
@@ -40,6 +71,8 @@ migrate(
         col.fields.removeById('drv_ver_share_editors')
         const source = col.fields.getByName('source')
         if (source) source.values = ['upload', 'system', 'user']
+        col.updateRule = withoutSuffix(col.updateRule, ` && ${UPDATE_GUARD}`)
+        col.createRule = withoutSuffix(col.createRule, ` && ${CREATE_GUARD}`)
         app.save(col)
     }
 )
