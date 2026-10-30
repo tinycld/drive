@@ -34,6 +34,17 @@ Select a version, then choose what the preview shows:
 - **vs. previous**: the selected version, with the changes since the version just before it marked.
 - **Version**: the selected version without marks.
 
+### Compare two versions
+
+To compare any two versions:
+
+1. Select one version.
+2. ⌘-click the other version in the list. On a phone, press and hold the other version, then tap the one to open.
+
+The preview shows the newer of the two, with the changes since the older one marked. The order you pick them in does not matter. The other version is marked **Compared** in the list, and a line under the toolbar says which version you compare with.
+
+The compared version stays while you select other versions, so you can step through the history against one version. To stop, click **Clear**, choose **Version**, **vs. previous** or **vs. current**, or ⌘-click the compared version again.
+
 In a compare:
 
 - Added text has a green background.

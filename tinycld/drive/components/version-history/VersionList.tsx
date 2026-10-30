@@ -8,7 +8,9 @@ interface VersionListProps {
     isVisible: boolean
     groups: VersionGroupData[]
     selectedId: string | undefined
+    baseId: string | undefined
     onSelect: (versionId: string) => void
+    onPickBase: (versionId: string) => void
     className?: string
 }
 
@@ -16,7 +18,9 @@ export function VersionList({
     isVisible,
     groups,
     selectedId,
+    baseId,
     onSelect,
+    onPickBase,
     className,
 }: VersionListProps) {
     if (!isVisible) return null
@@ -25,7 +29,9 @@ export function VersionList({
             key={group.dayKey}
             group={group}
             selectedId={selectedId}
+            baseId={baseId}
             onSelect={onSelect}
+            onPickBase={onPickBase}
         />
     ))
     // The width goes on a View: a ScrollView's className does not size it.
@@ -42,18 +48,24 @@ export function VersionList({
 function VersionGroup({
     group,
     selectedId,
+    baseId,
     onSelect,
+    onPickBase,
 }: {
     group: VersionGroupData
     selectedId: string | undefined
+    baseId: string | undefined
     onSelect: (versionId: string) => void
+    onPickBase: (versionId: string) => void
 }) {
     const rows = group.versions.map(version => (
         <VersionListRow
             key={version.id}
             version={version}
             isSelected={version.id === selectedId}
+            isBase={version.id === baseId}
             onSelect={onSelect}
+            onPickBase={onPickBase}
         />
     ))
     return (

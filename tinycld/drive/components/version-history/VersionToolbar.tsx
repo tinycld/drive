@@ -14,6 +14,8 @@ interface VersionToolbarProps {
     isCompareVisible: boolean
     compareMode: CompareMode
     onCompareModeChange: (mode: CompareMode) => void
+    baseTitle: string
+    onClearBase: () => void
 }
 
 export function VersionToolbar({
@@ -26,6 +28,8 @@ export function VersionToolbar({
     isCompareVisible,
     compareMode,
     onCompareModeChange,
+    baseTitle,
+    onClearBase,
 }: VersionToolbarProps) {
     const fg = useThemeColor('foreground')
     return (
@@ -56,9 +60,10 @@ export function VersionToolbar({
             </View>
             <CompareChoice
                 isVisible={isCompareVisible}
-                mode={compareMode}
+                mode={baseTitle ? undefined : compareMode}
                 onChange={onCompareModeChange}
             />
+            <BaseCompareLine title={baseTitle} onClear={onClearBase} />
         </View>
     )
 }
@@ -103,7 +108,7 @@ function CompareChoice({
     onChange,
 }: {
     isVisible: boolean
-    mode: CompareMode
+    mode: CompareMode | undefined
     onChange: (mode: CompareMode) => void
 }) {
     if (!isVisible) return null
@@ -150,5 +155,24 @@ function CompareOption({
         >
             <Text className={`text-sm font-medium ${textClass}`}>{label}</Text>
         </Pressable>
+    )
+}
+
+// Shown while two picked versions are compared; the three choices above are
+// then all off.
+function BaseCompareLine({ title, onClear }: { title: string; onClear: () => void }) {
+    if (!title) return null
+    return (
+        <View className="flex-row items-center gap-2 px-3 pb-2">
+            <Text className="text-sm text-muted-foreground">{`Comparing with ${title}`}</Text>
+            <Button
+                variant="outline"
+                size="sm"
+                onPress={onClear}
+                accessibilityLabel="Clear comparison"
+            >
+                <ButtonText>Clear</ButtonText>
+            </Button>
+        </View>
     )
 }
