@@ -31,6 +31,9 @@ export function registerCollections(
             'thumbnail',
             'thumb_region_hash',
             'index_hash',
+            // Set only by an attaching upload (upload-to-drive.ts), which
+            // goes through FormData, never a pbtsdb insert.
+            'attached_to',
         ] as const,
         relations: { created_by: coreStores.users },
         ...onDemand,
