@@ -450,10 +450,21 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
                 )}
             </View>
             <View className="flex-row gap-2">
-                <Pressable onPress={onDownload} hitSlop={8} className="p-1">
+                <Pressable
+                    onPress={onDownload}
+                    hitSlop={8}
+                    className="p-1"
+                    accessibilityLabel={`Download version ${version.version_number}`}
+                >
                     <Download size={14} color={mutedColor} />
                 </Pressable>
-                <Pressable onPress={onRestore} hitSlop={8} disabled={isRestoring} className="p-1">
+                <Pressable
+                    onPress={onRestore}
+                    hitSlop={8}
+                    disabled={isRestoring}
+                    className="p-1"
+                    accessibilityLabel={`Restore version ${version.version_number}`}
+                >
                     {isRestoring ? (
                         <ActivityIndicator size="small" />
                     ) : (
