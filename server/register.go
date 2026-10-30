@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -112,6 +113,13 @@ func registerShared(app *pocketbase.PocketBase) {
 	// Automatic versions: core's realtime rooms fire a checkpoint after an
 	// idle period and when the last editor leaves.
 	editcheckpoint.Register(handleEditCheckpoint(app))
+
+	// Version retention, daily. The scheduler skips jobs while read-only.
+	app.Cron().MustAdd("drive_version_retention", "23 3 * * *", func() {
+		if err := pruneVersions(app, time.Now()); err != nil {
+			versionLog.Warn("version retention failed", "err", err)
+		}
+	})
 
 	// Storage ceilings: declare the collections, core binds the enforcement.
 	quota.RegisterSources(quotaSources...)
