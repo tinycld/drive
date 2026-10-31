@@ -9,14 +9,14 @@ const SWITCH_LABEL = 'Automatically version documents while editing'
 export default function VersionsSettings() {
     const autoVersions = useAutoVersionsDefault()
     return (
-        <View className="gap-4">
-            <View className="flex-row items-center gap-2">
-                <Text className="text-lg font-semibold text-foreground">Versions</Text>
-                <HelpIcon topic="drive:versions" />
-            </View>
+        // The settings screen titles the panel and pads only its own header.
+        <View className="gap-4 p-5">
             <SectionCard>
                 <View className="flex-row items-center justify-between gap-4">
-                    <Text className="flex-1 text-base text-foreground">{SWITCH_LABEL}</Text>
+                    <View className="flex-1 flex-row items-center gap-2">
+                        <Text className="text-base text-foreground">{SWITCH_LABEL}</Text>
+                        <HelpIcon topic="drive:versions" />
+                    </View>
                     <Switch
                         value={autoVersions.isOn}
                         onValueChange={autoVersions.setOn}
