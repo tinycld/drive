@@ -25,6 +25,7 @@ func versionsOf(t *testing.T, app core.App, itemID string) []*core.Record {
 func TestCheckpoint_CreatesAutoVersionOwnedByItemOwner(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
+	turnAutoVersionsOn(t, env.app, item)
 
 	handleEditCheckpoint(env.app)(context.Background(), item.Id, editcheckpoint.Editors{
 		UserIDs:    []string{env.guest.Id},
@@ -51,8 +52,9 @@ func TestCheckpoint_CreatesAutoVersionOwnedByItemOwner(t *testing.T) {
 func TestCheckpoint_SkipsWhenOverQuota(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
+	turnAutoVersionsOn(t, env.app, item)
 	ensureSettingsCollection(t, env.app)
-	setStorageLimit(t, env.app, "6")
+	setSetting(t, env.app, "core", "storage_limit_bytes", 6)
 
 	handleEditCheckpoint(env.app)(context.Background(), item.Id, editcheckpoint.Editors{
 		UserIDs: []string{env.member.Id},
@@ -66,6 +68,7 @@ func TestCheckpoint_SkipsWhenOverQuota(t *testing.T) {
 func TestCheckpoint_SkipsWhenFlushRefused(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
+	turnAutoVersionsOn(t, env.app, item)
 	realtime.RegisterRoomKindWith("refuse-"+t.Name(), realtime.RoomKindOptions{
 		Authorize: func(*core.Record, string) error { return nil },
 		ForceFlush: func(id string) error {
@@ -96,6 +99,7 @@ func TestCheckpoint_RunsOnSnapshotHook(t *testing.T) {
 		},
 	})
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
+	turnAutoVersionsOn(t, env.app, item)
 	item.Set("mime_type", mime)
 	if err := env.app.Save(item); err != nil {
 		t.Fatal(err)
@@ -128,6 +132,27 @@ func TestSnapshotOpts_StoresEditors(t *testing.T) {
 	}
 }
 
+// setSetting writes a settings row with a JSON value of its real type.
+func setSetting(t *testing.T, app core.App, appName, key string, value any) {
+	t.Helper()
+	ensureSettingsCollection(t, app)
+	col, err := app.FindCollectionByNameOrId("settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := app.FindFirstRecordByFilter("settings", "app = {:app} && key = {:key}",
+		dbx.Params{"app": appName, "key": key})
+	if err != nil {
+		rec = core.NewRecord(col)
+		rec.Set("app", appName)
+		rec.Set("key", key)
+	}
+	rec.Set("value", value)
+	if err := app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // ensureSettingsCollection adds the core settings table the storage limit
 // is read from; the drive test app is built from drive's migrations only.
 func ensureSettingsCollection(t *testing.T, app core.App) {
@@ -136,8 +161,50 @@ func ensureSettingsCollection(t *testing.T, app core.App) {
 		return
 	}
 	settings := core.NewBaseCollection("settings")
-	settings.Fields.Add(&core.TextField{Name: "app"}, &core.TextField{Name: "key"}, &core.TextField{Name: "value"})
+	// value is JSON, as in core's shipped table: a JSON true reads back as
+	// the text "true", a JSON string "true" does not.
+	settings.Fields.Add(&core.TextField{Name: "app"}, &core.TextField{Name: "key"}, &core.JSONField{Name: "value"})
 	if err := app.Save(settings); err != nil {
 		t.Fatalf("create settings collection: %v", err)
+	}
+}
+
+func TestCheckpoint_SkipsWhenAutoVersionsOff(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
+
+	handleEditCheckpoint(env.app)(context.Background(), item.Id, editcheckpoint.Editors{
+		UserIDs: []string{env.member.Id},
+	}, editcheckpoint.ReasonIdle)
+
+	if rows := versionsOf(t, env.app, item.Id); len(rows) != 0 {
+		t.Fatalf("versions = %d, want 0 with automatic versions off", len(rows))
+	}
+}
+
+// turnAutoVersionsOn gives an item its own 'on', so a checkpoint test does not
+// depend on the org setting.
+func turnAutoVersionsOn(t *testing.T, app core.App, item *core.Record) {
+	t.Helper()
+	item.Set("auto_versions", "on")
+	if err := app.Save(item); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// With automatic versions off, the checkpoint's editors are not dropped: the
+// next version taken with TakeEditors (Save version, upload, restore) names
+// them.
+func TestCheckpoint_OffHandsTheEditorsBack(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
+
+	handleEditCheckpoint(env.app)(context.Background(), item.Id, editcheckpoint.Editors{
+		UserIDs: []string{env.guest.Id},
+	}, editcheckpoint.ReasonRoomEmpty)
+
+	got := realtime.TakeEditors(item.Id)
+	if len(got.UserIDs) != 1 || got.UserIDs[0] != env.guest.Id {
+		t.Fatalf("editors held for the next version = %+v, want [guest]", got)
 	}
 }

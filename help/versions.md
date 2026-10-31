@@ -87,12 +87,21 @@ In the **Info** panel's **Versions** tab, click the download icon next to a vers
 
 ## When automatic versions are made
 
-For a document that people edit in the app, Drive makes a version automatically:
+When automatic versions are on for a document, Drive makes a version automatically:
 
 - after 10 minutes with no edits, and
 - when the last person closes the document.
 
 Drive makes an automatic version only if something changed since the last version. Typing does not make a version for each change.
+
+## Turn automatic versions on or off
+
+Automatic versions are off unless you turn them on, because each one is a full copy of the file.
+
+- **For the whole organization:** an owner or admin opens **Settings → Drive → Versions** and turns on **Automatically version documents while editing**. Documents that have no own choice then get automatic versions.
+- **For one document:** in the document's editor, choose **File → Automatically version while editing**. A check mark shows it is on. This choice stays with the document when the organization setting changes.
+
+**Save version**, uploads and restores make versions whatever these settings are.
 
 ## How long versions are kept
 
