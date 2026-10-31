@@ -118,6 +118,11 @@ func registerShared(app *pocketbase.PocketBase) {
 	// idle period and when the last editor leaves.
 	editcheckpoint.Register(app, handleEditCheckpoint(app))
 
+	// Drive's org settings (automatic versions) are owner/admin-only.
+	app.OnRecordCreateRequest("settings").BindFunc(guardDriveSettings)
+	app.OnRecordUpdateRequest("settings").BindFunc(guardDriveSettings)
+	app.OnRecordDeleteRequest("settings").BindFunc(guardDriveSettings)
+
 	// Version retention, daily. The scheduler skips jobs while read-only.
 	app.Cron().MustAdd("drive_version_retention", "23 3 * * *", func() {
 		if err := pruneVersions(app, time.Now()); err != nil {

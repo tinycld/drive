@@ -28,6 +28,7 @@ export function VersionHistoryScreen({ itemId }: { itemId: string }) {
                 onCompareModeChange={screen.setCompareMode}
                 baseTitle={screen.baseTitle}
                 onClearBase={screen.clearBase}
+                changedBy={screen.changedByPeople}
             />
             <View className="flex-1 flex-row">
                 <PreviewPane
