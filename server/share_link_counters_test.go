@@ -169,7 +169,6 @@ const readOnlyShareContent = "shared file body"
 // GET handlers.
 func setupShareLinkGetApp(t *testing.T) (*tests.TestApp, *core.Record) {
 	t.Helper()
-	publicShareLimiter.Reset()
 	app, err := tests.NewTestApp()
 	if err != nil {
 		t.Fatalf("NewTestApp: %v", err)

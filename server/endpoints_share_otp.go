@@ -84,7 +84,7 @@ func bindShareOTPRoutes(app core.App, r *router.Router[*core.RequestEvent]) {
 //     request-but-never-verify is harmless.
 func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !otpLimiter.AllowOrLog(ip, "drive.share.otp.request") {
+	if !otpLimiter.For(app).AllowOrLog(ip, "drive.share.otp.request") {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 	}
 
@@ -173,7 +173,7 @@ func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 //     client can drop {token, record} directly into pb.authStore.
 func handleShareOTPVerify(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !otpLimiter.AllowOrLog(ip, "drive.share.otp.verify") {
+	if !otpLimiter.For(app).AllowOrLog(ip, "drive.share.otp.verify") {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 	}
 

@@ -22,7 +22,8 @@ import (
 // second member was the alternative. Its caveats (in-memory, per-process, does
 // not hold across instances) are documented there.
 
-var publicShareLimiter = ratelimit.New(60, time.Minute)
+// Per app: two apps must not share a budget.
+var publicShareLimiter = ratelimit.NewPerApp("drive.share", 60, time.Minute)
 
 // otpLimiter is a stricter per-IP limiter used by the share-link OTP
 // request and verify endpoints. The OTP code is 6 digits (~10^6 keyspace);
@@ -31,7 +32,8 @@ var publicShareLimiter = ratelimit.New(60, time.Minute)
 // gives ~150 guesses per TTL — still generous for legitimate humans
 // (request + a handful of code attempts) but materially tightens the
 // brute-force surface.
-var otpLimiter = ratelimit.New(10, time.Minute)
+// Per app: two apps must not share a budget.
+var otpLimiter = ratelimit.NewPerApp("drive.share.otp", 10, time.Minute)
 
 func getClientIP(r *http.Request) string {
 	return ratelimit.ClientIP(r)
@@ -96,7 +98,7 @@ func categorizeFromMime(mimeType string) string {
 // handleGetShareLinkMetadata returns JSON metadata for a public share link.
 func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.AllowOrLog(ip, "drive.share.metadata") {
+	if !publicShareLimiter.For(app).AllowOrLog(ip, "drive.share.metadata") {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
@@ -139,7 +141,7 @@ func handleGetShareLinkMetadata(app core.App, re *core.RequestEvent) error {
 // handleGetShareLinkFile streams the file content for a public share link.
 func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.AllowOrLog(ip, "drive.share.download") {
+	if !publicShareLimiter.For(app).AllowOrLog(ip, "drive.share.download") {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
@@ -229,7 +231,7 @@ func handleGetShareLinkFile(app core.App, re *core.RequestEvent) error {
 // handleGetShareLinkThumbnail streams the thumbnail for a public share link.
 func handleGetShareLinkThumbnail(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !publicShareLimiter.AllowOrLog(ip, "drive.share.thumbnail") {
+	if !publicShareLimiter.For(app).AllowOrLog(ip, "drive.share.thumbnail") {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 
