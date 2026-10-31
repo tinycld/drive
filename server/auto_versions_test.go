@@ -54,7 +54,7 @@ func TestCheckpoint_SkipsWhenOverQuota(t *testing.T) {
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
 	turnAutoVersionsOn(t, env.app, item)
 	ensureSettingsCollection(t, env.app)
-	setStorageLimit(t, env.app, "6")
+	setSetting(t, env.app, "core", "storage_limit_bytes", 6)
 
 	handleEditCheckpoint(env.app)(context.Background(), item.Id, editcheckpoint.Editors{
 		UserIDs: []string{env.member.Id},
@@ -132,6 +132,27 @@ func TestSnapshotOpts_StoresEditors(t *testing.T) {
 	}
 }
 
+// setSetting writes a settings row with a JSON value of its real type.
+func setSetting(t *testing.T, app core.App, appName, key string, value any) {
+	t.Helper()
+	ensureSettingsCollection(t, app)
+	col, err := app.FindCollectionByNameOrId("settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := app.FindFirstRecordByFilter("settings", "app = {:app} && key = {:key}",
+		dbx.Params{"app": appName, "key": key})
+	if err != nil {
+		rec = core.NewRecord(col)
+		rec.Set("app", appName)
+		rec.Set("key", key)
+	}
+	rec.Set("value", value)
+	if err := app.Save(rec); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // ensureSettingsCollection adds the core settings table the storage limit
 // is read from; the drive test app is built from drive's migrations only.
 func ensureSettingsCollection(t *testing.T, app core.App) {
@@ -140,7 +161,9 @@ func ensureSettingsCollection(t *testing.T, app core.App) {
 		return
 	}
 	settings := core.NewBaseCollection("settings")
-	settings.Fields.Add(&core.TextField{Name: "app"}, &core.TextField{Name: "key"}, &core.TextField{Name: "value"})
+	// value is JSON, as in core's shipped table: a JSON true reads back as
+	// the text "true", a JSON string "true" does not.
+	settings.Fields.Add(&core.TextField{Name: "app"}, &core.TextField{Name: "key"}, &core.JSONField{Name: "value"})
 	if err := app.Save(settings); err != nil {
 		t.Fatalf("create settings collection: %v", err)
 	}

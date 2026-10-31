@@ -2,49 +2,27 @@ package drive
 
 import (
 	"testing"
-
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
 )
-
-func setDriveSetting(t *testing.T, app *tests.TestApp, value string) {
-	t.Helper()
-	ensureSettingsCollection(t, app)
-	col, err := app.FindCollectionByNameOrId("settings")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rec, err := app.FindFirstRecordByFilter("settings", "app = 'drive' && key = 'auto_versions_default'")
-	if err != nil {
-		rec = core.NewRecord(col)
-		rec.Set("app", "drive")
-		rec.Set("key", "auto_versions_default")
-	}
-	rec.Set("value", value)
-	if err := app.Save(rec); err != nil {
-		t.Fatal(err)
-	}
-}
 
 func TestAutoVersionsOn(t *testing.T) {
 	cases := []struct {
 		name   string
-		org    string // "" = no settings row
+		org    any // nil = no settings row; JSON value otherwise
 		item   string
 		wantOn bool
 	}{
-		{"default off, item empty", "", "", false},
-		{"org off, item on", "false", "on", true},
-		{"org on, item off", "true", "off", false},
-		{"org on, item empty", "true", "", true},
-		{"org value not 'true' means off", "1", "", false},
+		{"default off, item empty", nil, "", false},
+		{"org off, item on", false, "on", true},
+		{"org on, item off", true, "off", false},
+		{"org on, item empty", true, "", true},
+		{"a number is not on", 1, "", false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			env := setupDriveGuestApp(t)
 			ensureSettingsCollection(t, env.app)
-			if c.org != "" {
-				setDriveSetting(t, env.app, c.org)
+			if c.org != nil {
+				setSetting(t, env.app, "drive", "auto_versions_default", c.org)
 			}
 			item := seedFileItem(t, env.app, env.member, "a.txt", []byte("x"))
 			item.Set("auto_versions", c.item)
@@ -63,11 +41,11 @@ func TestAutoVersionsOn(t *testing.T) {
 func TestAutoVersionsOn_ReadsTheSettingFresh(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("x"))
-	setDriveSetting(t, env.app, "true")
+	setSetting(t, env.app, "drive", "auto_versions_default", true)
 	if !autoVersionsOn(env.app, item) {
 		t.Fatal("want on")
 	}
-	setDriveSetting(t, env.app, "false")
+	setSetting(t, env.app, "drive", "auto_versions_default", false)
 	if autoVersionsOn(env.app, item) {
 		t.Fatal("want off after the change")
 	}
