@@ -11,12 +11,16 @@ import (
 )
 
 // handleEditCheckpoint makes an automatic version when a document reaches a
-// checkpoint. The version belongs to the file's owner, whose storage it
+// checkpoint and automatic versions are on for it (autoVersionsOn). The version belongs to the file's owner, whose storage it
 // uses; editors names who changed the document since the previous version.
 // Every failure is logged and skipped: an automatic version must never
 // stop editing.
 func handleEditCheckpoint(app core.App) editcheckpoint.Listener {
 	return func(ctx context.Context, itemID string, editors editcheckpoint.Editors, reason editcheckpoint.Reason) {
+		// Opt-in: the document's own choice, else the org setting.
+		if current, err := app.FindRecordById("drive_items", itemID); err != nil || !autoVersionsOn(app, current) {
+			return
+		}
 		if err := realtime.FlushItem(itemID); err != nil {
 			if errors.Is(err, realtime.ErrReadOnly) || errors.Is(err, realtime.ErrStopping) {
 				versionLog.InfoContext(ctx, "auto version skipped: the server cannot write now",
