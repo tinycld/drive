@@ -15,6 +15,7 @@
         "./seed": "./tinycld/drive/seed.ts",
         "./hooks/*": "./tinycld/drive/hooks/*.ts",
         "./components/*": "./tinycld/drive/components/*.tsx",
+        "./settings/*": "./tinycld/drive/settings/*.tsx",
         "./stores/*": "./tinycld/drive/stores/*.ts",
         "./lib/copy-drive-item": "./tinycld/drive/lib/copy-drive-item.ts",
         "./lib/export-pdf": "./tinycld/drive/lib/export-pdf.ts",

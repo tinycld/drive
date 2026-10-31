@@ -31,6 +31,8 @@ export function registerCollections(
             'thumbnail',
             'thumb_region_hash',
             'index_hash',
+            // A new item has no own choice: it follows the org setting.
+            'auto_versions',
         ] as const,
         relations: { created_by: coreStores.users },
         ...onDemand,
