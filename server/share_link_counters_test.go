@@ -169,7 +169,6 @@ const readOnlyShareContent = "shared file body"
 // GET handlers.
 func setupShareLinkGetApp(t *testing.T) (*tests.TestApp, *core.Record) {
 	t.Helper()
-	publicShareLimiter.Reset()
 	app, err := tests.NewTestApp()
 	if err != nil {
 		t.Fatalf("NewTestApp: %v", err)
@@ -256,8 +255,8 @@ func TestShareLinkGets_SkipTheirWritesWhileReadOnly(t *testing.T) {
 	app, link := setupShareLinkGetApp(t)
 	token := link.GetString("token")
 	logs := readonlytest.CaptureLogs(t)
-	readonly.Enter()
-	t.Cleanup(readonly.Leave)
+	readonly.Enter(app)
+	t.Cleanup(func() { readonly.Leave(app) })
 
 	serveShareLinkGet(t, app, token, handleGetShareLinkMetadata)
 	rec := serveShareLinkGet(t, app, token, handleGetShareLinkFile)
@@ -278,7 +277,7 @@ func TestShareLinkGets_SkipTheirWritesWhileReadOnly(t *testing.T) {
 		t.Fatalf("want an Info log naming the link, got %v %v", r.Level, r.Attrs)
 	}
 
-	readonly.Leave()
+	readonly.Leave(app)
 	serveShareLinkGet(t, app, token, handleGetShareLinkMetadata)
 	serveShareLinkGet(t, app, token, handleGetShareLinkFile)
 

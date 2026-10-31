@@ -86,7 +86,7 @@ func openWithFinalSave(t *testing.T, app core.App, itemID string, content []byte
 	t.Helper()
 	var name string
 	kind := "guard-test-" + t.Name()
-	realtime.RegisterRoomKindWith(kind, realtime.RoomKindOptions{
+	realtime.RegisterRoomKindWith(app, kind, realtime.RoomKindOptions{
 		Authorize: func(*core.Record, string) error { return nil },
 		OnEmpty: func(id string) {
 			item, err := app.FindRecordById("drive_items", id)
@@ -108,7 +108,7 @@ func openWithFinalSave(t *testing.T, app core.App, itemID string, content []byte
 			name = item.GetString("file")
 		},
 	})
-	t.Cleanup(realtime.JoinItemForTest(kind, itemID))
+	t.Cleanup(realtime.JoinItemForTest(app, kind, itemID))
 	return func() string { return name }
 }
 

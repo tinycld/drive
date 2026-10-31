@@ -10,9 +10,9 @@ import (
 )
 
 // recordDiffHook registers a Diff hook that writes the ids it was given.
-func recordDiffHook(t *testing.T, mime string) {
+func recordDiffHook(t *testing.T, app core.App, mime string) {
 	t.Helper()
-	registerFakeHook(t, mime, versionhooks.Hook{
+	registerFakeHook(t, app, mime, versionhooks.Hook{
 		Diff: func(_ context.Context, _ core.App, _, from, to *core.Record, _ string) (string, error) {
 			fromID := "none"
 			if from != nil {
@@ -45,7 +45,7 @@ func snap(t *testing.T, env *driveGuestEnv, item *core.Record, source string) *c
 func TestVersionDiff_DefaultsToPreviousVisibleVersion(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
-	recordDiffHook(t, mime)
+	recordDiffHook(t, env.app, mime)
 	item := mimeItem(t, env, mime, "doc.bin")
 	v1 := snap(t, env, item, "user")
 	snap(t, env, item, "system")
@@ -60,7 +60,7 @@ func TestVersionDiff_DefaultsToPreviousVisibleVersion(t *testing.T) {
 func TestVersionDiff_ExplicitFrom(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
-	recordDiffHook(t, mime)
+	recordDiffHook(t, env.app, mime)
 	item := mimeItem(t, env, mime, "doc.bin")
 	v1 := snap(t, env, item, "user")
 	snap(t, env, item, "user")
@@ -75,7 +75,7 @@ func TestVersionDiff_ExplicitFrom(t *testing.T) {
 func TestVersionDiff_FromOtherItemIsBadRequest(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
-	recordDiffHook(t, mime)
+	recordDiffHook(t, env.app, mime)
 	item := mimeItem(t, env, mime, "doc.bin")
 	other := mimeItem(t, env, mime, "other.bin")
 	foreign := snap(t, env, other, "user")
@@ -90,7 +90,7 @@ func TestVersionDiff_FromOtherItemIsBadRequest(t *testing.T) {
 func TestVersionDiff_FirstVersionAllInserted(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
-	recordDiffHook(t, mime)
+	recordDiffHook(t, env.app, mime)
 	item := mimeItem(t, env, mime, "doc.bin")
 	v := snap(t, env, item, "upload")
 
@@ -114,7 +114,7 @@ func TestVersionDiff_NoHookIsNotFound(t *testing.T) {
 func TestVersionDiff_NoAccessIsNotFound(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
-	recordDiffHook(t, mime)
+	recordDiffHook(t, env.app, mime)
 	item := mimeItem(t, env, mime, "doc.bin")
 	v := snap(t, env, item, "user")
 
@@ -129,7 +129,7 @@ func TestVersionDiff_NoAccessIsNotFound(t *testing.T) {
 func TestVersionDiff_AgainstCurrentFlushesAndUsesTheItem(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
-	recordDiffHook(t, mime)
+	recordDiffHook(t, env.app, mime)
 	item := mimeItem(t, env, mime, "doc.bin")
 	v := snap(t, env, item, "user")
 	var flushed int
@@ -147,7 +147,7 @@ func TestVersionDiff_AgainstCurrentFlushesAndUsesTheItem(t *testing.T) {
 func TestVersionDiff_AgainstAndFromTogetherIsBadRequest(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
-	recordDiffHook(t, mime)
+	recordDiffHook(t, env.app, mime)
 	item := mimeItem(t, env, mime, "doc.bin")
 	v := snap(t, env, item, "user")
 

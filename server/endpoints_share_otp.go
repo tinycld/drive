@@ -84,7 +84,7 @@ func bindShareOTPRoutes(app core.App, r *router.Router[*core.RequestEvent]) {
 //     request-but-never-verify is harmless.
 func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !otpLimiter.AllowOrLog(ip, "drive.share.otp.request") {
+	if !otpLimiter.For(app).AllowOrLog(ip, "drive.share.otp.request") {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 	}
 
@@ -173,7 +173,7 @@ func handleShareOTPRequest(app core.App, re *core.RequestEvent) error {
 //     client can drop {token, record} directly into pb.authStore.
 func handleShareOTPVerify(app core.App, re *core.RequestEvent) error {
 	ip := getClientIP(re.Request)
-	if !otpLimiter.AllowOrLog(ip, "drive.share.otp.verify") {
+	if !otpLimiter.For(app).AllowOrLog(ip, "drive.share.otp.verify") {
 		return re.JSON(http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 	}
 
@@ -518,11 +518,8 @@ func sendShareOTPEmail(app core.App, toEmail, code, itemName string) error {
 	// in prod) instead of PocketBase's NewMailClient so this endpoint
 	// matches every other outbound email site in the codebase (invite,
 	// share invite, etc.) — single delivery gate, same dev/test log
-	// path, same Postmark config. The app handle is unused at the call
-	// site but kept on the signature so future per-app routing (e.g.
-	// demo-user suppression) can be added without churn.
-	_ = app
-	return mailer.DefaultSender().Send(context.Background(), msg)
+	// path, same Postmark config.
+	return mailer.DefaultSender(app).Send(context.Background(), msg)
 }
 
 // htmlEscapeOTP escapes any html-significant characters in the code

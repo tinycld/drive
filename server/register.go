@@ -41,7 +41,7 @@ import (
 // the mechanism that needed it.
 func Register(app *pocketbase.PocketBase) {
 	registerShared(app)
-	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
+	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings(app)); err != nil {
 		app.Logger().Error("drive: WebDAV registration failed", "error", err)
 	}
 }
@@ -116,7 +116,7 @@ func registerShared(app *pocketbase.PocketBase) {
 
 	// Automatic versions: core's realtime rooms fire a checkpoint after an
 	// idle period and when the last editor leaves.
-	editcheckpoint.Register(handleEditCheckpoint(app))
+	editcheckpoint.Register(app, handleEditCheckpoint(app))
 
 	// Drive's org settings (automatic versions) are owner/admin-only.
 	app.OnRecordCreateRequest("settings").BindFunc(guardDriveSettings)
@@ -309,13 +309,13 @@ var driveWebDAVHooks = webdav.Hooks{
 	},
 	// A document open in an editor is written on a debounce; a DAV client
 	// reading it gets the edits the editor shows, not the last save.
-	BeforeRead: func(_ core.App, record *core.Record) error {
-		return realtime.FlushItem(record.Id)
+	BeforeRead: func(app core.App, record *core.Record) error {
+		return realtime.FlushItem(app, record.Id)
 	},
 	// A PUT over a document open in an editor would be overwritten by the
 	// room's next save; close the room first.
-	GuardWrite: func(_ core.App, record *core.Record, write func() error) error {
-		return realtime.WriteItem(record.Id, write)
+	GuardWrite: func(app core.App, record *core.Record, write func() error) error {
+		return realtime.WriteItem(app, record.Id, write)
 	},
 }
 
@@ -383,7 +383,7 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	if err := writeItemFile(item.Id, func() error {
+	if err := writeItemFile(app, item.Id, func() error {
 		fresh, err := app.FindRecordById("drive_items", item.Id)
 		if err != nil {
 			return re.NotFoundError("item not found", nil)
@@ -392,7 +392,7 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 		if _, err := snapshotCurrentFile(app, item, snapshotOpts{
 			UserID:  userID,
 			Source:  "upload",
-			Editors: realtime.TakeEditors(item.Id),
+			Editors: realtime.TakeEditors(app, item.Id),
 		}); err != nil {
 			app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
 		}
@@ -466,7 +466,7 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 		UserID:  userID,
 		Source:  "user",
 		Label:   label,
-		Editors: realtime.TakeEditors(item.Id),
+		Editors: realtime.TakeEditors(app, item.Id),
 	})
 	if err != nil {
 		app.Logger().Warn("version snapshot failed", "id", item.Id, "error", err)
@@ -475,7 +475,7 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 
 	if version != nil {
 		mimeType := item.GetString("mime_type")
-		if hook := versionhooks.For(mimeType); hook.OnSnapshot != nil {
+		if hook := versionhooks.For(app, mimeType); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, version); err != nil {
 				app.Logger().Warn("drive: version snapshot hook failed",
 					"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
@@ -524,7 +524,7 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 	// Keep the state being replaced as a visible automatic version. The write
 	// runs after a live room's final save, so it holds the editors' last
 	// edits; those exist nowhere else, and the user can restore them.
-	if err := writeItemFile(item.Id, func() error {
+	if err := writeItemFile(app, item.Id, func() error {
 		fresh, err := app.FindRecordById("drive_items", item.Id)
 		if err != nil {
 			return re.NotFoundError("item not found", nil)
@@ -533,7 +533,7 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		if _, err := snapshotCurrentFile(app, item, snapshotOpts{
 			UserID:  userID,
 			Source:  "auto",
-			Editors: realtime.TakeEditors(item.Id),
+			Editors: realtime.TakeEditors(app, item.Id),
 		}); err != nil {
 			app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
 		}
@@ -580,7 +580,7 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		}
 
 		mimeType := item.GetString("mime_type")
-		if hook := versionhooks.For(mimeType); hook.OnRestore != nil {
+		if hook := versionhooks.For(app, mimeType); hook.OnRestore != nil {
 			if err := hook.OnRestore(app, item, version); err != nil {
 				app.Logger().Warn("drive: version restore hook failed",
 					"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
@@ -597,7 +597,7 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 	if err != nil {
 		app.Logger().Warn("drive: restored-from version failed", "id", item.Id, "error", err)
 	} else if restored != nil {
-		if hook := versionhooks.For(item.GetString("mime_type")); hook.OnSnapshot != nil {
+		if hook := versionhooks.For(app, item.GetString("mime_type")); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, restored); err != nil {
 				app.Logger().Warn("drive: restored-from snapshot hook failed",
 					"itemID", item.Id, "versionID", restored.Id, "err", err)
@@ -657,7 +657,7 @@ func registerBackgroundJobHooks(app core.App) {
 	jobs := background.For(app, "drive")
 
 	startItemJobs := func(rec *core.Record) {
-		payload, has := previewqueue.Take(rec.Id)
+		payload, has := previewqueue.Take(app, rec.Id)
 		jobs.Run("drive item text extraction", func(ctx context.Context) {
 			extractAndIndexDriveItem(ctx, app, rec, payload, has)
 		})
@@ -698,7 +698,7 @@ const shareNotifyDroppedMsg = "drive share notification dropped: the server stay
 // notifyDriveShareWhenWritable notifies for a share whose row a request
 // already wrote, possibly just before the server went read-only.
 func notifyDriveShareWhenWritable(ctx context.Context, app core.App, share *core.Record) {
-	whenWritable(ctx, shareNotifyDroppedMsg, func() {
+	whenWritable(ctx, app, shareNotifyDroppedMsg, func() {
 		notifyDriveShare(ctx, app, share)
 	}, "shareID", share.Id)
 }
@@ -709,10 +709,10 @@ func notifyDriveShareWhenWritable(ctx context.Context, app core.App, share *core
 // is bounded by readonly.TailWait and by ctx, which ends when the app
 // terminates; a write still waiting then is dropped and logged as dropMsg
 // with attrs.
-func whenWritable(ctx context.Context, dropMsg string, write func(), attrs ...any) {
+func whenWritable(ctx context.Context, app core.App, dropMsg string, write func(), attrs ...any) {
 	waitCtx, cancel := context.WithTimeout(ctx, readonly.TailWait)
 	defer cancel()
-	err := readonly.WhenWritable(waitCtx, func() error {
+	err := readonly.WhenWritable(waitCtx, app, func() error {
 		write()
 		return nil
 	})

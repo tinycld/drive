@@ -75,7 +75,7 @@ func extractAndIndexDriveItem(ctx context.Context, app core.App, record *core.Re
 		return
 	}
 
-	whenWritable(ctx, ftsIndexDroppedMsg, func() {
+	whenWritable(ctx, app, ftsIndexDroppedMsg, func() {
 		updateFTSContent(app, record.Id, text)
 	}, "itemID", record.Id)
 }

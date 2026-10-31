@@ -25,10 +25,10 @@ func handleEditCheckpoint(app core.App) editcheckpoint.Listener {
 			return
 		}
 		if !autoVersionsOn(app, current) {
-			realtime.HoldEditors(itemID, editors)
+			realtime.HoldEditors(app, itemID, editors)
 			return
 		}
-		if err := realtime.FlushItem(itemID); err != nil {
+		if err := realtime.FlushItem(app, itemID); err != nil {
 			if errors.Is(err, realtime.ErrReadOnly) || errors.Is(err, realtime.ErrStopping) {
 				versionLog.InfoContext(ctx, "auto version skipped: the server cannot write now",
 					"itemID", itemID, "reason", reason)
@@ -57,7 +57,7 @@ func handleEditCheckpoint(app core.App) editcheckpoint.Listener {
 		if version == nil {
 			return
 		}
-		if hook := versionhooks.For(item.GetString("mime_type")); hook.OnSnapshot != nil {
+		if hook := versionhooks.For(app, item.GetString("mime_type")); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, version); err != nil {
 				versionLog.WarnContext(ctx, "auto version snapshot hook failed", "itemID", itemID, "err", err)
 			}

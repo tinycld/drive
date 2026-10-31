@@ -50,7 +50,6 @@ func TestBackgroundJobs_RecoversAndLogsNotifyPanic(t *testing.T) {
 // query on the nil handle panicked. The cleanup now returns only after the
 // jobs have finished, so a save afterwards cannot reach a job.
 func TestBackgroundJobHooks_CleanupWaitsForItemJobs(t *testing.T) {
-	t.Cleanup(previewqueue.ResetForTest)
 	logs := readonlytest.CaptureLogs(t)
 	app := setupThrottleApp(t)
 	registerBackgroundJobHooks(app)
@@ -65,7 +64,7 @@ func TestBackgroundJobHooks_CleanupWaitsForItemJobs(t *testing.T) {
 	rec.Set("file", "page.txt")
 	rec.Set("mime_type", "text/plain")
 	rec.Set("thumb_region_hash", "region-1")
-	previewqueue.Stash(rec.Id, previewqueue.Payload{
+	previewqueue.Stash(app, rec.Id, previewqueue.Payload{
 		Page: textpreview.PageModel{Lines: []string{"hello"}},
 	})
 	if err := app.Save(rec); err != nil {
@@ -148,6 +147,7 @@ func (f *shareNotifyFixture) notified(t *testing.T) bool {
 // tailWriter is a background write that follows a request already accepted.
 // run performs it under ctx; written reports whether its row landed.
 type tailWriter struct {
+	app     core.App
 	run     func(ctx context.Context)
 	written func(t *testing.T) bool
 	dropMsg string
@@ -162,6 +162,7 @@ var tailWriters = map[string]func(t *testing.T) tailWriter{
 	"share notification": func(t *testing.T) tailWriter {
 		f := setupShareNotifyFixture(t)
 		return tailWriter{
+			app:     f.app,
 			run:     func(ctx context.Context) { notifyDriveShareWhenWritable(ctx, f.app, f.share) },
 			written: f.notified,
 			dropMsg: shareNotifyDroppedMsg,
@@ -186,6 +187,7 @@ var tailWriters = map[string]func(t *testing.T) tailWriter{
 		item := newSavedItem(t, app, map[string]any{"name": "plans.txt"})
 		recipient := api.ShareRecipient{Email: "guest@example.com", Role: "viewer"}
 		return tailWriter{
+			app: app,
 			run: func(ctx context.Context) {
 				sendExternalShareInviteWhenWritable(ctx, app, "Sender", recipient, item, "", "", "")
 			},
@@ -213,6 +215,7 @@ var tailWriters = map[string]func(t *testing.T) tailWriter{
 		rec.Set("index_hash", "hash-new")
 		payload := previewqueue.Payload{Plaintext: "fresh indexable content"}
 		return tailWriter{
+			app:     app,
 			run:     func(ctx context.Context) { extractAndIndexDriveItem(ctx, app, rec, payload, true) },
 			written: func(t *testing.T) bool { return ftsRowCount(t, app, rec.Id) > 0 },
 			dropMsg: ftsIndexDroppedMsg,
@@ -231,6 +234,7 @@ var tailWriters = map[string]func(t *testing.T) tailWriter{
 		rec.Set("thumb_region_hash", "region-new")
 		payload := previewqueue.Payload{Page: textpreview.PageModel{Lines: []string{"hello"}}}
 		return tailWriter{
+			app: app,
 			run: func(ctx context.Context) { generateThumbnail(ctx, app, rec, payload, true) },
 			written: func(t *testing.T) bool {
 				fresh, err := app.FindRecordById("drive_items", rec.Id)
@@ -253,8 +257,8 @@ func TestTailWrites_WaitForReadOnlyToEnd(t *testing.T) {
 	for name, build := range tailWriters {
 		t.Run(name, func(t *testing.T) {
 			w := build(t)
-			readonly.Enter()
-			t.Cleanup(readonly.Leave)
+			readonly.Enter(w.app)
+			t.Cleanup(func() { readonly.Leave(w.app) })
 
 			probe, waiting := readonlytest.WaitProbe(t)
 			done := make(chan struct{})
@@ -273,7 +277,7 @@ func TestTailWrites_WaitForReadOnlyToEnd(t *testing.T) {
 				t.Fatal("the write landed while read-only")
 			}
 
-			readonly.Leave()
+			readonly.Leave(w.app)
 			select {
 			case <-done:
 			case <-time.After(5 * time.Second):
@@ -316,8 +320,8 @@ func TestTailWrites_DroppedAndLoggedWhenTheWaitEnds(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			w := build(t)
 			logs := readonlytest.CaptureLogs(t)
-			readonly.Enter()
-			t.Cleanup(readonly.Leave)
+			readonly.Enter(w.app)
+			t.Cleanup(func() { readonly.Leave(w.app) })
 
 			probe, cancel := newCancelProbe(t)
 			done := make(chan struct{})

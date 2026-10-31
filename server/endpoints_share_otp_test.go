@@ -70,14 +70,6 @@ type otpTestEnv struct {
 // select field; every drive relation points straight at users.
 func setupOTPApp(t *testing.T, linkRole string) *otpTestEnv {
 	t.Helper()
-	// Reset the package-level limiters so the previous test's IP budget
-	// can't leak into this one. httptest.NewRequest uses a fixed default
-	// RemoteAddr (192.0.2.1:1234), so every test that doesn't override
-	// X-Forwarded-For shares a single budget; without this reset, the
-	// 10/min/IP otpLimiter eventually starves later tests in a run.
-	otpLimiter.Reset()
-	publicShareLimiter.Reset()
-
 	app, err := tests.NewTestApp()
 	if err != nil {
 		t.Fatalf("NewTestApp: %v", err)
@@ -961,10 +953,9 @@ func TestShareOTP_CodeNeverInResponse(t *testing.T) {
 
 // ----- otp rate limiter tests --------------------------------------------
 //
-// The otpLimiter is a package-level singleton shared with the rest of the
-// process, so these tests use unique synthetic IPs (carried via
-// X-Forwarded-For) to avoid colliding with each other or with any other
-// test that happens to hit the OTP endpoints in the same go test run.
+// The otpLimiter is per app, so these tests use unique synthetic IPs (carried
+// via X-Forwarded-For) only to stay independent of each other within one test
+// app.
 
 func TestShareOTPRequest_RateLimit_ElevenRequestsTrigger429(t *testing.T) {
 	env := setupOTPApp(t, "commentor")

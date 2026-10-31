@@ -69,7 +69,7 @@ func TestCheckpoint_SkipsWhenFlushRefused(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
 	turnAutoVersionsOn(t, env.app, item)
-	realtime.RegisterRoomKindWith("refuse-"+t.Name(), realtime.RoomKindOptions{
+	realtime.RegisterRoomKindWith(env.app, "refuse-"+t.Name(), realtime.RoomKindOptions{
 		Authorize: func(*core.Record, string) error { return nil },
 		ForceFlush: func(id string) error {
 			if id == item.Id {
@@ -92,7 +92,7 @@ func TestCheckpoint_RunsOnSnapshotHook(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	mime := "application/x-notepad-" + t.Name()
 	var called int
-	registerFakeHook(t, mime, versionhooks.Hook{
+	registerFakeHook(t, env.app, mime, versionhooks.Hook{
 		OnSnapshot: func(core.App, *core.Record, *core.Record) error {
 			called++
 			return nil
@@ -203,7 +203,7 @@ func TestCheckpoint_OffHandsTheEditorsBack(t *testing.T) {
 		UserIDs: []string{env.guest.Id},
 	}, editcheckpoint.ReasonRoomEmpty)
 
-	got := realtime.TakeEditors(item.Id)
+	got := realtime.TakeEditors(env.app, item.Id)
 	if len(got.UserIDs) != 1 || got.UserIDs[0] != env.guest.Id {
 		t.Fatalf("editors held for the next version = %+v, want [guest]", got)
 	}

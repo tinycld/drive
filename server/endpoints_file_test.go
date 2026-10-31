@@ -44,7 +44,7 @@ func seedFileItem(t *testing.T, app core.App, creator *core.Record, name string,
 // flush ignores every other id so it is inert for the other tests' items.
 func registerFlushingKind(t *testing.T, app core.App, itemID string, content []byte, flushed *int) {
 	t.Helper()
-	realtime.RegisterRoomKindWith("file-test-"+t.Name(), realtime.RoomKindOptions{
+	realtime.RegisterRoomKindWith(app, "file-test-"+t.Name(), realtime.RoomKindOptions{
 		Authorize: func(*core.Record, string) error { return nil },
 		ForceFlush: func(id string) error {
 			if id != itemID {
