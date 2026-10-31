@@ -20,6 +20,7 @@ export default function VersionsSettings() {
                     <Switch
                         value={autoVersions.isOn}
                         onValueChange={autoVersions.setOn}
+                        isDisabled={autoVersions.isLoading}
                         accessibilityLabel={SWITCH_LABEL}
                     />
                 </View>

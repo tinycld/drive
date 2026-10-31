@@ -191,3 +191,20 @@ func turnAutoVersionsOn(t *testing.T, app core.App, item *core.Record) {
 		t.Fatal(err)
 	}
 }
+
+// With automatic versions off, the checkpoint's editors are not dropped: the
+// next version taken with TakeEditors (Save version, upload, restore) names
+// them.
+func TestCheckpoint_OffHandsTheEditorsBack(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	item := seedFileItem(t, env.app, env.member, "a.txt", []byte("hello"))
+
+	handleEditCheckpoint(env.app)(context.Background(), item.Id, editcheckpoint.Editors{
+		UserIDs: []string{env.guest.Id},
+	}, editcheckpoint.ReasonRoomEmpty)
+
+	got := realtime.TakeEditors(item.Id)
+	if len(got.UserIDs) != 1 || got.UserIDs[0] != env.guest.Id {
+		t.Fatalf("editors held for the next version = %+v, want [guest]", got)
+	}
+}

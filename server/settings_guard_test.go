@@ -86,3 +86,28 @@ func TestDriveSettings_OtherAppsUnaffected(t *testing.T) {
 	settingsRequest(t, env, http.MethodPost, "/api/collections/settings/records", member,
 		`{"app":"other","key":"k","value":"v"}`, http.StatusOK)
 }
+
+func seedSettingsRow(t *testing.T, env *driveGuestEnv, app string) *core.Record {
+	t.Helper()
+	col, _ := env.app.FindCollectionByNameOrId("settings")
+	row := core.NewRecord(col)
+	row.Set("app", app)
+	row.Set("key", "auto_versions_default")
+	row.Set("value", false)
+	if err := env.app.Save(row); err != nil {
+		t.Fatal(err)
+	}
+	return row
+}
+
+func TestDriveSettings_MemberCannotChangeDriveRow(t *testing.T) {
+	env, member, _ := settingsGuardEnv(t)
+	row := seedSettingsRow(t, env, "drive")
+	settingsRequest(t, env, http.MethodPatch, "/api/collections/settings/records/"+row.Id, member, `{"value":true}`, http.StatusForbidden)
+}
+
+func TestDriveSettings_MemberCannotMoveRowOutOfDrive(t *testing.T) {
+	env, member, _ := settingsGuardEnv(t)
+	row := seedSettingsRow(t, env, "drive")
+	settingsRequest(t, env, http.MethodPatch, "/api/collections/settings/records/"+row.Id, member, `{"app":"other"}`, http.StatusForbidden)
+}

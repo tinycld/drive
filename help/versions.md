@@ -99,7 +99,7 @@ Drive makes an automatic version only if something changed since the last versio
 Automatic versions are off unless you turn them on, because each one is a full copy of the file.
 
 - **For the whole organization:** an owner or admin opens **Settings → Drive → Versions** and turns on **Automatically version documents while editing**. Documents that have no own choice then get automatic versions.
-- **For one document:** in Text or Calc, choose **File → Automatically version while editing**. A check mark shows it is on. This choice stays with the document when the organization setting changes.
+- **For one document:** in the document's editor, choose **File → Automatically version while editing**. A check mark shows it is on. This choice stays with the document when the organization setting changes.
 
 **Save version**, uploads and restores make versions whatever these settings are.
 

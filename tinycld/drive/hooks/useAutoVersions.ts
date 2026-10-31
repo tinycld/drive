@@ -1,7 +1,8 @@
+import { and, eq } from '@tanstack/db'
+import { useLiveQuery } from '@tanstack/react-db'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
-import { useSettings } from '@tinycld/core/lib/use-settings'
 import { newRecordId } from 'pbtsdb/core'
 import { notifyWriteFailed } from '../lib/notify-write-failed'
 import { useCanWriteItem } from './useCanWriteItem'
@@ -14,7 +15,14 @@ const KEY = 'auto_versions_default'
 // a boolean.
 export function useAutoVersionsDefault() {
     const [settingsCollection] = useStore('settings')
-    const row = useSettings(APP).find(setting => setting.key === KEY)
+    // isLoading: until the row is known, a write could insert a second row
+    // for the key (refused by the unique index).
+    const { data: rows, isLoading } = useLiveQuery(query =>
+        query
+            .from({ setting: settingsCollection })
+            .where(({ setting }) => and(eq(setting.app, APP), eq(setting.key, KEY)))
+    )
+    const row = rows?.[0]
     const save = useMutation({
         mutationFn: function* (on: boolean) {
             if (row) {
@@ -32,7 +40,7 @@ export function useAutoVersionsDefault() {
         },
         onError: err => notifyWriteFailed('drive.auto_versions_default', 'Setting not saved', err),
     })
-    return { isOn: row?.value === true, setOn: (on: boolean) => save.mutate(on) }
+    return { isOn: row?.value === true, isLoading, setOn: (on: boolean) => save.mutate(on) }
 }
 
 // A document's automatic-version state: its own choice ('on'/'off'), else the

@@ -17,8 +17,15 @@ import (
 // stop editing.
 func handleEditCheckpoint(app core.App) editcheckpoint.Listener {
 	return func(ctx context.Context, itemID string, editors editcheckpoint.Editors, reason editcheckpoint.Reason) {
-		// Opt-in: the document's own choice, else the org setting.
-		if current, err := app.FindRecordById("drive_items", itemID); err != nil || !autoVersionsOn(app, current) {
+		// Opt-in: the document's own choice, else the org setting. When off,
+		// the editors go back to core, so the next version (Save version,
+		// upload, restore) still names them.
+		current, err := app.FindRecordById("drive_items", itemID)
+		if err != nil {
+			return
+		}
+		if !autoVersionsOn(app, current) {
+			realtime.HoldEditors(itemID, editors)
 			return
 		}
 		if err := realtime.FlushItem(itemID); err != nil {
@@ -30,6 +37,7 @@ func handleEditCheckpoint(app core.App) editcheckpoint.Listener {
 			versionLog.WarnContext(ctx, "auto version flush failed", "itemID", itemID, "err", err)
 			return
 		}
+		// Loaded again: the flush above wrote a new file to the record.
 		item, err := app.FindRecordById("drive_items", itemID)
 		if err != nil || item.GetString("file") == "" {
 			return
