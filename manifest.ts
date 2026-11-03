@@ -50,7 +50,7 @@ const manifest = {
     // WebDAV (the webdav.Source core mounts at /drive) and the storage-quota
     // sources are not declared here: both live in server/register.go.
     repository: { url: 'https://github.com/tinycld/drive' },
-    peerVersions: { '@tinycld/core': '>=0.9.0 <0.10.0' },
+    peerVersions: { '@tinycld/core': '>=0.10.0 <0.11.0' },
 }
 
 export default manifest
