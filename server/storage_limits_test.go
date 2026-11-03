@@ -336,6 +336,7 @@ func TestGetUsersStorageBreakdown_PerUserTotals(t *testing.T) {
 		rec := core.NewRecord(usersCol)
 		rec.Set("name", name)
 		rec.Set("email", name+"@example.com")
+		rec.Set("username", testUsername(name+"@example.com"))
 		rec.Set("password", "TestPass1234!")
 		if err := app.Save(rec); err != nil {
 			t.Fatalf("save user: %v", err)

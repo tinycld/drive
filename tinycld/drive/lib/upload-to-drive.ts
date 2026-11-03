@@ -25,6 +25,12 @@ export interface CreateDriveItemInput {
     size?: number
     /** Optional description column. */
     description?: string
+    /**
+     * The document this item exists as part of (an image inserted into a text
+     * document). Whoever can view that document can view this item; only an
+     * editor of the document may set it, and only at create.
+     */
+    attachedTo?: string
 }
 
 export interface CreateDriveItemResult {
@@ -99,6 +105,7 @@ export function useCreateDriveItem() {
                 formData.append('size', String(size))
                 formData.append('file', input.body, finalName)
                 formData.append('description', input.description ?? '')
+                formData.append('attached_to', input.attachedTo ?? '')
                 try {
                     // The drive_items create hook (server/register.go) inserts the
                     // owner drive_shares row in the same transaction, so the client

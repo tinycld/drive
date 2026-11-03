@@ -60,3 +60,16 @@ func TestDriveGrantReachingRules_RequireLogin(t *testing.T) {
 		rlstest.RequireRuleContains(t, env.app, c.collection, c.kind, rlstest.AuthGuard)
 	}
 }
+
+// attached_to grants view through the document, and only an editor of the
+// document may set it, once (2040000030).
+func TestDriveItemsAttachedToShippedRules(t *testing.T) {
+	env := setupDriveGuestApp(t)
+	for _, c := range []struct{ kind, clause string }{
+		{"view", `attached_to != "" && (attached_to.created_by ?= @request.auth.id || attached_to.drive_shares_via_item.user ?= @request.auth.id)`},
+		{"create", `(attached_to = "" || attached_to.created_by ?= @request.auth.id || (attached_to.drive_shares_via_item.user ?= @request.auth.id && (attached_to.drive_shares_via_item.role ?= "editor" || attached_to.drive_shares_via_item.role ?= "owner")))`},
+		{"update", `(@request.body.attached_to:isset = false || @request.body.attached_to = attached_to)`},
+	} {
+		rlstest.RequireRuleContains(t, env.app, "drive_items", c.kind, c.clause)
+	}
+}

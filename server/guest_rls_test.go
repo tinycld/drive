@@ -81,6 +81,7 @@ func driveGuestUser(t *testing.T, app core.App, email, role string) *core.Record
 	col, _ := app.FindCollectionByNameOrId("users")
 	r := core.NewRecord(col)
 	r.SetEmail(email)
+	r.Set("username", testUsername(email))
 	r.Set("name", "Test")
 	r.Set("role", role)
 	r.SetVerified(true)
@@ -89,6 +90,14 @@ func driveGuestUser(t *testing.T, app core.App, email, role string) *core.Record
 		t.Fatal(err)
 	}
 	return r
+}
+
+// testUsername gives a test user a username derived from its email. Left
+// empty, PocketBase fills it from "users" + a random 5-digit suffix, which
+// collides across a suite run. Sanitized because the username field rejects
+// @ and . as invalid format.
+func testUsername(email string) string {
+	return "u_" + strings.NewReplacer("@", "_", ".", "_").Replace(email)
 }
 
 // addDriveGuestUserFields gives the bundled users collection the fields core's
