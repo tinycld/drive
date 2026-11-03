@@ -5,8 +5,8 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { pb, useStore } from '@tinycld/core/lib/pocketbase'
 import { notifyWriteFailed } from '../lib/notify-write-failed'
 
-// 'system' rows are the hidden copy a restore takes first; the history
-// shows the other sources. inArray, not not(eq(...)): pbtsdb compiles not()
+// 'system' rows are hidden copies that older restores took first; nothing
+// writes them now. inArray, not not(eq(...)): pbtsdb compiles not()
 // to `!(...)`, which PocketBase's filter parser rejects.
 const VISIBLE_SOURCES = ['upload', 'user', 'auto']
 
