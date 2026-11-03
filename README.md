@@ -11,7 +11,7 @@ Stores files for a TinyCld deployment, with per-user folders, sharing, versionin
 User-facing features:
 
 - **Folders and files** — nested hierarchy. Create, rename, move, copy, trash.
-- **Versioning** — every replacement of a file's bytes creates a `drive_item_versions` row with `version_number` (monotonic per-item), size, mime type, source (`upload` | `user` | `system`), and an optional label. Other packages (calc, text) call `POST /api/drive/versions/snapshot` to tag the current bytes as a labeled checkpoint without re-uploading. Restore or download any prior version.
+- **Versioning** — every replacement of a file's bytes creates a `drive_item_versions` row with `version_number` (monotonic per-item), size, mime type, source (`upload` | `user` | `auto` | `system`), and an optional label. Other packages (calc, text) call `POST /api/drive/versions/snapshot` to tag the current bytes as a labeled checkpoint without re-uploading. Documents open in a live editor can also get automatic versions (opt-in, per document or through the org's **Settings → Versions** panel). Restore or download any prior version.
 - **Role-based sharing** — per-item shares with `owner` / `editor` / `commentor` / `viewer` roles (a commentor reads and comments but never edits). The share dialog gives people `editor` or `viewer`; `commentor` comes from group grants and public links. "Shared with me" lists everything other people have given you access to.
 - **Public share links** — 64-hex-character tokenized URLs at `/p/drive/share/<token>` with viewer, commentor, or editor role, optional expiry, download counters, last-accessed timestamps, and an on / off toggle. Turning a link off revokes it; turning it back on issues a new token, so the old URL never works again. Served by a public route so recipients don't need an account.
 - **Server-side thumbnails** — generated asynchronously on upload. PDFs, EPUBs, OOXML Office documents, SVG, HEIC/HEIF photos, and WebP images all render through the pure-Go `omnidoc` library (via `tinycld.org/core/thumbnails`) — the whole pipeline is CGo-free. Plain PNG/JPEG use PocketBase's built-in `?thumb=` query parameter.
@@ -105,12 +105,17 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 │     POST   /api/drive/upload-version                                 │
 │     POST   /api/drive/versions/restore                               │
 │     POST   /api/drive/versions/snapshot                              │
+│     GET    /api/drive/items/{id}/file                                │
+│     GET    /api/drive/versions/{id}/file                             │
+│     GET    /api/drive/versions/{id}/render                           │
+│     GET    /api/drive/versions/{id}/diff                             │
 │     POST   /api/drive/share-link                                     │
 │     DELETE /api/drive/share-link/{id}                                │
 │     GET    /api/drive/share-links                                    │
 │     GET    /api/drive/share-link/{token}            ── public        │
 │     GET    /api/drive/share-link/{token}/file       ── public        │
 │     GET    /api/drive/share-link/{token}/thumbnail  ── public        │
+│     GET    /api/drive/share-session/attachments/{id} ── public       │
 │     POST   /api/drive/share-link/{token}/session     ── public       │
 │     POST   /api/drive/share-link/{token}/otp-request ── public       │
 │     POST   /api/drive/share-link/{token}/otp-verify  ── public       │
@@ -161,7 +166,7 @@ The collections' PocketBase access rules (currently settled by migrations `17821
 
 A `drive_share_links` row is the entire public-link state: `(item, role, token, expires_at, is_active, download_count, day_download_count, download_day, last_accessed_at, created_by)`. Tokens are 32 random bytes hex-encoded — 64 characters of `[0-9a-f]`, with a `UNIQUE` index. The token is generated at create time and never changes. `DELETE /api/drive/share-link/{id}` revokes a link: it sets `is_active = false` and keeps the row for its counters. Nothing sets `is_active` back to `true` — turning public access on again in the share dialog calls `POST /api/drive/share-link`, which creates a new row with a fresh token. Collection access rules require **owner** role on the underlying item for any CRUD on the link — editors of a file cannot create or revoke its public links.
 
-Public endpoints (`/api/drive/share-link/{token}`, `.../file`, `.../thumbnail`, and `POST .../session`) sit behind an in-process IP-based rate limiter (`publicShareLimiter`, 60 requests per minute per source IP) shared across all four endpoints; the OTP endpoints (`POST .../otp-request`, `.../otp-verify`) use the stricter `otpLimiter` (10 per minute per IP). `X-Forwarded-For` is honored when present so the limiter sees the real client behind a reverse proxy.
+Public endpoints (`/api/drive/share-link/{token}`, `.../file`, `.../thumbnail`, and `POST .../session`) sit behind an in-process IP-based rate limiter (`publicShareLimiter`, 60 requests per minute per source IP) shared across all four endpoints; the OTP endpoints (`POST .../otp-request`, `.../otp-verify`) use the stricter `otpLimiter` (10 per minute per IP). `GET /api/drive/share-session/attachments/{id}` (images inserted into a shared document, with the share session as the credential) has its own `shareAttachmentLimiter` (600 per minute per IP), because a document's images load on every render. `X-Forwarded-For` is honored when present so the limiter sees the real client behind a reverse proxy.
 
 ### Search
 
@@ -211,23 +216,28 @@ WebDAV deletes go to the trash, not the void: drive's `Source` carries a `Trash`
 
 ### Versioning
 
-`snapshotCurrentFile` is the single entry point for creating a version row, called from `handleUploadVersion`, `handleRestoreVersion`, and `handleSnapshotVersion`. It:
+`snapshotCurrentFile` is the single entry point for creating a version row, called from `handleUploadVersion`, `handleRestoreVersion`, `handleSnapshotVersion`, the WebDAV `BeforeOverwrite` hook (`driveWebDAVHooks` in `register.go`), and the automatic-version listener (`handleEditCheckpoint` in `auto_versions.go`). It:
 
 1. Reads the *current* file's bytes off the `drive_items` record's attached file.
 2. Inside an `app.RunInTransaction`, queries `MAX(version_number) FROM drive_item_versions WHERE item = ?` and assigns `result.Max + 1`.
-3. Inserts the `drive_item_versions` row with the current bytes, size, mime type, the calling user's id as `created_by`, a caller-supplied `label`, and a `source` of `upload`, `user`, or `system`.
+3. Inserts the `drive_item_versions` row with the current bytes, size, mime type, the calling user's id as `created_by`, a caller-supplied `label`, and a `source` of `upload`, `user`, `auto`, or `system`.
 
-The three `source` values let the UI distinguish how a version came into being:
+The four `source` values let the UI distinguish how a version came into being:
 
-- **`upload`** — user replaced the file via "Upload new version" in the right-click menu. Label is empty.
-- **`user`** — user explicitly snapshotted the current bytes with a description, typically from a host package's "Save version" menu item. Label is whatever the user typed (trimmed and capped at 500 chars).
-- **`system`** — automatic safety snapshot taken before a destructive operation (currently just `handleRestoreVersion`). Hidden from the Detail panel's version list — `useVersionHistory` filters with `source != 'system'`.
+- **`upload`** — user replaced the file via "Upload new version" in the right-click menu, or a WebDAV PUT overwrote it. Label is empty.
+- **`user`** — user explicitly snapshotted the current bytes with a description, typically from a host package's "Save version" menu item. Label is whatever the user typed (trimmed and capped at 500 chars). A restore also writes one of these, labeled "Restored from …" (`version_labels.go`).
+- **`auto`** — an automatic version (see below), or the copy of the current state that a restore takes before it overwrites the file.
+- **`system`** — still a valid value of the field, but no code path writes it now. Older restores took their hidden safety copy with this source. The Detail panel's version list hides these rows — `useVersionHistory` filters with `inArray(v.source, VISIBLE_SOURCES)`, where `VISIBLE_SOURCES` is `['upload', 'user', 'auto']` — and the retention job deletes them after 30 days.
+
+**Automatic versions** are opt-in. Core's realtime rooms fire an edit checkpoint after an idle period and when the last editor leaves; drive listens through `editcheckpoint.Register` (`register.go`) and `handleEditCheckpoint` (`auto_versions.go`) flushes the live room, then snapshots the file as an `auto` version owned by the file's owner, with the editors since the previous version. `autoVersionsOn` (`auto_versions_policy.go`) decides per document: the item's `auto_versions` field (`on` / `off`) wins, and an empty value follows the org setting (`settings` row with app `drive`, key `auto_versions_default`), which owners and admins change in the `settings/versions` panel declared in `manifest.ts`. `guardDriveSettings` (`settings_guard.go`) refuses writes to drive's `settings` rows from other roles. A checkpoint is skipped (and logged) when the server is read-only or the owner is over the storage limit.
+
+**Retention** — a daily cron job (`drive_version_retention` in `register.go`, `version_retention.go`) keeps uploads, `user` versions, and every labeled version forever. Unlabeled `auto` versions are all kept for 7 days, then thinned to the newest one per day up to 90 days, and to the newest one per ISO week after that; a pruned version hands its editors on to the next surviving version.
 
 Version-number assignment in a transaction guarantees monotonicity even under concurrent uploads; the upper layer doesn't need to retry.
 
 `handleSnapshotVersion` is the cheap path used by packages whose content already lives in the `drive_items` file (calc spreadsheets, text documents). It takes JSON `{item, label}`, validates write access via `resolveItemAndUser`, refuses items with no attached file (`422`, "nothing to snapshot — file is empty"), and snapshots in place. No file payload crosses the wire and no edit racing with autosave is possible because no bytes are written to `drive_items.file`.
 
-`handleRestoreVersion` first snapshots the current file (with `source = "system"`) so restore is itself reversible, then copies the chosen version's bytes back onto `drive_items.file` and updates the item's size and mime type accordingly. Storage quota is pre-checked on the size delta before the restore proceeds (`core/quota`'s record hooks remain the authoritative enforcement).
+`handleRestoreVersion` first snapshots the current file as a visible `auto` version (after a live room's final save, so it holds the editors' last edits) so restore is itself reversible, then copies the chosen version's bytes back onto `drive_items.file` and updates the item's size and mime type accordingly. It then snapshots the restored state as a `user` version labeled "Restored from …", so the timeline shows where the current state came from. Storage quota is pre-checked on the size delta before the restore proceeds (`core/quota`'s record hooks remain the authoritative enforcement).
 
 PocketBase renames the on-disk blob to a fresh hash on every save, so the prior version of `drive_items.file` is still on disk until PB's cleanup pass — even if a flush goes wrong, the bytes are recoverable. Permanent delete of an item removes every version row with it.
 
@@ -241,7 +251,7 @@ Drive registers three ids itself: `drive.save` (lets other packages push a gener
 
 Folder downloads work via a two-step token flow because a streaming zip response wants to be a `GET` (so browsers download it natively) but the authorization wants to be a `POST` (so credentials don't end up in URL bars and history). `POST /api/drive/download-token` validates access through `resolveItemAndUser`, generates a 32-byte hex token, stores `(folderID, expiresAt)` in an in-process map with a 60-second TTL, and returns the token + URL. The client immediately requests `GET /api/drive/download-folder?token=...`, which looks the token up (single-use — it's deleted on first fetch), walks the folder tree, and streams a zip of every file underneath, capped at 10,000 files and 5 GB total.
 
-The token map is in-process and uses a background goroutine that runs every 5 minutes to evict expired entries. Restarting the server invalidates all in-flight download tokens; the client gracefully re-requests a new one on next click.
+The token map is in-process (`token_store.go`); expired tokens are dropped when a new token is issued, so no sweeper goroutine is needed. Restarting the server invalidates all in-flight download tokens; the client gracefully re-requests a new one on next click.
 
 ### Notifications and audit
 
@@ -291,9 +301,19 @@ server/
     automation.go              workflow-rules owner resolver + move-to-folder
                                destination authorizer
     versions.go                snapshotCurrentFile (txn, monotonic version_number)
+    version_labels.go          "Restored from …" label for the version a restore adds
+    version_retention.go       daily pruning of automatic and hidden versions
+    auto_versions.go           edit-checkpoint listener → automatic versions
+    auto_versions_policy.go    per-document / org-setting opt-in for automatic versions
+    settings_guard.go          owner/admin-only writes to drive's settings rows
+    token_store.go             single-use, short-lived URL tokens (download / export)
+    endpoints_file.go          stable file endpoints by record id (items, versions)
+    endpoints_version_html.go  read-only render and diff of a version (versionhooks)
     endpoints_share.go         /api/drive/share + invite emails
     endpoints_public_share.go  share-link create/list/delete + public token endpoints
+    share_link_counters.go     targeted UPDATEs for share-link download / access counters
     endpoints_share_session.go anonymous share sessions for public links
+    endpoints_share_attachment.go  images in a shared document, for share-session visitors
     endpoints_share_otp.go     email-verified guest provisioning (OTP) for links
     endpoints_download.go      folder-download token flow (POST then GET)
     endpoints_export.go        PDF / SVG convert-and-download token flow
@@ -305,7 +325,7 @@ server/
 
 The WebDAV protocol server itself (FileSystem, auth, path parsing) lives in core at `tinycld/core/server/webdav/`; drive only supplies its `webdav.Source`.
 
-Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{audit,automation,background,coreserver,driveshare,groups,guestauth,logging,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,readonly,search,sharelink,sharequota,textextract,thumbnails,useraccount,usernames,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' $(ls server/*.go | grep -v _test.go) | sort -u` is the source of truth; tests also import `rlstest`).
+Go module: `tinycld.org/packages/drive`. Imports `tinycld.org/core/{appstate,audit,automation,background,coreserver,driveshare,editcheckpoint,groups,guestauth,logging,mailer,notify,oauth,offboard,previewqueue,quota,ratelimit,readonly,realtime,search,sharelink,sharequota,textextract,thumbnails,useraccount,usernames,versionhooks,webdav}` via the standard go.mod replace directive the app shell installs (`grep -rho 'tinycld.org/core/[a-z]*' $(ls server/*.go | grep -v _test.go) | sort -u` is the source of truth; tests also import `authfactor` and `rlstest`).
 
 ## Client package layout
 
