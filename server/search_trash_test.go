@@ -80,6 +80,7 @@ func TestSearchDriveItems_LeavesOutTrash(t *testing.T) {
 	usersCol, _ := app.FindCollectionByNameOrId("users")
 	other := core.NewRecord(usersCol)
 	other.SetEmail("other@test.local")
+	other.Set("username", testUsername("other@test.local"))
 	other.SetPassword("Password123!")
 	if err := app.Save(other); err != nil {
 		t.Fatal(err)

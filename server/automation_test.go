@@ -95,10 +95,7 @@ func fileAddedUser(t *testing.T, app core.App, email string) *core.Record {
 	}
 	u := core.NewRecord(col)
 	u.SetEmail(email)
-	// Set explicitly rather than left for PocketBase to fill, which uses
-	// "users" + a random 5-digit suffix and collides across a suite run.
-	// Sanitized because the username field rejects @ and . as invalid format.
-	u.Set("username", "u_"+strings.NewReplacer("@", "_", ".", "_").Replace(email))
+	u.Set("username", testUsername(email))
 	u.Set("name", "Test")
 	u.SetVerified(true)
 	u.SetPassword("Password123!")

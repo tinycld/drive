@@ -12,8 +12,9 @@ import (
 
 // shareAttachmentLimiter is apart from publicShareLimiter: a shared
 // document's images load on every render and would use up the allowance the
-// other public share endpoints rely on.
-var shareAttachmentLimiter = ratelimit.New(600, time.Minute)
+// other public share endpoints rely on. Per app: two apps must not share a
+// budget.
+var shareAttachmentLimiter = ratelimit.NewPerApp("drive.share.attachment", 600, time.Minute)
 
 // handleShareAttachment serves an item attached to a share link's document
 // (an image inserted into it) to an anonymous share visitor. The visitor has
@@ -21,7 +22,7 @@ var shareAttachmentLimiter = ratelimit.New(600, time.Minute)
 // rows whose attached_to is the shared document. VerifyAndResolve re-checks
 // the link, so revoking it cuts the images off at once.
 func handleShareAttachment(app core.App, re *core.RequestEvent) error {
-	if !shareAttachmentLimiter.AllowOrLog(getClientIP(re.Request), "drive.share.attachment") {
+	if !shareAttachmentLimiter.For(app).AllowOrLog(getClientIP(re.Request), "drive.share.attachment") {
 		return re.JSON(http.StatusTooManyRequests, api.ErrorResponse{Error: "rate limit exceeded"})
 	}
 

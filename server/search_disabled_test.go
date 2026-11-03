@@ -102,6 +102,7 @@ func setupSearchApp(t *testing.T) (*tests.TestApp, *core.Record) {
 	usersCol, _ := app.FindCollectionByNameOrId("users")
 	sharee := core.NewRecord(usersCol)
 	sharee.SetEmail("sharee@test.local")
+	sharee.Set("username", testUsername("sharee@test.local"))
 	sharee.SetPassword("Password123!")
 	if err := app.Save(sharee); err != nil {
 		t.Fatal(err)

@@ -226,6 +226,7 @@ func otpTestUser(t *testing.T, app core.App, email string, role string) *core.Re
 	col, _ := app.FindCollectionByNameOrId("users")
 	r := core.NewRecord(col)
 	r.SetEmail(email)
+	r.Set("username", testUsername(email))
 	r.Set("name", strings.Split(email, "@")[0])
 	r.Set("role", role)
 	r.SetVerified(true)

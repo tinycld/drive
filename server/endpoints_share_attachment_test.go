@@ -48,7 +48,6 @@ func getShareAttachment(app core.App, id, session string) *httptest.ResponseReco
 // An anonymous share visitor has no file token; the session for the shared
 // document is the credential for the images attached to it.
 func TestShareAttachment_ServesAnImageAttachedToTheSharedDocument(t *testing.T) {
-	publicShareLimiter.Reset()
 	e := setupAttached(t)
 	session, _ := shareSessionFor(t, e.app, e.doc, e.member)
 
@@ -60,7 +59,6 @@ func TestShareAttachment_ServesAnImageAttachedToTheSharedDocument(t *testing.T) 
 }
 
 func TestShareAttachment_RefusesAnItemNotAttachedToTheSharedDocument(t *testing.T) {
-	publicShareLimiter.Reset()
 	e := setupAttached(t)
 	other := shareItemWith(t, e.driveGuestEnv, "other.docx", e.collab, "viewer")
 	session, _ := shareSessionFor(t, e.app, other, e.member)
@@ -74,7 +72,6 @@ func TestShareAttachment_RefusesAnItemNotAttachedToTheSharedDocument(t *testing.
 }
 
 func TestShareAttachment_RefusesABadOrRevokedSession(t *testing.T) {
-	publicShareLimiter.Reset()
 	e := setupAttached(t)
 	session, link := shareSessionFor(t, e.app, e.doc, e.member)
 
@@ -95,8 +92,6 @@ func TestShareAttachment_RefusesABadOrRevokedSession(t *testing.T) {
 // limiter every public share endpoint shares, and a browser may keep them
 // briefly, privately.
 func TestShareAttachment_OwnLimiterAndPrivateCache(t *testing.T) {
-	publicShareLimiter.Reset()
-	shareAttachmentLimiter.Reset()
 	e := setupAttached(t)
 	session, _ := shareSessionFor(t, e.app, e.doc, e.member)
 
@@ -111,7 +106,7 @@ func TestShareAttachment_OwnLimiterAndPrivateCache(t *testing.T) {
 			}
 		}
 	}
-	if !publicShareLimiter.AllowOrLog("192.0.2.1", "test") {
+	if !publicShareLimiter.For(e.app).AllowOrLog("192.0.2.1", "test") {
 		t.Fatal("attachment loads used up the shared public-share limiter")
 	}
 }
