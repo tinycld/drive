@@ -15,6 +15,7 @@
         "./seed": "./tinycld/drive/seed.ts",
         "./hooks/*": "./tinycld/drive/hooks/*.ts",
         "./components/*": "./tinycld/drive/components/*.tsx",
+        "./settings/*": "./tinycld/drive/settings/*.tsx",
         "./stores/*": "./tinycld/drive/stores/*.ts",
         "./lib/copy-drive-item": "./tinycld/drive/lib/copy-drive-item.ts",
         "./lib/export-pdf": "./tinycld/drive/lib/export-pdf.ts",
@@ -25,6 +26,7 @@
         "./lib/save-to-drive-action": "./tinycld/drive/lib/save-to-drive-action.tsx",
         "./lib/template-naming": "./tinycld/drive/lib/template-naming.ts",
         "./lib/upload-to-drive": "./tinycld/drive/lib/upload-to-drive.ts",
+        "./lib/version-history-href": "./tinycld/drive/lib/version-history-href.ts",
         "./public-screens/*": "./tinycld/drive/public-screens/*.tsx",
         "./notify-events": "./tinycld/drive/notify-events.ts",
         "./search-adapter": "./tinycld/drive/search-adapter.ts"

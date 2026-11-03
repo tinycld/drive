@@ -11,6 +11,8 @@ WebDAV lets you connect to your Drive from your operating system's native file m
 
 This is the same data you see in the web UI. Edits made through WebDAV show up in the web UI in real time, and vice versa.
 
+When you replace a file through WebDAV while it is open in an editor (Text or Calc), your file wins. The editor saves its last edits as a version, then reloads with your file. To get the editor's copy back, restore that version.
+
 ## The mount URL
 
 The WebDAV endpoint is at `/drive/` on your TinyCld instance. For example:

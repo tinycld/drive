@@ -5,13 +5,23 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
+	"tinycld.org/core/editcheckpoint"
 )
 
 // snapshotCurrentFile creates a version record from the current file on a drive_items record.
 // Skips silently if the item has no file attached (returns nil, nil).
 // Version number assignment is done inside a transaction to prevent races.
 // Returns the created version record on success so callers can fire post-snapshot hooks.
-func snapshotCurrentFile(app core.App, itemRecord *core.Record, userID, source, label string) (*core.Record, error) {
+// snapshotOpts says who a version belongs to and why it exists. Editors are
+// the people who edited since the previous version.
+type snapshotOpts struct {
+	UserID  string
+	Source  string
+	Label   string
+	Editors editcheckpoint.Editors
+}
+
+func snapshotCurrentFile(app core.App, itemRecord *core.Record, opts snapshotOpts) (*core.Record, error) {
 	filename := itemRecord.GetString("file")
 	if filename == "" {
 		return nil, nil
@@ -57,9 +67,15 @@ func snapshotCurrentFile(app core.App, itemRecord *core.Record, userID, source, 
 		record.Set("file", f)
 		record.Set("size", itemRecord.GetInt("size"))
 		record.Set("mime_type", itemRecord.GetString("mime_type"))
-		record.Set("source", source)
-		record.Set("label", label)
-		record.Set("created_by", userID)
+		record.Set("source", opts.Source)
+		record.Set("label", opts.Label)
+		record.Set("created_by", opts.UserID)
+		if len(opts.Editors.UserIDs) > 0 {
+			record.Set("editors", opts.Editors.UserIDs)
+		}
+		if len(opts.Editors.ShareNames) > 0 {
+			record.Set("share_editors", opts.Editors.ShareNames)
+		}
 
 		if err := txApp.Save(record); err != nil {
 			return err

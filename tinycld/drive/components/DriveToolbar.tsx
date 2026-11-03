@@ -4,7 +4,6 @@ import { ScreenHeader } from '@tinycld/core/components/ScreenHeader'
 import { ConfirmTrash, SuretyGuard } from '@tinycld/core/components/SuretyGuard'
 import { ToolbarIconButton } from '@tinycld/core/components/ToolbarIconButton'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { captureException } from '@tinycld/core/lib/errors'
 import type { HelpTopicId } from '@tinycld/core/lib/help/types'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Dialog } from '@tinycld/core/ui/dialog'
@@ -35,6 +34,7 @@ import { Platform, Pressable, Text, View } from 'react-native'
 import { useDrive } from '../hooks/useDrive'
 import type { DriveDragPayload } from '../lib/dnd'
 import { ITEM_NAME_MAX_LENGTH, itemNameSchema } from '../lib/item-name-schema'
+import { notifyWriteFailed } from '../lib/notify-write-failed'
 import { type PromptDialog, useDriveUIStore } from '../stores/drive-ui-store'
 import type { DriveItemView, SidebarSection, ViewMode } from '../types'
 import { ChooseFolderDialog } from './ChooseFolderDialog'
@@ -613,7 +613,7 @@ function SelectionToolbar({
             input.onchange = () => {
                 if (input.files?.[0]) {
                     uploadNewVersion(item.id, input.files[0]).catch(err =>
-                        captureException('uploadNewVersion', err)
+                        notifyWriteFailed('drive.upload_version', 'Version not uploaded', err)
                     )
                 }
             }

@@ -24,7 +24,9 @@ export function useDoubleClick(
         (event: GestureResponderEvent) => {
             onSingleClick(event)
             clearTimeout(settleTimerRef.current)
-            const now = Date.now()
+            // The click's own time, not the handler's: under load the first
+            // click's re-render can delay the second handler past the window.
+            const now = event.timeStamp > 0 ? event.timeStamp : Date.now()
             if (now - lastTapRef.current < DOUBLE_CLICK_MS) {
                 onDoubleClick()
                 // Reset so a third rapid tap starts a fresh pair rather than

@@ -44,7 +44,7 @@ func seedFileItem(t *testing.T, app core.App, creator *core.Record, name string,
 // flush ignores every other id so it is inert for the other tests' items.
 func registerFlushingKind(t *testing.T, app core.App, itemID string, content []byte, flushed *int) {
 	t.Helper()
-	realtime.RegisterRoomKindWith("file-test-"+t.Name(), realtime.RoomKindOptions{
+	realtime.RegisterRoomKindWith(app, "file-test-"+t.Name(), realtime.RoomKindOptions{
 		Authorize: func(*core.Record, string) error { return nil },
 		ForceFlush: func(id string) error {
 			if id != itemID {
@@ -144,7 +144,7 @@ func TestItemFile_AuthByFileTokenAndAccessCheck(t *testing.T) {
 func TestVersionFile_ServesTheVersionBlob(t *testing.T) {
 	env := setupDriveGuestApp(t)
 	item := seedFileItem(t, env.app, env.member, "notes.txt", []byte("current"))
-	version, err := snapshotCurrentFile(env.app, item, env.member.Id, "user", "v1")
+	version, err := snapshotCurrentFile(env.app, item, snapshotOpts{UserID: env.member.Id, Source: "user", Label: "v1"})
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}

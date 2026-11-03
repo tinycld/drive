@@ -26,7 +26,7 @@ import (
 //
 //	$drive.search(userId, { q, not, limit, offset }) -> { items, total }
 func registerJSVMBinding(_ *pocketbase.PocketBase) {
-	coreserver.RegisterJSVMBinder(func(vm *sobek.Runtime, app *pocketbase.PocketBase) error {
+	coreserver.RegisterJSVMBinder("drive", func(vm *sobek.Runtime, app *pocketbase.PocketBase) error {
 		search := func(userID string, opts map[string]any) (map[string]any, error) {
 			limit, offset := 25, 0
 			q := ""

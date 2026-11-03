@@ -1,0 +1,101 @@
+import { ScrollView, Text, View } from 'react-native'
+import type { VersionRow } from '../../hooks/useVersionHistory'
+import { VersionListRow } from './VersionListRow'
+
+type VersionGroupData = { dayKey: string; label: string; versions: VersionRow[] }
+
+interface VersionListProps {
+    isVisible: boolean
+    groups: VersionGroupData[]
+    selectedId: string | undefined
+    baseId: string | undefined
+    rowActions: RowActionProps
+    onSelect: (versionId: string) => void
+    onPickBase: (versionId: string) => void
+    className?: string
+}
+
+// Rename and Restore for the active row.
+export interface RowActionProps {
+    isEnabled: boolean
+    isRestoring: boolean
+    onRename: (label: string) => void
+    onRestore: () => void
+}
+
+export function VersionList({
+    isVisible,
+    groups,
+    selectedId,
+    baseId,
+    rowActions,
+    onSelect,
+    onPickBase,
+    className,
+}: VersionListProps) {
+    if (!isVisible) return null
+    const groupViews = groups.map(group => (
+        <VersionGroup
+            key={group.dayKey}
+            group={group}
+            selectedId={selectedId}
+            baseId={baseId}
+            rowActions={rowActions}
+            onSelect={onSelect}
+            onPickBase={onPickBase}
+        />
+    ))
+    // The width goes on a View: a ScrollView's className does not size it.
+    return (
+        <View className={`bg-background ${className ?? ''}`}>
+            <ScrollView accessibilityRole="list" accessibilityLabel="Versions" className="flex-1">
+                <EmptyList isVisible={groups.length === 0} />
+                {groupViews}
+            </ScrollView>
+        </View>
+    )
+}
+
+function VersionGroup({
+    group,
+    selectedId,
+    baseId,
+    rowActions,
+    onSelect,
+    onPickBase,
+}: {
+    group: VersionGroupData
+    selectedId: string | undefined
+    baseId: string | undefined
+    rowActions: RowActionProps
+    onSelect: (versionId: string) => void
+    onPickBase: (versionId: string) => void
+}) {
+    const rows = group.versions.map(version => (
+        <VersionListRow
+            key={version.id}
+            version={version}
+            isSelected={version.id === selectedId}
+            isBase={version.id === baseId}
+            isActionsVisible={rowActions.isEnabled && version.id === selectedId}
+            isRestoring={rowActions.isRestoring}
+            onRename={rowActions.onRename}
+            onRestore={rowActions.onRestore}
+            onSelect={onSelect}
+            onPickBase={onPickBase}
+        />
+    ))
+    return (
+        <View>
+            <Text className="px-4 pt-4 pb-1 text-xs font-semibold uppercase text-muted-foreground">
+                {group.label}
+            </Text>
+            {rows}
+        </View>
+    )
+}
+
+function EmptyList({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <Text className="p-4 text-sm text-muted-foreground">No versions yet</Text>
+}

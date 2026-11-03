@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -16,6 +17,7 @@ import (
 	"tinycld.org/core/background"
 	"tinycld.org/core/coreserver"
 	"tinycld.org/core/driveshare"
+	"tinycld.org/core/editcheckpoint"
 	"tinycld.org/core/groups"
 	"tinycld.org/core/notify"
 	"tinycld.org/core/oauth"
@@ -39,7 +41,7 @@ import (
 // the mechanism that needed it.
 func Register(app *pocketbase.PocketBase) {
 	registerShared(app)
-	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings()); err != nil {
+	if _, err := webdav.Register(app, []webdav.Source{webDAVSource}, coreserver.WebDAVHostBindings(app)); err != nil {
 		app.Logger().Error("drive: WebDAV registration failed", "error", err)
 	}
 }
@@ -84,6 +86,10 @@ func registerShared(app *pocketbase.PocketBase) {
 
 	registerAutomation()
 
+	// A REST write that replaces the file of an item open in an editor would
+	// be overwritten by the room's next save; close the room first.
+	app.OnRecordUpdateRequest("drive_items").BindFunc(guardFileUpdateRequest)
+
 	// Reject reparenting that would create a folder cycle. Move-cycle
 	// prevention is otherwise client-only (dnd.ts), so a direct PATCH of
 	// `parent` — e.g. making A a child of its own descendant — could form a
@@ -107,6 +113,22 @@ func registerShared(app *pocketbase.PocketBase) {
 	})
 
 	registerBackgroundJobHooks(app)
+
+	// Automatic versions: core's realtime rooms fire a checkpoint after an
+	// idle period and when the last editor leaves.
+	editcheckpoint.Register(app, handleEditCheckpoint(app))
+
+	// Drive's org settings (automatic versions) are owner/admin-only.
+	app.OnRecordCreateRequest("settings").BindFunc(guardDriveSettings)
+	app.OnRecordUpdateRequest("settings").BindFunc(guardDriveSettings)
+	app.OnRecordDeleteRequest("settings").BindFunc(guardDriveSettings)
+
+	// Version retention, daily. The scheduler skips jobs while read-only.
+	app.Cron().MustAdd("drive_version_retention", "23 3 * * *", func() {
+		if err := pruneVersions(app, time.Now()); err != nil {
+			versionLog.Warn("version retention failed", "err", err)
+		}
+	})
 
 	// Storage ceilings: declare the collections, core binds the enforcement.
 	quota.RegisterSources(quotaSources...)
@@ -193,6 +215,16 @@ func registerShared(app *pocketbase.PocketBase) {
 			return handleVersionFile(app, re)
 		})
 
+		// Read-only HTML of one version, through its type's versionhooks.
+		e.Router.GET("/api/drive/versions/{id}/render", func(re *core.RequestEvent) error {
+			return handleVersionRender(app, re)
+		}).BindFunc(requireAuth)
+
+		// The same version with the changes from an earlier one marked.
+		e.Router.GET("/api/drive/versions/{id}/diff", func(re *core.RequestEvent) error {
+			return handleVersionDiff(app, re)
+		}).BindFunc(requireAuth)
+
 		// Folder download endpoints
 		e.Router.POST("/api/drive/download-token", func(re *core.RequestEvent) error {
 			return handleCreateDownloadToken(app, re)
@@ -278,13 +310,18 @@ var driveWebDAVHooks = webdav.Hooks{
 	// Archive the outgoing blob before an overwrite replaces it, so a
 	// WebDAV PUT gets the same version history as a UI upload.
 	BeforeOverwrite: func(app core.App, userID string, record *core.Record) error {
-		_, err := snapshotCurrentFile(app, record, userID, "upload", "")
+		_, err := snapshotCurrentFile(app, record, snapshotOpts{UserID: userID, Source: "upload"})
 		return err
 	},
 	// A document open in an editor is written on a debounce; a DAV client
 	// reading it gets the edits the editor shows, not the last save.
-	BeforeRead: func(_ core.App, record *core.Record) error {
-		return realtime.FlushItem(record.Id)
+	BeforeRead: func(app core.App, record *core.Record) error {
+		return realtime.FlushItem(app, record.Id)
+	},
+	// A PUT over a document open in an editor would be overwritten by the
+	// room's next save; close the room first.
+	GuardWrite: func(app core.App, record *core.Record, write func() error) error {
+		return realtime.WriteItem(app, record.Id, write)
 	},
 }
 
@@ -352,26 +389,40 @@ func handleUploadVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	if _, err := snapshotCurrentFile(app, item, userID, "upload", ""); err != nil {
-		app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
-	}
+	if err := writeItemFile(app, item.Id, func() error {
+		fresh, err := app.FindRecordById("drive_items", item.Id)
+		if err != nil {
+			return re.NotFoundError("item not found", nil)
+		}
+		item = fresh
+		if _, err := snapshotCurrentFile(app, item, snapshotOpts{
+			UserID:  userID,
+			Source:  "upload",
+			Editors: realtime.TakeEditors(app, item.Id),
+		}); err != nil {
+			app.Logger().Warn("version snapshot failed during upload", "id", item.Id, "error", err)
+		}
 
-	f, err := filesystem.NewFileFromBytes(data, header.Filename)
-	if err != nil {
-		return re.BadRequestError("failed to create file", nil)
-	}
+		f, err := filesystem.NewFileFromBytes(data, header.Filename)
+		if err != nil {
+			return re.BadRequestError("failed to create file", nil)
+		}
 
-	item.Set("file", f)
-	item.Set("size", len(data))
-	item.Set("mime_type", header.Header.Get("Content-Type"))
+		item.Set("file", f)
+		item.Set("size", len(data))
+		item.Set("mime_type", header.Header.Get("Content-Type"))
 
-	// Clear editor hashes so the freshly uploaded bytes force a one-shot full
-	// regen via the upload fallback path rather than being skipped as stale.
-	item.Set("thumb_region_hash", "")
-	item.Set("index_hash", "")
+		// Clear editor hashes so the freshly uploaded bytes force a one-shot full
+		// regen via the upload fallback path rather than being skipped as stale.
+		item.Set("thumb_region_hash", "")
+		item.Set("index_hash", "")
 
-	if err := app.Save(item); err != nil {
-		return re.BadRequestError("failed to save item", nil)
+		if err := app.Save(item); err != nil {
+			return re.BadRequestError("failed to save item", nil)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	return re.JSON(http.StatusOK, api.VersionFileResponse{
@@ -415,18 +466,25 @@ func handleSnapshotVersion(app core.App, re *core.RequestEvent) error {
 		return err
 	}
 
-	version, err := snapshotCurrentFile(app, item, userID, "user", label)
+	// The editors since the last version belong to this one, so the next
+	// automatic version names only later editors.
+	version, err := snapshotCurrentFile(app, item, snapshotOpts{
+		UserID:  userID,
+		Source:  "user",
+		Label:   label,
+		Editors: realtime.TakeEditors(app, item.Id),
+	})
 	if err != nil {
 		app.Logger().Warn("version snapshot failed", "id", item.Id, "error", err)
 		return re.InternalServerError("failed to save version", nil)
 	}
 
 	if version != nil {
-		itemType := item.GetString("type")
-		if hook := versionhooks.For(itemType); hook.OnSnapshot != nil {
+		mimeType := item.GetString("mime_type")
+		if hook := versionhooks.For(app, mimeType); hook.OnSnapshot != nil {
 			if err := hook.OnSnapshot(app, item, version); err != nil {
 				app.Logger().Warn("drive: version snapshot hook failed",
-					"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+					"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
 				// continue — the docx blob is already saved; the hook is supplementary
 			}
 		}
@@ -469,63 +527,87 @@ func handleRestoreVersion(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
-	// Snapshot the current file before restoring (system-generated, hidden
-	// from UI). Flushed first so the hidden snapshot holds the edits a live
-	// room has not yet written — it is what an undo of this restore returns.
-	item, err = flushItemForRead(app, re, item)
-	if err != nil {
+	// Keep the state being replaced as a visible automatic version. The write
+	// runs after a live room's final save, so it holds the editors' last
+	// edits; those exist nowhere else, and the user can restore them.
+	if err := writeItemFile(app, item.Id, func() error {
+		fresh, err := app.FindRecordById("drive_items", item.Id)
+		if err != nil {
+			return re.NotFoundError("item not found", nil)
+		}
+		item = fresh
+		if _, err := snapshotCurrentFile(app, item, snapshotOpts{
+			UserID:  userID,
+			Source:  "auto",
+			Editors: realtime.TakeEditors(app, item.Id),
+		}); err != nil {
+			app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
+		}
+
+		versionFilename := version.GetString("file")
+		if versionFilename == "" {
+			return re.BadRequestError("version has no file", nil)
+		}
+
+		fsys, err := app.NewFilesystem()
+		if err != nil {
+			return re.BadRequestError("filesystem error", nil)
+		}
+		defer fsys.Close()
+
+		key := version.BaseFilesPath() + "/" + versionFilename
+		reader, err := fsys.GetReader(key)
+		if err != nil {
+			return re.BadRequestError("failed to read version file", nil)
+		}
+		defer reader.Close()
+
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return re.BadRequestError("failed to read version data", nil)
+		}
+
+		f, err := filesystem.NewFileFromBytes(data, versionFilename)
+		if err != nil {
+			return re.BadRequestError("failed to create file from version", nil)
+		}
+
+		item.Set("file", f)
+		item.Set("size", version.GetInt("size"))
+		item.Set("mime_type", version.GetString("mime_type"))
+
+		// Clear editor hashes so the restored bytes force a one-shot full regen via
+		// the upload fallback path rather than being skipped as stale.
+		item.Set("thumb_region_hash", "")
+		item.Set("index_hash", "")
+
+		if err := app.Save(item); err != nil {
+			return re.BadRequestError("failed to save restored item", nil)
+		}
+
+		mimeType := item.GetString("mime_type")
+		if hook := versionhooks.For(app, mimeType); hook.OnRestore != nil {
+			if err := hook.OnRestore(app, item, version); err != nil {
+				app.Logger().Warn("drive: version restore hook failed",
+					"itemID", item.Id, "versionID", version.Id, "mimeType", mimeType, "err", err)
+			}
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
-	if _, err := snapshotCurrentFile(app, item, userID, "system", ""); err != nil {
-		app.Logger().Warn("version snapshot failed during restore", "id", item.Id, "error", err)
-	}
 
-	versionFilename := version.GetString("file")
-	if versionFilename == "" {
-		return re.BadRequestError("version has no file", nil)
-	}
-
-	fsys, err := app.NewFilesystem()
+	// The restored state becomes a visible version, so the timeline shows
+	// where the current state came from; the copy above is the undo.
+	restored, err := snapshotCurrentFile(app, item, snapshotOpts{UserID: userID, Source: "user", Label: restoredFromLabel(version)})
 	if err != nil {
-		return re.BadRequestError("filesystem error", nil)
-	}
-	defer fsys.Close()
-
-	key := version.BaseFilesPath() + "/" + versionFilename
-	reader, err := fsys.GetReader(key)
-	if err != nil {
-		return re.BadRequestError("failed to read version file", nil)
-	}
-	defer reader.Close()
-
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return re.BadRequestError("failed to read version data", nil)
-	}
-
-	f, err := filesystem.NewFileFromBytes(data, versionFilename)
-	if err != nil {
-		return re.BadRequestError("failed to create file from version", nil)
-	}
-
-	item.Set("file", f)
-	item.Set("size", version.GetInt("size"))
-	item.Set("mime_type", version.GetString("mime_type"))
-
-	// Clear editor hashes so the restored bytes force a one-shot full regen via
-	// the upload fallback path rather than being skipped as stale.
-	item.Set("thumb_region_hash", "")
-	item.Set("index_hash", "")
-
-	if err := app.Save(item); err != nil {
-		return re.BadRequestError("failed to save restored item", nil)
-	}
-
-	itemType := item.GetString("type")
-	if hook := versionhooks.For(itemType); hook.OnRestore != nil {
-		if err := hook.OnRestore(app, item, version); err != nil {
-			app.Logger().Warn("drive: version restore hook failed",
-				"itemID", item.Id, "versionID", version.Id, "type", itemType, "err", err)
+		app.Logger().Warn("drive: restored-from version failed", "id", item.Id, "error", err)
+	} else if restored != nil {
+		if hook := versionhooks.For(app, item.GetString("mime_type")); hook.OnSnapshot != nil {
+			if err := hook.OnSnapshot(app, item, restored); err != nil {
+				app.Logger().Warn("drive: restored-from snapshot hook failed",
+					"itemID", item.Id, "versionID", restored.Id, "err", err)
+			}
 		}
 	}
 
@@ -581,7 +663,7 @@ func registerBackgroundJobHooks(app core.App) {
 	jobs := background.For(app, "drive")
 
 	startItemJobs := func(rec *core.Record) {
-		payload, has := previewqueue.Take(rec.Id)
+		payload, has := previewqueue.Take(app, rec.Id)
 		jobs.Run("drive item text extraction", func(ctx context.Context) {
 			extractAndIndexDriveItem(ctx, app, rec, payload, has)
 		})
@@ -622,7 +704,7 @@ const shareNotifyDroppedMsg = "drive share notification dropped: the server stay
 // notifyDriveShareWhenWritable notifies for a share whose row a request
 // already wrote, possibly just before the server went read-only.
 func notifyDriveShareWhenWritable(ctx context.Context, app core.App, share *core.Record) {
-	whenWritable(ctx, shareNotifyDroppedMsg, func() {
+	whenWritable(ctx, app, shareNotifyDroppedMsg, func() {
 		notifyDriveShare(ctx, app, share)
 	}, "shareID", share.Id)
 }
@@ -633,10 +715,10 @@ func notifyDriveShareWhenWritable(ctx context.Context, app core.App, share *core
 // is bounded by readonly.TailWait and by ctx, which ends when the app
 // terminates; a write still waiting then is dropped and logged as dropMsg
 // with attrs.
-func whenWritable(ctx context.Context, dropMsg string, write func(), attrs ...any) {
+func whenWritable(ctx context.Context, app core.App, dropMsg string, write func(), attrs ...any) {
 	waitCtx, cancel := context.WithTimeout(ctx, readonly.TailWait)
 	defer cancel()
-	err := readonly.WhenWritable(waitCtx, func() error {
+	err := readonly.WhenWritable(waitCtx, app, func() error {
 		write()
 		return nil
 	})

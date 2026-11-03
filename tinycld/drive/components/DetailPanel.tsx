@@ -1,6 +1,7 @@
 import { downloadFromUrl } from '@tinycld/core/file-viewer/file-url'
 import { formatBytes, formatDate } from '@tinycld/core/lib/format-utils'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import {
     Drawer,
@@ -10,6 +11,7 @@ import {
     DrawerContent,
     DrawerHeader,
 } from '@tinycld/core/ui/drawer'
+import { router } from 'expo-router'
 import { Download, FolderOpen, RotateCcw, X } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
@@ -17,6 +19,7 @@ import { useDetailPanelPresentation } from '../hooks/useDetailPanelPresentation'
 import { useDrive } from '../hooks/useDrive'
 import { useVersionHistory } from '../hooks/useVersionHistory'
 import { versionFileUrl } from '../lib/item-file-url'
+import { versionHistoryHref } from '../lib/version-history-href'
 import type { DriveItemView } from '../types'
 import { DriveItemMenuButton } from './DriveItemMenuButton'
 import { Thumbnail } from './Thumbnail'
@@ -323,7 +326,8 @@ function VersionsContent({ itemId, itemName }: { itemId: string; itemName: strin
 
     if (versions.length === 0) {
         return (
-            <View className="p-4">
+            <View className="p-4 gap-3">
+                <OpenHistoryButton itemId={itemId} />
                 <NeutralMessage>No previous versions</NeutralMessage>
             </View>
         )
@@ -332,6 +336,7 @@ function VersionsContent({ itemId, itemName }: { itemId: string; itemName: strin
     return (
         <>
             <View className="p-4">
+                <OpenHistoryButton itemId={itemId} />
                 {versions.map(version => (
                     <VersionRow
                         key={version.id}
@@ -385,8 +390,6 @@ function RestoreConfirmDialog({
 
 interface VersionMetadata {
     suggestionsOpen?: number
-    authors?: string[]
-    schemaVersion?: number
 }
 
 interface VersionRowProps {
@@ -396,6 +399,7 @@ interface VersionRowProps {
         size: number
         created: string
         file: string
+        editors: string[]
         version_metadata?: unknown
     }
     onRestore: () => void
@@ -403,16 +407,19 @@ interface VersionRowProps {
     isRestoring: boolean
 }
 
-function formatMetadataBadge(metadata: VersionMetadata | null | undefined): string | null {
-    if (!metadata) return null
+// Editors are the people who changed the file since the previous version.
+function formatMetadataBadge(
+    metadata: VersionMetadata | null | undefined,
+    editors: string[]
+): string | null {
     const items: string[] = []
-    const suggestions = metadata.suggestionsOpen ?? 0
+    const suggestions = metadata?.suggestionsOpen ?? 0
     if (suggestions > 0) {
         items.push(`${suggestions} pending suggestion${suggestions === 1 ? '' : 's'}`)
     }
-    const contributors = metadata.authors?.length ?? 0
+    const contributors = editors.length
     if (contributors > 0) {
-        items.push(`${contributors} contributor${contributors === 1 ? '' : 's'}`)
+        items.push(`${contributors} editor${contributors === 1 ? '' : 's'}`)
     }
     return items.length > 0 ? items.join(' · ') : null
 }
@@ -420,7 +427,8 @@ function formatMetadataBadge(metadata: VersionMetadata | null | undefined): stri
 function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowProps) {
     const mutedColor = useThemeColor('muted-foreground')
     const badgeText = formatMetadataBadge(
-        version.version_metadata as VersionMetadata | null | undefined
+        version.version_metadata as VersionMetadata | null | undefined,
+        version.editors
     )
 
     return (
@@ -442,10 +450,21 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
                 )}
             </View>
             <View className="flex-row gap-2">
-                <Pressable onPress={onDownload} hitSlop={8} className="p-1">
+                <Pressable
+                    onPress={onDownload}
+                    hitSlop={8}
+                    className="p-1"
+                    accessibilityLabel={`Download version ${version.version_number}`}
+                >
                     <Download size={14} color={mutedColor} />
                 </Pressable>
-                <Pressable onPress={onRestore} hitSlop={8} disabled={isRestoring} className="p-1">
+                <Pressable
+                    onPress={onRestore}
+                    hitSlop={8}
+                    disabled={isRestoring}
+                    className="p-1"
+                    accessibilityLabel={`Restore version ${version.version_number}`}
+                >
                     {isRestoring ? (
                         <ActivityIndicator size="small" />
                     ) : (
@@ -454,6 +473,14 @@ function VersionRow({ version, onRestore, onDownload, isRestoring }: VersionRowP
                 </Pressable>
             </View>
         </View>
+    )
+}
+
+function OpenHistoryButton({ itemId }: { itemId: string }) {
+    return (
+        <Button variant="outline" size="sm" onPress={() => router.push(versionHistoryHref(itemId))}>
+            <ButtonText>Open version history</ButtonText>
+        </Button>
     )
 }
 

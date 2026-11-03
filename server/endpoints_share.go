@@ -138,7 +138,7 @@ func sendShareInvite(ctx context.Context, app core.App, senderName string, r api
 		return
 	}
 
-	if err := mailer.DefaultSender().Send(ctx, msg); err != nil {
+	if err := mailer.DefaultSender(app).Send(ctx, msg); err != nil {
 		app.Logger().Error("Failed to send share invite", "to", r.Email, "error", err)
 	}
 }
@@ -151,7 +151,7 @@ const externalInviteDroppedMsg = "drive external share invite dropped: the serve
 // server went read-only. The link is a write, and the email must not carry a
 // link that was never saved, so both wait for the mode to end.
 func sendExternalShareInviteWhenWritable(ctx context.Context, app core.App, senderName string, r api.ShareRecipient, item *core.Record, message string, createdByUserID string, senderUserID string) {
-	whenWritable(ctx, externalInviteDroppedMsg, func() {
+	whenWritable(ctx, app, externalInviteDroppedMsg, func() {
 		sendExternalShareInvite(ctx, app, senderName, r, item, message, createdByUserID, senderUserID)
 	}, "itemID", item.Id)
 }
@@ -227,7 +227,7 @@ func sendExternalShareInvite(ctx context.Context, app core.App, senderName strin
 		return
 	}
 
-	if err := mailer.DefaultSender().Send(ctx, msg); err != nil {
+	if err := mailer.DefaultSender(app).Send(ctx, msg); err != nil {
 		app.Logger().Error("Failed to send external share invite", "to", r.Email, "error", err)
 	}
 }

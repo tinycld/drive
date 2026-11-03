@@ -2,14 +2,11 @@ package drive
 
 import (
 	"archive/zip"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -17,36 +14,13 @@ import (
 )
 
 const (
-	downloadTokenTTL   = 60 * time.Second
-	maxDownloadFiles   = 10_000
-	maxDownloadBytes   = 5 * 1024 * 1024 * 1024 // 5 GB
-	tokenCleanupPeriod = 5 * time.Minute
+	downloadTokenTTL = 60 * time.Second
+	maxDownloadFiles = 10_000
+	maxDownloadBytes = 5 * 1024 * 1024 * 1024 // 5 GB
 )
 
 type downloadToken struct {
-	folderID  string
-	expiresAt time.Time
-}
-
-var (
-	downloadTokens   = map[string]downloadToken{}
-	downloadTokensMu sync.Mutex
-)
-
-func init() {
-	go func() {
-		for {
-			time.Sleep(tokenCleanupPeriod)
-			downloadTokensMu.Lock()
-			now := time.Now()
-			for k, v := range downloadTokens {
-				if now.After(v.expiresAt) {
-					delete(downloadTokens, k)
-				}
-			}
-			downloadTokensMu.Unlock()
-		}
-	}()
+	folderID string
 }
 
 func handleCreateDownloadToken(app core.App, re *core.RequestEvent) error {
@@ -67,18 +41,10 @@ func handleCreateDownloadToken(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError("item is not a folder", nil)
 	}
 
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
+	token, err := downloadTokens(app).issue(downloadToken{folderID: item.Id}, downloadTokenTTL)
+	if err != nil {
 		return re.InternalServerError("failed to generate token", nil)
 	}
-	token := hex.EncodeToString(tokenBytes)
-
-	downloadTokensMu.Lock()
-	downloadTokens[token] = downloadToken{
-		folderID:  item.Id,
-		expiresAt: time.Now().Add(downloadTokenTTL),
-	}
-	downloadTokensMu.Unlock()
 
 	return re.JSON(http.StatusOK, api.TokenResponse{
 		Token: token,
@@ -92,14 +58,8 @@ func handleDownloadFolder(app core.App, re *core.RequestEvent) error {
 		return re.UnauthorizedError("missing token", nil)
 	}
 
-	downloadTokensMu.Lock()
-	dt, ok := downloadTokens[token]
-	if ok {
-		delete(downloadTokens, token) // single-use
-	}
-	downloadTokensMu.Unlock()
-
-	if !ok || time.Now().After(dt.expiresAt) {
+	dt, ok := downloadTokens(app).redeem(token)
+	if !ok {
 		return re.UnauthorizedError("invalid or expired token", nil)
 	}
 

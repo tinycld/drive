@@ -24,6 +24,13 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
                 created_by: 'me',
             },
             {
+                id: 'v-auto',
+                item: 'it1',
+                version_number: 4,
+                source: 'auto',
+                created_by: 'me',
+            },
+            {
                 id: 'v-user-snapshot',
                 item: 'it1',
                 version_number: 3,
@@ -61,12 +68,16 @@ afterEach(cleanup)
 describe('useVersionHistory', () => {
     // Regression test for the `not(eq(v.source, 'system'))` form: pbtsdb
     // compiles not() to `!(...)`, which PocketBase's filter parser rejects.
-    // The hook must use the positive inArray(v.source, ['upload', 'user'])
-    // form instead, and still hide 'system' (hidden restore snapshots) and
-    // rows from other items.
+    // The hook must use the positive inArray(v.source, [...]) form instead,
+    // show 'auto' (server checkpoints), and still hide 'system' (hidden
+    // restore snapshots) and rows from other items.
     it('excludes system versions and other items, newest first', async () => {
         const { result } = renderHook(() => useVersionHistory('it1'), { wrapper: wrapper() })
-        await waitFor(() => expect(result.current.versions.length).toBe(2))
-        expect(result.current.versions.map(v => v.id)).toEqual(['v-user-snapshot', 'v-upload-1'])
+        await waitFor(() => expect(result.current.versions.length).toBe(3))
+        expect(result.current.versions.map(v => v.id)).toEqual([
+            'v-auto',
+            'v-user-snapshot',
+            'v-upload-1',
+        ])
     })
 })

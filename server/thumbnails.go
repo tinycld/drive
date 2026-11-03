@@ -181,7 +181,7 @@ func saveThumbnail(ctx context.Context, app core.App, record *core.Record, filen
 		return
 	}
 
-	whenWritable(ctx, thumbnailDroppedMsg, func() {
+	whenWritable(ctx, app, thumbnailDroppedMsg, func() {
 		storeThumbnail(app, record.Id, f)
 	}, "itemID", record.Id)
 }

@@ -3,15 +3,12 @@ package drive
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -37,30 +34,8 @@ const (
 )
 
 type exportToken struct {
-	itemID    string
-	to        omnidoc.Format
-	expiresAt time.Time
-}
-
-var (
-	exportTokens   = map[string]exportToken{}
-	exportTokensMu sync.Mutex
-)
-
-func init() {
-	go func() {
-		for {
-			time.Sleep(tokenCleanupPeriod)
-			exportTokensMu.Lock()
-			now := time.Now()
-			for k, v := range exportTokens {
-				if now.After(v.expiresAt) {
-					delete(exportTokens, k)
-				}
-			}
-			exportTokensMu.Unlock()
-		}
-	}()
+	itemID string
+	to     omnidoc.Format
 }
 
 // exportInputFormat resolves a drive item's MIME type to a omnidoc input
@@ -130,19 +105,10 @@ func handleCreateExportToken(app core.App, re *core.RequestEvent) error {
 		return err
 	}
 
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
+	token, err := exportTokens(app).issue(exportToken{itemID: item.Id, to: to}, exportTokenTTL)
+	if err != nil {
 		return re.InternalServerError("failed to generate token", nil)
 	}
-	token := hex.EncodeToString(tokenBytes)
-
-	exportTokensMu.Lock()
-	exportTokens[token] = exportToken{
-		itemID:    item.Id,
-		to:        to,
-		expiresAt: time.Now().Add(exportTokenTTL),
-	}
-	exportTokensMu.Unlock()
 
 	return re.JSON(http.StatusOK, api.TokenResponse{
 		Token: token,
@@ -157,14 +123,8 @@ func handleExport(app core.App, re *core.RequestEvent) error {
 		return re.UnauthorizedError("missing token", nil)
 	}
 
-	exportTokensMu.Lock()
-	et, ok := exportTokens[token]
-	if ok {
-		delete(exportTokens, token) // single-use
-	}
-	exportTokensMu.Unlock()
-
-	if !ok || time.Now().After(et.expiresAt) {
+	et, ok := exportTokens(app).redeem(token)
+	if !ok {
 		return re.UnauthorizedError("invalid or expired token", nil)
 	}
 
