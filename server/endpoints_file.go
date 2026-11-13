@@ -125,13 +125,23 @@ func writeItemFile(app core.App, itemID string, write func() error) error {
 	return err
 }
 
+const msgNoFileReplacementInBatch = "A file cannot be replaced in a batch request. Send the file update on its own."
+
 // guardFileUpdateRequest puts a REST update that replaces an item's file
 // through the same guard as upload-version. A rename or move does not touch
 // the file and passes.
+//
+// Inside a transaction (a batch request) a replacement is refused: closing
+// the editor rooms and dropping their parked documents cannot be rolled back
+// with the transaction, and each room's final save needs the write connection
+// that the transaction holds.
 func guardFileUpdateRequest(e *core.RecordRequestEvent) error {
 	if len(e.Record.GetUnsavedFiles("file")) == 0 &&
 		e.Record.GetString("file") == e.Record.Original().GetString("file") {
 		return e.Next()
+	}
+	if e.App.IsTransactional() {
+		return router.NewApiError(http.StatusBadRequest, msgNoFileReplacementInBatch, nil)
 	}
 	return writeItemFile(e.App, e.Record.Id, e.Next)
 }
