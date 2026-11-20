@@ -36,9 +36,9 @@ func createLockFor(parentID string) *sync.Mutex {
 //   - owner drive_shares insert, in the same transaction as the item, so no
 //     drive_item ever exists without an owner share
 //
-// Probe + insert run under the parent's create lock so concurrent same-name
-// creates converge on distinct names; the unique index stays as the backstop
-// for writes that bypass this process entirely.
+// Outside a transaction, probe + insert run under the parent's create lock so
+// concurrent same-name creates converge on distinct names; the unique index
+// stays as the backstop for writes that bypass this process entirely.
 func registerDriveItemCreateHook(app core.App) {
 	app.OnRecordCreate("drive_items").BindFunc(func(e *core.RecordEvent) error {
 		// The client-supplied `size` is untrusted: a forged `size=0` would
@@ -53,9 +53,15 @@ func registerDriveItemCreateHook(app core.App) {
 		// corrected size is what the ceiling is checked against.
 		reconcileDriveItemSize(e.Record)
 
-		mu := createLockFor(e.Record.GetString("parent"))
-		mu.Lock()
-		defer mu.Unlock()
+		// A transaction holds the only write connection, so no other create
+		// can run between the probe and the insert, and the lock adds
+		// nothing. Taking it there can deadlock: an ordinary create holds
+		// the lock while it waits for the connection the transaction holds.
+		if !e.App.IsTransactional() {
+			mu := createLockFor(e.Record.GetString("parent"))
+			mu.Lock()
+			defer mu.Unlock()
+		}
 
 		userID := e.Record.GetString("created_by")
 		unique, err := chooseUniqueDriveItemName(e.App, e.Record.GetString("parent"), e.Record.GetString("name"))
