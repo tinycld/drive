@@ -145,7 +145,7 @@ The short version: every file is a row in `drive_items` with a PocketBase-manage
 After a successful create or update, two jobs run on core's background runner (`background.For(app, "drive")`), so shutdown waits for them to end. Their writes wait in `readonly.WhenWritable` while the server is read-only, and are dropped and logged if the wait ends:
 
 - **Text extraction** (`extract.go` → `core/textextract`) — pulls bytes from the attached file, runs the format-specific extractor (PDF / Office / EPUB / RTF / HTML via `omnidoc`, plain text passthrough, plus any package-registered handlers), and writes the result into `fts_drive_items.content` via `updateFTSContent`. Failures log a warning but don't fail the request — the file is searchable by name and description even if content extraction breaks.
-- **Thumbnail generation** (`thumbnails.go` → `core/thumbnails`) — only fires for mimes the core thumbnail package can render (PDF / EPUB / OOXML Word / Excel / PowerPoint / RTF / SVG / HEIC / HEIF / WebP). Rendering is pure Go via `omnidoc`, which is safe to run concurrently — there is no global render mutex — and writes a JPEG. The thumbnail is stored on `drive_items.thumbnail`.
+- **Thumbnail generation** (`thumbnails.go` → `core/thumbnails`) — an upload gets a thumbnail only for mimes the core thumbnail package can render (PDF / EPUB / OOXML Word / Excel / PowerPoint / RTF / SVG / HEIC / HEIF / WebP). An editor document (a row with `thumb_region_hash` set) gets a text preview from `textpreview` instead, for any mime. Upload rendering is pure Go via `omnidoc`, which is safe to run concurrently — there is no global render mutex — and writes a JPEG. The thumbnail is stored on `drive_items.thumbnail`.
 
 Both effectively run as eventual consistency: clients see the item appear immediately, the FTS row catches up when extraction finishes (typically <1 s for small docs, longer for large PDFs), and the thumbnail materializes when generation finishes.
 
@@ -160,7 +160,7 @@ Both effectively run as eventual consistency: clients see the item appear immedi
 
 Owners are not assignable through the share dialog UI — the only way to become an owner is to create the item. The Go-side read/write/delete predicates live once in core's `driveshare` package (`tinycld.org/core/driveshare`), shared with text and calc: `Role.CanWrite()` is true for owner and editor only, and every error path fails closed.
 
-The collections' PocketBase access rules (currently settled by migrations `1782100000_restore_guest_clause_and_settle_commentor.js` and `2040000002_group_grants_on_shares.js`; every rule of `drive_items`, `drive_item_versions`, `drive_share_links`, `drive_shares` and `drive_item_state` requires `@request.auth.id != ""`) let the item's creator or any share-holder read an item, restrict updates to the creator or a share-holder with role `editor` / `owner`, and restrict delete to the creator. `drive_shares` rows themselves are managed by the item's creator (recipients may delete — i.e. leave — their own share). Server endpoints that act on items (`upload-version` and `restore-version`, which need write access, and the folder-download token, which needs read access) go through `resolveItemAndUser`, which loads the item and checks the caller's access via `driveshare.CheckWrite` / `driveshare.CheckReadItem`.
+The collections' PocketBase access rules (currently settled by migrations `1782100000_restore_guest_clause_and_settle_commentor.js`, `2040000002_group_grants_on_shares.js`, `2040000003_version_history_fields.js` (guards on `drive_item_versions` create and update) and `2040000030_drive_attached_files.js` (an item with `attached_to` set is also readable by whoever can view that document, only an editor of the document may attach to it, and `attached_to` never changes); every rule of `drive_items`, `drive_item_versions`, `drive_share_links`, `drive_shares` and `drive_item_state` requires `@request.auth.id != ""`) let the item's creator or any share-holder read an item, restrict updates to the creator or a share-holder with role `editor` / `owner`, and restrict delete to the creator. `drive_shares` rows themselves are managed by the item's creator (recipients may delete — i.e. leave — their own share). Server endpoints that act on items (`upload-version` and `restore-version`, which need write access, and the folder-download token, which needs read access) go through `resolveItemAndUser`, which loads the item and checks the caller's access via `driveshare.CheckWrite` / `driveshare.CheckReadItem`.
 
 ### Public share links
 
@@ -192,13 +192,13 @@ Public endpoints (`/api/drive/share-link/{token}`, `.../file`, `.../thumbnail`, 
 - `image/heic`, `image/heif` — the `-sequence` variants are deliberately *excluded* (omnidoc decodes HEIF stills only, so claiming them would fail every render)
 - `image/webp` (still; animated WebP is refused by the decoder)
 
-`omnidoc` renders the first page straight to a JPEG (quality 85) fitted within the target box, reading the storage blob into memory (capped at 50 MB) with no temp files. The whole path is pure Go — HEIF decoding included, which is what retired the last CGo dependency.
+`omnidoc` renders the first page straight to a JPEG (quality 85) fitted within the target box, reading the storage blob into memory (capped at 50 MB) with no temp files (the editor text preview does write one temp JPEG, which it removes). The whole path is pure Go — HEIF decoding included, which is what retired the last CGo dependency.
 
 Raster input (HEIC, WebP) pins the DPI ceiling to 72 (1:1) so a photo smaller than the box is never upscaled into blur. Documents and SVG render at up to 300 DPI, since re-rendering vector geometry larger sharpens rather than blurs.
 
 Plain `image/png`, `image/jpeg`, and `image/gif` are *not* in either list — PocketBase's built-in `?thumb=` query parameter serves on-demand thumbnails for them directly off the original file, so we don't pre-render those.
 
-The thumbnail field is set on a *re-fetched* `drive_items` record (not the one the hook received) to avoid clobbering other concurrent writes. Skip-if-current logic compares the thumbnail's source filename to the original file's filename so a re-uploaded file regenerates but a touch-only update doesn't.
+The thumbnail field is set on a *re-fetched* `drive_items` record (not the one the hook received) to avoid clobbering other concurrent writes. Skip-if-current logic compares the thumbnail's source filename to the original file's filename so a re-uploaded file regenerates but a touch-only update doesn't. An editor document compares `thumb_region_hash` instead, so its preview regenerates only when the visible region changes.
 
 ### WebDAV
 
@@ -361,7 +361,7 @@ tinycld/drive/
         UploadButton, UploadStatusBar, UploadingGridCard, UploadingListRow
         PreviewModal           file viewer (consumes core's file-viewer registry)
         Thumbnail              renders drive_items.thumbnail or category icon fallback
-        ShareDialog            per-user shares + public link controls (presentational)
+        ShareDialog            per-user shares + public link controls (calls the share endpoints)
         ShareDialogConnected   self-contained share dialog (loads its own data)
                                — usable from outside the Drive screen tree
                                (text and calc File menus)
